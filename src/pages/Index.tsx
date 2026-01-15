@@ -7,7 +7,7 @@ import { Footer } from '@/components/layout/Footer';
 
 const Index: React.FC = () => {
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-white">
       <Header />
       <main>
         <HeroSection />
