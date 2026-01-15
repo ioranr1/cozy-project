@@ -11,7 +11,7 @@ export const LanguageSwitcher: React.FC = () => {
       variant="ghost"
       size="sm"
       onClick={() => setLanguage(language === 'he' ? 'en' : 'he')}
-      className={`gap-2 bg-[#0088DD] hover:bg-[#0077CC] text-white border-0 rounded-full px-4 ${isRTL ? 'flex-row-reverse' : ''}`}
+      className={`gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-full px-4 backdrop-blur-sm ${isRTL ? 'flex-row-reverse' : ''}`}
     >
       <Globe className="h-4 w-4" />
       {language === 'he' ? 'עברית' : 'English'}
