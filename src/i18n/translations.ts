@@ -13,7 +13,7 @@ export const translations = {
     },
     // Hero Section
     hero: {
-      title: 'הפוך כל מכשיר למצלמת אבטחה',
+      title: 'הפוך את המחשב הנייד למצלמת אבטחה',
       subtitle: 'השתמש בלפטופ או בטלפון הישן שלך כמצלמת אבטחה חכמה. צפה בשידור חי מכל מקום.',
       cta: 'התחל עכשיו - חינם',
       secondaryCta: 'למד עוד',
@@ -113,7 +113,7 @@ export const translations = {
     },
     // Hero Section
     hero: {
-      title: 'Turn Any Device Into a Security Camera',
+      title: 'Turn Your Laptop Into a Security Camera',
       subtitle: 'Use your laptop or old phone as a smart security camera. Watch live from anywhere.',
       cta: 'Get Started - Free',
       secondaryCta: 'Learn More',
