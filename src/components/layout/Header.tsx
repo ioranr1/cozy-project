@@ -12,33 +12,33 @@ export const Header: React.FC = () => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
       <div className="container mx-auto px-4">
-        <nav className="flex items-center justify-between h-16 md:h-20">
+        <nav className={`flex items-center justify-between h-16 md:h-20 ${isRTL ? 'flex-row-reverse' : ''}`}>
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <span className="text-xl font-bold text-white">SecureCam</span>
             <div className="w-10 h-10 rounded-full border-2 border-white/80 flex items-center justify-center">
               <Camera className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-white">SecureCam</span>
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-8">
-            <a href="#features" className="text-white/90 hover:text-white transition-colors">
+          <div className={`hidden md:flex items-center gap-8 ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <a href="#features" className="text-white/90 hover:text-white transition-colors font-medium">
               {t.nav.features}
             </a>
-            <a href="#how-it-works" className="text-white/90 hover:text-white transition-colors">
+            <a href="#how-it-works" className="text-white/90 hover:text-white transition-colors font-medium">
               {t.nav.howItWorks}
             </a>
           </div>
 
           {/* Actions */}
-          <div className="hidden md:flex items-center gap-3">
-            <LanguageSwitcher />
+          <div className={`hidden md:flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
             <Link to="/register">
-              <Button className="bg-white/10 hover:bg-white/20 text-white border border-white/30 rounded-full px-6">
-                {t.hero.cta}
+              <Button className="bg-white hover:bg-gray-100 text-[#0088DD] rounded-full px-6 font-semibold">
+                {isRTL ? 'התחל עכשיו' : 'Get Started'}
               </Button>
             </Link>
+            <LanguageSwitcher />
           </div>
 
           {/* Mobile Menu Button */}
@@ -71,14 +71,9 @@ export const Header: React.FC = () => {
             <div className="flex items-center justify-between">
               <LanguageSwitcher />
             </div>
-            <Link to="/login" onClick={() => setIsMenuOpen(false)}>
-              <Button variant="ghost" className="w-full text-slate-600 hover:bg-slate-100">
-                {t.nav.login}
-              </Button>
-            </Link>
             <Link to="/register" onClick={() => setIsMenuOpen(false)}>
-              <Button className="w-full bg-blue-500 hover:bg-blue-600">
-                {t.nav.register}
+              <Button className="w-full bg-[#0088DD] hover:bg-[#0077CC]">
+                {isRTL ? 'התחל עכשיו' : 'Get Started'}
               </Button>
             </Link>
           </div>
