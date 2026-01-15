@@ -11,10 +11,10 @@ export const LanguageSwitcher: React.FC = () => {
       variant="ghost"
       size="sm"
       onClick={() => setLanguage(language === 'he' ? 'en' : 'he')}
-      className="gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+      className="gap-2 text-white hover:text-white hover:bg-white/20 border border-white/30 rounded-full px-4"
     >
       <Globe className="h-4 w-4" />
-      {language === 'he' ? 'EN' : 'עב'}
+      {language === 'he' ? 'עברית' : 'English'}
     </Button>
   );
 };
