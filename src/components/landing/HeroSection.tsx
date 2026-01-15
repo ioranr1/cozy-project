@@ -76,22 +76,13 @@ export const HeroSection: React.FC = () => {
               {t.hero.subtitle}
             </p>
 
-            {/* CTA Buttons */}
+            {/* CTA Button */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-end gap-4">
               <Link to="/register">
                 <Button size="lg" className="bg-white hover:bg-gray-100 text-blue-600 px-8 py-6 text-lg rounded-xl shadow-lg font-semibold">
                   {t.hero.cta}
                 </Button>
               </Link>
-              <a href="#how-it-works">
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="border-2 border-white text-white hover:bg-white/10 px-8 py-6 text-lg rounded-xl"
-                >
-                  {t.hero.secondaryCta}
-                </Button>
-              </a>
             </div>
           </div>
         </div>
