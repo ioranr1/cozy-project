@@ -10,23 +10,23 @@ export const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/20 to-transparent backdrop-blur-sm">
       <div className="container mx-auto px-4">
         <nav className={`flex items-center justify-between h-16 md:h-20 ${isRTL ? 'flex-row-reverse' : ''}`}>
           {/* Logo */}
           <Link to="/" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
             <span className="text-xl font-bold text-white">SecureCam</span>
-            <div className="w-10 h-10 rounded-full border-2 border-white/80 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/30">
               <Camera className="w-5 h-5 text-white" />
             </div>
           </Link>
 
           {/* Desktop Navigation */}
           <div className={`hidden md:flex items-center gap-8 ${isRTL ? 'flex-row-reverse' : ''}`}>
-            <a href="#features" className="text-white/90 hover:text-white transition-colors font-medium">
+            <a href="#features" className="text-white/80 hover:text-white transition-colors font-medium">
               {t.nav.features}
             </a>
-            <a href="#how-it-works" className="text-white/90 hover:text-white transition-colors font-medium">
+            <a href="#how-it-works" className="text-white/80 hover:text-white transition-colors font-medium">
               {t.nav.howItWorks}
             </a>
           </div>
@@ -34,7 +34,7 @@ export const Header: React.FC = () => {
           {/* Actions */}
           <div className={`hidden md:flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
             <Link to="/register">
-              <Button className="bg-white hover:bg-gray-100 text-[#0088DD] rounded-full px-6 font-semibold">
+              <Button className="bg-white hover:bg-gray-100 text-slate-800 rounded-full px-6 font-semibold shadow-lg">
                 {isRTL ? 'התחל עכשיו' : 'Get Started'}
               </Button>
             </Link>
@@ -72,7 +72,7 @@ export const Header: React.FC = () => {
               <LanguageSwitcher />
             </div>
             <Link to="/register" onClick={() => setIsMenuOpen(false)}>
-              <Button className="w-full bg-[#0088DD] hover:bg-[#0077CC]">
+              <Button className="w-full bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600">
                 {isRTL ? 'התחל עכשיו' : 'Get Started'}
               </Button>
             </Link>
