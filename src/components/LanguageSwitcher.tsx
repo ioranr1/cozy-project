@@ -11,7 +11,7 @@ export const LanguageSwitcher: React.FC = () => {
       variant="ghost"
       size="sm"
       onClick={() => setLanguage(language === 'he' ? 'en' : 'he')}
-      className="gap-2 text-white hover:text-primary hover:bg-white/10"
+      className="gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
     >
       <Globe className="h-4 w-4" />
       {language === 'he' ? 'EN' : 'עב'}
