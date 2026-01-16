@@ -213,7 +213,7 @@ const Login: React.FC = () => {
                 <Label htmlFor="phone" className="text-white/80">
                   {t.auth.phone}
                 </Label>
-                <div className="flex gap-2">
+                <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <Select
                     value={formData.countryCode}
                     onValueChange={(value) => handleChange('countryCode', value)}
