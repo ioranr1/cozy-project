@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.devices-heartbeat]
 verify_jwt = false
+
+[functions.whatsapp-send-otp]
+verify_jwt = false
+
+[functions.whatsapp-verify-otp]
+verify_jwt = false

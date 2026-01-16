@@ -8,8 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, ArrowLeft, ArrowRight, User, Mail, Phone } from 'lucide-react';
+import { Shield, ArrowLeft, ArrowRight, User, Mail, Phone, Loader2 } from 'lucide-react';
 import { z } from 'zod';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters').max(100),
@@ -30,6 +31,9 @@ const Register: React.FC = () => {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [step, setStep] = useState<'details' | 'otp'>('details');
+  const [otpValue, setOtpValue] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -38,11 +42,10 @@ const Register: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSendOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
 
-    // Validate
     const result = registerSchema.safeParse({
       fullName: formData.fullName,
       email: formData.email,
@@ -63,39 +66,129 @@ const Register: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Insert profile to Supabase
-      const { error } = await supabase.from('profiles').insert({
-        full_name: formData.fullName,
-        email: formData.email,
-        phone_number: formData.phone,
-        country_code: formData.countryCode,
-        preferred_language: language,
+      // Check if phone already exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('phone_number', formData.phone)
+        .eq('country_code', formData.countryCode)
+        .single();
+
+      if (existingProfile) {
+        toast({
+          title: language === 'he' ? 'מספר כבר קיים' : 'Phone already registered',
+          description: language === 'he' ? 'אנא התחבר במקום' : 'Please login instead',
+          variant: 'destructive',
+        });
+        navigate('/login');
+        return;
+      }
+
+      // Send OTP
+      const response = await fetch(
+        `https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/whatsapp-send-otp`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone_number: formData.phone,
+            country_code: formData.countryCode,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send OTP');
+      }
+
+      toast({
+        title: language === 'he' ? 'קוד נשלח!' : 'Code sent!',
+        description: language === 'he' ? 'בדוק את הוואטסאפ שלך' : 'Check your WhatsApp',
       });
 
-      if (error) throw error;
+      setStep('otp');
+    } catch (error: unknown) {
+      console.error('Send OTP error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send OTP';
+      toast({
+        title: language === 'he' ? 'שגיאה' : 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (otpValue.length !== 6) return;
+
+    setIsVerifying(true);
+
+    try {
+      // Verify OTP
+      const verifyResponse = await fetch(
+        `https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/whatsapp-verify-otp`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone_number: formData.phone,
+            country_code: formData.countryCode,
+            code: otpValue,
+          }),
+        }
+      );
+
+      const verifyData = await verifyResponse.json();
+
+      if (!verifyResponse.ok) {
+        throw new Error(verifyData.error || 'Invalid OTP');
+      }
+
+      // Create profile after OTP verification
+      const { data: newProfile, error: insertError } = await supabase
+        .from('profiles')
+        .insert({
+          full_name: formData.fullName,
+          email: formData.email,
+          phone_number: formData.phone,
+          country_code: formData.countryCode,
+          preferred_language: language,
+          phone_verified: true,
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
 
       toast({
         title: language === 'he' ? 'נרשמת בהצלחה!' : 'Registration successful!',
         description: language === 'he' ? 'ברוך הבא ל-AIGuard' : 'Welcome to AIGuard',
       });
 
-      // Store in localStorage for now (until OTP is implemented)
       localStorage.setItem('userProfile', JSON.stringify({
-        fullName: formData.fullName,
-        email: formData.email,
-        phone: `${formData.countryCode}${formData.phone}`,
+        id: newProfile.id,
+        fullName: newProfile.full_name,
+        email: newProfile.email,
+        phone: `${newProfile.country_code}${newProfile.phone_number}`,
+        phoneVerified: true,
       }));
 
       navigate('/dashboard');
-    } catch (error: any) {
-      console.error('Registration error:', error);
+    } catch (error: unknown) {
+      console.error('Verify OTP error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Verification failed';
       toast({
         title: language === 'he' ? 'שגיאה' : 'Error',
-        description: error.message || (language === 'he' ? 'אירעה שגיאה בהרשמה' : 'Registration failed'),
+        description: errorMessage,
         variant: 'destructive',
       });
+      setOtpValue('');
     } finally {
-      setIsSubmitting(false);
+      setIsVerifying(false);
     }
   };
 
@@ -112,11 +205,18 @@ const Register: React.FC = () => {
       <div className="relative w-full max-w-md">
         {/* Back Link */}
         <Link
-          to="/"
+          to={step === 'otp' ? '#' : '/'}
+          onClick={(e) => {
+            if (step === 'otp') {
+              e.preventDefault();
+              setStep('details');
+              setOtpValue('');
+            }
+          }}
           className="inline-flex items-center gap-2 text-white/60 hover:text-white mb-8 transition-colors"
         >
           <ArrowIcon className="w-4 h-4" />
-          {t.common.back}
+          {step === 'otp' ? (language === 'he' ? 'חזור לפרטים' : 'Back to details') : t.common.back}
         </Link>
 
         {/* Card */}
@@ -133,108 +233,181 @@ const Register: React.FC = () => {
             {t.auth.register}
           </h1>
           <p className="text-white/60 text-center mb-8">
-            {language === 'he' ? 'צור חשבון חדש' : 'Create a new account'}
+            {step === 'details' 
+              ? (language === 'he' ? 'צור חשבון חדש' : 'Create a new account')
+              : (language === 'he' ? 'הזן את הקוד שקיבלת בוואטסאפ' : 'Enter the code from WhatsApp')
+            }
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Full Name */}
-            <div className="space-y-2">
-              <Label htmlFor="fullName" className="text-white/80">
-                {t.auth.fullName}
-              </Label>
-              <div className="relative">
-                <User className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? 'right-3' : 'left-3'} w-5 h-5 text-white/40`} />
-                <Input
-                  id="fullName"
-                  type="text"
-                  value={formData.fullName}
-                  onChange={(e) => handleChange('fullName', e.target.value)}
-                  className={`bg-slate-700/50 border-slate-600 text-white placeholder:text-white/40 ${isRTL ? 'pr-10' : 'pl-10'}`}
-                  placeholder={language === 'he' ? 'ישראל ישראלי' : 'John Doe'}
-                />
-              </div>
-              {errors.fullName && (
-                <p className="text-red-400 text-sm">{errors.fullName}</p>
-              )}
-            </div>
-
-            {/* Email */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-white/80">
-                {t.auth.email}
-              </Label>
-              <div className="relative">
-                <Mail className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? 'right-3' : 'left-3'} w-5 h-5 text-white/40`} />
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleChange('email', e.target.value)}
-                  className={`bg-slate-700/50 border-slate-600 text-white placeholder:text-white/40 ${isRTL ? 'pr-10' : 'pl-10'}`}
-                  placeholder="email@example.com"
-                  dir="ltr"
-                />
-              </div>
-              {errors.email && (
-                <p className="text-red-400 text-sm">{errors.email}</p>
-              )}
-            </div>
-
-            {/* Phone */}
-            <div className="space-y-2">
-              <Label htmlFor="phone" className="text-white/80">
-                {t.auth.phone}
-              </Label>
-              <div className="flex gap-2">
-                <Select
-                  value={formData.countryCode}
-                  onValueChange={(value) => handleChange('countryCode', value)}
-                >
-                  <SelectTrigger className="w-32 bg-slate-700/50 border-slate-600 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
-                    {countries.map((country) => (
-                      <SelectItem
-                        key={country.code}
-                        value={country.code}
-                        className="text-white hover:bg-slate-700"
-                      >
-                        <span className="flex items-center gap-2">
-                          <span>{country.flag}</span>
-                          <span>{country.code}</span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="relative flex-1">
-                  <Phone className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? 'right-3' : 'left-3'} w-5 h-5 text-white/40`} />
+          {step === 'details' ? (
+            <form onSubmit={handleSendOTP} className="space-y-6">
+              {/* Full Name */}
+              <div className="space-y-2">
+                <Label htmlFor="fullName" className="text-white/80">
+                  {t.auth.fullName}
+                </Label>
+                <div className="relative">
+                  <User className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? 'right-3' : 'left-3'} w-5 h-5 text-white/40`} />
                   <Input
-                    id="phone"
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleChange('phone', e.target.value.replace(/\D/g, ''))}
+                    id="fullName"
+                    type="text"
+                    value={formData.fullName}
+                    onChange={(e) => handleChange('fullName', e.target.value)}
                     className={`bg-slate-700/50 border-slate-600 text-white placeholder:text-white/40 ${isRTL ? 'pr-10' : 'pl-10'}`}
-                    placeholder={t.auth.phoneExample}
+                    placeholder={language === 'he' ? 'ישראל ישראלי' : 'John Doe'}
+                  />
+                </div>
+                {errors.fullName && (
+                  <p className="text-red-400 text-sm">{errors.fullName}</p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-white/80">
+                  {t.auth.email}
+                </Label>
+                <div className="relative">
+                  <Mail className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? 'right-3' : 'left-3'} w-5 h-5 text-white/40`} />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    className={`bg-slate-700/50 border-slate-600 text-white placeholder:text-white/40 ${isRTL ? 'pr-10' : 'pl-10'}`}
+                    placeholder="email@example.com"
                     dir="ltr"
                   />
                 </div>
+                {errors.email && (
+                  <p className="text-red-400 text-sm">{errors.email}</p>
+                )}
               </div>
-              {errors.phone && (
-                <p className="text-red-400 text-sm">{errors.phone}</p>
-              )}
-            </div>
 
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-white py-6 text-lg rounded-xl"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? t.auth.submitting : t.auth.register}
-            </Button>
-          </form>
+              {/* Phone */}
+              <div className="space-y-2">
+                <Label htmlFor="phone" className="text-white/80">
+                  {t.auth.phone}
+                </Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.countryCode}
+                    onValueChange={(value) => handleChange('countryCode', value)}
+                  >
+                    <SelectTrigger className="w-32 bg-slate-700/50 border-slate-600 text-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-800 border-slate-700">
+                      {countries.map((country) => (
+                        <SelectItem
+                          key={country.code}
+                          value={country.code}
+                          className="text-white hover:bg-slate-700"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>{country.flag}</span>
+                            <span>{country.code}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="relative flex-1">
+                    <Phone className={`absolute top-1/2 -translate-y-1/2 ${isRTL ? 'right-3' : 'left-3'} w-5 h-5 text-white/40`} />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => handleChange('phone', e.target.value.replace(/\D/g, ''))}
+                      className={`bg-slate-700/50 border-slate-600 text-white placeholder:text-white/40 ${isRTL ? 'pr-10' : 'pl-10'}`}
+                      placeholder={t.auth.phoneExample}
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+                {errors.phone && (
+                  <p className="text-red-400 text-sm">{errors.phone}</p>
+                )}
+              </div>
+
+              {/* WhatsApp Info */}
+              <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
+                <p className="text-green-400 text-sm">
+                  {language === 'he' 
+                    ? '📱 תקבל קוד אימות בוואטסאפ'
+                    : '📱 You will receive a verification code on WhatsApp'}
+                </p>
+              </div>
+
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                className="w-full bg-primary hover:bg-primary/90 text-white py-6 text-lg rounded-xl"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {language === 'he' ? 'שולח...' : 'Sending...'}
+                  </span>
+                ) : (
+                  language === 'he' ? 'שלח קוד אימות' : 'Send Verification Code'
+                )}
+              </Button>
+            </form>
+          ) : (
+            <div className="space-y-6">
+              {/* OTP Input */}
+              <div className="flex justify-center" dir="ltr">
+                <InputOTP
+                  maxLength={6}
+                  value={otpValue}
+                  onChange={(value) => setOtpValue(value)}
+                  onComplete={handleVerifyOTP}
+                >
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} className="bg-slate-700/50 border-slate-600 text-white text-xl" />
+                    <InputOTPSlot index={1} className="bg-slate-700/50 border-slate-600 text-white text-xl" />
+                    <InputOTPSlot index={2} className="bg-slate-700/50 border-slate-600 text-white text-xl" />
+                    <InputOTPSlot index={3} className="bg-slate-700/50 border-slate-600 text-white text-xl" />
+                    <InputOTPSlot index={4} className="bg-slate-700/50 border-slate-600 text-white text-xl" />
+                    <InputOTPSlot index={5} className="bg-slate-700/50 border-slate-600 text-white text-xl" />
+                  </InputOTPGroup>
+                </InputOTP>
+              </div>
+
+              {/* Verify Button */}
+              <Button
+                onClick={handleVerifyOTP}
+                className="w-full bg-primary hover:bg-primary/90 text-white py-6 text-lg rounded-xl"
+                disabled={isVerifying || otpValue.length !== 6}
+              >
+                {isVerifying ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {language === 'he' ? 'מאמת...' : 'Verifying...'}
+                  </span>
+                ) : (
+                  language === 'he' ? 'אמת והירשם' : 'Verify & Register'
+                )}
+              </Button>
+
+              {/* Resend */}
+              <p className="text-center text-white/60 text-sm">
+                {language === 'he' ? 'לא קיבלת קוד?' : "Didn't receive a code?"}{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep('details');
+                    setOtpValue('');
+                  }}
+                  className="text-primary hover:underline"
+                >
+                  {language === 'he' ? 'שלח שוב' : 'Resend'}
+                </button>
+              </p>
+            </div>
+          )}
 
           {/* Login Link */}
           <p className="text-center text-white/60 mt-6">

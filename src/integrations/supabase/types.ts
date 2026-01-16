@@ -160,6 +160,39 @@ export type Database = {
           },
         ]
       }
+      otp_codes: {
+        Row: {
+          attempts: number | null
+          code: string
+          country_code: string
+          created_at: string
+          expires_at: string
+          id: string
+          phone_number: string
+          verified_at: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          code: string
+          country_code: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone_number: string
+          verified_at?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          code?: string
+          country_code?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone_number?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           country_code: string
@@ -168,6 +201,7 @@ export type Database = {
           full_name: string
           id: string
           phone_number: string
+          phone_verified: boolean | null
           preferred_language: string
           updated_at: string
           user_id: string | null
@@ -179,6 +213,7 @@ export type Database = {
           full_name: string
           id?: string
           phone_number: string
+          phone_verified?: boolean | null
           preferred_language?: string
           updated_at?: string
           user_id?: string | null
@@ -190,6 +225,7 @@ export type Database = {
           full_name?: string
           id?: string
           phone_number?: string
+          phone_verified?: boolean | null
           preferred_language?: string
           updated_at?: string
           user_id?: string | null
