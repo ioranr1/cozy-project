@@ -106,6 +106,29 @@ const Login: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      // First check if user exists
+      const checkResponse = await fetch(
+        `https://zoripeohnedivxkvrpbi.supabase.co/rest/v1/profiles?phone_number=eq.${formData.phone}&country_code=eq.${encodeURIComponent(formData.countryCode)}&select=id`,
+        {
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvcmlwZW9obmVkaXZ4a3ZycGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0ODMyMDIsImV4cCI6MjA4NDA1OTIwMn0.I24w1VjEWUNf2jCBnPo4-ypu3aq5rATJldbLgSSt9mo',
+          }
+        }
+      );
+
+      const profiles = await checkResponse.json();
+      
+      if (!profiles || profiles.length === 0) {
+        toast({
+          title: language === 'he' ? 'מספר לא נמצא' : 'Number not found',
+          description: language === 'he' ? 'המספר לא רשום במערכת. אנא הירשם תחילה' : 'This number is not registered. Please register first',
+          variant: 'destructive',
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // User exists, send OTP
       const response = await fetch(
         `https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/whatsapp-send-otp`,
         {
