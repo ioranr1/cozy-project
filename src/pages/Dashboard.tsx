@@ -28,7 +28,8 @@ const Dashboard: React.FC = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('userProfile');
-    navigate('/');
+    localStorage.removeItem('aiguard_session_token');
+    navigate('/login');
   };
 
   if (!userProfile) {
