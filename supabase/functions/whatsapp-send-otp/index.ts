@@ -69,10 +69,35 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           messaging_product: "whatsapp",
           to: fullPhone,
-          type: "text",
-          text: {
-            body: `🔐 קוד האימות שלך ל-AIGuard הוא: ${otp}\n\nהקוד תקף ל-5 דקות.`,
-          },
+          type: "template",
+          template: {
+            name: "code_otp",
+            language: {
+              code: "he"
+            },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    text: otp
+                  }
+                ]
+              },
+              {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [
+                  {
+                    type: "text",
+                    text: otp
+                  }
+                ]
+              }
+            ]
+          }
         }),
       }
     );
