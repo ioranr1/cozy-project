@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.live-stop]
 verify_jwt = false
+
+[functions.devices-heartbeat]
+verify_jwt = false
