@@ -86,11 +86,17 @@ Deno.serve(async (req) => {
     const isNewUser = !profile;
 
     if (!profile) {
-      // For new users we need the registration fields
+      // For new users - if no registration data provided, return is_new_user flag
       if (!full_name || !email) {
         return new Response(
-          JSON.stringify({ error: "Missing registration data" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({
+            success: true,
+            verified: true,
+            is_new_user: true,
+            profile: null,
+            session_token: null,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
