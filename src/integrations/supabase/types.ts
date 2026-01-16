@@ -232,6 +232,44 @@ export type Database = {
         }
         Relationships: []
       }
+      user_sessions: {
+        Row: {
+          created_at: string
+          device_fingerprint: string | null
+          expires_at: string
+          id: string
+          last_used_at: string
+          profile_id: string
+          session_token: string
+        }
+        Insert: {
+          created_at?: string
+          device_fingerprint?: string | null
+          expires_at: string
+          id?: string
+          last_used_at?: string
+          profile_id: string
+          session_token?: string
+        }
+        Update: {
+          created_at?: string
+          device_fingerprint?: string | null
+          expires_at?: string
+          id?: string
+          last_used_at?: string
+          profile_id?: string
+          session_token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -243,6 +281,14 @@ export type Database = {
           device_id: string
           is_valid: boolean
           reason: string
+        }[]
+      }
+      validate_user_session: {
+        Args: { p_token: string }
+        Returns: {
+          is_valid: boolean
+          profile_data: Json
+          profile_id: string
         }[]
       }
     }

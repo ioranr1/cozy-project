@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { countries } from '@/i18n/translations';
@@ -10,6 +10,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Shield, ArrowLeft, ArrowRight, Phone, Loader2 } from 'lucide-react';
 import { z } from 'zod';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { hasSessionToken } from '@/hooks/useSession';
+
+const SESSION_TOKEN_KEY = 'aiguard_session_token';
 
 const loginSchema = z.object({
   phone: z.string().min(7, 'Phone number must be at least 7 digits').max(15).regex(/^\d+$/, 'Phone must contain only numbers'),
@@ -29,6 +32,50 @@ const Login: React.FC = () => {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [otpValue, setOtpValue] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
+  // Check for existing valid session on mount
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      if (!hasSessionToken()) {
+        setIsCheckingSession(false);
+        return;
+      }
+
+      try {
+        const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
+        const response = await fetch(
+          `https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/validate-session`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_token: sessionToken }),
+          }
+        );
+
+        const data = await response.json();
+
+        if (data.valid && data.profile) {
+          // Session is valid, redirect to dashboard
+          localStorage.setItem('userProfile', JSON.stringify({
+            id: data.profile.id,
+            fullName: data.profile.full_name,
+            email: data.profile.email,
+            phone: `${data.profile.country_code}${data.profile.phone_number}`,
+            phoneVerified: data.profile.phone_verified,
+          }));
+          navigate('/dashboard');
+          return;
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+      }
+
+      setIsCheckingSession(false);
+    };
+
+    checkExistingSession();
+  }, [navigate]);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -136,6 +183,11 @@ const Login: React.FC = () => {
         description: language === 'he' ? `שלום ${data.profile.full_name}` : `Hello ${data.profile.full_name}`,
       });
 
+      // Save session token for 30 days persistence
+      if (data.session_token) {
+        localStorage.setItem(SESSION_TOKEN_KEY, data.session_token);
+      }
+
       localStorage.setItem('userProfile', JSON.stringify({
         id: data.profile.id,
         fullName: data.profile.full_name,
@@ -160,6 +212,18 @@ const Login: React.FC = () => {
   };
 
   const ArrowIcon = isRTL ? ArrowRight : ArrowLeft;
+
+  // Show loading while checking session
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-white/60">{language === 'he' ? 'בודק session...' : 'Checking session...'}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
