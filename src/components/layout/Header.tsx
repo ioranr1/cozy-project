@@ -33,6 +33,11 @@ export const Header: React.FC = () => {
 
           {/* Actions */}
           <div className={`hidden md:flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <Link to="/login">
+              <Button variant="ghost" className="text-white hover:bg-white/10 rounded-full px-6 font-semibold">
+                {isRTL ? 'התחברות' : 'Sign In'}
+              </Button>
+            </Link>
             <Link to="/register">
               <Button className="bg-white hover:bg-gray-100 text-slate-800 rounded-full px-6 font-semibold shadow-lg">
                 {isRTL ? 'התחל עכשיו' : 'Get Started'}
@@ -71,6 +76,11 @@ export const Header: React.FC = () => {
             <div className="flex items-center justify-between">
               <LanguageSwitcher />
             </div>
+            <Link to="/login" onClick={() => setIsMenuOpen(false)}>
+              <Button variant="outline" className="w-full mb-2">
+                {isRTL ? 'התחברות' : 'Sign In'}
+              </Button>
+            </Link>
             <Link to="/register" onClick={() => setIsMenuOpen(false)}>
               <Button className="w-full bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600">
                 {isRTL ? 'התחל עכשיו' : 'Get Started'}
