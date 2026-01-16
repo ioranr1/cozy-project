@@ -58,67 +58,56 @@ Deno.serve(async (req) => {
     }
     const fullPhone = country_code.replace("+", "") + formattedPhone;
 
-    // Try to send with template
+    // Send with template - using English as the template language
     const templateName = "code_otp";
     
-    // Try Hebrew first, then English
-    const languages = ["he", "he_IL", "en", "en_US"];
-    let whatsappResult = null;
-    let lastError = null;
-
-    for (const langCode of languages) {
-      console.log(`Trying template ${templateName} with language ${langCode}...`);
-      
-      const whatsappResponse = await fetch(
-        `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messaging_product: "whatsapp",
-            to: fullPhone,
-            type: "template",
-            template: {
-              name: templateName,
-              language: {
-                code: langCode
-              },
-              components: [
-                {
-                  type: "body",
-                  parameters: [
-                    {
-                      type: "text",
-                      text: otp
-                    }
-                  ]
-                }
-              ]
-            }
-          }),
-        }
-      );
-
-      whatsappResult = await whatsappResponse.json();
-      
-      if (whatsappResponse.ok) {
-        console.log(`OTP sent successfully to: ${fullPhone} with language ${langCode}`);
-        return new Response(
-          JSON.stringify({ success: true, message: "OTP sent successfully" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    console.log(`Sending OTP to ${fullPhone} using template ${templateName} with language en`);
+    
+    const whatsappResponse = await fetch(
+      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: fullPhone,
+          type: "template",
+          template: {
+            name: templateName,
+            language: {
+              code: "en"
+            },
+            components: [
+              {
+                type: "body",
+                parameters: [
+                  {
+                    type: "text",
+                    text: otp
+                  }
+                ]
+              }
+            ]
+          }
+        }),
       }
-      
-      console.log(`Failed with language ${langCode}:`, JSON.stringify(whatsappResult));
-      lastError = whatsappResult;
+    );
+
+    const whatsappResult = await whatsappResponse.json();
+    
+    if (!whatsappResponse.ok) {
+      console.error("WhatsApp API error:", JSON.stringify(whatsappResult));
+      throw new Error(whatsappResult?.error?.message || "Failed to send WhatsApp message");
     }
 
-    // All languages failed
-    console.error("WhatsApp API error - all languages failed:", lastError);
-    throw new Error(lastError?.error?.message || "Failed to send WhatsApp message");
+    console.log(`OTP sent successfully to: ${fullPhone}`);
+    return new Response(
+      JSON.stringify({ success: true, message: "OTP sent successfully" }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (error: unknown) {
     console.error("Error:", error);
     const errorMessage = error instanceof Error ? error.message : "Internal server error";
