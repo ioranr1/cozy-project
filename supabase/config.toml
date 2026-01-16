@@ -1,1 +1,4 @@
 project_id = "zoripeohnedivxkvrpbi"
+
+[functions.live-start]
+verify_jwt = false
