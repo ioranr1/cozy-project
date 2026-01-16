@@ -14,9 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_tokens: {
+        Row: {
+          created_at: string
+          created_by_profile_id: string
+          current_views: number
+          device_id: string
+          expires_at: string
+          id: string
+          is_revoked: boolean
+          max_views: number | null
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_profile_id: string
+          current_views?: number
+          device_id: string
+          expires_at: string
+          id?: string
+          is_revoked?: boolean
+          max_views?: number | null
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_profile_id?: string
+          current_views?: number
+          device_id?: string
+          expires_at?: string
+          id?: string
+          is_revoked?: boolean
+          max_views?: number | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_tokens_created_by_profile_id_fkey"
+            columns: ["created_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "access_tokens_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           created_at: string
+          device_auth_token: string | null
+          device_auth_token_created_at: string | null
           device_name: string
           device_type: string
           id: string
@@ -26,6 +79,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          device_auth_token?: string | null
+          device_auth_token_created_at?: string | null
           device_name: string
           device_type: string
           id?: string
@@ -35,6 +90,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          device_auth_token?: string | null
+          device_auth_token_created_at?: string | null
           device_name?: string
           device_type?: string
           id?: string
@@ -46,6 +103,57 @@ export type Database = {
           {
             foreignKeyName: "devices_profile_id_fkey"
             columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_sessions: {
+        Row: {
+          created_at: string
+          device_id: string
+          ended_at: string | null
+          expires_at: string
+          id: string
+          max_duration_seconds: number
+          started_at: string
+          status: string
+          viewer_profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          ended_at?: string | null
+          expires_at: string
+          id?: string
+          max_duration_seconds?: number
+          started_at?: string
+          status?: string
+          viewer_profile_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          max_duration_seconds?: number
+          started_at?: string
+          status?: string
+          viewer_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_sessions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_sessions_viewer_profile_id_fkey"
+            columns: ["viewer_profile_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -93,7 +201,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      validate_access_token: {
+        Args: { p_token: string }
+        Returns: {
+          device_id: string
+          is_valid: boolean
+          reason: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
