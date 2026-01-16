@@ -66,19 +66,22 @@ const Register: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // First check if user already exists
+      // First check if user already exists using edge function (bypasses RLS)
       const checkResponse = await fetch(
-        `https://zoripeohnedivxkvrpbi.supabase.co/rest/v1/profiles?phone_number=eq.${formData.phone}&country_code=eq.${encodeURIComponent(formData.countryCode)}&select=id`,
+        `https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/check-user-exists`,
         {
-          headers: {
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvcmlwZW9obmVkaXZ4a3ZycGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0ODMyMDIsImV4cCI6MjA4NDA1OTIwMn0.I24w1VjEWUNf2jCBnPo4-ypu3aq5rATJldbLgSSt9mo',
-          }
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone_number: formData.phone,
+            country_code: formData.countryCode,
+          }),
         }
       );
 
-      const profiles = await checkResponse.json();
+      const checkData = await checkResponse.json();
       
-      if (profiles && profiles.length > 0) {
+      if (checkData.exists) {
         toast({
           title: language === 'he' ? 'המספר כבר רשום' : 'Number already registered',
           description: language === 'he' ? 'עבור לעמוד ההתחברות' : 'Please go to the login page',
