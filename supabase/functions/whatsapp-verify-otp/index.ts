@@ -13,7 +13,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { phone_number, country_code, code } = await req.json();
+    const { phone_number, country_code, code, full_name, email, preferred_language } = await req.json();
 
     if (!phone_number || !country_code || !code) {
       return new Response(
@@ -80,53 +80,74 @@ Deno.serve(async (req) => {
 
     if (profileError && profileError.code !== "PGRST116") {
       console.error("Profile query error:", profileError);
+      throw new Error("Failed to fetch profile");
     }
 
-    // If profile exists, mark as verified
-    if (profile) {
+    const isNewUser = !profile;
+
+    if (!profile) {
+      // For new users we need the registration fields
+      if (!full_name || !email) {
+        return new Response(
+          JSON.stringify({ error: "Missing registration data" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: createdProfile, error: createProfileError } = await supabase
+        .from("profiles")
+        .insert({
+          full_name,
+          email,
+          phone_number,
+          country_code,
+          preferred_language: preferred_language || "he",
+          phone_verified: true,
+        })
+        .select("*")
+        .single();
+
+      if (createProfileError || !createdProfile) {
+        console.error("Profile creation error:", createProfileError);
+        throw new Error("Failed to create profile");
+      }
+
+      profile = createdProfile;
+    } else {
+      // If profile exists, ensure phone is marked verified
       await supabase
         .from("profiles")
         .update({ phone_verified: true })
         .eq("id", profile.id);
-      
+
       profile.phone_verified = true;
+    }
 
-      // Create a 30-day session
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + SESSION_DURATION_DAYS);
+    // Create a 30-day session
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + SESSION_DURATION_DAYS);
 
-      const { data: sessionData, error: sessionError } = await supabase
-        .from("user_sessions")
-        .insert({
-          profile_id: profile.id,
-          expires_at: expiresAt.toISOString(),
-        })
-        .select("session_token")
-        .single();
+    const { data: sessionData, error: sessionError } = await supabase
+      .from("user_sessions")
+      .insert({
+        profile_id: profile.id,
+        expires_at: expiresAt.toISOString(),
+      })
+      .select("session_token")
+      .single();
 
-      if (sessionError) {
-        console.error("Session creation error:", sessionError);
-      }
-
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          verified: true,
-          profile: profile,
-          session_token: sessionData?.session_token || null,
-          is_new_user: false
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (sessionError) {
+      console.error("Session creation error:", sessionError);
+      throw new Error("Failed to create session");
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         verified: true,
-        profile: null,
-        session_token: null,
-        is_new_user: true
+        profile,
+        session_token: sessionData?.session_token || null,
+        is_new_user: isNewUser,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
