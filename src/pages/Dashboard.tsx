@@ -130,7 +130,7 @@ const Dashboard: React.FC = () => {
             <h2 className="text-xl font-bold text-white">
               {language === 'he' ? 'המכשירים שלי' : 'My Devices'}
             </h2>
-            <Button variant="outline" size="sm" className="border-slate-600 text-white hover:bg-slate-700">
+            <Button variant="default" size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
               <Plus className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
               {language === 'he' ? 'הוסף מכשיר' : 'Add Device'}
             </Button>
