@@ -164,6 +164,23 @@ const Register: React.FC = () => {
 
       if (insertError) throw insertError;
 
+      // Create a 30-day session for the new user
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      const { data: sessionData } = await supabase
+        .from('user_sessions')
+        .insert({
+          profile_id: newProfile.id,
+          expires_at: expiresAt.toISOString(),
+        })
+        .select('session_token')
+        .single();
+
+      if (sessionData?.session_token) {
+        localStorage.setItem('aiguard_session_token', sessionData.session_token);
+      }
+
       toast({
         title: language === 'he' ? 'נרשמת בהצלחה!' : 'Registration successful!',
         description: language === 'he' ? 'ברוך הבא ל-AIGuard' : 'Welcome to AIGuard',
