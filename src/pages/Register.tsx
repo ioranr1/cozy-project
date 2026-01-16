@@ -66,23 +66,8 @@ const Register: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Check if phone already exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('phone_number', formData.phone)
-        .eq('country_code', formData.countryCode)
-        .single();
-
-      if (existingProfile) {
-        toast({
-          title: language === 'he' ? 'מספר כבר קיים' : 'Phone already registered',
-          description: language === 'he' ? 'אנא התחבר במקום' : 'Please login instead',
-          variant: 'destructive',
-        });
-        navigate('/login');
-        return;
-      }
+      // Note: profiles table is protected by RLS, so we don't pre-check existence here.
+      // If the phone already exists, verification will simply create a session for that profile.
 
       // Send OTP
       const response = await fetch(
@@ -134,11 +119,14 @@ const Register: React.FC = () => {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phone_number: formData.phone,
-            country_code: formData.countryCode,
-            code: otpValue,
-          }),
+           body: JSON.stringify({
+             phone_number: formData.phone,
+             country_code: formData.countryCode,
+             code: otpValue,
+             full_name: formData.fullName,
+             email: formData.email,
+             preferred_language: language,
+           }),
         }
       );
 
@@ -148,51 +136,29 @@ const Register: React.FC = () => {
         throw new Error(verifyData.error || 'Invalid OTP');
       }
 
-      // Create profile after OTP verification
-      const { data: newProfile, error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          full_name: formData.fullName,
-          email: formData.email,
-          phone_number: formData.phone,
-          country_code: formData.countryCode,
-          preferred_language: language,
-          phone_verified: true,
-        })
-        .select()
-        .single();
+      const profile = verifyData.profile;
+      const sessionToken = verifyData.session_token;
 
-      if (insertError) throw insertError;
-
-      // Create a 30-day session for the new user
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
-
-      const { data: sessionData } = await supabase
-        .from('user_sessions')
-        .insert({
-          profile_id: newProfile.id,
-          expires_at: expiresAt.toISOString(),
-        })
-        .select('session_token')
-        .single();
-
-      if (sessionData?.session_token) {
-        localStorage.setItem('aiguard_session_token', sessionData.session_token);
+      if (!profile || !sessionToken) {
+        throw new Error(language === 'he' ? 'יצירת משתמש/סשן נכשלה' : 'Failed to create user session');
       }
 
-      toast({
-        title: language === 'he' ? 'נרשמת בהצלחה!' : 'Registration successful!',
-        description: language === 'he' ? 'ברוך הבא ל-AIGuard' : 'Welcome to AIGuard',
-      });
+      localStorage.setItem('aiguard_session_token', sessionToken);
 
       localStorage.setItem('userProfile', JSON.stringify({
-        id: newProfile.id,
-        fullName: newProfile.full_name,
-        email: newProfile.email,
-        phone: `${newProfile.country_code}${newProfile.phone_number}`,
+        id: profile.id,
+        fullName: profile.full_name,
+        email: profile.email,
+        phone: `${profile.country_code}${profile.phone_number}`,
         phoneVerified: true,
       }));
+
+      toast({
+        title: verifyData.is_new_user
+          ? (language === 'he' ? 'נרשמת בהצלחה!' : 'Registration successful!')
+          : (language === 'he' ? 'התחברת בהצלחה!' : 'Login successful!'),
+        description: language === 'he' ? 'ברוך הבא ל-AIGuard' : 'Welcome to AIGuard',
+      });
 
       navigate('/dashboard');
     } catch (error: unknown) {
