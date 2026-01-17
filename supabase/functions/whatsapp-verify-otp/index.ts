@@ -13,14 +13,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { phone_number, country_code, code, full_name, email, preferred_language } = await req.json();
+    const { phone_number: rawPhoneNumber, country_code, code, full_name, email, preferred_language } = await req.json();
 
-    if (!phone_number || !country_code || !code) {
+    if (!rawPhoneNumber || !country_code || !code) {
       return new Response(
         JSON.stringify({ error: "Phone number, country code and OTP code are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Normalize phone number - remove leading zeros for profile lookup
+    const normalizedPhoneNumber = rawPhoneNumber.replace(/^0+/, "");
+    console.log(`Verifying OTP for raw: ${rawPhoneNumber}, normalized: ${normalizedPhoneNumber}`);
 
     // Initialize Supabase client with service role
     const supabase = createClient(
@@ -28,11 +32,11 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Find the OTP code
+    // Find the OTP code - use raw phone number as that's how it was stored
     const { data: otpData, error: otpError } = await supabase
       .from("otp_codes")
       .select("*")
-      .eq("phone_number", phone_number)
+      .eq("phone_number", rawPhoneNumber)
       .eq("country_code", country_code)
       .eq("code", code)
       .is("verified_at", null)
@@ -46,7 +50,7 @@ Deno.serve(async (req) => {
       await supabase
         .from("otp_codes")
         .update({ attempts: otpData?.attempts ? otpData.attempts + 1 : 1 })
-        .eq("phone_number", phone_number)
+        .eq("phone_number", rawPhoneNumber)
         .eq("country_code", country_code)
         .is("verified_at", null);
 
@@ -70,11 +74,11 @@ Deno.serve(async (req) => {
       .update({ verified_at: new Date().toISOString() })
       .eq("id", otpData.id);
 
-    // Get or create profile
+    // Get or create profile - use normalized phone number (without leading zeros)
     let { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("*")
-      .eq("phone_number", phone_number)
+      .eq("phone_number", normalizedPhoneNumber)
       .eq("country_code", country_code)
       .single();
 
@@ -105,7 +109,7 @@ Deno.serve(async (req) => {
         .insert({
           full_name,
           email,
-          phone_number,
+          phone_number: normalizedPhoneNumber,
           country_code,
           preferred_language: preferred_language || "he",
           phone_verified: true,
