@@ -3,13 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
-import { Shield, Laptop, Smartphone, LogOut, Video, Activity, Bell, Clock, Settings, Wifi, WifiOff } from 'lucide-react';
+import { Shield, Laptop, Smartphone, LogOut, Video, Power, PowerOff, Activity, Bell, Clock, Settings, Wifi, WifiOff } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
 import { laptopDeviceId } from '@/config/devices';
 import { Switch } from '@/components/ui/switch';
+import { toast } from 'sonner';
 
 interface UserProfile {
   id?: string;
@@ -91,7 +92,42 @@ const Dashboard: React.FC = () => {
     return null;
   }
 
-  // Mobile Dashboard - Viewer-Only Mode
+  // Shared monitoring command handler - used by both Desktop and Mobile
+  const sendMonitoringCommand = async (command: 'START_CAMERA' | 'STOP_CAMERA') => {
+    if (!laptopDeviceId) {
+      toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
+      return;
+    }
+    
+    const sessionToken = localStorage.getItem('aiguard_session_token');
+    if (!sessionToken) {
+      toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
+      navigate('/login');
+      return;
+    }
+    
+    try {
+      const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_token: sessionToken,
+          device_id: laptopDeviceId,
+          command
+        })
+      });
+      
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to send command');
+      
+      toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
+    } catch (error) {
+      console.error('Command error:', error);
+      toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
+    }
+  };
+
+  // Mobile Dashboard - Controller + Viewer Mode
   if (isMobileDevice) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -121,22 +157,22 @@ const Dashboard: React.FC = () => {
         </header>
 
         <main className="container mx-auto px-4 py-6">
-          {/* Welcome with Viewer Role */}
+          {/* Welcome with Controller + Viewer Role */}
           <div className="mb-6">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <h1 className="text-xl font-bold text-white">
                 {language === 'he' ? `שלום, ${userProfile.fullName}` : `Hello, ${userProfile.fullName}`}
               </h1>
-              <span className="px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30">
-                {language === 'he' ? 'צופה' : 'Viewer'}
+              <span className="px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">
+                {language === 'he' ? 'שליטה + צפייה' : 'Controller + Viewer'}
               </span>
             </div>
             <p className="text-white/60 text-sm">
-              {language === 'he' ? 'צפה בשידור חי מהמצלמות שלך' : 'Watch live streams from your cameras'}
+              {language === 'he' ? 'שלוט במצלמות וצפה בשידור חי' : 'Control cameras and watch live streams'}
             </p>
           </div>
 
-          {/* This Device Card - Viewer Mode */}
+          {/* This Device Card - Controller Mode */}
           <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-5 mb-4">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
@@ -147,23 +183,23 @@ const Dashboard: React.FC = () => {
                   {language === 'he' ? 'מכשיר זה' : 'This Device'}
                 </h3>
                 <p className="text-white/60 text-sm">
-                  {language === 'he' ? 'מצב צפייה בלבד' : 'Viewing mode only'}
+                  {language === 'he' ? 'שלט רחוק + צופה' : 'Remote control + Viewer'}
                 </p>
               </div>
             </div>
 
-            {/* Single Primary CTA - View Live */}
-            <Link to="/viewer" className="block">
-              <Button className="w-full bg-primary hover:bg-primary/90 text-lg py-6">
+            {/* Primary CTA - View Live */}
+            <Link to="/viewer" className="block mb-3">
+              <Button className="w-full bg-primary hover:bg-primary/90 text-lg py-5">
                 <Video className={`w-5 h-5 ${isRTL ? 'ml-3' : 'mr-3'}`} />
                 {language === 'he' ? 'צפה בשידור חי' : 'View Live Stream'}
               </Button>
             </Link>
           </div>
 
-          {/* Camera Status Card */}
+          {/* Laptop Camera Control Card */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 mb-4">
-            <div className="flex items-center gap-3 mb-3">
+            <div className="flex items-center gap-3 mb-4">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                 laptopStatus === 'online' 
                   ? 'bg-green-500/20' 
@@ -183,11 +219,31 @@ const Dashboard: React.FC = () => {
                   )}
                   <span className={`text-xs ${laptopStatus === 'online' ? 'text-green-400' : 'text-slate-500'}`}>
                     {language === 'he' 
-                      ? (laptopStatus === 'online' ? 'מחובר ומשדר' : 'לא מחובר')
-                      : (laptopStatus === 'online' ? 'Connected & streaming' : 'Disconnected')}
+                      ? (laptopStatus === 'online' ? 'מחובר' : 'לא מחובר')
+                      : (laptopStatus === 'online' ? 'Connected' : 'Disconnected')}
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* Start / Stop Monitoring Controls - SAME HANDLERS AS DESKTOP */}
+            <div className="flex gap-3">
+              <Button 
+                className="flex-1 bg-green-600 hover:bg-green-700"
+                onClick={() => sendMonitoringCommand('START_CAMERA')}
+              >
+                <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'התחל ניטור' : 'Start Monitoring'}
+              </Button>
+              
+              <Button 
+                variant="outline"
+                className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                onClick={() => sendMonitoringCommand('STOP_CAMERA')}
+              >
+                <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'עצור ניטור' : 'Stop Monitoring'}
+              </Button>
             </div>
           </div>
 
