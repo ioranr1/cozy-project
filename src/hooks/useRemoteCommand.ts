@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { getSessionToken } from '@/hooks/useSession';
 import { toast } from 'sonner';
 
 export type CommandType = 
@@ -142,10 +143,10 @@ export function useRemoteCommand({
     );
 
     try {
-      const sessionToken = localStorage.getItem('session_token');
-      
+      const sessionToken = getSessionToken();
+
       if (!sessionToken) {
-        const error = language === 'he' 
+        const error = language === 'he'
           ? 'נדרשת התחברות מחדש'
           : 'Please log in again';
         toast.dismiss('command-sending');
@@ -168,9 +169,10 @@ export function useRemoteCommand({
 
       if (response.error) {
         console.error('[useRemoteCommand] Edge function error:', response.error);
-        const error = language === 'he' 
-          ? 'שליחת הפקודה נכשלה'
-          : 'Failed to send command';
+        const details = (response.error as { message?: string }).message;
+        const error = language === 'he'
+          ? `שליחת הפקודה נכשלה${details ? `: ${details}` : ''}`
+          : `Failed to send command${details ? `: ${details}` : ''}`;
         toast.error(error);
         setCommandState({ status: 'failed', commandId: null, error });
         return false;
