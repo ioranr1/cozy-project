@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
-import { Shield, Laptop, Smartphone, Plus, LogOut, Video } from 'lucide-react';
+import { Shield, Laptop, Smartphone, Plus, LogOut, Video, Power, PowerOff } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface UserProfile {
   id?: string;
@@ -124,29 +126,94 @@ const Dashboard: React.FC = () => {
             </Link>
           )}
 
-          {/* View Cameras - Remote control for laptop camera */}
-          <Link to="/viewer">
-            <div className="group bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 rounded-2xl p-6 hover:border-green-500/50 transition-all hover:-translate-y-1">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg">
-                  <Smartphone className="w-7 h-7 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">
-                    {language === 'he' ? 'שליטה במצלמת הלפטופ' : 'Control Laptop Camera'}
-                  </h3>
-                  <p className="text-white/60 text-sm">
-                    {language === 'he' 
-                      ? 'שלוט מרחוק במצלמת המחשב שלך. הטלפון אינו מצלם.'
-                      : 'Control your computer camera remotely. The phone does not record.'}
-                  </p>
-                </div>
+          {/* Control Laptop Camera - Remote control card */}
+          <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 rounded-2xl p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg">
+                <Smartphone className="w-7 h-7 text-white" />
               </div>
-              <Button className="w-full bg-green-600 hover:bg-green-700">
-                {language === 'he' ? 'צפה עכשיו' : 'Watch Now'}
-              </Button>
+              <div>
+                <h3 className="text-xl font-bold text-white">
+                  {language === 'he' ? 'שליטה במצלמת הלפטופ' : 'Control Laptop Camera'}
+                </h3>
+                <p className="text-white/60 text-sm">
+                  {language === 'he' 
+                    ? 'שלוט מרחוק במצלמת המחשב שלך. הטלפון אינו מצלם.'
+                    : 'Control your computer camera remotely. The phone does not record.'}
+                </p>
+              </div>
             </div>
-          </Link>
+            <div className="flex flex-col gap-3">
+              {/* Primary button - Start Camera */}
+              {isMobile ? (
+                <Button 
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  onClick={async () => {
+                    try {
+                      // TODO: Replace with actual device_id from user's devices
+                      const TEMP_DEVICE_ID = '00000000-0000-0000-0000-000000000000';
+                      const { error } = await supabase
+                        .from('commands')
+                        .insert({
+                          device_id: TEMP_DEVICE_ID,
+                          command: 'START_CAMERA',
+                          handled: false
+                        });
+                      if (error) throw error;
+                      toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
+                    } catch (error) {
+                      toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
+                    }
+                  }}
+                >
+                  <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'הפעל מצלמה בלפטופ' : 'Start Camera on Laptop'}
+                </Button>
+              ) : (
+                <Button className="w-full bg-slate-600 cursor-not-allowed" disabled>
+                  <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'הפעל מצלמה בלפטופ' : 'Start Camera on Laptop'}
+                </Button>
+              )}
+              
+              {/* Secondary button - Stop Camera */}
+              {isMobile ? (
+                <Button 
+                  variant="outline"
+                  className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  onClick={async () => {
+                    try {
+                      // TODO: Replace with actual device_id from user's devices
+                      const TEMP_DEVICE_ID = '00000000-0000-0000-0000-000000000000';
+                      const { error } = await supabase
+                        .from('commands')
+                        .insert({
+                          device_id: TEMP_DEVICE_ID,
+                          command: 'STOP_CAMERA',
+                          handled: false
+                        });
+                      if (error) throw error;
+                      toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
+                    } catch (error) {
+                      toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
+                    }
+                  }}
+                >
+                  <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'כבה מצלמה בלפטופ' : 'Stop Camera on Laptop'}
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline"
+                  className="w-full border-slate-600/50 text-slate-400 cursor-not-allowed" 
+                  disabled
+                >
+                  <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'כבה מצלמה בלפטופ' : 'Stop Camera on Laptop'}
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* My Devices */}

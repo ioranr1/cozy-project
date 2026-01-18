@@ -65,6 +65,41 @@ export type Database = {
           },
         ]
       }
+      commands: {
+        Row: {
+          command: string
+          created_at: string
+          device_id: string
+          handled: boolean
+          handled_at: string | null
+          id: string
+        }
+        Insert: {
+          command: string
+          created_at?: string
+          device_id: string
+          handled?: boolean
+          handled_at?: string | null
+          id?: string
+        }
+        Update: {
+          command?: string
+          created_at?: string
+          device_id?: string
+          handled?: boolean
+          handled_at?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commands_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           created_at: string
