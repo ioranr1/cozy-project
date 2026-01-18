@@ -36,8 +36,8 @@ const Camera: React.FC = () => {
       setIsStreaming(true);
 
       toast({
-        title: language === 'he' ? 'המצלמה פעילה' : 'Camera Active',
-        description: language === 'he' ? 'המכשיר שלך משמש כמצלמת אבטחה' : 'Your device is now a security camera',
+        title: language === 'he' ? 'תצוגה מקדימה פעילה' : 'Preview Active',
+        description: language === 'he' ? 'בודק את המצלמה – ללא זיהוי תנועה' : 'Testing camera – no motion detection',
       });
     } catch (err: any) {
       console.error('Camera error:', err);
@@ -64,8 +64,8 @@ const Camera: React.FC = () => {
       }
 
       toast({
-        title: language === 'he' ? 'המצלמה כבויה' : 'Camera Stopped',
-        description: language === 'he' ? 'השידור הופסק' : 'Streaming has stopped',
+        title: language === 'he' ? 'התצוגה המקדימה נסגרה' : 'Preview Closed',
+        description: language === 'he' ? 'בדיקת המצלמה הסתיימה' : 'Camera test ended',
       });
     }
   }, [stream, language, toast]);
@@ -183,26 +183,35 @@ const Camera: React.FC = () => {
             )}
           </div>
 
+          {/* Preview Info Banner */}
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-4">
+            <p className="text-amber-400 text-sm text-center">
+              {language === 'he' 
+                ? 'תצוגה מקדימה בלבד – לא מפעילה זיהוי תנועה או התראות'
+                : 'Preview only – does not activate motion detection or alerts'}
+            </p>
+          </div>
+
           {/* Controls */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             {!isStreaming ? (
               <Button
                 size="lg"
-                className="bg-green-600 hover:bg-green-700 text-white px-8 py-6 text-lg rounded-xl"
+                className="bg-slate-600 hover:bg-slate-700 text-white px-8 py-6 text-lg rounded-xl"
                 onClick={startCamera}
               >
                 <Video className={`w-5 h-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                {language === 'he' ? 'הפעל מצלמה' : 'Start Camera'}
+                {language === 'he' ? 'בדיקת מצלמה' : 'Camera Preview'}
               </Button>
             ) : (
               <Button
                 size="lg"
-                variant="destructive"
-                className="px-8 py-6 text-lg rounded-xl"
+                variant="outline"
+                className="px-8 py-6 text-lg rounded-xl border-slate-600 text-white hover:bg-slate-800"
                 onClick={stopCamera}
               >
                 <VideoOff className={`w-5 h-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                {language === 'he' ? 'עצור שידור' : 'Stop Streaming'}
+                {language === 'he' ? 'סגור תצוגה מקדימה' : 'Close Preview'}
               </Button>
             )}
           </div>
@@ -215,18 +224,18 @@ const Camera: React.FC = () => {
             <ul className={`space-y-2 text-white/60 ${isRTL ? 'pr-4' : 'pl-4'}`}>
               <li className="list-disc">
                 {language === 'he' 
-                  ? 'השאר את החלון פתוח כדי להמשיך בשידור'
-                  : 'Keep this window open to continue streaming'}
+                  ? 'תצוגה מקדימה מיועדת לבדיקת זווית ואיכות המצלמה בלבד'
+                  : 'Preview is for testing camera angle and quality only'}
               </li>
               <li className="list-disc">
                 {language === 'he'
-                  ? 'וודא שהמכשיר מחובר לחשמל למניעת כיבוי'
-                  : 'Make sure the device is plugged in to prevent shutdown'}
+                  ? 'להפעלת זיהוי תנועה, עבור לעמוד "זיהוי תנועה" בתפריט'
+                  : 'To start motion detection, go to "Motion Detection" in the menu'}
               </li>
               <li className="list-disc">
                 {language === 'he'
-                  ? 'השידור לטלפון הנייד יהיה זמין בקרוב'
-                  : 'Streaming to mobile phone will be available soon'}
+                  ? 'סגירת התצוגה המקדימה לא משפיעה על מצב זיהוי התנועה'
+                  : 'Closing preview does not affect motion detection status'}
               </li>
             </ul>
           </div>

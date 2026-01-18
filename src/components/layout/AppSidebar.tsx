@@ -12,7 +12,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Shield
+  Shield,
+  Radar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { key: 'dashboard', labelHe: 'לוח בקרה', labelEn: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { key: 'live', labelHe: 'שידור חי', labelEn: 'Live View', icon: Video, path: '/viewer' },
   { key: 'cameras', labelHe: 'מצלמות', labelEn: 'Cameras', icon: Camera, path: '/camera' },
+  { key: 'motion', labelHe: 'זיהוי תנועה', labelEn: 'Motion Detection', icon: Radar, path: '/motion-detection', desktopOnly: true },
   { key: 'events', labelHe: 'אירועים', labelEn: 'Events', icon: Bell, path: '/events' },
   { key: 'system', labelHe: 'בריאות מערכת', labelEn: 'System Health', icon: Activity, path: '/system', desktopOnly: true },
   { key: 'settings', labelHe: 'הגדרות', labelEn: 'Settings', icon: Settings, path: '/settings' },
