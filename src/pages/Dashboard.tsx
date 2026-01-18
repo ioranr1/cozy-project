@@ -201,12 +201,26 @@ const Dashboard: React.FC = () => {
                   className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
                   onClick={async () => {
                     try {
-                      // TODO: Replace with actual device_id from user's devices
-                      const TEMP_DEVICE_ID = '00000000-0000-0000-0000-000000000000';
+                      // Find user's laptop device
+                      const { data: devices, error: deviceError } = await supabase
+                        .from('devices')
+                        .select('id')
+                        .eq('device_type', 'laptop')
+                        .limit(1);
+                      
+                      if (deviceError) throw deviceError;
+                      
+                      if (!devices || devices.length === 0) {
+                        toast.error(language === 'he' ? 'לא נמצא מחשב מחובר' : 'No connected computer found');
+                        return;
+                      }
+                      
+                      const deviceId = devices[0].id;
+                      
                       const { error } = await supabase
                         .from('commands')
                         .insert({
-                          device_id: TEMP_DEVICE_ID,
+                          device_id: deviceId,
                           command: 'STOP_CAMERA',
                           handled: false
                         });
