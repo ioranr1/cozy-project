@@ -124,7 +124,7 @@ const Dashboard: React.FC = () => {
             </Link>
           )}
 
-          {/* View Cameras - Always visible, but primary action on mobile */}
+          {/* View Cameras - Remote control for laptop camera */}
           <Link to="/viewer">
             <div className="group bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 rounded-2xl p-6 hover:border-green-500/50 transition-all hover:-translate-y-1">
               <div className="flex items-center gap-4 mb-4">
@@ -133,12 +133,12 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-white">
-                    {language === 'he' ? 'צפה במצלמות' : 'View Cameras'}
+                    {language === 'he' ? 'שליטה במצלמת הלפטופ' : 'Control Laptop Camera'}
                   </h3>
                   <p className="text-white/60 text-sm">
                     {language === 'he' 
-                      ? (isMobile ? 'שלוט וצפה בשידור חי מהמצלמות שלך' : 'צפה בשידור חי מהמצלמות שלך')
-                      : (isMobile ? 'Control and watch live stream from your cameras' : 'Watch live stream from your cameras')}
+                      ? 'שלוט מרחוק במצלמת המחשב שלך. הטלפון אינו מצלם.'
+                      : 'Control your computer camera remotely. The phone does not record.'}
                   </p>
                 </div>
               </div>
