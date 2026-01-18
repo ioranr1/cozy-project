@@ -143,6 +143,10 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
             </div>
+            {/* Status text */}
+            <p className="text-yellow-400/80 text-xs mb-4">
+              {language === 'he' ? 'סטטוס: ממתין למחשב מחובר' : 'Status: Waiting for connected computer'}
+            </p>
             <div className="flex flex-col gap-3">
               {/* Primary button - Start Camera */}
               {isMobile ? (
