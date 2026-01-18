@@ -356,19 +356,53 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Camera Controls - Link to /camera page */}
-              <div className="flex gap-3">
-                <Link to="/camera" className="flex-1">
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                    <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                    {language === 'he' ? 'פתח מצלמה' : 'Open Camera'}
+              {/* Camera Preview - LOCAL ONLY, does NOT affect monitoring */}
+              <div className="mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-white/50 text-xs">
+                    {language === 'he' ? 'תצוגה מקדימה בלבד' : 'Preview only'}
+                  </span>
+                </div>
+                <div className="flex gap-3">
+                  <Link to="/camera" className="flex-1">
+                    <Button className="w-full bg-slate-600 hover:bg-slate-500">
+                      <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                      {language === 'he' ? 'פתח מצלמה' : 'Open Camera'}
+                    </Button>
+                  </Link>
+                  <Link to="/camera">
+                    <Button variant="outline" size="icon" className="border-slate-600 hover:border-slate-500">
+                      <Settings className="w-4 h-4 text-white/60" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Monitoring Controls - AFFECTS SYSTEM STATE */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-white/50 text-xs">
+                    {language === 'he' ? 'שליטה בניטור המערכת' : 'Controls system monitoring'}
+                  </span>
+                </div>
+                <div className="flex gap-3">
+                  <Button 
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                    onClick={() => sendMonitoringCommand('START_CAMERA')}
+                  >
+                    <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    {language === 'he' ? 'התחל ניטור' : 'Start Monitoring'}
                   </Button>
-                </Link>
-                <Link to="/camera">
-                  <Button variant="outline" size="icon" className="border-slate-600 hover:border-slate-500">
-                    <Settings className="w-4 h-4 text-white/60" />
+                  
+                  <Button 
+                    variant="outline"
+                    className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    onClick={() => sendMonitoringCommand('STOP_CAMERA')}
+                  >
+                    <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    {language === 'he' ? 'עצור ניטור' : 'Stop Monitoring'}
                   </Button>
-                </Link>
+                </div>
               </div>
             </div>
 
