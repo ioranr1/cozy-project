@@ -20,7 +20,54 @@ const Dashboard: React.FC = () => {
   const { t, language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const isMobileDevice = useIsMobileDevice();
+
+  // Check laptop connection status
+  useEffect(() => {
+    const checkLaptopStatus = async () => {
+      if (!laptopDeviceId || laptopDeviceId === 'YOUR-LAPTOP-UUID-HERE') {
+        setLaptopStatus('unknown');
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('devices')
+          .select('last_seen_at, is_active')
+          .eq('id', laptopDeviceId)
+          .single();
+
+        if (error || !data) {
+          setLaptopStatus('unknown');
+          return;
+        }
+
+        // Check if last_seen_at is within 30 seconds
+        if (data.last_seen_at) {
+          const lastSeen = new Date(data.last_seen_at);
+          const now = new Date();
+          const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
+          
+          if (diffSeconds <= 30 && data.is_active) {
+            setLaptopStatus('online');
+          } else {
+            setLaptopStatus('offline');
+          }
+        } else {
+          setLaptopStatus('offline');
+        }
+      } catch {
+        setLaptopStatus('unknown');
+      }
+    };
+
+    // Check immediately and then every 10 seconds
+    checkLaptopStatus();
+    const interval = setInterval(checkLaptopStatus, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('userProfile');
@@ -144,9 +191,17 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
             </div>
-            {/* Status text */}
-            <p className="text-yellow-400/80 text-xs mb-4">
-              {language === 'he' ? 'סטטוס: ממתין למחשב מחובר' : 'Status: Waiting for connected computer'}
+            {/* Status text - informational only, does not block commands */}
+            <p className={`text-xs mb-4 ${
+              laptopStatus === 'online' 
+                ? 'text-green-400' 
+                : laptopStatus === 'offline' 
+                  ? 'text-yellow-400/80' 
+                  : 'text-slate-400'
+            }`}>
+              {language === 'he' 
+                ? `סטטוס: ${laptopStatus === 'online' ? 'מחשב מחובר ✓' : laptopStatus === 'offline' ? 'מחשב לא מחובר' : 'לא הוגדר מחשב'}`
+                : `Status: ${laptopStatus === 'online' ? 'Computer connected ✓' : laptopStatus === 'offline' ? 'Computer not connected' : 'No computer configured'}`}
             </p>
             <div className="flex flex-col gap-3">
               {/* Primary button - Start Camera */}
