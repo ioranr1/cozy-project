@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
-import { Shield, Laptop, Smartphone, LogOut, Video, Power, PowerOff, Activity, Bell, Clock, Settings, Wifi, WifiOff } from 'lucide-react';
+import { Laptop, Smartphone, Video, Power, PowerOff, Activity, Bell, Clock, Settings, Wifi, WifiOff } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
@@ -11,6 +10,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { laptopDeviceId } from '@/config/devices';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { DashboardHeader } from '@/components/layout/DashboardHeader';
 
 interface UserProfile {
   id?: string;
@@ -20,7 +21,7 @@ interface UserProfile {
 }
 
 const Dashboard: React.FC = () => {
-  const { t, language, isRTL } = useLanguage();
+  const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
@@ -47,7 +48,6 @@ const Dashboard: React.FC = () => {
           return;
         }
 
-        // Check if last_seen_at is within 30 seconds
         if (data.last_seen_at) {
           const lastSeen = new Date(data.last_seen_at);
           const now = new Date();
@@ -66,10 +66,8 @@ const Dashboard: React.FC = () => {
       }
     };
 
-    // Check immediately and then every 10 seconds
     checkLaptopStatus();
     const interval = setInterval(checkLaptopStatus, 10000);
-
     return () => clearInterval(interval);
   }, []);
 
@@ -81,12 +79,6 @@ const Dashboard: React.FC = () => {
       navigate('/login');
     }
   }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('userProfile');
-    localStorage.removeItem('aiguard_session_token');
-    navigate('/login');
-  };
 
   if (!userProfile) {
     return null;
@@ -130,50 +122,19 @@ const Dashboard: React.FC = () => {
   // Mobile Dashboard - Controller + Viewer Mode
   if (isMobileDevice) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        {/* Header */}
-        <header className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50">
-          <div className="container mx-auto px-4">
-            <div className="flex items-center justify-between h-16">
-              <Link to="/" className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-white" />
-                </div>
-                <span className="text-xl font-bold text-white">AIGuard</span>
-              </Link>
-              <div className="flex items-center gap-4">
-                <LanguageSwitcher />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="text-white/60 hover:text-white hover:bg-white/10"
-                >
-                  <LogOut className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </header>
+      <AppLayout>
+        <DashboardHeader 
+          userFullName={userProfile.fullName}
+          subtitle={language === 'he' ? 'שלוט במצלמות וצפה בשידור חי' : 'Control cameras and watch live streams'}
+          roleBadge={{
+            label: language === 'he' ? 'שליטה + צפייה' : 'Controller + Viewer',
+            variant: 'emerald'
+          }}
+        />
 
-        <main className="container mx-auto px-4 py-6">
-          {/* Welcome with Controller + Viewer Role */}
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <h1 className="text-xl font-bold text-white">
-                {language === 'he' ? `שלום, ${userProfile.fullName}` : `Hello, ${userProfile.fullName}`}
-              </h1>
-              <span className="px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 rounded-full border border-emerald-500/30">
-                {language === 'he' ? 'שליטה + צפייה' : 'Controller + Viewer'}
-              </span>
-            </div>
-            <p className="text-white/60 text-sm">
-              {language === 'he' ? 'שלוט במצלמות וצפה בשידור חי' : 'Control cameras and watch live streams'}
-            </p>
-          </div>
-
+        <div className="p-4 space-y-4">
           {/* This Device Card - Controller Mode */}
-          <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-5 mb-4">
+          <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-5">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                 <Smartphone className="w-6 h-6 text-white" />
@@ -198,12 +159,10 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Laptop Camera Control Card */}
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 mb-4">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
             <div className="flex items-center gap-3 mb-4">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                laptopStatus === 'online' 
-                  ? 'bg-green-500/20' 
-                  : 'bg-slate-700/50'
+                laptopStatus === 'online' ? 'bg-green-500/20' : 'bg-slate-700/50'
               }`}>
                 <Laptop className={`w-5 h-5 ${laptopStatus === 'online' ? 'text-green-400' : 'text-slate-500'}`} />
               </div>
@@ -226,7 +185,7 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Start / Stop Monitoring Controls - SAME HANDLERS AS DESKTOP */}
+            {/* Start / Stop Monitoring Controls */}
             <div className="flex gap-3">
               <Button 
                 className="flex-1 bg-green-600 hover:bg-green-700"
@@ -248,7 +207,7 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Compact System Status */}
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 mb-4">
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-3">
               <Activity className="w-4 h-4 text-white/60" />
               <h3 className="text-base font-semibold text-white">
@@ -280,57 +239,27 @@ const Dashboard: React.FC = () => {
               </p>
             </div>
           </div>
-        </main>
-      </div>
+        </div>
+      </AppLayout>
     );
   }
 
   // Desktop Dashboard - Operational View
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Header */}
-      <header className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xl font-bold text-white">AIGuard</span>
-            </Link>
-            <div className="flex items-center gap-4">
-              <LanguageSwitcher />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="text-white/60 hover:text-white hover:bg-white/10"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <AppLayout>
+      <DashboardHeader 
+        userFullName={userProfile.fullName}
+        subtitle={language === 'he' ? 'לוח בקרה - תחנת מצלמה' : 'Dashboard - Camera Station'}
+      />
 
-      <main className="container mx-auto px-4 py-8">
-        {/* Welcome */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-white mb-1">
-            {language === 'he' ? `שלום, ${userProfile.fullName}` : `Hello, ${userProfile.fullName}`}
-          </h1>
-          <p className="text-white/60">
-            {language === 'he' ? 'לוח בקרה - תחנת מצלמה' : 'Dashboard - Camera Station'}
-          </p>
-        </div>
-
+      <div className="p-6">
         {/* Desktop Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* Left Column - This Device + Controls */}
           <div className="lg:col-span-2 space-y-6">
             
-            {/* This Device Card - EXISTING START/STOP LOGIC PRESERVED */}
+            {/* This Device Card */}
             <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
@@ -356,7 +285,7 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Camera Preview - LOCAL ONLY, does NOT affect monitoring */}
+              {/* Camera Preview - LOCAL ONLY */}
               <div className="mb-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-white/50 text-xs">
@@ -413,11 +342,7 @@ const Dashboard: React.FC = () => {
               </h3>
               
               <div className="space-y-4">
-                {/* Background Mode Toggle */}
-                <FeatureGate 
-                  requires={['canBackgroundRun']} 
-                  mode="hide"
-                >
+                <FeatureGate requires={['canBackgroundRun']} mode="hide">
                   <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-xl">
                     <div>
                       <p className="text-white font-medium">
@@ -431,11 +356,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </FeatureGate>
 
-                {/* Record on Alert Toggle */}
-                <FeatureGate 
-                  requires={['canRecordSegments']} 
-                  mode="hide"
-                >
+                <FeatureGate requires={['canRecordSegments']} mode="hide">
                   <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-xl">
                     <div>
                       <p className="text-white font-medium">
@@ -449,11 +370,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </FeatureGate>
 
-                {/* Auto-start Toggle */}
-                <FeatureGate 
-                  requires={['isElectron']} 
-                  mode="hide"
-                >
+                <FeatureGate requires={['isElectron']} mode="hide">
                   <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-xl">
                     <div>
                       <p className="text-white font-medium">
@@ -467,7 +384,6 @@ const Dashboard: React.FC = () => {
                   </div>
                 </FeatureGate>
 
-                {/* Show message if no Electron features available */}
                 {!capabilities.isElectron && (
                   <div className="text-center py-4 text-white/40 text-sm">
                     {language === 'he' 
@@ -540,11 +456,10 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
             </div>
-
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 
