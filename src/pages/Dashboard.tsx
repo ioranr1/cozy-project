@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Shield, Laptop, Smartphone, Plus, LogOut, Video, Power, PowerOff } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
@@ -89,36 +90,25 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Header */}
+    <AppLayout>
+      {/* Header - simplified since nav is now in sidebar/bottom */}
       <header className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50">
-        <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xl font-bold text-white">AIGuard</span>
-            </Link>
-
-            {/* Actions */}
-            <div className="flex items-center gap-4">
-              <LanguageSwitcher />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-                className="text-white/60 hover:text-white hover:bg-white/10"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
+        <div className="px-4 md:px-6">
+          <div className="flex items-center justify-end h-14 gap-4">
+            <LanguageSwitcher />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="text-white/60 hover:text-white hover:bg-white/10"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="px-4 md:px-6 py-8">
         {/* Welcome */}
         <div className="mb-8">
           <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
@@ -348,7 +338,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </main>
-    </div>
+    </AppLayout>
   );
 };
 
