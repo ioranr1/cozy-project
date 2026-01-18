@@ -256,10 +256,10 @@ const LiveView: React.FC = () => {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <p className="text-white/60 mb-4">
-            {language === 'he' ? 'נתוני הסשן חסרים' : 'Session data missing'}
+            {language === 'he' ? 'אין שידור פעיל. הפעל מהמסך הראשי' : 'No active stream. Start it from the main screen.'}
           </p>
           <Button onClick={() => navigate('/dashboard')}>
-            {language === 'he' ? 'חזור לדשבורד' : 'Back to Dashboard'}
+            {language === 'he' ? 'חזור למסך הראשי' : 'Back to Dashboard'}
           </Button>
         </div>
       </div>

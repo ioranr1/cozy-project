@@ -54,61 +54,14 @@ const Viewer: React.FC = () => {
   };
 
   const handleViewLive = async (device: Device) => {
-    setStartingDevice(device.id);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error(language === 'he' ? 'נא להתחבר מחדש' : 'Please log in again');
-        navigate('/login');
-        return;
-      }
-
-      const response = await fetch(
-        'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/live-start',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            device_id: device.id,
-            ttl_seconds: 60,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 409) {
-          toast.error(language === 'he' ? 'יש כבר שידור פעיל למכשיר זה' : 'There is already an active session for this device');
-        } else if (response.status === 403) {
-          toast.error(language === 'he' ? 'אין לך הרשאה למכשיר זה' : 'You do not have permission for this device');
-        } else {
-          toast.error(data.error || (language === 'he' ? 'שגיאה בהפעלת השידור' : 'Error starting live view'));
-        }
-        return;
-      }
-
-      // Navigate to live view with session data
-      navigate(`/live/${data.session_id}`, {
-        state: {
-          sessionId: data.session_id,
-          channel: data.channel,
-          expiresAt: data.expires_at,
-          ttlSeconds: data.ttl_seconds,
-          iceServers: data.ice_servers,
-          deviceName: device.device_name,
-        },
-      });
-    } catch (error) {
-      console.error('Error starting live:', error);
-      toast.error(language === 'he' ? 'שגיאת רשת' : 'Network error');
-    } finally {
-      setStartingDevice(null);
-    }
+    // Viewer screen must not create a separate start flow.
+    // Starting the stream is done from the main screen (Dashboard) using the unified remote command.
+    toast.info(
+      language === 'he'
+        ? 'אין שידור פעיל. הפעל מהמסך הראשי'
+        : 'No active stream. Start it from the main screen.'
+    );
+    navigate('/dashboard');
   };
 
   const getDeviceStatus = (device: Device) => {
@@ -196,14 +149,14 @@ const Viewer: React.FC = () => {
                     <Button
                       onClick={() => handleViewLive(device)}
                       disabled={isStarting}
-                      className={`${isOnline ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-600 hover:bg-slate-500'}`}
+                      className="bg-primary hover:bg-primary/90"
                     >
                       {isStarting ? (
                         <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
                       ) : (
                         <>
                           <Play className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                          {language === 'he' ? 'צפה בשידור חי' : 'View Live'}
+                          {language === 'he' ? 'הפעל מהמסך הראשי' : 'Start from Dashboard'}
                         </>
                       )}
                     </Button>
