@@ -3,12 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
-import { Shield, Laptop, Smartphone, LogOut, Video, Power, PowerOff, Activity, Bell, Clock, Settings, Wifi, WifiOff } from 'lucide-react';
+import { Shield, Laptop, Smartphone, LogOut, Video, Activity, Bell, Clock, Settings, Wifi, WifiOff } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 import { laptopDeviceId } from '@/config/devices';
 import { Switch } from '@/components/ui/switch';
 
@@ -92,7 +91,7 @@ const Dashboard: React.FC = () => {
     return null;
   }
 
-  // Mobile Dashboard - Remote Control View
+  // Mobile Dashboard - Viewer-Only Mode
   if (isMobileDevice) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -122,146 +121,101 @@ const Dashboard: React.FC = () => {
         </header>
 
         <main className="container mx-auto px-4 py-6">
-          {/* Welcome */}
+          {/* Welcome with Viewer Role */}
           <div className="mb-6">
-            <h1 className="text-xl font-bold text-white mb-1">
-              {language === 'he' ? `שלום, ${userProfile.fullName}` : `Hello, ${userProfile.fullName}`}
-            </h1>
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="text-xl font-bold text-white">
+                {language === 'he' ? `שלום, ${userProfile.fullName}` : `Hello, ${userProfile.fullName}`}
+              </h1>
+              <span className="px-2 py-0.5 text-xs font-medium bg-blue-500/20 text-blue-400 rounded-full border border-blue-500/30">
+                {language === 'he' ? 'צופה' : 'Viewer'}
+              </span>
+            </div>
             <p className="text-white/60 text-sm">
-              {language === 'he' ? 'שליטה מרחוק במצלמות' : 'Remote camera control'}
+              {language === 'he' ? 'צפה בשידור חי מהמצלמות שלך' : 'Watch live streams from your cameras'}
             </p>
           </div>
 
-          {/* Laptop Status Card */}
-          <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 rounded-2xl p-5 mb-4">
+          {/* This Device Card - Viewer Mode */}
+          <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-5 mb-4">
             <div className="flex items-center gap-3 mb-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                laptopStatus === 'online' 
-                  ? 'bg-gradient-to-br from-green-500 to-green-600' 
-                  : 'bg-gradient-to-br from-slate-600 to-slate-700'
-              }`}>
-                <Laptop className="w-6 h-6 text-white" />
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                <Smartphone className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-white">
-                  {language === 'he' ? 'מצלמת הלפטופ' : 'Laptop Camera'}
+                  {language === 'he' ? 'מכשיר זה' : 'This Device'}
                 </h3>
+                <p className="text-white/60 text-sm">
+                  {language === 'he' ? 'מצב צפייה בלבד' : 'Viewing mode only'}
+                </p>
+              </div>
+            </div>
+
+            {/* Single Primary CTA - View Live */}
+            <Link to="/viewer" className="block">
+              <Button className="w-full bg-primary hover:bg-primary/90 text-lg py-6">
+                <Video className={`w-5 h-5 ${isRTL ? 'ml-3' : 'mr-3'}`} />
+                {language === 'he' ? 'צפה בשידור חי' : 'View Live Stream'}
+              </Button>
+            </Link>
+          </div>
+
+          {/* Camera Status Card */}
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 mb-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                laptopStatus === 'online' 
+                  ? 'bg-green-500/20' 
+                  : 'bg-slate-700/50'
+              }`}>
+                <Laptop className={`w-5 h-5 ${laptopStatus === 'online' ? 'text-green-400' : 'text-slate-500'}`} />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-white font-medium">
+                  {language === 'he' ? 'מצלמת הלפטופ' : 'Laptop Camera'}
+                </h4>
                 <div className="flex items-center gap-2">
                   {laptopStatus === 'online' ? (
                     <Wifi className="w-3 h-3 text-green-400" />
                   ) : (
                     <WifiOff className="w-3 h-3 text-slate-500" />
                   )}
-                  <span className={`text-xs ${
-                    laptopStatus === 'online' ? 'text-green-400' : 'text-slate-500'
-                  }`}>
+                  <span className={`text-xs ${laptopStatus === 'online' ? 'text-green-400' : 'text-slate-500'}`}>
                     {language === 'he' 
-                      ? (laptopStatus === 'online' ? 'מחובר' : 'לא מחובר')
-                      : (laptopStatus === 'online' ? 'Connected' : 'Disconnected')}
+                      ? (laptopStatus === 'online' ? 'מחובר ומשדר' : 'לא מחובר')
+                      : (laptopStatus === 'online' ? 'Connected & streaming' : 'Disconnected')}
                   </span>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Remote Control Buttons */}
-            <div className="flex flex-col gap-3">
-              <Button 
-                className="w-full bg-green-600 hover:bg-green-700"
-                onClick={async () => {
-                  if (!laptopDeviceId) {
-                    toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
-                    return;
-                  }
-                  
-                  const sessionToken = localStorage.getItem('aiguard_session_token');
-                  if (!sessionToken) {
-                    toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
-                    navigate('/login');
-                    return;
-                  }
-                  
-                  try {
-                    const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        session_token: sessionToken,
-                        device_id: laptopDeviceId,
-                        command: 'START_CAMERA'
-                      })
-                    });
-                    
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.error || 'Failed to send command');
-                    
-                    toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
-                  } catch (error) {
-                    console.error('Command error:', error);
-                    toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
-                  }
-                }}
-              >
-                <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                {language === 'he' ? 'הפעל מצלמה' : 'Start Camera'}
-              </Button>
-              
-              <Button 
-                variant="outline"
-                className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                onClick={async () => {
-                  if (!laptopDeviceId) {
-                    toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
-                    return;
-                  }
-                  
-                  const sessionToken = localStorage.getItem('aiguard_session_token');
-                  if (!sessionToken) {
-                    toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
-                    navigate('/login');
-                    return;
-                  }
-                  
-                  try {
-                    const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        session_token: sessionToken,
-                        device_id: laptopDeviceId,
-                        command: 'STOP_CAMERA'
-                      })
-                    });
-                    
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.error || 'Failed to send command');
-                    
-                    toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
-                  } catch (error) {
-                    console.error('Command error:', error);
-                    toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
-                  }
-                }}
-              >
-                <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                {language === 'he' ? 'כבה מצלמה' : 'Stop Camera'}
-              </Button>
-
-              <Link to="/live">
-                <Button variant="secondary" className="w-full">
-                  <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  {language === 'he' ? 'צפייה בשידור חי' : 'View Live'}
-                </Button>
-              </Link>
+          {/* Compact System Status */}
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Activity className="w-4 h-4 text-white/60" />
+              <h3 className="text-base font-semibold text-white">
+                {language === 'he' ? 'סטטוס מערכת' : 'System Status'}
+              </h3>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-white/60">
+                {language === 'he' ? 'חיבור לשרת' : 'Server Connection'}
+              </span>
+              <span className="text-green-400">
+                {language === 'he' ? 'מחובר' : 'Connected'}
+              </span>
             </div>
           </div>
 
           {/* Recent Events Card */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-base font-semibold text-white">
                 {language === 'he' ? 'אירועים אחרונים' : 'Recent Events'}
               </h3>
-              <Bell className="w-5 h-5 text-white/40" />
+              <Bell className="w-4 h-4 text-white/40" />
             </div>
             <div className="text-center py-6">
               <Clock className="w-8 h-8 text-white/20 mx-auto mb-2" />
