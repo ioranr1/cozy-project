@@ -4,7 +4,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Shield, Laptop, Smartphone, Plus, LogOut, Video, Power, PowerOff } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobileDevice } from '@/hooks/use-platform';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -19,7 +19,7 @@ const Dashboard: React.FC = () => {
   const { t, language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const isMobile = useIsMobile();
+  const isMobileDevice = useIsMobileDevice();
 
   useEffect(() => {
     const stored = localStorage.getItem('userProfile');
@@ -84,7 +84,7 @@ const Dashboard: React.FC = () => {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
           {/* Set as Camera - Active on Desktop, Disabled on Mobile */}
-          {isMobile ? (
+          {isMobileDevice ? (
             <div className="bg-gradient-to-br from-slate-700/20 to-slate-800/20 border border-slate-600/30 rounded-2xl p-6 opacity-60 cursor-not-allowed">
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg">
@@ -149,7 +149,7 @@ const Dashboard: React.FC = () => {
             </p>
             <div className="flex flex-col gap-3">
               {/* Primary button - Start Camera */}
-              {isMobile ? (
+              {isMobileDevice ? (
                 <Button 
                   className="w-full bg-green-600 hover:bg-green-700"
                   onClick={async () => {
@@ -195,7 +195,7 @@ const Dashboard: React.FC = () => {
               )}
               
               {/* Secondary button - Stop Camera */}
-              {isMobile ? (
+              {isMobileDevice ? (
                 <Button 
                   variant="outline"
                   className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
@@ -269,7 +269,7 @@ const Dashboard: React.FC = () => {
               {language === 'he' ? 'אין מכשירים מחוברים' : 'No devices connected'}
             </h3>
             <p className="text-white/60 mb-6 max-w-sm mx-auto">
-              {isMobile 
+              {isMobileDevice 
                 ? (language === 'he' 
                     ? 'הפעל מצלמה במחשב כדי לצפות בה מכאן'
                     : 'Activate a camera on your computer to view it from here')
@@ -278,7 +278,7 @@ const Dashboard: React.FC = () => {
                     : 'Connect your first device to start watching live stream')}
             </p>
             {/* Only show camera activation button on desktop */}
-            {!isMobile && (
+            {!isMobileDevice && (
               <Link to="/camera">
                 <Button className="bg-primary hover:bg-primary/90">
                   {language === 'he' ? 'הפעל מצלמה במכשיר זה' : 'Activate Camera on This Device'}
