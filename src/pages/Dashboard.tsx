@@ -7,6 +7,7 @@ import { Shield, Laptop, Smartphone, Plus, LogOut, Video, Power, PowerOff } from
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { laptopDeviceId } from '@/config/devices';
 
 interface UserProfile {
   id?: string;
@@ -153,10 +154,7 @@ const Dashboard: React.FC = () => {
                 <Button 
                   className="w-full bg-green-600 hover:bg-green-700"
                   onClick={async () => {
-                    // Fixed laptop device UUID - replace with your actual laptop device ID
-                    const LAPTOP_DEVICE_ID = 'laptop-001'; // TODO: Replace with actual UUID from devices table
-                    
-                    if (!LAPTOP_DEVICE_ID) {
+                    if (!laptopDeviceId || laptopDeviceId === 'YOUR-LAPTOP-UUID-HERE') {
                       toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
                       return;
                     }
@@ -165,7 +163,7 @@ const Dashboard: React.FC = () => {
                       const { error } = await supabase
                         .from('commands')
                         .insert({
-                          device_id: LAPTOP_DEVICE_ID,
+                          device_id: laptopDeviceId,
                           command: 'START_CAMERA',
                           handled: false
                         });
@@ -192,27 +190,16 @@ const Dashboard: React.FC = () => {
                   variant="outline"
                   className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
                   onClick={async () => {
+                    if (!laptopDeviceId || laptopDeviceId === 'YOUR-LAPTOP-UUID-HERE') {
+                      toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
+                      return;
+                    }
+                    
                     try {
-                      // Find user's laptop device
-                      const { data: devices, error: deviceError } = await supabase
-                        .from('devices')
-                        .select('id')
-                        .eq('device_type', 'laptop')
-                        .limit(1);
-                      
-                      if (deviceError) throw deviceError;
-                      
-                      if (!devices || devices.length === 0) {
-                        toast.error(language === 'he' ? 'לא נמצא מחשב מחובר' : 'No connected computer found');
-                        return;
-                      }
-                      
-                      const deviceId = devices[0].id;
-                      
                       const { error } = await supabase
                         .from('commands')
                         .insert({
-                          device_id: deviceId,
+                          device_id: laptopDeviceId,
                           command: 'STOP_CAMERA',
                           handled: false
                         });
