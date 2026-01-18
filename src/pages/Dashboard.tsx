@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Laptop, Smartphone, Video, Power, PowerOff, Activity, Bell, Clock, Settings, Wifi, WifiOff } from 'lucide-react';
+import { Laptop, Smartphone, Video, Radar, Activity, Bell, Clock, Wifi, WifiOff } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
@@ -25,6 +25,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
+  const [motionDetectionActive, setMotionDetectionActive] = useState(false);
   const isMobileDevice = useIsMobileDevice();
   const capabilities = useCapabilities();
 
@@ -84,40 +85,7 @@ const Dashboard: React.FC = () => {
     return null;
   }
 
-  // Shared monitoring command handler - used by both Desktop and Mobile
-  const sendMonitoringCommand = async (command: 'START_CAMERA' | 'STOP_CAMERA') => {
-    if (!laptopDeviceId) {
-      toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
-      return;
-    }
-    
-    const sessionToken = localStorage.getItem('aiguard_session_token');
-    if (!sessionToken) {
-      toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
-      navigate('/login');
-      return;
-    }
-    
-    try {
-      const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_token: sessionToken,
-          device_id: laptopDeviceId,
-          command
-        })
-      });
-      
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to send command');
-      
-      toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
-    } catch (error) {
-      console.error('Command error:', error);
-      toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
-    }
-  };
+  // Motion Detection status would typically be fetched from device status/commands table
 
   // Mobile Dashboard - Controller + Viewer Mode
   if (isMobileDevice) {
@@ -158,51 +126,37 @@ const Dashboard: React.FC = () => {
             </Link>
           </div>
 
-          {/* Laptop Camera Control Card */}
+          {/* Motion Detection Status Card */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
             <div className="flex items-center gap-3 mb-4">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                laptopStatus === 'online' ? 'bg-green-500/20' : 'bg-slate-700/50'
+                motionDetectionActive ? 'bg-amber-500/20' : 'bg-slate-700/50'
               }`}>
-                <Laptop className={`w-5 h-5 ${laptopStatus === 'online' ? 'text-green-400' : 'text-slate-500'}`} />
+                <Radar className={`w-5 h-5 ${motionDetectionActive ? 'text-amber-400' : 'text-slate-500'}`} />
               </div>
               <div className="flex-1">
                 <h4 className="text-white font-medium">
-                  {language === 'he' ? 'מצלמת הלפטופ' : 'Laptop Camera'}
+                  {language === 'he' ? 'זיהוי תנועה' : 'Motion Detection'}
                 </h4>
-                <div className="flex items-center gap-2">
-                  {laptopStatus === 'online' ? (
-                    <Wifi className="w-3 h-3 text-green-400" />
-                  ) : (
-                    <WifiOff className="w-3 h-3 text-slate-500" />
-                  )}
-                  <span className={`text-xs ${laptopStatus === 'online' ? 'text-green-400' : 'text-slate-500'}`}>
-                    {language === 'he' 
-                      ? (laptopStatus === 'online' ? 'מחובר' : 'לא מחובר')
-                      : (laptopStatus === 'online' ? 'Connected' : 'Disconnected')}
-                  </span>
-                </div>
+                <span className={`text-xs ${motionDetectionActive ? 'text-amber-400' : 'text-slate-500'}`}>
+                  {language === 'he' 
+                    ? (motionDetectionActive ? 'פעיל' : 'לא פעיל')
+                    : (motionDetectionActive ? 'Active' : 'Inactive')}
+                </span>
               </div>
             </div>
 
-            {/* Start / Stop Monitoring Controls */}
-            <div className="flex gap-3">
-              <Button 
-                className="flex-1 bg-green-600 hover:bg-green-700"
-                onClick={() => sendMonitoringCommand('START_CAMERA')}
-              >
-                <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                {language === 'he' ? 'התחל ניטור' : 'Start Monitoring'}
-              </Button>
-              
-              <Button 
-                variant="outline"
-                className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                onClick={() => sendMonitoringCommand('STOP_CAMERA')}
-              >
-                <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                {language === 'he' ? 'עצור ניטור' : 'Stop Monitoring'}
-              </Button>
+            {/* Status indicator only - controls are on /motion-detection page */}
+            <div className={`flex items-center justify-center p-3 rounded-xl ${
+              motionDetectionActive 
+                ? 'bg-amber-500/10 border border-amber-500/30' 
+                : 'bg-slate-700/30 border border-slate-600/30'
+            }`}>
+              <span className={`text-sm ${motionDetectionActive ? 'text-amber-400' : 'text-slate-400'}`}>
+                {language === 'he' 
+                  ? (motionDetectionActive ? 'המערכת מנטרת תנועה' : 'המערכת אינה פעילה')
+                  : (motionDetectionActive ? 'System is monitoring motion' : 'System is inactive')}
+              </span>
             </div>
           </div>
 
@@ -285,53 +239,30 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Camera Preview - LOCAL ONLY */}
-              <div className="mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-white/50 text-xs">
-                    {language === 'he' ? 'תצוגה מקדימה בלבד' : 'Preview only'}
+              {/* Motion Detection Status */}
+              <div className="bg-slate-700/30 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <Radar className={`w-5 h-5 ${motionDetectionActive ? 'text-amber-400' : 'text-slate-500'}`} />
+                    <span className="text-white font-medium">
+                      {language === 'he' ? 'זיהוי תנועה' : 'Motion Detection'}
+                    </span>
+                  </div>
+                  <span className={`text-sm px-2 py-0.5 rounded-full ${
+                    motionDetectionActive 
+                      ? 'bg-amber-500/20 text-amber-400' 
+                      : 'bg-slate-600/50 text-slate-400'
+                  }`}>
+                    {language === 'he' 
+                      ? (motionDetectionActive ? 'פעיל' : 'לא פעיל')
+                      : (motionDetectionActive ? 'Active' : 'Inactive')}
                   </span>
                 </div>
-                <div className="flex gap-3">
-                  <Link to="/camera" className="flex-1">
-                    <Button className="w-full bg-slate-600 hover:bg-slate-500">
-                      <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                      {language === 'he' ? 'פתח מצלמה' : 'Open Camera'}
-                    </Button>
-                  </Link>
-                  <Link to="/camera">
-                    <Button variant="outline" size="icon" className="border-slate-600 hover:border-slate-500">
-                      <Settings className="w-4 h-4 text-white/60" />
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-
-              {/* Monitoring Controls - AFFECTS SYSTEM STATE */}
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-white/50 text-xs">
-                    {language === 'he' ? 'שליטה בניטור המערכת' : 'Controls system monitoring'}
-                  </span>
-                </div>
-                <div className="flex gap-3">
-                  <Button 
-                    className="flex-1 bg-green-600 hover:bg-green-700"
-                    onClick={() => sendMonitoringCommand('START_CAMERA')}
-                  >
-                    <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                    {language === 'he' ? 'התחל ניטור' : 'Start Monitoring'}
+                <Link to="/motion-detection">
+                  <Button variant="outline" size="sm" className="w-full border-slate-600 text-white/70 hover:text-white">
+                    {language === 'he' ? 'נהל זיהוי תנועה' : 'Manage Motion Detection'}
                   </Button>
-                  
-                  <Button 
-                    variant="outline"
-                    className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                    onClick={() => sendMonitoringCommand('STOP_CAMERA')}
-                  >
-                    <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                    {language === 'he' ? 'עצור ניטור' : 'Stop Monitoring'}
-                  </Button>
-                </div>
+                </Link>
               </div>
             </div>
 
@@ -377,7 +308,7 @@ const Dashboard: React.FC = () => {
                         {language === 'he' ? 'הפעלה אוטומטית' : 'Auto-start on Launch'}
                       </p>
                       <p className="text-white/50 text-xs">
-                        {language === 'he' ? 'התחל ניטור עם הפעלת המערכת' : 'Start monitoring when system boots'}
+                        {language === 'he' ? 'התחל זיהוי תנועה עם הפעלת המערכת' : 'Start motion detection when system boots'}
                       </p>
                     </div>
                     <Switch disabled />

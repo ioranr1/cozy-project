@@ -12,6 +12,7 @@ import Camera from "./pages/Camera";
 import Viewer from "./pages/Viewer";
 import EventDetails from "./pages/EventDetails";
 import LiveView from "./pages/LiveView";
+import MotionDetection from "./pages/MotionDetection";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/viewer" element={<Viewer />} />
             <Route path="/events/:eventId" element={<EventDetails />} />
             <Route path="/live/:sessionId" element={<LiveView />} />
+            <Route path="/motion-detection" element={<MotionDetection />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
