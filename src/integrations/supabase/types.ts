@@ -70,25 +70,34 @@ export type Database = {
           command: string
           created_at: string
           device_id: string
+          error_message: string | null
           handled: boolean
           handled_at: string | null
           id: string
+          requester_profile_id: string | null
+          status: string
         }
         Insert: {
           command: string
           created_at?: string
           device_id: string
+          error_message?: string | null
           handled?: boolean
           handled_at?: string | null
           id?: string
+          requester_profile_id?: string | null
+          status?: string
         }
         Update: {
           command?: string
           created_at?: string
           device_id?: string
+          error_message?: string | null
           handled?: boolean
           handled_at?: string | null
           id?: string
+          requester_profile_id?: string | null
+          status?: string
         }
         Relationships: [
           {

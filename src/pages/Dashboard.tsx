@@ -2,16 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Laptop, Smartphone, Video, Radar, Activity, Bell, Clock, Eye, EyeOff, Power, PowerOff } from 'lucide-react';
+import { Laptop, Smartphone, Video, Radar, Activity, Bell, Clock, Eye, EyeOff, Power, PowerOff, Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
 import { laptopDeviceId } from '@/config/devices';
 import { Switch } from '@/components/ui/switch';
-import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
+import { useRemoteCommand, CommandType } from '@/hooks/useRemoteCommand';
 
 interface UserProfile {
   id?: string;
@@ -20,6 +20,8 @@ interface UserProfile {
   phone: string;
 }
 
+type ViewStatus = 'idle' | 'starting' | 'streaming' | 'stopping';
+
 const Dashboard: React.FC = () => {
   const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
@@ -27,9 +29,34 @@ const Dashboard: React.FC = () => {
   const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const [motionDetectionActive, setMotionDetectionActive] = useState(false);
   const [liveViewActive, setLiveViewActive] = useState(false);
-  const [sendingCommand, setSendingCommand] = useState<string | null>(null);
+  const [viewStatus, setViewStatus] = useState<ViewStatus>('idle');
   const isMobileDevice = useIsMobileDevice();
   const capabilities = useCapabilities();
+
+  // Remote command hook
+  const { sendCommand, commandState, isLoading } = useRemoteCommand({
+    deviceId: laptopDeviceId,
+    onAcknowledged: (commandType) => {
+      if (commandType === 'START_MOTION_DETECTION') {
+        setMotionDetectionActive(true);
+      } else if (commandType === 'STOP_MOTION_DETECTION') {
+        setMotionDetectionActive(false);
+      } else if (commandType === 'START_LIVE_VIEW') {
+        setLiveViewActive(true);
+        setViewStatus('streaming');
+      } else if (commandType === 'STOP_LIVE_VIEW') {
+        setLiveViewActive(false);
+        setViewStatus('idle');
+      }
+    },
+    onFailed: (commandType) => {
+      if (commandType === 'START_LIVE_VIEW') {
+        setViewStatus('idle');
+      } else if (commandType === 'STOP_LIVE_VIEW') {
+        setViewStatus('streaming');
+      }
+    },
+  });
 
   // Check laptop connection status
   useEffect(() => {
@@ -83,42 +110,52 @@ const Dashboard: React.FC = () => {
     }
   }, [navigate]);
 
-  // Send remote command to laptop
-  const sendCommand = async (command: string) => {
-    if (!laptopDeviceId) {
-      toast.error(language === 'he' ? 'לא הוגדר מכשיר יעד' : 'No target device configured');
-      return;
+  // Handle command sending with proper status tracking
+  const handleCommand = async (commandType: CommandType) => {
+    if (commandType === 'START_LIVE_VIEW') {
+      setViewStatus('starting');
+    } else if (commandType === 'STOP_LIVE_VIEW') {
+      setViewStatus('stopping');
     }
+    await sendCommand(commandType);
+  };
 
-    setSendingCommand(command);
-    try {
-      const sessionToken = localStorage.getItem('session_token');
-      const response = await supabase.functions.invoke('send-command', {
-        body: { device_id: laptopDeviceId, command },
-        headers: sessionToken ? { 'x-session-token': sessionToken } : undefined,
-      });
-
-      if (response.error) throw response.error;
-
-      // Update local state based on command
-      if (command === 'START_MOTION_DETECTION') {
-        setMotionDetectionActive(true);
-        toast.success(language === 'he' ? 'זיהוי תנועה הופעל' : 'Motion detection started');
-      } else if (command === 'STOP_MOTION_DETECTION') {
-        setMotionDetectionActive(false);
-        toast.success(language === 'he' ? 'זיהוי תנועה הופסק' : 'Motion detection stopped');
-      } else if (command === 'START_LIVE_VIEW') {
-        setLiveViewActive(true);
-        toast.success(language === 'he' ? 'צפייה חיה הופעלה' : 'Live view started');
-      } else if (command === 'STOP_LIVE_VIEW') {
-        setLiveViewActive(false);
-        toast.success(language === 'he' ? 'צפייה חיה הופסקה' : 'Live view stopped');
-      }
-    } catch (error) {
-      console.error('Failed to send command:', error);
-      toast.error(language === 'he' ? 'שליחת הפקודה נכשלה' : 'Failed to send command');
-    } finally {
-      setSendingCommand(null);
+  // Get command status indicator
+  const getStatusIndicator = () => {
+    switch (commandState.status) {
+      case 'sending':
+        return (
+          <div className="flex items-center gap-2 text-blue-400 text-xs">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            {language === 'he' ? 'שולח...' : 'Sending...'}
+          </div>
+        );
+      case 'pending':
+        return (
+          <div className="flex items-center gap-2 text-amber-400 text-xs">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            {language === 'he' ? 'ממתין לאישור...' : 'Waiting...'}
+          </div>
+        );
+      case 'acknowledged':
+        return (
+          <div className="flex items-center gap-2 text-green-400 text-xs">
+            <CheckCircle className="w-3 h-3" />
+            {language === 'he' ? 'התקבל' : 'Acknowledged'}
+          </div>
+        );
+      case 'failed':
+      case 'timeout':
+        return (
+          <div className="flex items-center gap-2 text-red-400 text-xs">
+            <XCircle className="w-3 h-3" />
+            {commandState.status === 'timeout' 
+              ? (language === 'he' ? 'פג תוקף' : 'Timeout')
+              : (language === 'he' ? 'נכשל' : 'Failed')}
+          </div>
+        );
+      default:
+        return null;
     }
   };
 
@@ -140,27 +177,40 @@ const Dashboard: React.FC = () => {
         />
 
         <div className="p-4 space-y-4">
-          {/* Connection Status */}
+          {/* Connection Status with Command Feedback */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
             <div className="flex items-center justify-between">
               <span className="text-white/60 text-sm">
                 {language === 'he' ? 'סטטוס מחשב' : 'Computer Status'}
               </span>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  laptopStatus === 'online' ? 'bg-green-500 animate-pulse' : 
-                  laptopStatus === 'offline' ? 'bg-yellow-500' : 'bg-slate-500'
-                }`} />
-                <span className={`text-xs ${
-                  laptopStatus === 'online' ? 'text-green-400' : 
-                  laptopStatus === 'offline' ? 'text-yellow-400' : 'text-slate-400'
-                }`}>
-                  {language === 'he' 
-                    ? (laptopStatus === 'online' ? 'מחובר' : laptopStatus === 'offline' ? 'לא מחובר' : 'לא ידוע')
-                    : (laptopStatus === 'online' ? 'Connected' : laptopStatus === 'offline' ? 'Disconnected' : 'Unknown')}
-                </span>
+              <div className="flex items-center gap-3">
+                {getStatusIndicator()}
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    laptopStatus === 'online' ? 'bg-green-500 animate-pulse' : 
+                    laptopStatus === 'offline' ? 'bg-yellow-500' : 'bg-slate-500'
+                  }`} />
+                  <span className={`text-xs ${
+                    laptopStatus === 'online' ? 'text-green-400' : 
+                    laptopStatus === 'offline' ? 'text-yellow-400' : 'text-slate-400'
+                  }`}>
+                    {language === 'he' 
+                      ? (laptopStatus === 'online' ? 'מחובר' : laptopStatus === 'offline' ? 'לא מחובר' : 'לא ידוע')
+                      : (laptopStatus === 'online' ? 'Connected' : laptopStatus === 'offline' ? 'Disconnected' : 'Unknown')}
+                  </span>
+                </div>
               </div>
             </div>
+            
+            {/* Error Message Display */}
+            {commandState.error && (
+              <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-red-400 text-xs">{commandState.error}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Motion Detection Control Card */}
@@ -194,20 +244,28 @@ const Dashboard: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               <Button 
-                onClick={() => sendCommand('START_MOTION_DETECTION')}
-                disabled={sendingCommand !== null || motionDetectionActive}
+                onClick={() => handleCommand('START_MOTION_DETECTION')}
+                disabled={isLoading || motionDetectionActive}
                 className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
               >
-                <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {isLoading ? (
+                  <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                ) : (
+                  <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                )}
                 {language === 'he' ? 'הפעל' : 'Enable'}
               </Button>
               <Button 
-                onClick={() => sendCommand('STOP_MOTION_DETECTION')}
-                disabled={sendingCommand !== null || !motionDetectionActive}
+                onClick={() => handleCommand('STOP_MOTION_DETECTION')}
+                disabled={isLoading || !motionDetectionActive}
                 variant="outline"
                 className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
               >
-                <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {isLoading ? (
+                  <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                ) : (
+                  <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                )}
                 {language === 'he' ? 'כבה' : 'Disable'}
               </Button>
             </div>
@@ -232,32 +290,44 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
               <div className={`px-2 py-1 rounded-full text-xs ${
-                liveViewActive 
-                  ? 'bg-blue-500/20 text-blue-400' 
-                  : 'bg-slate-600/50 text-slate-400'
+                viewStatus === 'streaming' ? 'bg-green-500/20 text-green-400' :
+                viewStatus === 'starting' || viewStatus === 'stopping' ? 'bg-blue-500/20 text-blue-400' :
+                'bg-slate-600/50 text-slate-400'
               }`}>
                 {language === 'he' 
-                  ? (liveViewActive ? 'פעיל' : 'כבוי')
-                  : (liveViewActive ? 'Active' : 'Off')}
+                  ? (viewStatus === 'streaming' ? 'משדר' : 
+                     viewStatus === 'starting' ? 'מתחיל...' : 
+                     viewStatus === 'stopping' ? 'עוצר...' : 'כבוי')
+                  : (viewStatus === 'streaming' ? 'Streaming' : 
+                     viewStatus === 'starting' ? 'Starting...' : 
+                     viewStatus === 'stopping' ? 'Stopping...' : 'Off')}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-3">
               <Button 
-                onClick={() => sendCommand('START_LIVE_VIEW')}
-                disabled={sendingCommand !== null || liveViewActive}
+                onClick={() => handleCommand('START_LIVE_VIEW')}
+                disabled={isLoading || liveViewActive}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
               >
-                <Eye className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {viewStatus === 'starting' ? (
+                  <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                ) : (
+                  <Eye className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                )}
                 {language === 'he' ? 'התחל' : 'Start'}
               </Button>
               <Button 
-                onClick={() => sendCommand('STOP_LIVE_VIEW')}
-                disabled={sendingCommand !== null || !liveViewActive}
+                onClick={() => handleCommand('STOP_LIVE_VIEW')}
+                disabled={isLoading || !liveViewActive}
                 variant="outline"
                 className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
               >
-                <EyeOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {viewStatus === 'stopping' ? (
+                  <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                ) : (
+                  <EyeOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                )}
                 {language === 'he' ? 'הפסק' : 'Stop'}
               </Button>
             </div>
