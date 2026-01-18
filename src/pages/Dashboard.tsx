@@ -36,7 +36,7 @@ const Dashboard: React.FC = () => {
           .from('devices')
           .select('last_seen_at, is_active')
           .eq('id', laptopDeviceId)
-          .single();
+          .maybeSingle();
 
         if (error || !data) {
           setLaptopStatus('unknown');
