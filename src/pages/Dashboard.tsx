@@ -3,11 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
-import { Shield, Laptop, Smartphone, Plus, LogOut, Video, Power, PowerOff } from 'lucide-react';
+import { Shield, Laptop, Smartphone, LogOut, Video, Power, PowerOff, Activity, Bell, Clock, Settings, Wifi, WifiOff } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
+import { useCapabilities } from '@/hooks/useCapabilities';
+import { FeatureGate } from '@/components/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { laptopDeviceId } from '@/config/devices';
+import { Switch } from '@/components/ui/switch';
 
 interface UserProfile {
   id?: string;
@@ -22,6 +25,7 @@ const Dashboard: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const isMobileDevice = useIsMobileDevice();
+  const capabilities = useCapabilities();
 
   // Check laptop connection status
   useEffect(() => {
@@ -88,21 +92,202 @@ const Dashboard: React.FC = () => {
     return null;
   }
 
+  // Mobile Dashboard - Remote Control View
+  if (isMobileDevice) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        {/* Header */}
+        <header className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50">
+          <div className="container mx-auto px-4">
+            <div className="flex items-center justify-between h-16">
+              <Link to="/" className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-xl font-bold text-white">AIGuard</span>
+              </Link>
+              <div className="flex items-center gap-4">
+                <LanguageSwitcher />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="text-white/60 hover:text-white hover:bg-white/10"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="container mx-auto px-4 py-6">
+          {/* Welcome */}
+          <div className="mb-6">
+            <h1 className="text-xl font-bold text-white mb-1">
+              {language === 'he' ? `שלום, ${userProfile.fullName}` : `Hello, ${userProfile.fullName}`}
+            </h1>
+            <p className="text-white/60 text-sm">
+              {language === 'he' ? 'שליטה מרחוק במצלמות' : 'Remote camera control'}
+            </p>
+          </div>
+
+          {/* Laptop Status Card */}
+          <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50 rounded-2xl p-5 mb-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                laptopStatus === 'online' 
+                  ? 'bg-gradient-to-br from-green-500 to-green-600' 
+                  : 'bg-gradient-to-br from-slate-600 to-slate-700'
+              }`}>
+                <Laptop className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white">
+                  {language === 'he' ? 'מצלמת הלפטופ' : 'Laptop Camera'}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {laptopStatus === 'online' ? (
+                    <Wifi className="w-3 h-3 text-green-400" />
+                  ) : (
+                    <WifiOff className="w-3 h-3 text-slate-500" />
+                  )}
+                  <span className={`text-xs ${
+                    laptopStatus === 'online' ? 'text-green-400' : 'text-slate-500'
+                  }`}>
+                    {language === 'he' 
+                      ? (laptopStatus === 'online' ? 'מחובר' : 'לא מחובר')
+                      : (laptopStatus === 'online' ? 'Connected' : 'Disconnected')}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Remote Control Buttons */}
+            <div className="flex flex-col gap-3">
+              <Button 
+                className="w-full bg-green-600 hover:bg-green-700"
+                onClick={async () => {
+                  if (!laptopDeviceId) {
+                    toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
+                    return;
+                  }
+                  
+                  const sessionToken = localStorage.getItem('aiguard_session_token');
+                  if (!sessionToken) {
+                    toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
+                    navigate('/login');
+                    return;
+                  }
+                  
+                  try {
+                    const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        session_token: sessionToken,
+                        device_id: laptopDeviceId,
+                        command: 'START_CAMERA'
+                      })
+                    });
+                    
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || 'Failed to send command');
+                    
+                    toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
+                  } catch (error) {
+                    console.error('Command error:', error);
+                    toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
+                  }
+                }}
+              >
+                <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'הפעל מצלמה' : 'Start Camera'}
+              </Button>
+              
+              <Button 
+                variant="outline"
+                className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                onClick={async () => {
+                  if (!laptopDeviceId) {
+                    toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
+                    return;
+                  }
+                  
+                  const sessionToken = localStorage.getItem('aiguard_session_token');
+                  if (!sessionToken) {
+                    toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
+                    navigate('/login');
+                    return;
+                  }
+                  
+                  try {
+                    const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        session_token: sessionToken,
+                        device_id: laptopDeviceId,
+                        command: 'STOP_CAMERA'
+                      })
+                    });
+                    
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || 'Failed to send command');
+                    
+                    toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
+                  } catch (error) {
+                    console.error('Command error:', error);
+                    toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
+                  }
+                }}
+              >
+                <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'כבה מצלמה' : 'Stop Camera'}
+              </Button>
+
+              <Link to="/live">
+                <Button variant="secondary" className="w-full">
+                  <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'צפייה בשידור חי' : 'View Live'}
+                </Button>
+              </Link>
+            </div>
+          </div>
+
+          {/* Recent Events Card */}
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">
+                {language === 'he' ? 'אירועים אחרונים' : 'Recent Events'}
+              </h3>
+              <Bell className="w-5 h-5 text-white/40" />
+            </div>
+            <div className="text-center py-6">
+              <Clock className="w-8 h-8 text-white/20 mx-auto mb-2" />
+              <p className="text-white/40 text-sm">
+                {language === 'he' ? 'אין אירועים אחרונים' : 'No recent events'}
+              </p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Desktop Dashboard - Operational View
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
       <header className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700/50">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
             <Link to="/" className="flex items-center gap-2">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <span className="text-xl font-bold text-white">AIGuard</span>
             </Link>
-
-            {/* Actions */}
             <div className="flex items-center gap-4">
               <LanguageSwitcher />
               <Button
@@ -121,230 +306,197 @@ const Dashboard: React.FC = () => {
       <main className="container mx-auto px-4 py-8">
         {/* Welcome */}
         <div className="mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">
+          <h1 className="text-2xl font-bold text-white mb-1">
             {language === 'he' ? `שלום, ${userProfile.fullName}` : `Hello, ${userProfile.fullName}`}
           </h1>
           <p className="text-white/60">
-            {language === 'he' ? 'ברוך הבא לאיזור האישי שלך' : 'Welcome to your dashboard'}
+            {language === 'he' ? 'לוח בקרה - תחנת מצלמה' : 'Dashboard - Camera Station'}
           </p>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          {/* Set as Camera - Active on Desktop, Disabled on Mobile */}
-          {isMobileDevice ? (
-            <div className="bg-gradient-to-br from-slate-700/20 to-slate-800/20 border border-slate-600/30 rounded-2xl p-6 opacity-60 cursor-not-allowed">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg">
-                  <Laptop className="w-7 h-7 text-white/60" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white/60">
-                    {language === 'he' ? 'הגדר כמצלמה' : 'Set as Camera'}
-                  </h3>
-                  <p className="text-white/40 text-sm">
-                    {language === 'he' ? 'מיועד למחשב בלבד' : 'For desktop only'}
-                  </p>
-                </div>
-              </div>
-              <Button className="w-full bg-slate-600 cursor-not-allowed" disabled>
-                {language === 'he' ? 'לא זמין בנייד' : 'Not available on mobile'}
-              </Button>
-            </div>
-          ) : (
-            <Link to="/camera">
-              <div className="group bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-6 hover:border-blue-500/50 transition-all hover:-translate-y-1">
-                <div className="flex items-center gap-4 mb-4">
+        {/* Desktop Grid Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Left Column - This Device + Controls */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* This Device Card - EXISTING START/STOP LOGIC PRESERVED */}
+            <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
                     <Laptop className="w-7 h-7 text-white" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-white">
-                      {language === 'he' ? 'הגדר כמצלמה' : 'Set as Camera'}
+                      {language === 'he' ? 'מכשיר זה' : 'This Device'}
                     </h3>
                     <p className="text-white/60 text-sm">
-                      {language === 'he' ? 'השתמש במכשיר זה כמצלמת אבטחה' : 'Use this device as a security camera'}
+                      {language === 'he' ? 'תחנת מצלמה ראשית' : 'Primary Camera Station'}
                     </p>
                   </div>
                 </div>
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                  {language === 'he' ? 'הפעל מצלמה' : 'Start Camera'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${laptopStatus === 'online' ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`} />
+                  <span className={`text-sm ${laptopStatus === 'online' ? 'text-green-400' : 'text-slate-400'}`}>
+                    {language === 'he' 
+                      ? (laptopStatus === 'online' ? 'פעיל' : 'לא פעיל')
+                      : (laptopStatus === 'online' ? 'Active' : 'Inactive')}
+                  </span>
+                </div>
               </div>
-            </Link>
-          )}
 
-          {/* Control Laptop Camera - Remote control card */}
-          <div className="bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 rounded-2xl p-6">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center shadow-lg">
-                <Smartphone className="w-7 h-7 text-white" />
+              {/* Camera Controls - Link to /camera page */}
+              <div className="flex gap-3">
+                <Link to="/camera" className="flex-1">
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                    <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    {language === 'he' ? 'פתח מצלמה' : 'Open Camera'}
+                  </Button>
+                </Link>
+                <Link to="/camera">
+                  <Button variant="outline" size="icon" className="border-slate-600 hover:border-slate-500">
+                    <Settings className="w-4 h-4 text-white/60" />
+                  </Button>
+                </Link>
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">
-                  {language === 'he' ? 'שליטה במצלמת הלפטופ' : 'Control Laptop Camera'}
+            </div>
+
+            {/* Desktop-only Toggles - FeatureGated */}
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">
+                {language === 'he' ? 'הגדרות מתקדמות' : 'Advanced Settings'}
+              </h3>
+              
+              <div className="space-y-4">
+                {/* Background Mode Toggle */}
+                <FeatureGate 
+                  requires={['canBackgroundRun']} 
+                  mode="hide"
+                >
+                  <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-xl">
+                    <div>
+                      <p className="text-white font-medium">
+                        {language === 'he' ? 'מצב רקע' : 'Background Mode'}
+                      </p>
+                      <p className="text-white/50 text-xs">
+                        {language === 'he' ? 'המשך הקלטה כשהחלון ממוזער' : 'Keep recording when minimized'}
+                      </p>
+                    </div>
+                    <Switch disabled />
+                  </div>
+                </FeatureGate>
+
+                {/* Record on Alert Toggle */}
+                <FeatureGate 
+                  requires={['canRecordSegments']} 
+                  mode="hide"
+                >
+                  <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-xl">
+                    <div>
+                      <p className="text-white font-medium">
+                        {language === 'he' ? 'הקלט באירוע' : 'Record on Alert'}
+                      </p>
+                      <p className="text-white/50 text-xs">
+                        {language === 'he' ? 'שמור קליפים לדיסק המקומי' : 'Save clips to local disk'}
+                      </p>
+                    </div>
+                    <Switch disabled />
+                  </div>
+                </FeatureGate>
+
+                {/* Auto-start Toggle */}
+                <FeatureGate 
+                  requires={['isElectron']} 
+                  mode="hide"
+                >
+                  <div className="flex items-center justify-between p-3 bg-slate-700/30 rounded-xl">
+                    <div>
+                      <p className="text-white font-medium">
+                        {language === 'he' ? 'הפעלה אוטומטית' : 'Auto-start on Launch'}
+                      </p>
+                      <p className="text-white/50 text-xs">
+                        {language === 'he' ? 'התחל ניטור עם הפעלת המערכת' : 'Start monitoring when system boots'}
+                      </p>
+                    </div>
+                    <Switch disabled />
+                  </div>
+                </FeatureGate>
+
+                {/* Show message if no Electron features available */}
+                {!capabilities.isElectron && (
+                  <div className="text-center py-4 text-white/40 text-sm">
+                    {language === 'he' 
+                      ? 'הגדרות מתקדמות זמינות באפליקציית Desktop בלבד'
+                      : 'Advanced settings available in Desktop app only'}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column - Status & Events */}
+          <div className="space-y-6">
+            
+            {/* System Status */}
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Activity className="w-5 h-5 text-white/60" />
+                <h3 className="text-lg font-semibold text-white">
+                  {language === 'he' ? 'סטטוס מערכת' : 'System Status'}
                 </h3>
-                <p className="text-white/60 text-sm">
-                  {language === 'he' 
-                    ? 'שלוט מרחוק במצלמת המחשב שלך. הטלפון אינו מצלם.'
-                    : 'Control your computer camera remotely. The phone does not record.'}
+              </div>
+              
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60 text-sm">
+                    {language === 'he' ? 'חיבור לשרת' : 'Server Connection'}
+                  </span>
+                  <span className="text-green-400 text-sm">
+                    {language === 'he' ? 'מחובר' : 'Connected'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60 text-sm">
+                    {language === 'he' ? 'שירות TURN' : 'TURN Service'}
+                  </span>
+                  <span className="text-green-400 text-sm">
+                    {language === 'he' ? 'זמין' : 'Available'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/60 text-sm">
+                    {language === 'he' ? 'פלטפורמה' : 'Platform'}
+                  </span>
+                  <span className="text-white/80 text-sm capitalize">
+                    {capabilities.platform}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Events */}
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-white/60" />
+                  <h3 className="text-lg font-semibold text-white">
+                    {language === 'he' ? 'אירועים אחרונים' : 'Recent Events'}
+                  </h3>
+                </div>
+                <Link to="/events" className="text-primary text-sm hover:underline">
+                  {language === 'he' ? 'הכל' : 'All'}
+                </Link>
+              </div>
+              
+              <div className="text-center py-8">
+                <Clock className="w-10 h-10 text-white/20 mx-auto mb-3" />
+                <p className="text-white/40 text-sm">
+                  {language === 'he' ? 'אין אירועים אחרונים' : 'No recent events'}
                 </p>
               </div>
             </div>
-            {/* Status text - informational only, does not block commands */}
-            <p className={`text-xs mb-4 ${
-              laptopStatus === 'online' 
-                ? 'text-green-400' 
-                : laptopStatus === 'offline' 
-                  ? 'text-yellow-400/80' 
-                  : 'text-slate-400'
-            }`}>
-              {language === 'he' 
-                ? `סטטוס: ${laptopStatus === 'online' ? 'מחשב מחובר ✓' : laptopStatus === 'offline' ? 'מחשב לא מחובר' : 'לא הוגדר מחשב'}`
-                : `Status: ${laptopStatus === 'online' ? 'Computer connected ✓' : laptopStatus === 'offline' ? 'Computer not connected' : 'No computer configured'}`}
-            </p>
-            <div className="flex flex-col gap-3">
-              {/* Primary button - Start Camera */}
-              {isMobileDevice ? (
-                <Button 
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  onClick={async () => {
-                    if (!laptopDeviceId) {
-                      toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
-                      return;
-                    }
-                    
-                    const sessionToken = localStorage.getItem('aiguard_session_token');
-                    if (!sessionToken) {
-                      toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
-                      navigate('/login');
-                      return;
-                    }
-                    
-                    try {
-                      const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          session_token: sessionToken,
-                          device_id: laptopDeviceId,
-                          command: 'START_CAMERA'
-                        })
-                      });
-                      
-                      const result = await response.json();
-                      if (!response.ok) throw new Error(result.error || 'Failed to send command');
-                      
-                      toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
-                    } catch (error) {
-                      console.error('Command error:', error);
-                      toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
-                    }
-                  }}
-                >
-                  <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  {language === 'he' ? 'הפעל מצלמה בלפטופ' : 'Start Camera on Laptop'}
-                </Button>
-              ) : (
-                <Button className="w-full bg-slate-600 cursor-not-allowed" disabled>
-                  <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  {language === 'he' ? 'הפעל מצלמה בלפטופ' : 'Start Camera on Laptop'}
-                </Button>
-              )}
-              
-              {/* Secondary button - Stop Camera */}
-              {isMobileDevice ? (
-                <Button 
-                  variant="outline"
-                  className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
-                  onClick={async () => {
-                    if (!laptopDeviceId) {
-                      toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
-                      return;
-                    }
-                    
-                    const sessionToken = localStorage.getItem('aiguard_session_token');
-                    if (!sessionToken) {
-                      toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
-                      navigate('/login');
-                      return;
-                    }
-                    
-                    try {
-                      const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          session_token: sessionToken,
-                          device_id: laptopDeviceId,
-                          command: 'STOP_CAMERA'
-                        })
-                      });
-                      
-                      const result = await response.json();
-                      if (!response.ok) throw new Error(result.error || 'Failed to send command');
-                      
-                      toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
-                    } catch (error) {
-                      console.error('Command error:', error);
-                      toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
-                    }
-                  }}
-                >
-                  <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  {language === 'he' ? 'כבה מצלמה בלפטופ' : 'Stop Camera on Laptop'}
-                </Button>
-              ) : (
-                <Button 
-                  variant="outline"
-                  className="w-full border-slate-600/50 text-slate-400 cursor-not-allowed" 
-                  disabled
-                >
-                  <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  {language === 'he' ? 'כבה מצלמה בלפטופ' : 'Stop Camera on Laptop'}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
 
-        {/* My Devices */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white">
-              {language === 'he' ? 'המכשירים שלי' : 'My Devices'}
-            </h2>
-            <Button variant="default" size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-              <Plus className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-              {language === 'he' ? 'הוסף מכשיר' : 'Add Device'}
-            </Button>
-          </div>
-
-          {/* Empty State - Different message based on device type */}
-          <div className="text-center py-12">
-            <div className="w-16 h-16 rounded-2xl bg-slate-700/50 flex items-center justify-center mx-auto mb-4">
-              <Video className="w-8 h-8 text-white/40" />
-            </div>
-            <h3 className="text-lg font-medium text-white mb-2">
-              {language === 'he' ? 'אין מכשירים מחוברים' : 'No devices connected'}
-            </h3>
-            <p className="text-white/60 mb-6 max-w-sm mx-auto">
-              {isMobileDevice 
-                ? (language === 'he' 
-                    ? 'הפעל מצלמה במחשב כדי לצפות בה מכאן'
-                    : 'Activate a camera on your computer to view it from here')
-                : (language === 'he' 
-                    ? 'חבר את המכשיר הראשון שלך כדי להתחיל לצפות בשידור חי'
-                    : 'Connect your first device to start watching live stream')}
-            </p>
-            {/* Only show camera activation button on desktop */}
-            {!isMobileDevice && (
-              <Link to="/camera">
-                <Button className="bg-primary hover:bg-primary/90">
-                  {language === 'he' ? 'הפעל מצלמה במכשיר זה' : 'Activate Camera on This Device'}
-                </Button>
-              </Link>
-            )}
           </div>
         </div>
       </main>
