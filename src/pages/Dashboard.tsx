@@ -79,10 +79,29 @@ const Dashboard: React.FC = () => {
           </p>
         </div>
 
-        {/* Quick Actions - Different based on device type */}
-        <div className={`grid gap-6 mb-12 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2'}`}>
-          {/* Desktop Only: Set as Camera */}
-          {!isMobile && (
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+          {/* Set as Camera - Active on Desktop, Disabled on Mobile */}
+          {isMobile ? (
+            <div className="bg-gradient-to-br from-slate-700/20 to-slate-800/20 border border-slate-600/30 rounded-2xl p-6 opacity-60 cursor-not-allowed">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center shadow-lg">
+                  <Laptop className="w-7 h-7 text-white/60" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white/60">
+                    {language === 'he' ? 'הגדר כמצלמה' : 'Set as Camera'}
+                  </h3>
+                  <p className="text-white/40 text-sm">
+                    {language === 'he' ? 'מיועד למחשב בלבד' : 'For desktop only'}
+                  </p>
+                </div>
+              </div>
+              <Button className="w-full bg-slate-600 cursor-not-allowed" disabled>
+                {language === 'he' ? 'לא זמין בנייד' : 'Not available on mobile'}
+              </Button>
+            </div>
+          ) : (
             <Link to="/camera">
               <div className="group bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-6 hover:border-blue-500/50 transition-all hover:-translate-y-1">
                 <div className="flex items-center gap-4 mb-4">
