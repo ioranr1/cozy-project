@@ -214,17 +214,30 @@ const Dashboard: React.FC = () => {
                       return;
                     }
                     
+                    const sessionToken = localStorage.getItem('aiguard_session_token');
+                    if (!sessionToken) {
+                      toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
+                      navigate('/login');
+                      return;
+                    }
+                    
                     try {
-                      const { error } = await supabase
-                        .from('commands')
-                        .insert({
+                      const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          session_token: sessionToken,
                           device_id: laptopDeviceId,
-                          command: 'START_CAMERA',
-                          handled: false
-                        });
-                      if (error) throw error;
+                          command: 'START_CAMERA'
+                        })
+                      });
+                      
+                      const result = await response.json();
+                      if (!response.ok) throw new Error(result.error || 'Failed to send command');
+                      
                       toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
                     } catch (error) {
+                      console.error('Command error:', error);
                       toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
                     }
                   }}
@@ -250,17 +263,30 @@ const Dashboard: React.FC = () => {
                       return;
                     }
                     
+                    const sessionToken = localStorage.getItem('aiguard_session_token');
+                    if (!sessionToken) {
+                      toast.error(language === 'he' ? 'לא מחובר - יש להתחבר מחדש' : 'Not logged in - please login again');
+                      navigate('/login');
+                      return;
+                    }
+                    
                     try {
-                      const { error } = await supabase
-                        .from('commands')
-                        .insert({
+                      const response = await fetch('https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          session_token: sessionToken,
                           device_id: laptopDeviceId,
-                          command: 'STOP_CAMERA',
-                          handled: false
-                        });
-                      if (error) throw error;
+                          command: 'STOP_CAMERA'
+                        })
+                      });
+                      
+                      const result = await response.json();
+                      if (!response.ok) throw new Error(result.error || 'Failed to send command');
+                      
                       toast.success(language === 'he' ? 'פקודה נשלחה ללפטופ' : 'Command sent to laptop');
                     } catch (error) {
+                      console.error('Command error:', error);
                       toast.error(language === 'he' ? 'שגיאה בשליחת הפקודה' : 'Error sending command');
                     }
                   }}
