@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Laptop, Smartphone, Video, Radar, Activity, Bell, Clock, Wifi, WifiOff } from 'lucide-react';
+import { Laptop, Smartphone, Video, Radar, Activity, Bell, Clock, Eye, EyeOff, Power, PowerOff } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
@@ -26,6 +26,8 @@ const Dashboard: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const [motionDetectionActive, setMotionDetectionActive] = useState(false);
+  const [liveViewActive, setLiveViewActive] = useState(false);
+  const [sendingCommand, setSendingCommand] = useState<string | null>(null);
   const isMobileDevice = useIsMobileDevice();
   const capabilities = useCapabilities();
 
@@ -81,11 +83,48 @@ const Dashboard: React.FC = () => {
     }
   }, [navigate]);
 
+  // Send remote command to laptop
+  const sendCommand = async (command: string) => {
+    if (!laptopDeviceId) {
+      toast.error(language === 'he' ? 'לא הוגדר מכשיר יעד' : 'No target device configured');
+      return;
+    }
+
+    setSendingCommand(command);
+    try {
+      const sessionToken = localStorage.getItem('session_token');
+      const response = await supabase.functions.invoke('send-command', {
+        body: { device_id: laptopDeviceId, command },
+        headers: sessionToken ? { 'x-session-token': sessionToken } : undefined,
+      });
+
+      if (response.error) throw response.error;
+
+      // Update local state based on command
+      if (command === 'START_MOTION_DETECTION') {
+        setMotionDetectionActive(true);
+        toast.success(language === 'he' ? 'זיהוי תנועה הופעל' : 'Motion detection started');
+      } else if (command === 'STOP_MOTION_DETECTION') {
+        setMotionDetectionActive(false);
+        toast.success(language === 'he' ? 'זיהוי תנועה הופסק' : 'Motion detection stopped');
+      } else if (command === 'START_LIVE_VIEW') {
+        setLiveViewActive(true);
+        toast.success(language === 'he' ? 'צפייה חיה הופעלה' : 'Live view started');
+      } else if (command === 'STOP_LIVE_VIEW') {
+        setLiveViewActive(false);
+        toast.success(language === 'he' ? 'צפייה חיה הופסקה' : 'Live view stopped');
+      }
+    } catch (error) {
+      console.error('Failed to send command:', error);
+      toast.error(language === 'he' ? 'שליחת הפקודה נכשלה' : 'Failed to send command');
+    } finally {
+      setSendingCommand(null);
+    }
+  };
+
   if (!userProfile) {
     return null;
   }
-
-  // Motion Detection status would typically be fetched from device status/commands table
 
   // Mobile Dashboard - Controller + Viewer Mode
   if (isMobileDevice) {
@@ -101,81 +140,137 @@ const Dashboard: React.FC = () => {
         />
 
         <div className="p-4 space-y-4">
-          {/* This Device Card - Controller Mode */}
-          <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
-                <Smartphone className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white">
-                  {language === 'he' ? 'מכשיר זה' : 'This Device'}
-                </h3>
-                <p className="text-white/60 text-sm">
-                  {language === 'he' ? 'שלט רחוק + צופה' : 'Remote control + Viewer'}
-                </p>
-              </div>
-            </div>
-
-            {/* Primary CTA - View Live */}
-            <Link to="/viewer" className="block mb-3">
-              <Button className="w-full bg-primary hover:bg-primary/90 text-lg py-5">
-                <Video className={`w-5 h-5 ${isRTL ? 'ml-3' : 'mr-3'}`} />
-                {language === 'he' ? 'צפה בשידור חי' : 'View Live Stream'}
-              </Button>
-            </Link>
-          </div>
-
-          {/* Motion Detection Status Card */}
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                motionDetectionActive ? 'bg-amber-500/20' : 'bg-slate-700/50'
-              }`}>
-                <Radar className={`w-5 h-5 ${motionDetectionActive ? 'text-amber-400' : 'text-slate-500'}`} />
-              </div>
-              <div className="flex-1">
-                <h4 className="text-white font-medium">
-                  {language === 'he' ? 'זיהוי תנועה' : 'Motion Detection'}
-                </h4>
-                <span className={`text-xs ${motionDetectionActive ? 'text-amber-400' : 'text-slate-500'}`}>
+          {/* Connection Status */}
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-white/60 text-sm">
+                {language === 'he' ? 'סטטוס מחשב' : 'Computer Status'}
+              </span>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  laptopStatus === 'online' ? 'bg-green-500 animate-pulse' : 
+                  laptopStatus === 'offline' ? 'bg-yellow-500' : 'bg-slate-500'
+                }`} />
+                <span className={`text-xs ${
+                  laptopStatus === 'online' ? 'text-green-400' : 
+                  laptopStatus === 'offline' ? 'text-yellow-400' : 'text-slate-400'
+                }`}>
                   {language === 'he' 
-                    ? (motionDetectionActive ? 'פעיל' : 'לא פעיל')
-                    : (motionDetectionActive ? 'Active' : 'Inactive')}
+                    ? (laptopStatus === 'online' ? 'מחובר' : laptopStatus === 'offline' ? 'לא מחובר' : 'לא ידוע')
+                    : (laptopStatus === 'online' ? 'Connected' : laptopStatus === 'offline' ? 'Disconnected' : 'Unknown')}
                 </span>
               </div>
             </div>
+          </div>
 
-            {/* Status indicator only - controls are on /motion-detection page */}
-            <div className={`flex items-center justify-center p-3 rounded-xl ${
-              motionDetectionActive 
-                ? 'bg-amber-500/10 border border-amber-500/30' 
-                : 'bg-slate-700/30 border border-slate-600/30'
-            }`}>
-              <span className={`text-sm ${motionDetectionActive ? 'text-amber-400' : 'text-slate-400'}`}>
+          {/* Motion Detection Control Card */}
+          <div className="bg-gradient-to-br from-amber-600/20 to-amber-800/20 border border-amber-500/30 rounded-2xl p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                motionDetectionActive 
+                  ? 'bg-gradient-to-br from-amber-500 to-amber-600' 
+                  : 'bg-slate-700/50'
+              }`}>
+                <Radar className={`w-6 h-6 ${motionDetectionActive ? 'text-white' : 'text-slate-400'}`} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white">
+                  {language === 'he' ? 'זיהוי תנועה' : 'Motion Detection'}
+                </h3>
+                <p className="text-white/60 text-sm">
+                  {language === 'he' ? 'התראות ואירועים • ללא וידאו חי' : 'Alerts & events • No live video'}
+                </p>
+              </div>
+              <div className={`px-2 py-1 rounded-full text-xs ${
+                motionDetectionActive 
+                  ? 'bg-amber-500/20 text-amber-400' 
+                  : 'bg-slate-600/50 text-slate-400'
+              }`}>
                 {language === 'he' 
-                  ? (motionDetectionActive ? 'המערכת מנטרת תנועה' : 'המערכת אינה פעילה')
-                  : (motionDetectionActive ? 'System is monitoring motion' : 'System is inactive')}
-              </span>
+                  ? (motionDetectionActive ? 'פעיל' : 'כבוי')
+                  : (motionDetectionActive ? 'Active' : 'Off')}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Button 
+                onClick={() => sendCommand('START_MOTION_DETECTION')}
+                disabled={sendingCommand !== null || motionDetectionActive}
+                className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
+              >
+                <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'הפעל' : 'Enable'}
+              </Button>
+              <Button 
+                onClick={() => sendCommand('STOP_MOTION_DETECTION')}
+                disabled={sendingCommand !== null || !motionDetectionActive}
+                variant="outline"
+                className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
+              >
+                <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'כבה' : 'Disable'}
+              </Button>
             </div>
           </div>
 
-          {/* Compact System Status */}
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
-            <div className="flex items-center gap-2 mb-3">
-              <Activity className="w-4 h-4 text-white/60" />
-              <h3 className="text-base font-semibold text-white">
-                {language === 'he' ? 'סטטוס מערכת' : 'System Status'}
-              </h3>
+          {/* Manual Live View Control Card */}
+          <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-5">
+            <div className="flex items-center gap-3 mb-4">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                liveViewActive 
+                  ? 'bg-gradient-to-br from-blue-500 to-blue-600' 
+                  : 'bg-slate-700/50'
+              }`}>
+                <Video className={`w-6 h-6 ${liveViewActive ? 'text-white' : 'text-slate-400'}`} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white">
+                  {language === 'he' ? 'צפייה חיה' : 'Live View'}
+                </h3>
+                <p className="text-white/60 text-sm">
+                  {language === 'he' ? 'צפייה ידנית • ללא התראות' : 'Manual viewing • No alerts'}
+                </p>
+              </div>
+              <div className={`px-2 py-1 rounded-full text-xs ${
+                liveViewActive 
+                  ? 'bg-blue-500/20 text-blue-400' 
+                  : 'bg-slate-600/50 text-slate-400'
+              }`}>
+                {language === 'he' 
+                  ? (liveViewActive ? 'פעיל' : 'כבוי')
+                  : (liveViewActive ? 'Active' : 'Off')}
+              </div>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-white/60">
-                {language === 'he' ? 'חיבור לשרת' : 'Server Connection'}
-              </span>
-              <span className="text-green-400">
-                {language === 'he' ? 'מחובר' : 'Connected'}
-              </span>
+
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Button 
+                onClick={() => sendCommand('START_LIVE_VIEW')}
+                disabled={sendingCommand !== null || liveViewActive}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Eye className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'התחל' : 'Start'}
+              </Button>
+              <Button 
+                onClick={() => sendCommand('STOP_LIVE_VIEW')}
+                disabled={sendingCommand !== null || !liveViewActive}
+                variant="outline"
+                className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+              >
+                <EyeOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'הפסק' : 'Stop'}
+              </Button>
             </div>
+
+            {/* View Stream Link */}
+            {liveViewActive && (
+              <Link to="/viewer" className="block">
+                <Button className="w-full bg-primary hover:bg-primary/90">
+                  <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'צפה בשידור' : 'Watch Stream'}
+                </Button>
+              </Link>
+            )}
           </div>
 
           {/* Recent Events Card */}
@@ -198,7 +293,7 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  // Desktop Dashboard - Operational View
+  // Desktop Dashboard - Read-Only Status View
   return (
     <AppLayout>
       <DashboardHeader 
@@ -207,10 +302,9 @@ const Dashboard: React.FC = () => {
       />
 
       <div className="p-6">
-        {/* Desktop Grid Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Left Column - This Device + Controls */}
+          {/* Left Column - Status Cards */}
           <div className="lg:col-span-2 space-y-6">
             
             {/* This Device Card */}
@@ -239,34 +333,68 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* Motion Detection Status */}
-              <div className="bg-slate-700/30 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
+              {/* Status Grid - Read Only */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Motion Detection Status */}
+                <div className={`p-4 rounded-xl border ${
+                  motionDetectionActive 
+                    ? 'bg-amber-500/10 border-amber-500/30' 
+                    : 'bg-slate-700/30 border-slate-600/30'
+                }`}>
+                  <div className="flex items-center gap-3 mb-2">
                     <Radar className={`w-5 h-5 ${motionDetectionActive ? 'text-amber-400' : 'text-slate-500'}`} />
-                    <span className="text-white font-medium">
+                    <span className="text-white font-medium text-sm">
                       {language === 'he' ? 'זיהוי תנועה' : 'Motion Detection'}
                     </span>
                   </div>
-                  <span className={`text-sm px-2 py-0.5 rounded-full ${
-                    motionDetectionActive 
-                      ? 'bg-amber-500/20 text-amber-400' 
-                      : 'bg-slate-600/50 text-slate-400'
-                  }`}>
-                    {language === 'he' 
-                      ? (motionDetectionActive ? 'פעיל' : 'לא פעיל')
-                      : (motionDetectionActive ? 'Active' : 'Inactive')}
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs ${motionDetectionActive ? 'text-amber-400' : 'text-slate-500'}`}>
+                      {language === 'he' 
+                        ? (motionDetectionActive ? 'פעיל' : 'כבוי')
+                        : (motionDetectionActive ? 'Active' : 'Off')}
+                    </span>
+                    <span className="text-white/40 text-xs">
+                      {language === 'he' ? 'קריאה בלבד' : 'Read-only'}
+                    </span>
+                  </div>
                 </div>
+
+                {/* Live View Status */}
+                <div className={`p-4 rounded-xl border ${
+                  liveViewActive 
+                    ? 'bg-blue-500/10 border-blue-500/30' 
+                    : 'bg-slate-700/30 border-slate-600/30'
+                }`}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <Video className={`w-5 h-5 ${liveViewActive ? 'text-blue-400' : 'text-slate-500'}`} />
+                    <span className="text-white font-medium text-sm">
+                      {language === 'he' ? 'צפייה חיה' : 'Live View'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs ${liveViewActive ? 'text-blue-400' : 'text-slate-500'}`}>
+                      {language === 'he' 
+                        ? (liveViewActive ? 'פעיל' : 'כבוי')
+                        : (liveViewActive ? 'Active' : 'Off')}
+                    </span>
+                    <span className="text-white/40 text-xs">
+                      {language === 'he' ? 'קריאה בלבד' : 'Read-only'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Link to Controls */}
+              <div className="mt-4 pt-4 border-t border-slate-600/30">
                 <Link to="/motion-detection">
                   <Button variant="outline" size="sm" className="w-full border-slate-600 text-white/70 hover:text-white">
-                    {language === 'he' ? 'נהל זיהוי תנועה' : 'Manage Motion Detection'}
+                    {language === 'he' ? 'נהל מצבי פעולה' : 'Manage Operation Modes'}
                   </Button>
                 </Link>
               </div>
             </div>
 
-            {/* Desktop-only Toggles - FeatureGated */}
+            {/* Advanced Settings */}
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
               <h3 className="text-lg font-semibold text-white mb-4">
                 {language === 'he' ? 'הגדרות מתקדמות' : 'Advanced Settings'}
