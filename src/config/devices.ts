@@ -3,5 +3,5 @@
  * Central configuration for device IDs used across the application
  */
 
-// Primary laptop device UUID - replace with actual UUID from devices table
-export const laptopDeviceId = 'YOUR-LAPTOP-UUID-HERE'; // TODO: Replace with actual UUID
+// Primary laptop device UUID
+export const laptopDeviceId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';

@@ -26,7 +26,7 @@ const Dashboard: React.FC = () => {
   // Check laptop connection status
   useEffect(() => {
     const checkLaptopStatus = async () => {
-      if (!laptopDeviceId || laptopDeviceId === 'YOUR-LAPTOP-UUID-HERE') {
+      if (!laptopDeviceId) {
         setLaptopStatus('unknown');
         return;
       }
@@ -209,7 +209,7 @@ const Dashboard: React.FC = () => {
                 <Button 
                   className="w-full bg-green-600 hover:bg-green-700"
                   onClick={async () => {
-                    if (!laptopDeviceId || laptopDeviceId === 'YOUR-LAPTOP-UUID-HERE') {
+                    if (!laptopDeviceId) {
                       toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
                       return;
                     }
@@ -245,7 +245,7 @@ const Dashboard: React.FC = () => {
                   variant="outline"
                   className="w-full border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
                   onClick={async () => {
-                    if (!laptopDeviceId || laptopDeviceId === 'YOUR-LAPTOP-UUID-HERE') {
+                    if (!laptopDeviceId) {
                       toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
                       return;
                     }
