@@ -153,27 +153,19 @@ const Dashboard: React.FC = () => {
                 <Button 
                   className="w-full bg-green-600 hover:bg-green-700"
                   onClick={async () => {
+                    // Fixed laptop device UUID - replace with your actual laptop device ID
+                    const LAPTOP_DEVICE_ID = 'laptop-001'; // TODO: Replace with actual UUID from devices table
+                    
+                    if (!LAPTOP_DEVICE_ID) {
+                      toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
+                      return;
+                    }
+                    
                     try {
-                      // Find user's laptop device
-                      const { data: devices, error: deviceError } = await supabase
-                        .from('devices')
-                        .select('id')
-                        .eq('device_type', 'laptop')
-                        .limit(1);
-                      
-                      if (deviceError) throw deviceError;
-                      
-                      if (!devices || devices.length === 0) {
-                        toast.error(language === 'he' ? 'לא נמצא מחשב מחובר' : 'No connected computer found');
-                        return;
-                      }
-                      
-                      const deviceId = devices[0].id;
-                      
                       const { error } = await supabase
                         .from('commands')
                         .insert({
-                          device_id: deviceId,
+                          device_id: LAPTOP_DEVICE_ID,
                           command: 'START_CAMERA',
                           handled: false
                         });
