@@ -11,18 +11,6 @@ export const translations = {
       login: 'התחברות',
       register: 'הרשמה',
     },
-    // App Navigation
-    navigation: {
-      dashboard: 'לוח בקרה',
-      cameras: 'מצלמות',
-      rules: 'חוקים',
-      events: 'אירועים',
-      settings: 'הגדרות',
-      systemHealth: 'בריאות המערכת',
-      recordingBuffer: 'מאגר הקלטות',
-      backgroundMode: 'מצב רקע',
-      system: 'מערכת',
-    },
     // Hero Section
     hero: {
       title: 'הפוך את המחשב הנייד למצלמת אבטחה',
@@ -122,18 +110,6 @@ export const translations = {
       download: 'Download',
       login: 'Login',
       register: 'Register',
-    },
-    // App Navigation
-    navigation: {
-      dashboard: 'Dashboard',
-      cameras: 'Cameras',
-      rules: 'Rules',
-      events: 'Events',
-      settings: 'Settings',
-      systemHealth: 'System Health',
-      recordingBuffer: 'Recording Buffer',
-      backgroundMode: 'Background Mode',
-      system: 'System',
     },
     // Hero Section
     hero: {
