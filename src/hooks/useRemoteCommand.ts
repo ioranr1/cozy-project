@@ -90,21 +90,19 @@ export function useRemoteCommand({
         },
         (payload) => {
           console.log(`[useRemoteCommand] Command update received:`, payload.new);
-          const newStatus = (payload.new as { status?: string }).status;
-          const errorMessage = (payload.new as { error_message?: string }).error_message;
+          const row = payload.new as { 
+            status?: string; 
+            handled?: boolean; 
+            handled_at?: string;
+            error_message?: string;
+          };
+          const newStatus = row.status;
+          const handled = row.handled;
+          const handledAt = row.handled_at;
+          const errorMessage = row.error_message;
 
-          if (newStatus === 'acknowledged' || newStatus === 'completed') {
-            cleanup();
-            setCommandState({
-              status: 'acknowledged',
-              commandId,
-              error: null,
-            });
-            toast.success(
-              language === 'he' ? 'הפקודה התקבלה' : 'Command acknowledged'
-            );
-            onAcknowledged?.(commandType);
-          } else if (newStatus === 'failed') {
+          // Check for failed status first
+          if (newStatus === 'failed') {
             cleanup();
             setCommandState({
               status: 'failed',
@@ -115,6 +113,31 @@ export function useRemoteCommand({
               errorMessage || (language === 'he' ? 'הפקודה נכשלה' : 'Command failed')
             );
             onFailed?.(commandType, errorMessage || 'unknown');
+            return;
+          }
+
+          // Treat as acknowledged if ANY of these conditions are met:
+          // - status is 'acknowledged', 'ack', or 'completed'
+          // - handled is true
+          // - handled_at is set
+          const isAcknowledged = 
+            newStatus === 'acknowledged' || 
+            newStatus === 'ack' || 
+            newStatus === 'completed' ||
+            handled === true ||
+            handledAt != null;
+
+          if (isAcknowledged) {
+            cleanup();
+            setCommandState({
+              status: 'acknowledged',
+              commandId,
+              error: null,
+            });
+            toast.success(
+              language === 'he' ? 'הפקודה התקבלה' : 'Command acknowledged'
+            );
+            onAcknowledged?.(commandType);
           }
         }
       )
