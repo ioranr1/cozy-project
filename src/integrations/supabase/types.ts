@@ -318,6 +318,71 @@ export type Database = {
         }
         Relationships: []
       }
+      rtc_sessions: {
+        Row: {
+          created_at: string | null
+          device_id: string
+          ended_at: string | null
+          fail_reason: string | null
+          id: string
+          status: string
+          viewer_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_id: string
+          ended_at?: string | null
+          fail_reason?: string | null
+          id?: string
+          status?: string
+          viewer_id: string
+        }
+        Update: {
+          created_at?: string | null
+          device_id?: string
+          ended_at?: string | null
+          fail_reason?: string | null
+          id?: string
+          status?: string
+          viewer_id?: string
+        }
+        Relationships: []
+      }
+      rtc_signals: {
+        Row: {
+          created_at: string | null
+          from_role: string
+          id: number
+          payload: Json
+          session_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string | null
+          from_role: string
+          id?: never
+          payload: Json
+          session_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string | null
+          from_role?: string
+          id?: never
+          payload?: Json
+          session_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rtc_signals_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "rtc_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_sessions: {
         Row: {
           created_at: string
