@@ -457,7 +457,7 @@ const Dashboard: React.FC = () => {
               {/* Link to Controls */}
               <div className="mt-4 pt-4 border-t border-slate-600/30">
                 <Link to="/motion-detection">
-                  <Button variant="outline" size="sm" className="w-full border-slate-600 text-white/70 hover:text-white">
+                  <Button variant="secondary" size="sm" className="w-full">
                     {language === 'he' ? 'נהל מצבי פעולה' : 'Manage Operation Modes'}
                   </Button>
                 </Link>
