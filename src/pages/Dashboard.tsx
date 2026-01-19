@@ -195,6 +195,7 @@ const Dashboard: React.FC = () => {
             <div className="text-purple-300 font-bold mb-2">🔧 DEBUG</div>
             <div className="space-y-1 text-purple-200">
               <div>liveViewActive: <span className={liveViewActive ? 'text-green-400' : 'text-red-400'}>{String(liveViewActive)}</span></div>
+              <div>motionDetectionActive: <span className={motionDetectionActive ? 'text-green-400' : 'text-red-400'}>{String(motionDetectionActive)}</span></div>
               <div>viewStatus: <span className="text-yellow-400">{viewStatus}</span></div>
               <div>isLoading: <span className={isLoading ? 'text-yellow-400' : 'text-slate-400'}>{String(isLoading)}</span></div>
               <div>isLiveViewLoading: <span className={isLiveViewLoading ? 'text-yellow-400' : 'text-slate-400'}>{String(isLiveViewLoading)}</span></div>
