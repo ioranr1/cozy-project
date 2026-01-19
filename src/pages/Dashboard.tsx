@@ -330,15 +330,15 @@ const Dashboard: React.FC = () => {
                 </p>
               </div>
               <div className={`px-2 py-1 rounded-full text-xs ${
-                viewStatus === 'streaming' ? 'bg-green-500/20 text-green-400' :
+                liveViewActive ? 'bg-green-500/20 text-green-400' :
                 viewStatus === 'starting' || viewStatus === 'stopping' ? 'bg-blue-500/20 text-blue-400' :
                 'bg-slate-600/50 text-slate-400'
               }`}>
                 {language === 'he' 
-                  ? (viewStatus === 'streaming' ? 'משדר' : 
+                  ? (liveViewActive ? 'משדר' : 
                      viewStatus === 'starting' ? 'מתחיל...' : 
                      viewStatus === 'stopping' ? 'עוצר...' : 'כבוי')
-                  : (viewStatus === 'streaming' ? 'Streaming' : 
+                  : (liveViewActive ? 'Streaming' : 
                      viewStatus === 'starting' ? 'Starting...' : 
                      viewStatus === 'stopping' ? 'Stopping...' : 'Off')}
               </div>
@@ -347,7 +347,7 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-2 gap-3 mb-3">
               <Button 
                 onClick={() => handleCommand('START_LIVE_VIEW')}
-                disabled={isLoading || liveViewActive}
+                disabled={isLoading || isLiveViewLoading || liveViewActive || viewStatus !== 'idle'}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
               >
                 {viewStatus === 'starting' ? (
@@ -359,7 +359,7 @@ const Dashboard: React.FC = () => {
               </Button>
               <Button 
                 onClick={() => handleCommand('STOP_LIVE_VIEW')}
-                disabled={isLoading || !liveViewActive}
+                disabled={isLoading || isLiveViewLoading}
                 variant="outline"
                 className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
               >
