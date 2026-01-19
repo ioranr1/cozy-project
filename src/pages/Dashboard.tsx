@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { useRemoteCommand, CommandType } from '@/hooks/useRemoteCommand';
+import { useLiveViewState } from '@/hooks/useLiveViewState';
 
 interface UserProfile {
   id?: string;
@@ -28,10 +29,21 @@ const Dashboard: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const [motionDetectionActive, setMotionDetectionActive] = useState(false);
-  const [liveViewActive, setLiveViewActive] = useState(false);
   const [viewStatus, setViewStatus] = useState<ViewStatus>('idle');
   const isMobileDevice = useIsMobileDevice();
   const capabilities = useCapabilities();
+
+  // Live view state from Supabase (source of truth)
+  const { liveViewActive, isLoading: isLiveViewLoading } = useLiveViewState({ 
+    deviceId: laptopDeviceId 
+  });
+
+  // Sync viewStatus with liveViewActive from Supabase
+  useEffect(() => {
+    if (!isLiveViewLoading) {
+      setViewStatus(liveViewActive ? 'streaming' : 'idle');
+    }
+  }, [liveViewActive, isLiveViewLoading]);
 
   // Remote command hook
   const { sendCommand, commandState, isLoading } = useRemoteCommand({
@@ -41,19 +53,13 @@ const Dashboard: React.FC = () => {
         setMotionDetectionActive(true);
       } else if (commandType === 'STOP_MOTION_DETECTION') {
         setMotionDetectionActive(false);
-      } else if (commandType === 'START_LIVE_VIEW') {
-        setLiveViewActive(true);
-        setViewStatus('streaming');
-      } else if (commandType === 'STOP_LIVE_VIEW') {
-        setLiveViewActive(false);
-        setViewStatus('idle');
       }
+      // Live view state is now managed by useLiveViewState hook
     },
     onFailed: (commandType) => {
-      if (commandType === 'START_LIVE_VIEW') {
-        setViewStatus('idle');
-      } else if (commandType === 'STOP_LIVE_VIEW') {
-        setViewStatus('streaming');
+      // Reset viewStatus on failure - live view state managed by hook
+      if (commandType === 'START_LIVE_VIEW' || commandType === 'STOP_LIVE_VIEW') {
+        // viewStatus will be synced from useLiveViewState
       }
     },
   });
