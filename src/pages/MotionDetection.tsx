@@ -75,7 +75,7 @@ const MotionDetection: React.FC = () => {
         <div className="bg-gradient-to-br from-amber-600/20 to-orange-800/20 border border-amber-500/30 rounded-2xl p-6 max-w-xl relative">
           {/* Close Button */}
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate('/dashboard')}
             className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"
             aria-label={language === 'he' ? 'סגור' : 'Close'}
           >
