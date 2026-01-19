@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface UseLiveViewStateOptions {
@@ -15,30 +15,48 @@ interface UseLiveViewStateResult {
 /**
  * Hook that subscribes to the commands table and derives liveViewActive
  * based on the latest ACKed command (START_LIVE_VIEW or STOP_LIVE_VIEW).
- * This ensures Supabase is the source of truth for live view state.
+ * Supabase is the SOLE source of truth for live view state.
  */
 export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLiveViewStateResult => {
   const [liveViewActive, setLiveViewActive] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastAckedCommand, setLastAckedCommand] = useState<string | null>(null);
 
-  // Fetch the latest ACKed live view command from Supabase
+  // Track mount state to avoid state updates after unmount
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  /**
+   * Fetch the latest ACKed live view command from Supabase.
+   * Query: status = 'ack', order by handled_at DESC, limit 1.
+   */
   const fetchLatestAckedCommand = useCallback(async () => {
     if (!deviceId) {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+        setLiveViewActive(false);
+        setLastAckedCommand(null);
+      }
       return;
     }
 
     try {
-      // Get the most recent live view command(s), then pick the latest ACKed one.
-      // This is more resilient than filtering in SQL because pending rows can be newer than the ACKed row.
+      // Query the latest ACKed live view command ordered by handled_at DESC
       const { data, error } = await supabase
         .from('commands')
-        .select('id, command, status, handled, handled_at, created_at')
+        .select('id, command, status, handled, handled_at')
         .eq('device_id', deviceId)
         .in('command', ['START_LIVE_VIEW', 'STOP_LIVE_VIEW'])
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .eq('status', 'ack')
+        .order('handled_at', { ascending: false, nullsFirst: false })
+        .limit(1);
+
+      if (!isMountedRef.current) return;
 
       if (error) {
         console.error('[useLiveViewState] Error fetching commands:', error);
@@ -46,33 +64,24 @@ export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLive
         return;
       }
 
-      const rows = data ?? [];
-      const latestAcked = rows.find((r) => {
-        const status = (r as { status?: string }).status;
-        const handled = (r as { handled?: boolean }).handled;
-        const handledAt = (r as { handled_at?: string | null }).handled_at;
-        return (
-          status === 'ack' ||
-          status === 'acknowledged' ||
-          status === 'completed' ||
-          handled === true ||
-          (handledAt !== null && handledAt !== undefined)
-        );
-      });
+      const latestAcked = data && data.length > 0 ? data[0] : null;
 
       if (latestAcked) {
-        console.log('[useLiveViewState] Latest ACKed command:', latestAcked.command);
+        const isActive = latestAcked.command === 'START_LIVE_VIEW';
+        console.log('[useLiveViewState] Latest ACKed command:', latestAcked.command, '→ liveViewActive:', isActive);
         setLastAckedCommand(latestAcked.command);
-        setLiveViewActive(latestAcked.command === 'START_LIVE_VIEW');
+        setLiveViewActive(isActive);
       } else {
-        console.log('[useLiveViewState] No ACKed live view commands found');
+        console.log('[useLiveViewState] No ACKed live view commands found → liveViewActive: false');
         setLiveViewActive(false);
         setLastAckedCommand(null);
       }
     } catch (err) {
       console.error('[useLiveViewState] Exception fetching command:', err);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [deviceId]);
 
@@ -111,42 +120,9 @@ export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLive
           filter: `device_id=eq.${deviceId}`,
         },
         (payload) => {
-          console.log('[useLiveViewState] Command change received:', JSON.stringify(payload.new));
-          
-          const row = payload.new as {
-            command?: string;
-            status?: string;
-            handled?: boolean;
-            handled_at?: string | null;
-          };
-
-          // Only process live view commands
-          if (row.command !== 'START_LIVE_VIEW' && row.command !== 'STOP_LIVE_VIEW') {
-            console.log('[useLiveViewState] Ignoring non-live-view command:', row.command);
-            return;
-          }
-
-          // Check if this command is ACKed
-          const isAcked = 
-            row.status === 'ack' || 
-            row.status === 'acknowledged' || 
-            row.status === 'completed' ||
-            row.handled === true ||
-            (row.handled_at !== null && row.handled_at !== undefined);
-
-          console.log('[useLiveViewState] Command ACK check:', { 
-            command: row.command, 
-            status: row.status, 
-            handled: row.handled, 
-            handled_at: row.handled_at,
-            isAcked 
-          });
-
-          if (isAcked) {
-            console.log('[useLiveViewState] Setting liveViewActive:', row.command === 'START_LIVE_VIEW');
-            setLastAckedCommand(row.command);
-            setLiveViewActive(row.command === 'START_LIVE_VIEW');
-          }
+          console.log('[useLiveViewState] Realtime update received, re-fetching state');
+          // Always re-fetch from DB to ensure we have the correct latest ACKed command
+          fetchLatestAckedCommand();
         }
       )
       .subscribe((status) => {
@@ -157,7 +133,7 @@ export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLive
       console.log('[useLiveViewState] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, [deviceId]);
+  }, [deviceId, fetchLatestAckedCommand]);
 
   return {
     liveViewActive,
