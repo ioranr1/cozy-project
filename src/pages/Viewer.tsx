@@ -98,6 +98,21 @@ const Viewer: React.FC = () => {
     timeoutMs: 60000,
   });
 
+  // Cleanup stream helper - defined early for use in effects
+  const cleanupStream = useCallback(() => {
+    console.log('[Viewer] Cleaning up stream');
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => {
+        track.stop();
+        console.log('[Viewer] Track stopped:', track.kind);
+      });
+      mediaStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
   // Initialize viewer ID from profile
   useEffect(() => {
     const stored = localStorage.getItem('userProfile');
@@ -118,7 +133,15 @@ const Viewer: React.FC = () => {
     fetchDevices();
   }, [navigate]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupStream();
+    };
+  }, [cleanupStream]);
+
   // Watch liveViewActive and auto-start RTC session
+  // Note: This only handles LIVE VIEW state, not motion detection
   useEffect(() => {
     if (!primaryDevice || !viewerId || liveStateLoading) return;
     
@@ -126,27 +149,12 @@ const Viewer: React.FC = () => {
       console.log('[Viewer] Live view active, starting RTC session...');
       handleStartViewing();
     } else if (!liveViewActive && (isConnecting || isConnected)) {
-      console.log('[Viewer] Live view stopped, cleaning up...');
-      handleStopViewing(false); // Don't send command, just cleanup
+      console.log('[Viewer] Live view stopped externally, cleaning up...');
+      // External stop - just cleanup locally, don't send command
+      handleStopViewing(false);
     }
-  }, [liveViewActive, viewerState, primaryDevice, viewerId, liveStateLoading, isConnecting, isConnected]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      cleanupStream();
-    };
-  }, []);
-
-  const cleanupStream = () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(track => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveViewActive, liveStateLoading]);
 
   const fetchDevices = async () => {
     try {
@@ -195,27 +203,30 @@ const Viewer: React.FC = () => {
     }
   };
 
-  // Stop viewing: send STOP command + cleanup RTC
-  const handleStopViewing = async (sendStopCommand = true) => {
+  // Stop viewing: complete cleanup flow (used by both Stop button and X button)
+  // This ensures identical behavior for all stop actions
+  const handleStopViewing = useCallback(async (sendStopCommand = true) => {
     console.log('[Viewer] Stopping viewing, sendCommand:', sendStopCommand);
     
-    // Cleanup stream first
+    // 1. Clear local video immediately
     cleanupStream();
     
-    // Stop RTC session
+    // 2. Stop RTC session (closes peer connection, updates rtc_sessions to 'ended')
     await stopSession();
     
-    // Send STOP command if requested
+    // 3. Send STOP_LIVE_VIEW command to desktop (only if requested)
+    // Note: This is for LIVE VIEW only - do NOT send motion detection commands
     if (sendStopCommand) {
       await sendCommand('STOP_LIVE_VIEW');
     }
     
+    // 4. Reset viewer state
     setViewerState('idle');
     setErrorMessage(null);
     
-    // Refresh state
+    // 5. Refresh live view state from DB
     refreshState();
-  };
+  }, [cleanupStream, stopSession, sendCommand, refreshState]);
 
   const handleRetry = () => {
     setErrorMessage(null);

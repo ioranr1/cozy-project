@@ -59,29 +59,36 @@ export function useRtcSession({
     }
   }, [onStatusChange]);
 
-  // Cleanup function
+  // Cleanup function - performs complete teardown of RTC session
   const cleanup = useCallback(async (finalStatus?: 'ended' | 'failed', failReason?: string) => {
-    console.log('[useRtcSession] Cleaning up...');
+    console.log('[useRtcSession] Cleaning up, finalStatus:', finalStatus, 'reason:', failReason);
     
-    // Clear timeout
+    // 1. Clear timeout first to prevent race conditions
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
 
-    // Close peer connection
+    // 2. Close peer connection and all tracks
     if (peerConnectionRef.current) {
+      // Stop all senders/receivers
+      peerConnectionRef.current.getSenders().forEach(sender => {
+        if (sender.track) sender.track.stop();
+      });
+      peerConnectionRef.current.getReceivers().forEach(receiver => {
+        if (receiver.track) receiver.track.stop();
+      });
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
 
-    // Unsubscribe from realtime
+    // 3. Unsubscribe from realtime
     if (channelRef.current) {
       await supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
-    // Update session status in DB if we have a session
+    // 4. Update session status in DB if we have a session
     if (sessionId && finalStatus) {
       try {
         const updateData: Record<string, unknown> = {
@@ -96,13 +103,16 @@ export function useRtcSession({
           .from('rtc_sessions')
           .update(updateData)
           .eq('id', sessionId);
+        console.log('[useRtcSession] Session status updated to:', finalStatus);
       } catch (err) {
         console.error('[useRtcSession] Error updating session status:', err);
       }
     }
 
+    // 5. Clear processed signals set
     processedSignalsRef.current.clear();
     
+    // 6. Update local status
     if (finalStatus && isMountedRef.current) {
       updateStatus(finalStatus === 'ended' ? 'idle' : 'failed');
     }
