@@ -279,10 +279,10 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <Button 
                 onClick={() => handleCommand('START_MOTION_DETECTION')}
-                disabled={isLoading || motionDetectionActive}
+                disabled={(isLoading && commandState.commandType?.includes('MOTION')) || motionDetectionActive}
                 className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
               >
-                {isLoading ? (
+                {isLoading && commandState.commandType === 'START_MOTION_DETECTION' ? (
                   <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
                 ) : (
                   <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
@@ -291,11 +291,11 @@ const Dashboard: React.FC = () => {
               </Button>
               <Button 
                 onClick={() => handleCommand('STOP_MOTION_DETECTION')}
-                disabled={isLoading || !motionDetectionActive}
+                disabled={(isLoading && commandState.commandType?.includes('MOTION')) || !motionDetectionActive}
                 variant="outline"
                 className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
               >
-                {isLoading ? (
+                {isLoading && commandState.commandType === 'STOP_MOTION_DETECTION' ? (
                   <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
                 ) : (
                   <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
@@ -341,7 +341,7 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-2 gap-3 mb-3">
               <Button 
                 onClick={() => handleCommand('START_LIVE_VIEW')}
-                disabled={isLoading || isLiveViewLoading || liveViewActive}
+                disabled={(isLoading && commandState.commandType?.includes('LIVE')) || isLiveViewLoading || liveViewActive}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
               >
                 {viewStatus === 'starting' ? (
@@ -353,7 +353,7 @@ const Dashboard: React.FC = () => {
               </Button>
               <Button 
                 onClick={() => handleCommand('STOP_LIVE_VIEW')}
-                disabled={isLoading || isLiveViewLoading || !liveViewActive}
+                disabled={(isLoading && commandState.commandType?.includes('LIVE')) || isLiveViewLoading || !liveViewActive}
                 variant="outline"
                 className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
               >

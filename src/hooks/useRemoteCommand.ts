@@ -17,6 +17,7 @@ export type CommandStatus = 'idle' | 'sending' | 'pending' | 'acknowledged' | 'f
 interface CommandState {
   status: CommandStatus;
   commandId: string | null;
+  commandType: CommandType | null;
   error: string | null;
 }
 
@@ -37,11 +38,13 @@ export function useRemoteCommand({
   const [commandState, setCommandState] = useState<CommandState>({
     status: 'idle',
     commandId: null,
+    commandType: null,
     error: null,
   });
   
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const currentCommandTypeRef = useRef<CommandType | null>(null);
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -62,6 +65,7 @@ export function useRemoteCommand({
   // Subscribe to command status updates
   const subscribeToCommand = useCallback((commandId: string, commandType: CommandType) => {
     cleanup();
+    currentCommandTypeRef.current = commandType;
 
     // Set timeout for acknowledgment
     timeoutRef.current = setTimeout(() => {
@@ -69,6 +73,7 @@ export function useRemoteCommand({
       setCommandState({
         status: 'timeout',
         commandId,
+        commandType,
         error: language === 'he' 
           ? 'לא התקבלה תשובה מהמחשב. ודא שהאפליקציה פתוחה ומחוברת לרשת.'
           : 'No response from computer. Make sure the app is open and connected.',
@@ -107,6 +112,7 @@ export function useRemoteCommand({
             setCommandState({
               status: 'failed',
               commandId,
+              commandType,
               error: errorMessage || (language === 'he' ? 'הפקודה נכשלה' : 'Command failed'),
             });
             toast.error(
@@ -132,6 +138,7 @@ export function useRemoteCommand({
             setCommandState({
               status: 'acknowledged',
               commandId,
+              commandType,
               error: null,
             });
             toast.success(
@@ -154,12 +161,13 @@ export function useRemoteCommand({
       const error = language === 'he' 
         ? 'לא נמצא מחשב מחובר. פתח את האפליקציה במחשב ונסה שוב.'
         : 'No connected computer found. Open the app on your computer and try again.';
-      setCommandState({ status: 'failed', commandId: null, error });
+      setCommandState({ status: 'failed', commandId: null, commandType, error });
       toast.error(error);
       return false;
     }
 
-    setCommandState({ status: 'sending', commandId: null, error: null });
+    currentCommandTypeRef.current = commandType;
+    setCommandState({ status: 'sending', commandId: null, commandType, error: null });
     toast.loading(
       language === 'he' ? 'שולח פקודה...' : 'Sending command...',
       { id: 'command-sending' }
@@ -174,7 +182,7 @@ export function useRemoteCommand({
           : 'Please log in again';
         toast.dismiss('command-sending');
         toast.error(error);
-        setCommandState({ status: 'failed', commandId: null, error });
+        setCommandState({ status: 'failed', commandId: null, commandType, error });
         return false;
       }
 
@@ -197,7 +205,7 @@ export function useRemoteCommand({
           ? `שליחת הפקודה נכשלה${details ? `: ${details}` : ''}`
           : `Failed to send command${details ? `: ${details}` : ''}`;
         toast.error(error);
-        setCommandState({ status: 'failed', commandId: null, error });
+        setCommandState({ status: 'failed', commandId: null, commandType, error });
         return false;
       }
 
@@ -219,14 +227,14 @@ export function useRemoteCommand({
         }
         
         toast.error(errorMessage);
-        setCommandState({ status: 'failed', commandId: null, error: errorMessage });
+        setCommandState({ status: 'failed', commandId: null, commandType, error: errorMessage });
         return false;
       }
 
       const commandId = data.command_id;
       console.log(`[useRemoteCommand] Command sent successfully, ID: ${commandId}`);
 
-      setCommandState({ status: 'pending', commandId, error: null });
+      setCommandState({ status: 'pending', commandId, commandType, error: null });
       toast.info(
         language === 'he' ? 'ממתין לאישור מהמחשב...' : 'Waiting for computer acknowledgment...',
         { duration: 3000 }
@@ -244,14 +252,15 @@ export function useRemoteCommand({
         ? 'שגיאה בשליחת הפקודה'
         : 'Error sending command';
       toast.error(errorMessage);
-      setCommandState({ status: 'failed', commandId: null, error: errorMessage });
+      setCommandState({ status: 'failed', commandId: null, commandType, error: errorMessage });
       return false;
     }
   }, [deviceId, language, subscribeToCommand]);
 
   const resetState = useCallback(() => {
     cleanup();
-    setCommandState({ status: 'idle', commandId: null, error: null });
+    currentCommandTypeRef.current = null;
+    setCommandState({ status: 'idle', commandId: null, commandType: null, error: null });
   }, [cleanup]);
 
   return {
