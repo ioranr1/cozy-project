@@ -358,42 +358,6 @@ const Dashboard: React.FC = () => {
               </Button>
             </div>
 
-            {/* Desync Warning Banner - shows when STOP was ACKed but user reports camera still on */}
-            {lastAckedCommand === 'STOP_LIVE_VIEW' && !liveViewActive && (
-              <div className="mt-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-orange-300 text-sm font-medium">
-                      {language === 'he' 
-                        ? 'המצלמה עדיין דולקת למרות שהפקודה התקבלה?' 
-                        : 'Camera still on even though command was acknowledged?'}
-                    </p>
-                    <p className="text-orange-400/70 text-xs mt-1">
-                      {language === 'he'
-                        ? 'לחץ כאן לשליחת פקודת כיבוי נוספת'
-                        : 'Click here to send another stop command'}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleCommand('STOP_LIVE_VIEW')}
-                    disabled={isLoading}
-                    className="border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
-                    )}
-                    <span className={isRTL ? 'mr-1' : 'ml-1'}>
-                      {language === 'he' ? 'שלח שוב' : 'Retry'}
-                    </span>
-                  </Button>
-                </div>
-              </div>
-            )}
 
             {/* View Stream Link */}
             {liveViewActive && (
