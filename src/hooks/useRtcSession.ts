@@ -31,10 +31,43 @@ interface UseRtcSessionOptions {
   timeoutMs?: number;
 }
 
-const ICE_SERVERS: RTCIceServer[] = [
+// Default fallback ICE servers (STUN only)
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
+
+// Fetch TURN credentials from edge function
+async function fetchTurnCredentials(): Promise<RTCIceServer[]> {
+  try {
+    const response = await fetch(
+      'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/get-turn-credentials',
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    if (!response.ok) {
+      console.warn('[useRtcSession] Failed to fetch TURN credentials, using STUN fallback');
+      return DEFAULT_ICE_SERVERS;
+    }
+
+    const data = await response.json();
+    
+    if (data.iceServers && Array.isArray(data.iceServers) && data.iceServers.length > 0) {
+      console.log('[useRtcSession] Using Metered.ca TURN servers:', data.iceServers.length, 'servers');
+      return data.iceServers;
+    }
+    
+    return DEFAULT_ICE_SERVERS;
+  } catch (error) {
+    console.warn('[useRtcSession] Error fetching TURN credentials:', error);
+    return DEFAULT_ICE_SERVERS;
+  }
+}
 
 export function useRtcSession({
   deviceId,
@@ -249,10 +282,13 @@ export function useRtcSession({
   }, [processSignal]);
 
   // Initialize WebRTC peer connection
-  const initPeerConnection = useCallback((sessionId: string) => {
+  const initPeerConnection = useCallback(async (sessionId: string) => {
     console.log('[useRtcSession] Initializing peer connection');
     
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    // Fetch TURN credentials from edge function
+    const iceServers = await fetchTurnCredentials();
+    
+    const pc = new RTCPeerConnection({ iceServers });
     peerConnectionRef.current = pc;
 
     // Handle ICE candidates
@@ -387,8 +423,8 @@ export function useRtcSession({
 
       setSessionId(activeSessionId);
 
-      // 2. Initialize WebRTC
-      initPeerConnection(activeSessionId);
+      // 2. Initialize WebRTC (async - fetches TURN credentials)
+      await initPeerConnection(activeSessionId);
 
       // 3. Subscribe to signals
       subscribeToSignals(activeSessionId);
