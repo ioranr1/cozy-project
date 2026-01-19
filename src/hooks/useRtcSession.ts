@@ -297,7 +297,7 @@ export function useRtcSession({
       }
     };
 
-    // Handle incoming tracks (video stream)
+    // Handle incoming tracks (video stream from desktop)
     pc.ontrack = (event) => {
       console.log('[useRtcSession] Track received:', event.streams.length, 'streams');
       if (event.streams && event.streams[0]) {
@@ -305,7 +305,8 @@ export function useRtcSession({
       }
     };
 
-    // Add transceivers for receiving video/audio
+    // IMPORTANT: recvonly - mobile viewer does NOT send any media
+    // This ensures no camera permission is requested on mobile devices
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addTransceiver('audio', { direction: 'recvonly' });
 

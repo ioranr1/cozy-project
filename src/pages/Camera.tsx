@@ -3,12 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, ArrowLeft, ArrowRight, Video, VideoOff, Settings, Maximize, Minimize } from 'lucide-react';
+import { useIsMobileDevice } from '@/hooks/use-platform';
+import { Shield, ArrowLeft, ArrowRight, Video, VideoOff, Settings, Maximize, Minimize, Smartphone } from 'lucide-react';
 
 const Camera: React.FC = () => {
   const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const isMobile = useIsMobileDevice();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -96,6 +98,40 @@ const Camera: React.FC = () => {
   }, [stream]);
 
   const ArrowIcon = isRTL ? ArrowRight : ArrowLeft;
+
+  // Redirect mobile users - camera preview is desktop-only
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-8 max-w-md text-center">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-600/20 to-amber-800/20 border border-amber-500/30 flex items-center justify-center mx-auto mb-6">
+            <Smartphone className="w-8 h-8 text-amber-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-3">
+            {language === 'he' ? 'זמין במחשב בלבד' : 'Desktop Only'}
+          </h2>
+          <p className="text-white/60 mb-6">
+            {language === 'he' 
+              ? 'בדיקת המצלמה זמינה רק מהמחשב. לצפייה בשידור חי, עבור לעמוד הצפייה.'
+              : 'Camera preview is only available on desktop. To watch the live stream, go to the viewer page.'}
+          </p>
+          <div className="flex flex-col gap-3">
+            <Link to="/viewer">
+              <Button className="w-full bg-primary hover:bg-primary/90">
+                {language === 'he' ? 'צפייה בשידור' : 'Watch Stream'}
+              </Button>
+            </Link>
+            <Link to="/dashboard">
+              <Button variant="outline" className="w-full border-slate-600 text-white hover:bg-slate-700">
+                <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'חזרה לדשבורד' : 'Back to Dashboard'}
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
