@@ -185,6 +185,18 @@ const Dashboard: React.FC = () => {
         />
 
         <div className="p-4 space-y-4">
+          {/* DEBUG PANEL - TEMPORARY */}
+          <div className="bg-purple-900/30 border border-purple-500/50 rounded-xl p-3 text-xs font-mono">
+            <div className="text-purple-300 font-bold mb-2">🔧 DEBUG</div>
+            <div className="space-y-1 text-purple-200">
+              <div>liveViewActive: <span className={liveViewActive ? 'text-green-400' : 'text-red-400'}>{String(liveViewActive)}</span></div>
+              <div>viewStatus: <span className="text-yellow-400">{viewStatus}</span></div>
+              <div>isLoading: <span className={isLoading ? 'text-yellow-400' : 'text-slate-400'}>{String(isLoading)}</span></div>
+              <div>isLiveViewLoading: <span className={isLiveViewLoading ? 'text-yellow-400' : 'text-slate-400'}>{String(isLiveViewLoading)}</span></div>
+              <div>commandState: <span className="text-cyan-400">{commandState.status}</span></div>
+            </div>
+          </div>
+
           {/* Connection Status with Command Feedback */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
             <div className="flex items-center justify-between">
