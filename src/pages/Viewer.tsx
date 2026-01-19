@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Shield, ArrowLeft, ArrowRight, Video, Laptop, RefreshCw, AlertCircle, Loader2, X, Eye, EyeOff, Volume2, VolumeX } from 'lucide-react';
+import { Shield, ArrowLeft, ArrowRight, Video, Laptop, RefreshCw, AlertCircle, Loader2, X, Eye, EyeOff, Volume2, VolumeX, Bell } from 'lucide-react';
 import { useLiveViewState } from '@/hooks/useLiveViewState';
 import { useRtcSession, RtcSessionStatus } from '@/hooks/useRtcSession';
 import { useRemoteCommand } from '@/hooks/useRemoteCommand';
@@ -25,9 +25,16 @@ interface Device {
 const Viewer: React.FC = () => {
   const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [primaryDevice, setPrimaryDevice] = useState<Device | null>(null);
+  
+  // Alert deep link state
+  const alertDeviceId = searchParams.get('device_id');
+  const isAlertSource = searchParams.get('source') === 'alert';
+  const [isFromAlert, setIsFromAlert] = useState(false);
+  const [alertAutoStartDone, setAlertAutoStartDone] = useState(false);
   
   // Live View state
   const [viewerState, setViewerState] = useState<ViewerState>('idle');
@@ -130,8 +137,42 @@ const Viewer: React.FC = () => {
       setViewerId(`viewer_${Date.now()}`);
     }
 
+    // Track if opened from alert
+    if (isAlertSource) {
+      setIsFromAlert(true);
+    }
+
     fetchDevices();
-  }, [navigate]);
+  }, [navigate, isAlertSource]);
+
+  // Handle alert deep link auto-start
+  useEffect(() => {
+    // Only auto-start once when all conditions are met
+    if (
+      isFromAlert && 
+      !alertAutoStartDone && 
+      primaryDevice && 
+      viewerId && 
+      !loading && 
+      !liveStateLoading &&
+      viewerState === 'idle' && 
+      !isConnecting && 
+      !isConnected
+    ) {
+      console.log('[Viewer] Alert deep link detected, auto-starting live view');
+      setAlertAutoStartDone(true);
+      handleStartViewing();
+    }
+  }, [isFromAlert, alertAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected]);
+
+  // Clear alert params when stopping (to allow re-triggering if needed)
+  const clearAlertParams = useCallback(() => {
+    if (isAlertSource || alertDeviceId) {
+      setSearchParams({});
+      setIsFromAlert(false);
+      setAlertAutoStartDone(false);
+    }
+  }, [isAlertSource, alertDeviceId, setSearchParams]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -228,9 +269,12 @@ const Viewer: React.FC = () => {
     setViewerState('idle');
     setErrorMessage(null);
     
-    // 5. Refresh live view state from DB
+    // 5. Clear alert params if from alert
+    clearAlertParams();
+    
+    // 6. Refresh live view state from DB
     refreshState();
-  }, [cleanupStream, stopSession, sendCommand, refreshState]);
+  }, [cleanupStream, stopSession, sendCommand, refreshState, clearAlertParams]);
 
   const handleRetry = () => {
     setErrorMessage(null);
@@ -320,6 +364,18 @@ const Viewer: React.FC = () => {
             <div className={`w-2 h-2 rounded-full ${deviceStatus.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`} />
           </div>
         </div>
+
+        {/* Alert Banner - Show when from alert and connecting/connected */}
+        {isFromAlert && (viewerState === 'connecting' || viewerState === 'connected') && (
+          <div className="bg-amber-500/20 border border-amber-500/40 rounded-xl p-3 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+              <Bell className="w-4 h-4 text-amber-400" />
+            </div>
+            <span className="text-amber-200 text-sm font-medium">
+              {language === 'he' ? 'התראה נכנסת' : 'Incoming Alert'}
+            </span>
+          </div>
+        )}
 
         {/* Live View Container */}
         <div className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden aspect-video relative">
