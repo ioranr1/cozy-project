@@ -65,6 +65,48 @@ export type Database = {
           },
         ]
       }
+      camera_desync_reports: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+          issue: string
+          reporter_profile_id: string
+          resolved_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+          issue: string
+          reporter_profile_id: string
+          resolved_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
+          issue?: string
+          reporter_profile_id?: string
+          resolved_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "camera_desync_reports_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "camera_desync_reports_reporter_profile_id_fkey"
+            columns: ["reporter_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commands: {
         Row: {
           command: string
