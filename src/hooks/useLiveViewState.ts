@@ -85,17 +85,18 @@ export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLive
           filter: `device_id=eq.${deviceId}`,
         },
         (payload) => {
-          console.log('[useLiveViewState] Command change received:', payload);
+          console.log('[useLiveViewState] Command change received:', JSON.stringify(payload.new));
           
           const row = payload.new as {
             command?: string;
             status?: string;
             handled?: boolean;
-            handled_at?: string;
+            handled_at?: string | null;
           };
 
           // Only process live view commands
           if (row.command !== 'START_LIVE_VIEW' && row.command !== 'STOP_LIVE_VIEW') {
+            console.log('[useLiveViewState] Ignoring non-live-view command:', row.command);
             return;
           }
 
@@ -105,10 +106,18 @@ export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLive
             row.status === 'acknowledged' || 
             row.status === 'completed' ||
             row.handled === true ||
-            row.handled_at != null;
+            (row.handled_at !== null && row.handled_at !== undefined);
+
+          console.log('[useLiveViewState] Command ACK check:', { 
+            command: row.command, 
+            status: row.status, 
+            handled: row.handled, 
+            handled_at: row.handled_at,
+            isAcked 
+          });
 
           if (isAcked) {
-            console.log('[useLiveViewState] ACKed live view command detected:', row.command);
+            console.log('[useLiveViewState] Setting liveViewActive:', row.command === 'START_LIVE_VIEW');
             setLastAckedCommand(row.command);
             setLiveViewActive(row.command === 'START_LIVE_VIEW');
           }

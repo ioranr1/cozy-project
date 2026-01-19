@@ -40,7 +40,9 @@ const Dashboard: React.FC = () => {
 
   // Sync viewStatus with liveViewActive from Supabase
   useEffect(() => {
+    // Always sync viewStatus when liveViewActive changes (after initial load)
     if (!isLiveViewLoading) {
+      console.log('[Dashboard] Syncing viewStatus from liveViewActive:', liveViewActive);
       setViewStatus(liveViewActive ? 'streaming' : 'idle');
     }
   }, [liveViewActive, isLiveViewLoading]);
