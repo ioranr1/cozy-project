@@ -181,14 +181,18 @@ const Viewer: React.FC = () => {
 
   // Start viewing: create RTC session + send START_LIVE_VIEW command
   const handleStartViewing = async () => {
-    if (!viewerId || isConnecting) return;
+    // Prevent duplicate calls - check all blocking states
+    if (!viewerId || isConnecting || isConnected || viewerState === 'connecting') {
+      console.log('[Viewer] Start blocked - already in progress or connected');
+      return;
+    }
     
     setErrorMessage(null);
     setViewerState('connecting');
 
-    // 1. Create RTC session
-    const newSessionId = await startSession();
-    if (!newSessionId) {
+    // 1. Create or reuse RTC session (hook handles duplicate prevention)
+    const activeSessionId = await startSession();
+    if (!activeSessionId) {
       return; // Error already handled in hook
     }
 
@@ -345,10 +349,10 @@ const Viewer: React.FC = () => {
               <div className="flex gap-3">
                 <Button 
                   onClick={handleStartViewing}
-                  disabled={isCommandLoading || !deviceStatus.isOnline}
+                  disabled={isCommandLoading || !deviceStatus.isOnline || isConnecting || isConnected}
                   className="bg-primary hover:bg-primary/90"
                 >
-                  {isCommandLoading ? (
+                  {(isCommandLoading || isConnecting) ? (
                     <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
                   ) : (
                     <Eye className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
