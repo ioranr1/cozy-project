@@ -30,27 +30,40 @@ export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLive
     }
 
     try {
-      // Get the most recent ACKed live view command
+      // Get the most recent live view command(s), then pick the latest ACKed one.
+      // This is more resilient than filtering in SQL because pending rows can be newer than the ACKed row.
       const { data, error } = await supabase
         .from('commands')
         .select('id, command, status, handled, handled_at, created_at')
         .eq('device_id', deviceId)
         .in('command', ['START_LIVE_VIEW', 'STOP_LIVE_VIEW'])
-        .or('status.eq.ack,status.eq.acknowledged,status.eq.completed,handled.eq.true')
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(10);
 
       if (error) {
-        console.error('[useLiveViewState] Error fetching latest command:', error);
+        console.error('[useLiveViewState] Error fetching commands:', error);
         setIsLoading(false);
         return;
       }
 
-      if (data) {
-        console.log('[useLiveViewState] Latest ACKed command:', data.command);
-        setLastAckedCommand(data.command);
-        setLiveViewActive(data.command === 'START_LIVE_VIEW');
+      const rows = data ?? [];
+      const latestAcked = rows.find((r) => {
+        const status = (r as { status?: string }).status;
+        const handled = (r as { handled?: boolean }).handled;
+        const handledAt = (r as { handled_at?: string | null }).handled_at;
+        return (
+          status === 'ack' ||
+          status === 'acknowledged' ||
+          status === 'completed' ||
+          handled === true ||
+          (handledAt !== null && handledAt !== undefined)
+        );
+      });
+
+      if (latestAcked) {
+        console.log('[useLiveViewState] Latest ACKed command:', latestAcked.command);
+        setLastAckedCommand(latestAcked.command);
+        setLiveViewActive(latestAcked.command === 'START_LIVE_VIEW');
       } else {
         console.log('[useLiveViewState] No ACKed live view commands found');
         setLiveViewActive(false);
@@ -67,6 +80,19 @@ export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLive
   useEffect(() => {
     fetchLatestAckedCommand();
   }, [fetchLatestAckedCommand]);
+
+  // Poll fallback (in case Realtime doesn't fire on some mobile browsers)
+  useEffect(() => {
+    if (!deviceId) return;
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchLatestAckedCommand();
+      }
+    }, 2000);
+
+    return () => window.clearInterval(interval);
+  }, [deviceId, fetchLatestAckedCommand]);
 
   // Subscribe to realtime changes on the commands table
   useEffect(() => {
