@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Shield, ArrowLeft, ArrowRight, Video, Laptop, RefreshCw, AlertCircle, Loader2, X, Eye, EyeOff, Volume2, VolumeX, Bell } from 'lucide-react';
 import { useLiveViewState } from '@/hooks/useLiveViewState';
 import { useRtcSession, RtcSessionStatus } from '@/hooks/useRtcSession';
+import { LiveViewDebugPanel } from '@/components/LiveViewDebugPanel';
 import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { laptopDeviceId } from '@/config/devices';
 import { toast } from 'sonner';
@@ -95,7 +96,8 @@ const Viewer: React.FC = () => {
     startSession, 
     stopSession, 
     isConnecting, 
-    isConnected 
+    isConnected,
+    debugInfo: rtcDebugInfo,
   } = useRtcSession({
     deviceId: primaryDeviceId,
     viewerId,
@@ -542,6 +544,13 @@ const Viewer: React.FC = () => {
           {renderViewerContent()}
         </div>
       </main>
+
+      {/* Debug Panel - Only visible in dev mode */}
+      <LiveViewDebugPanel 
+        viewerState={viewerState}
+        rtcDebugInfo={rtcDebugInfo}
+        errorMessage={errorMessage}
+      />
     </div>
   );
 };
