@@ -290,7 +290,34 @@ export function useRtcSession({
     return pc;
   }, [insertSignal, language, onError, onStreamReceived, updateStatus, cleanup]);
 
-  // Start a new RTC session
+  // Check for existing active/pending session within last 2 minutes
+  const findExistingSession = useCallback(async (): Promise<string | null> => {
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from('rtc_sessions')
+      .select('id')
+      .eq('device_id', deviceId)
+      .in('status', ['pending', 'active'])
+      .gte('created_at', twoMinutesAgo)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error('[useRtcSession] Error checking existing sessions:', error);
+      return null;
+    }
+
+    if (data && data.length > 0) {
+      console.log('[useRtcSession] Found existing session:', data[0].id);
+      return data[0].id as string;
+    }
+
+    return null;
+  }, [deviceId]);
+
+  // Start a new RTC session (or reuse existing one)
   const startSession = useCallback(async (): Promise<string | null> => {
     if (!deviceId || !viewerId) {
       const error = language === 'he' ? 'חסרים פרטי מכשיר' : 'Missing device details';
@@ -298,36 +325,50 @@ export function useRtcSession({
       return null;
     }
 
+    // Prevent duplicate calls if already connecting/connected
+    if (status === 'connecting' || status === 'connected') {
+      console.log('[useRtcSession] Already connecting/connected, ignoring start request');
+      return sessionId;
+    }
+
     console.log('[useRtcSession] Starting session for device:', deviceId);
     updateStatus('connecting');
 
     try {
-      // 1. Create rtc_sessions row
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: sessionData, error: sessionError } = await (supabase as any)
-        .from('rtc_sessions')
-        .insert({
-          device_id: deviceId,
-          viewer_id: viewerId,
-          status: 'pending',
-        })
-        .select('id')
-        .single();
+      // 1. Check for existing session within last 2 minutes
+      let activeSessionId = await findExistingSession();
+      
+      if (activeSessionId) {
+        console.log('[useRtcSession] Reusing existing session:', activeSessionId);
+      } else {
+        // Create new rtc_sessions row
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: sessionData, error: sessionError } = await (supabase as any)
+          .from('rtc_sessions')
+          .insert({
+            device_id: deviceId,
+            viewer_id: viewerId,
+            status: 'pending',
+          })
+          .select('id')
+          .single();
 
-      if (sessionError || !sessionData) {
-        console.error('[useRtcSession] Error creating session:', sessionError);
-        throw new Error(sessionError?.message || 'Failed to create session');
+        if (sessionError || !sessionData) {
+          console.error('[useRtcSession] Error creating session:', sessionError);
+          throw new Error(sessionError?.message || 'Failed to create session');
+        }
+
+        activeSessionId = sessionData.id as string;
+        console.log('[useRtcSession] Session created:', activeSessionId);
       }
 
-      const newSessionId = sessionData.id as string;
-      setSessionId(newSessionId);
-      console.log('[useRtcSession] Session created:', newSessionId);
+      setSessionId(activeSessionId);
 
       // 2. Initialize WebRTC
-      initPeerConnection(newSessionId);
+      initPeerConnection(activeSessionId);
 
       // 3. Subscribe to signals
-      subscribeToSignals(newSessionId);
+      subscribeToSignals(activeSessionId);
 
       // 4. Set connection timeout
       timeoutRef.current = setTimeout(() => {
@@ -339,7 +380,7 @@ export function useRtcSession({
         cleanup('failed', 'timeout');
       }, timeoutMs);
 
-      return newSessionId;
+      return activeSessionId;
 
     } catch (err) {
       console.error('[useRtcSession] Error starting session:', err);
@@ -350,7 +391,7 @@ export function useRtcSession({
       updateStatus('failed');
       return null;
     }
-  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup]);
+  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, findExistingSession, status, sessionId]);
 
   // Stop the current session
   const stopSession = useCallback(async () => {
