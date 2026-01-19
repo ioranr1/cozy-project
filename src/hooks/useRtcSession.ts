@@ -4,6 +4,15 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 export type RtcSessionStatus = 'idle' | 'connecting' | 'connected' | 'ended' | 'failed';
 
+export interface RtcDebugInfo {
+  sessionId: string | null;
+  status: RtcSessionStatus;
+  connectionState: RTCPeerConnectionState | null;
+  lastSignalType: 'offer' | 'answer' | 'ice' | null;
+  lastError: string | null;
+  signalsProcessed: number;
+}
+
 interface RtcSignal {
   id: number;
   session_id: string;
@@ -38,6 +47,12 @@ export function useRtcSession({
   const { language } = useLanguage();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [status, setStatus] = useState<RtcSessionStatus>('idle');
+  
+  // Debug state
+  const [connectionState, setConnectionState] = useState<RTCPeerConnectionState | null>(null);
+  const [lastSignalType, setLastSignalType] = useState<'offer' | 'answer' | 'ice' | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [signalsProcessed, setSignalsProcessed] = useState(0);
   
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -149,6 +164,10 @@ export function useRtcSession({
       return;
     }
     processedSignalsRef.current.add(signal.id);
+    
+    // Update debug info
+    setLastSignalType(signal.type);
+    setSignalsProcessed(prev => prev + 1);
 
     const pc = peerConnectionRef.current;
     if (!pc) {
@@ -181,6 +200,7 @@ export function useRtcSession({
       }
     } catch (err) {
       console.error(`[useRtcSession] Error processing ${signal.type}:`, err);
+      setLastError(`Signal error: ${signal.type}`);
     }
   }, [insertSignal]);
 
@@ -249,6 +269,7 @@ export function useRtcSession({
     // Handle connection state changes
     pc.onconnectionstatechange = () => {
       console.log('[useRtcSession] Connection state:', pc.connectionState);
+      setConnectionState(pc.connectionState);
       
       if (pc.connectionState === 'connected') {
         // Clear timeout on successful connection
@@ -270,6 +291,7 @@ export function useRtcSession({
           
       } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
         const errorMsg = language === 'he' ? 'החיבור נותק' : 'Connection lost';
+        setLastError(errorMsg);
         onError(errorMsg);
         cleanup('failed', 'connection_' + pc.connectionState);
       }
@@ -387,6 +409,7 @@ export function useRtcSession({
       const error = language === 'he' 
         ? 'שגיאה בהתחלת החיבור'
         : 'Error starting connection';
+      setLastError(error);
       onError(error);
       updateStatus('failed');
       return null;
@@ -398,6 +421,11 @@ export function useRtcSession({
     console.log('[useRtcSession] Stopping session');
     await cleanup('ended');
     setSessionId(null);
+    // Reset debug state
+    setConnectionState(null);
+    setLastSignalType(null);
+    setLastError(null);
+    setSignalsProcessed(0);
   }, [cleanup]);
 
   // Force cleanup on unmount
@@ -409,6 +437,16 @@ export function useRtcSession({
     };
   }, [cleanup]);
 
+  // Build debug info object
+  const debugInfo: RtcDebugInfo = {
+    sessionId,
+    status,
+    connectionState,
+    lastSignalType,
+    lastError,
+    signalsProcessed,
+  };
+
   return {
     sessionId,
     status,
@@ -416,5 +454,6 @@ export function useRtcSession({
     stopSession,
     isConnecting: status === 'connecting',
     isConnected: status === 'connected',
+    debugInfo,
   };
 }
