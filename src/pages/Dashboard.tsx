@@ -34,7 +34,7 @@ const Dashboard: React.FC = () => {
   const capabilities = useCapabilities();
 
   // Live view state from Supabase (source of truth)
-  const { liveViewActive, isLoading: isLiveViewLoading, refreshState } = useLiveViewState({ 
+  const { liveViewActive, lastAckedCommand, isLoading: isLiveViewLoading, refreshState } = useLiveViewState({ 
     deviceId: laptopDeviceId 
   });
 
@@ -130,7 +130,20 @@ const Dashboard: React.FC = () => {
     } else if (commandType === 'STOP_LIVE_VIEW') {
       setViewStatus('stopping');
     }
-    await sendCommand(commandType);
+
+    const ok = await sendCommand(commandType);
+
+    // Bootstrap-safe: always re-fetch live view state after sending live view commands
+    // (covers cases where Supabase Realtime doesn't deliver the UPDATE on mobile)
+    if (commandType === 'START_LIVE_VIEW' || commandType === 'STOP_LIVE_VIEW') {
+      refreshState();
+      window.setTimeout(() => refreshState(), 1500);
+
+      // If sending failed, return UI to the last known state quickly
+      if (!ok) {
+        setViewStatus(liveViewActive ? 'streaming' : 'idle');
+      }
+    }
   };
 
   // Get command status indicator
@@ -195,6 +208,7 @@ const Dashboard: React.FC = () => {
             <div className="text-purple-300 font-bold mb-2">🔧 DEBUG</div>
             <div className="space-y-1 text-purple-200">
               <div>liveViewActive: <span className={liveViewActive ? 'text-green-400' : 'text-red-400'}>{String(liveViewActive)}</span></div>
+              <div>lastAckedCommand: <span className="text-cyan-400">{lastAckedCommand ?? '-'}</span></div>
               <div>motionDetectionActive: <span className={motionDetectionActive ? 'text-green-400' : 'text-red-400'}>{String(motionDetectionActive)}</span></div>
               <div>viewStatus: <span className="text-yellow-400">{viewStatus}</span></div>
               <div>isLoading: <span className={isLoading ? 'text-yellow-400' : 'text-slate-400'}>{String(isLoading)}</span></div>
@@ -345,7 +359,7 @@ const Dashboard: React.FC = () => {
               </Button>
               <Button 
                 onClick={() => handleCommand('STOP_LIVE_VIEW')}
-                disabled={isLoading}
+                disabled={isLoading || !liveViewActive}
                 variant="outline"
                 className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
               >
