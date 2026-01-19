@@ -1,12 +1,16 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Shield, ArrowLeft, ArrowRight, Video, Laptop, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { Shield, ArrowLeft, ArrowRight, Video, Laptop, RefreshCw, AlertCircle, Loader2, X, Eye, EyeOff, Volume2, VolumeX } from 'lucide-react';
 import { useLiveViewState } from '@/hooks/useLiveViewState';
+import { useRtcSession, RtcSessionStatus } from '@/hooks/useRtcSession';
+import { useRemoteCommand } from '@/hooks/useRemoteCommand';
+import { laptopDeviceId } from '@/config/devices';
+import { toast } from 'sonner';
 
 type ViewerState = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -28,39 +32,104 @@ const Viewer: React.FC = () => {
   // Live View state
   const [viewerState, setViewerState] = useState<ViewerState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
-  // Get primary device ID for live view state hook
-  const primaryDeviceId = primaryDevice?.id || '';
-  const { liveViewActive, isLoading: liveStateLoading } = useLiveViewState({ deviceId: primaryDeviceId });
+  // Get stable viewer ID (profile ID or device fingerprint)
+  const [viewerId, setViewerId] = useState<string>('');
 
+  // Get primary device ID for live view state hook
+  const primaryDeviceId = primaryDevice?.id || laptopDeviceId;
+  const { liveViewActive, isLoading: liveStateLoading, refreshState } = useLiveViewState({ deviceId: primaryDeviceId });
+
+  // Remote command hook for START/STOP
+  const { sendCommand, commandState, isLoading: isCommandLoading } = useRemoteCommand({
+    deviceId: primaryDeviceId,
+    onAcknowledged: (cmdType) => {
+      if (cmdType === 'STOP_LIVE_VIEW') {
+        console.log('[Viewer] STOP_LIVE_VIEW acknowledged');
+      }
+    },
+  });
+
+  // RTC Session callbacks
+  const handleStreamReceived = useCallback((stream: MediaStream) => {
+    console.log('[Viewer] Stream received');
+    mediaStreamRef.current = stream;
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      setViewerState('connected');
+    }
+  }, []);
+
+  const handleRtcError = useCallback((error: string) => {
+    console.error('[Viewer] RTC Error:', error);
+    setErrorMessage(error);
+    setViewerState('error');
+  }, []);
+
+  const handleStatusChange = useCallback((status: RtcSessionStatus) => {
+    console.log('[Viewer] RTC Status:', status);
+    if (status === 'connecting') {
+      setViewerState('connecting');
+    } else if (status === 'connected') {
+      setViewerState('connected');
+    } else if (status === 'failed') {
+      setViewerState('error');
+    } else if (status === 'ended' || status === 'idle') {
+      setViewerState('idle');
+    }
+  }, []);
+
+  // RTC Session hook
+  const { 
+    sessionId,
+    startSession, 
+    stopSession, 
+    isConnecting, 
+    isConnected 
+  } = useRtcSession({
+    deviceId: primaryDeviceId,
+    viewerId,
+    onStreamReceived: handleStreamReceived,
+    onError: handleRtcError,
+    onStatusChange: handleStatusChange,
+    timeoutMs: 60000,
+  });
+
+  // Initialize viewer ID from profile
   useEffect(() => {
     const stored = localStorage.getItem('userProfile');
     if (!stored) {
       navigate('/login');
       return;
     }
+    
+    try {
+      const profile = JSON.parse(stored);
+      // Use profile ID or generate a stable ID
+      const id = profile.id || `viewer_${Date.now()}`;
+      setViewerId(id);
+    } catch {
+      setViewerId(`viewer_${Date.now()}`);
+    }
 
     fetchDevices();
   }, [navigate]);
 
-  // Update viewer state based on liveViewActive
+  // Watch liveViewActive and auto-start RTC session
   useEffect(() => {
-    if (!primaryDevice) return;
+    if (!primaryDevice || !viewerId || liveStateLoading) return;
     
-    if (liveViewActive && viewerState === 'idle') {
-      // Live view is active, we should try to connect
-      setViewerState('connecting');
-      // TODO: WebRTC connection logic will go here
-      // For now, simulate connection attempt
-      console.log('[Viewer] Live view active, starting connection...');
-    } else if (!liveViewActive && viewerState !== 'idle') {
-      // Live view stopped, reset to idle
-      cleanupStream();
-      setViewerState('idle');
+    if (liveViewActive && viewerState === 'idle' && !isConnecting && !isConnected) {
+      console.log('[Viewer] Live view active, starting RTC session...');
+      handleStartViewing();
+    } else if (!liveViewActive && (isConnecting || isConnected)) {
+      console.log('[Viewer] Live view stopped, cleaning up...');
+      handleStopViewing(false); // Don't send command, just cleanup
     }
-  }, [liveViewActive, viewerState, primaryDevice]);
+  }, [liveViewActive, viewerState, primaryDevice, viewerId, liveStateLoading, isConnecting, isConnected]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -92,10 +161,9 @@ const Viewer: React.FC = () => {
       }
 
       setDevices(data || []);
-      // Set the first device as primary for now
-      if (data && data.length > 0) {
-        setPrimaryDevice(data[0]);
-      }
+      // Set primary device - prefer the configured laptop
+      const laptop = data?.find(d => d.id === laptopDeviceId);
+      setPrimaryDevice(laptop || (data && data.length > 0 ? data[0] : null));
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -103,10 +171,62 @@ const Viewer: React.FC = () => {
     }
   };
 
-  const handleRetry = () => {
+  // Start viewing: create RTC session + send START_LIVE_VIEW command
+  const handleStartViewing = async () => {
+    if (!viewerId || isConnecting) return;
+    
     setErrorMessage(null);
     setViewerState('connecting');
-    // TODO: Retry WebRTC connection
+
+    // 1. Create RTC session
+    const newSessionId = await startSession();
+    if (!newSessionId) {
+      return; // Error already handled in hook
+    }
+
+    // 2. Send START_LIVE_VIEW command (with session_id in payload via existing mechanism)
+    // The command tells Electron to start streaming to this session
+    const ok = await sendCommand('START_LIVE_VIEW');
+    if (!ok) {
+      // Command failed, cleanup session
+      await stopSession();
+      setViewerState('error');
+      setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
+    }
+  };
+
+  // Stop viewing: send STOP command + cleanup RTC
+  const handleStopViewing = async (sendStopCommand = true) => {
+    console.log('[Viewer] Stopping viewing, sendCommand:', sendStopCommand);
+    
+    // Cleanup stream first
+    cleanupStream();
+    
+    // Stop RTC session
+    await stopSession();
+    
+    // Send STOP command if requested
+    if (sendStopCommand) {
+      await sendCommand('STOP_LIVE_VIEW');
+    }
+    
+    setViewerState('idle');
+    setErrorMessage(null);
+    
+    // Refresh state
+    refreshState();
+  };
+
+  const handleRetry = () => {
+    setErrorMessage(null);
+    handleStartViewing();
+  };
+
+  const toggleMute = () => {
+    if (videoRef.current) {
+      videoRef.current.muted = !videoRef.current.muted;
+      setIsMuted(videoRef.current.muted);
+    }
   };
 
   const getDeviceStatus = (device: Device) => {
@@ -125,22 +245,6 @@ const Viewer: React.FC = () => {
       return { label: language === 'he' ? 'לאחרונה' : 'Recently', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', isOnline: false };
     }
     return { label: language === 'he' ? 'לא מחובר' : 'Offline', color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', isOnline: false };
-  };
-
-  // Attach MediaStream to video element (will be called by WebRTC logic)
-  const attachStream = (stream: MediaStream) => {
-    mediaStreamRef.current = stream;
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      setViewerState('connected');
-    }
-  };
-
-  // Handle stream error (will be called by WebRTC logic)
-  const handleStreamError = (error: string) => {
-    setErrorMessage(error);
-    setViewerState('error');
-    cleanupStream();
   };
 
   const ArrowIcon = isRTL ? ArrowRight : ArrowLeft;
@@ -204,6 +308,15 @@ const Viewer: React.FC = () => {
 
         {/* Live View Container */}
         <div className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden aspect-video relative">
+          {/* Video Element - Always present but hidden when not connected */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted={isMuted}
+            className={`w-full h-full object-contain bg-black ${viewerState !== 'connected' ? 'hidden' : ''}`}
+          />
+
           {/* Idle State */}
           {viewerState === 'idle' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90">
@@ -213,17 +326,31 @@ const Viewer: React.FC = () => {
               <h3 className="text-lg font-medium text-white mb-2">
                 {language === 'he' ? 'אין שידור פעיל' : 'No Active Stream'}
               </h3>
-              <p className="text-white/60 text-sm text-center max-w-xs">
+              <p className="text-white/60 text-sm text-center max-w-xs mb-6">
                 {language === 'he'
-                  ? 'הפעל את השידור מהמסך הראשי'
-                  : 'Start the stream from the main screen'}
+                  ? 'הפעל את השידור מהמסך הראשי או לחץ כאן להתחלה'
+                  : 'Start the stream from the main screen or click here to start'}
               </p>
-              <Link to="/dashboard" className="mt-6">
-                <Button variant="outline" className="border-slate-600 text-white hover:bg-slate-700">
-                  <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  {language === 'he' ? 'למסך הראשי' : 'Go to Dashboard'}
+              <div className="flex gap-3">
+                <Button 
+                  onClick={handleStartViewing}
+                  disabled={isCommandLoading || !deviceStatus.isOnline}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  {isCommandLoading ? (
+                    <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  ) : (
+                    <Eye className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  )}
+                  {language === 'he' ? 'התחל צפייה' : 'Start Viewing'}
                 </Button>
-              </Link>
+                <Link to="/dashboard">
+                  <Button variant="outline" className="border-slate-600 text-white hover:bg-slate-700">
+                    <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    {language === 'he' ? 'דשבורד' : 'Dashboard'}
+                  </Button>
+                </Link>
+              </div>
             </div>
           )}
 
@@ -259,26 +386,35 @@ const Viewer: React.FC = () => {
             </div>
           )}
 
-          {/* Connected State - Video Player */}
+          {/* Controls Overlay - Only when connected */}
           {viewerState === 'connected' && (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted={false}
-              className="w-full h-full object-contain bg-black"
-            />
-          )}
-
-          {/* Video element for stream attachment (hidden when not connected) */}
-          {viewerState !== 'connected' && (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted={false}
-              className="hidden"
-            />
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={toggleMute}
+                    className="text-white hover:bg-white/20"
+                  >
+                    {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                  </Button>
+                  <span className="text-white/80 text-sm">
+                    {language === 'he' ? 'שידור חי' : 'Live'}
+                  </span>
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                </div>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => handleStopViewing(true)}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  <X className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'עצור' : 'Stop'}
+                </Button>
+              </div>
+            </div>
           )}
         </div>
 
