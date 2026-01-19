@@ -47,8 +47,16 @@ const Dashboard: React.FC = () => {
     }
   }, [liveViewActive, isLiveViewLoading]);
 
+  // Clear error when liveViewActive becomes true (command succeeded even if we got timeout)
+  useEffect(() => {
+    if (liveViewActive && commandState.error) {
+      // The camera is streaming, so any previous error is now irrelevant
+      resetState();
+    }
+  }, [liveViewActive]);
+
   // Remote command hook
-  const { sendCommand, commandState, isLoading } = useRemoteCommand({
+  const { sendCommand, commandState, isLoading, resetState } = useRemoteCommand({
     deviceId: laptopDeviceId,
     onAcknowledged: (commandType) => {
       if (commandType === 'START_MOTION_DETECTION') {
