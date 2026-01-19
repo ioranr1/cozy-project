@@ -71,13 +71,16 @@ const Dashboard: React.FC = () => {
     },
   });
 
-  // Clear error when liveViewActive becomes true (command succeeded even if we got timeout)
+  // Clear timeout/error banners once the *intended* live-view state is observed in SSOT
+  // (Realtime ACK might be missed/delayed, but the DB-derived state is authoritative.)
   useEffect(() => {
-    if (liveViewActive && commandState.error) {
-      // The camera is streaming, so any previous error is now irrelevant
+    const startCompleted = commandState.commandType === 'START_LIVE_VIEW' && liveViewActive;
+    const stopCompleted = commandState.commandType === 'STOP_LIVE_VIEW' && !liveViewActive;
+
+    if ((startCompleted || stopCompleted) && commandState.error) {
       resetState();
     }
-  }, [liveViewActive, commandState.error, resetState]);
+  }, [liveViewActive, commandState.commandType, commandState.error, resetState]);
 
   // Check laptop connection status
   useEffect(() => {
