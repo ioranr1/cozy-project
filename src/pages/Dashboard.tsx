@@ -34,7 +34,7 @@ const Dashboard: React.FC = () => {
   const capabilities = useCapabilities();
 
   // Live view state from Supabase (source of truth)
-  const { liveViewActive, isLoading: isLiveViewLoading } = useLiveViewState({ 
+  const { liveViewActive, isLoading: isLiveViewLoading, refreshState } = useLiveViewState({ 
     deviceId: laptopDeviceId 
   });
 
@@ -59,9 +59,14 @@ const Dashboard: React.FC = () => {
       // Live view state is now managed by useLiveViewState hook
     },
     onFailed: (commandType) => {
-      // Reset viewStatus on failure - live view state managed by hook
-      if (commandType === 'START_LIVE_VIEW' || commandType === 'STOP_LIVE_VIEW') {
-        // viewStatus will be synced from useLiveViewState
+      // Reset viewStatus on failure/timeout
+      if (commandType === 'START_LIVE_VIEW') {
+        setViewStatus('idle');
+        // Refresh state from DB in case realtime missed the ACK
+        refreshState();
+      } else if (commandType === 'STOP_LIVE_VIEW') {
+        setViewStatus('streaming');
+        refreshState();
       }
     },
   });
