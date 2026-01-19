@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Laptop, Smartphone, Video, Radar, Activity, Bell, Clock, Eye, EyeOff, Power, PowerOff, Loader2, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Laptop, Smartphone, Video, Radar, Activity, Bell, Clock, Eye, EyeOff, Power, PowerOff, Loader2, CheckCircle, XCircle, AlertCircle, RefreshCw, Monitor } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
@@ -369,16 +369,20 @@ const Dashboard: React.FC = () => {
               </Button>
             </div>
 
-
-            {/* View Stream Link */}
-            {liveViewActive && (
-              <Link to="/viewer" className="block mt-3">
-                <Button className="w-full bg-primary hover:bg-primary/90">
-                  <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  {language === 'he' ? 'צפה בשידור' : 'Watch Stream'}
-                </Button>
-              </Link>
-            )}
+            {/* View Stream Link - Always visible with status indicator */}
+            <Link to="/viewer" className="block mt-3">
+              <Button 
+                className={`w-full ${liveViewActive ? 'bg-primary hover:bg-primary/90' : 'bg-slate-600 hover:bg-slate-500'}`}
+              >
+                <div className="relative">
+                  <Monitor className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  <div className={`absolute -top-1 ${isRTL ? '-left-1' : '-right-1'} w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${
+                    liveViewActive ? 'bg-green-500' : 'bg-red-500'
+                  }`} />
+                </div>
+                {language === 'he' ? 'צפייה' : 'Watch'}
+              </Button>
+            </Link>
           </div>
 
           {/* Recent Events Card */}
