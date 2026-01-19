@@ -345,7 +345,7 @@ const Dashboard: React.FC = () => {
               </Button>
               <Button 
                 onClick={() => handleCommand('STOP_LIVE_VIEW')}
-                disabled={isLoading || !liveViewActive}
+                disabled={isLoading}
                 variant="outline"
                 className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
               >
