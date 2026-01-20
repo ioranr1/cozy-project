@@ -451,10 +451,6 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Debug: Session ID */}
-            <div className="mb-3 p-2 bg-slate-900/50 rounded text-xs font-mono text-slate-400">
-              sessionId: {currentSessionId || 'none'}
-            </div>
 
             <div className="grid grid-cols-2 gap-3 mb-3">
               <Button 
