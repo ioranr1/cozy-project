@@ -27,11 +27,14 @@ export const LiveViewDebugPanel: React.FC<LiveViewDebugPanelProps> = ({
   const getStatusColor = (status: string | null) => {
     switch (status) {
       case 'connected':
+      case 'completed':
         return 'bg-green-500/20 text-green-400 border-green-500/30';
       case 'connecting':
+      case 'checking':
         return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
       case 'failed':
       case 'error':
+      case 'disconnected':
         return 'bg-red-500/20 text-red-400 border-red-500/30';
       default:
         return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
@@ -43,8 +46,10 @@ export const LiveViewDebugPanel: React.FC<LiveViewDebugPanelProps> = ({
     sessionId: rtcDebugInfo.sessionId,
     rtcStatus: rtcDebugInfo.status,
     connectionState: rtcDebugInfo.connectionState,
+    iceConnectionState: rtcDebugInfo.iceConnectionState,
     lastSignalType: rtcDebugInfo.lastSignalType,
     signalsProcessed: rtcDebugInfo.signalsProcessed,
+    signalCounts: rtcDebugInfo.signalCounts,
     lastError: rtcDebugInfo.lastError || errorMessage,
     timestamp: new Date().toISOString(),
   };
@@ -59,6 +64,8 @@ export const LiveViewDebugPanel: React.FC<LiveViewDebugPanelProps> = ({
       toast.error('Failed to copy');
     }
   };
+
+  const { signalCounts } = rtcDebugInfo;
 
   return (
     <div className="fixed bottom-4 left-4 z-50 max-w-xs">
@@ -111,6 +118,37 @@ export const LiveViewDebugPanel: React.FC<LiveViewDebugPanelProps> = ({
               </Badge>
             </div>
 
+            {/* ICE Connection State */}
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-slate-500">ICE State</span>
+              <Badge className={`${getStatusColor(rtcDebugInfo.iceConnectionState)} text-[10px] px-1.5 py-0`}>
+                {rtcDebugInfo.iceConnectionState || 'null'}
+              </Badge>
+            </div>
+
+            {/* Signal Counts - Grid Layout */}
+            <div className="bg-slate-800/50 rounded-md p-2 space-y-1">
+              <span className="text-[10px] text-slate-500 block mb-1">Signal Counts</span>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div className="flex justify-between">
+                  <span className="text-[10px] text-cyan-400">Offers ↓</span>
+                  <span className="text-[10px] text-cyan-300 font-mono">{signalCounts?.offersReceived || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[10px] text-green-400">Answers ↑</span>
+                  <span className="text-[10px] text-green-300 font-mono">{signalCounts?.answersSent || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[10px] text-amber-400">ICE ↓</span>
+                  <span className="text-[10px] text-amber-300 font-mono">{signalCounts?.iceReceived || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[10px] text-purple-400">ICE ↑</span>
+                  <span className="text-[10px] text-purple-300 font-mono">{signalCounts?.iceSent || 0}</span>
+                </div>
+              </div>
+            </div>
+
             {/* Last Signal */}
             <div className="flex justify-between items-center">
               <span className="text-[10px] text-slate-500">Last Signal</span>
@@ -121,7 +159,7 @@ export const LiveViewDebugPanel: React.FC<LiveViewDebugPanelProps> = ({
 
             {/* Signals Processed */}
             <div className="flex justify-between items-center">
-              <span className="text-[10px] text-slate-500">Signals</span>
+              <span className="text-[10px] text-slate-500">Total Signals</span>
               <span className="text-[10px] text-slate-300 font-mono">
                 {rtcDebugInfo.signalsProcessed}
               </span>
