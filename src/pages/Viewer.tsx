@@ -257,13 +257,30 @@ const Viewer: React.FC = () => {
     refreshState();
   }, [cleanupStream, stopSession, sendCommand, refreshState, clearAlertParams]);
 
-  // Watch liveViewActive and auto-start RTC session
+  // Auto-start RTC session when Dashboard passes sessionId
+  // This MUST happen immediately when we have a sessionId from navigation
+  useEffect(() => {
+    if (!dashboardSessionId || !viewerId) {
+      console.log('[Viewer] No dashboardSessionId or viewerId yet', { dashboardSessionId, viewerId });
+      return;
+    }
+    
+    // Only start if we're idle and not already connecting
+    if (viewerState === 'idle' && !isConnecting && !isConnected) {
+      console.log('[Viewer] Dashboard passed sessionId, auto-starting RTC...', dashboardSessionId);
+      handleStartViewing();
+    }
+  }, [dashboardSessionId, viewerId, viewerState, isConnecting, isConnected, handleStartViewing]);
+
+  // Watch liveViewActive and auto-start RTC session (fallback for non-Dashboard entry)
   // Note: This only handles LIVE VIEW state, not motion detection
   useEffect(() => {
+    // Skip if we already have a dashboard session (handled above)
+    if (dashboardSessionId) return;
     if (!primaryDevice || !viewerId || liveStateLoading) return;
 
     if (liveViewActive && viewerState === 'idle' && !isConnecting && !isConnected) {
-      console.log('[Viewer] Live view active, starting RTC session...');
+      console.log('[Viewer] Live view active (non-dashboard), starting RTC session...');
       handleStartViewing();
     } else if (!liveViewActive && (isConnecting || isConnected)) {
       console.log('[Viewer] Live view stopped externally, cleaning up...');
@@ -271,6 +288,7 @@ const Viewer: React.FC = () => {
       handleStopViewing(false);
     }
   }, [
+    dashboardSessionId,
     liveViewActive,
     liveStateLoading,
     primaryDevice,
