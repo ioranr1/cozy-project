@@ -241,14 +241,24 @@ export function useRtcSession({
 
   // Process a single signal - ROBUST offer handling
   const processSignal = useCallback(async (signal: RtcSignal, targetSessionId: string, pc: RTCPeerConnection) => {
+    console.log('🔵 ═══════════════════════════════════════════════════');
+    console.log(`🔵 [RTC] SIGNAL RECEIVED - Type: ${signal.type.toUpperCase()}`);
+    console.log('🔵 ═══════════════════════════════════════════════════');
+    console.log('🔵 [RTC] Signal details:', {
+      id: signal.id,
+      type: signal.type,
+      from_role: signal.from_role,
+      session_id: signal.session_id,
+    });
+    
     // Skip if already processed or from mobile (our own)
     if (processedSignalsRef.current.has(signal.id)) {
-      console.log(`[useRtcSession] Skipping signal ${signal.id}: already processed`);
+      console.log(`⚪ [RTC] Skipping signal ${signal.id}: already processed`);
       return;
     }
     
     if (signal.from_role === 'mobile') {
-      console.log(`[useRtcSession] Skipping signal ${signal.id}: from mobile (our own)`);
+      console.log(`⚪ [RTC] Skipping signal ${signal.id}: from mobile (our own)`);
       return;
     }
     
@@ -258,14 +268,21 @@ export function useRtcSession({
     setLastSignalType(signal.type);
     setSignalsProcessed(prev => prev + 1);
 
-    console.log(`[useRtcSession] 📥 Processing signal: type=${signal.type}, from_role=${signal.from_role}, id=${signal.id}`);
-    console.log(`[useRtcSession] Signal payload:`, JSON.stringify(signal.payload, null, 2));
+    console.log(`🟢 [RTC] Processing signal: type=${signal.type}, id=${signal.id}`);
+    console.log(`🟢 [RTC] Current PC state:`, {
+      signalingState: pc.signalingState,
+      connectionState: pc.connectionState,
+      iceConnectionState: pc.iceConnectionState,
+    });
 
 
     // Offer handling MUST normalize SDP-only payloads from desktop
     if (signal.type === 'offer') {
-      console.log('[LiveView] ============ OFFER RECEIVED ============');
-      console.log('[LiveView] offer raw payload:', JSON.stringify(signal.payload));
+      console.log('🟠 ═══════════════════════════════════════════════════');
+      console.log('🟠 [RTC] ████ OFFER RECEIVED - STARTING HANDSHAKE ████');
+      console.log('🟠 ═══════════════════════════════════════════════════');
+      console.log('🟠 [RTC] Offer payload keys:', Object.keys(signal.payload || {}));
+      console.log('🟠 [RTC] Offer raw:', JSON.stringify(signal.payload).substring(0, 200) + '...');
 
       // Prevent duplicate offer processing
       if (isProcessingOfferRef.current) {
@@ -292,10 +309,11 @@ export function useRtcSession({
           sdp: sdpString,
         };
 
-        console.log('[LiveView] before setRemoteDescription, offerDesc.type:', offerDesc.type, 'sdp length:', offerDesc.sdp?.length);
+        console.log('🟡 [RTC] Step 1/4: Setting remote description...');
+        console.log('🟡 [RTC] SDP type:', offerDesc.type, 'SDP length:', offerDesc.sdp?.length);
         await pc.setRemoteDescription(offerDesc);
         remoteDescriptionSetRef.current = true;
-        console.log('[LiveView] after setRemoteDescription, signalingState:', pc.signalingState);
+        console.log('✅ [RTC] Step 1/4: Remote description SET. signalingState:', pc.signalingState);
 
         // Process queued ICE candidates now that remote description is set
         const queuedCandidates = iceCandidateQueueRef.current;
@@ -312,15 +330,16 @@ export function useRtcSession({
           iceCandidateQueueRef.current = [];
         }
 
-        console.log('[LiveView] creating answer...');
+        console.log('🟡 [RTC] Step 2/4: Creating answer...');
         const answer = await pc.createAnswer();
-        console.log('[LiveView] answer created, sdp length:', answer.sdp?.length);
+        console.log('✅ [RTC] Step 2/4: Answer created. SDP length:', answer.sdp?.length);
         
+        console.log('🟡 [RTC] Step 3/4: Setting local description...');
         await pc.setLocalDescription(answer);
-        console.log('[LiveView] after setLocalDescription, signalingState:', pc.signalingState);
+        console.log('✅ [RTC] Step 3/4: Local description SET. signalingState:', pc.signalingState);
 
         // Insert answer into database
-        console.log('[LiveView] inserting answer to rtc_signals...');
+        console.log('🟡 [RTC] Step 4/4: Inserting answer to database...');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)
           .from('rtc_signals')
@@ -332,16 +351,17 @@ export function useRtcSession({
           })
           .select('id');
 
-        console.log('[LiveView] answer insert result:', { data, error: error?.message || null });
-
         if (error) {
-          console.error('[LiveView] ❌ ANSWER INSERT FAILED:', error.message);
+          console.error('❌ [RTC] Step 4/4: ANSWER INSERT FAILED:', error.message);
           setLastError(error.message);
           onError(error.message);
           return;
         }
 
-        console.log('[LiveView] ✅ ANSWER INSERTED SUCCESSFULLY, id:', data?.[0]?.id);
+        console.log('✅ ═══════════════════════════════════════════════════');
+        console.log('✅ [RTC] HANDSHAKE COMPLETE - ANSWER SENT');
+        console.log('✅ [RTC] Answer ID:', data?.[0]?.id);
+        console.log('✅ ═══════════════════════════════════════════════════');
         setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
         return;
       } catch (e) {
@@ -359,26 +379,27 @@ export function useRtcSession({
       setSignalCounts(prev => ({ ...prev, iceReceived: prev.iceReceived + 1 }));
 
       const candidate = signal.payload as RTCIceCandidateInit;
+      console.log('🧊 [RTC] ICE candidate received:', candidate?.candidate?.substring(0, 50) + '...');
 
       if (candidate?.candidate) {
         // ICE Queue: only add candidate if remote description is set
         if (!remoteDescriptionSetRef.current) {
-          console.log('[LiveView] 🧊 ICE candidate queued (waiting for remote description)');
+          console.log('🧊 [RTC] ICE candidate QUEUED (waiting for remote description). Queue size:', iceCandidateQueueRef.current.length + 1);
           iceCandidateQueueRef.current.push(candidate);
           return;
         }
         
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log('[LiveView] ✅ ICE candidate added directly');
+          console.log('✅ [RTC] ICE candidate ADDED. iceConnectionState:', pc.iceConnectionState);
         } catch (e) {
-          console.log('[LiveView] addIceCandidate failed', e);
+          console.log('⚠️ [RTC] addIceCandidate failed:', e);
           const msg = e instanceof Error ? e.message : 'addIceCandidate failed';
           setLastError(msg);
           onError(msg);
         }
       } else {
-        console.log('[useRtcSession] Empty ICE candidate (end-of-candidates)');
+        console.log('🧊 [RTC] Empty ICE candidate (end-of-candidates signal)');
       }
 
       return;
