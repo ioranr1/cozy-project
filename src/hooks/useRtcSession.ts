@@ -604,10 +604,10 @@ export function useRtcSession({
       onStreamReceived(stream);
     };
 
-    // IMPORTANT: recvonly - mobile viewer does NOT send any media
-    // This ensures no camera permission is requested on mobile devices
-    pc.addTransceiver('video', { direction: 'recvonly' });
-    pc.addTransceiver('audio', { direction: 'recvonly' });
+    // NOTE: We do NOT add transceivers here. 
+    // The desktop host sends an offer WITH tracks already attached.
+    // Adding recvonly transceivers before receiving the offer causes SDP mismatch.
+    // The browser will automatically handle incoming tracks from the desktop's offer.
 
     return pc;
   }, [insertSignal, language, onError, onStreamReceived, updateStatus, cleanup]);
