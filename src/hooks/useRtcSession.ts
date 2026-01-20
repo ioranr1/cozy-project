@@ -4,13 +4,22 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 export type RtcSessionStatus = 'idle' | 'connecting' | 'connected' | 'ended' | 'failed';
 
+export interface RtcSignalCounts {
+  offersReceived: number;
+  answersSent: number;
+  iceReceived: number;
+  iceSent: number;
+}
+
 export interface RtcDebugInfo {
   sessionId: string | null;
   status: RtcSessionStatus;
   connectionState: RTCPeerConnectionState | null;
+  iceConnectionState: RTCIceConnectionState | null;
   lastSignalType: 'offer' | 'answer' | 'ice' | null;
   lastError: string | null;
   signalsProcessed: number;
+  signalCounts: RtcSignalCounts;
 }
 
 interface RtcSignal {
@@ -29,6 +38,7 @@ interface UseRtcSessionOptions {
   onError: (error: string) => void;
   onStatusChange: (status: RtcSessionStatus) => void;
   timeoutMs?: number;
+  existingSessionId?: string | null; // Session ID from Dashboard (if available)
 }
 
 // Default fallback ICE servers (STUN only)
@@ -76,6 +86,7 @@ export function useRtcSession({
   onError,
   onStatusChange,
   timeoutMs = 60000,
+  existingSessionId = null,
 }: UseRtcSessionOptions) {
   const { language } = useLanguage();
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -83,9 +94,18 @@ export function useRtcSession({
   
   // Debug state
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState | null>(null);
+  const [iceConnectionState, setIceConnectionState] = useState<RTCIceConnectionState | null>(null);
   const [lastSignalType, setLastSignalType] = useState<'offer' | 'answer' | 'ice' | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [signalsProcessed, setSignalsProcessed] = useState(0);
+  
+  // Detailed signal counts
+  const [signalCounts, setSignalCounts] = useState<RtcSignalCounts>({
+    offersReceived: 0,
+    answersSent: 0,
+    iceReceived: 0,
+    iceSent: 0,
+  });
   
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -212,6 +232,9 @@ export function useRtcSession({
 
     try {
       if (signal.type === 'offer') {
+        // Track offers received
+        setSignalCounts(prev => ({ ...prev, offersReceived: prev.offersReceived + 1 }));
+        
         // Set remote description from offer
         await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
         
@@ -223,7 +246,13 @@ export function useRtcSession({
         await insertSignal(signal.session_id, 'answer', answer);
         console.log('[useRtcSession] Answer sent');
         
+        // Track answers sent
+        setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
+        
       } else if (signal.type === 'ice') {
+        // Track ICE candidates received
+        setSignalCounts(prev => ({ ...prev, iceReceived: prev.iceReceived + 1 }));
+        
         // Add ICE candidate
         const candidate = signal.payload as RTCIceCandidateInit;
         if (candidate.candidate) {
@@ -296,10 +325,18 @@ export function useRtcSession({
       if (event.candidate) {
         try {
           await insertSignal(sessionId, 'ice', event.candidate.toJSON());
+          // Track ICE candidates sent
+          setSignalCounts(prev => ({ ...prev, iceSent: prev.iceSent + 1 }));
         } catch (err) {
           console.error('[useRtcSession] Error sending ICE candidate:', err);
         }
       }
+    };
+
+    // Handle ICE connection state changes
+    pc.oniceconnectionstatechange = () => {
+      console.log('[useRtcSession] ICE connection state:', pc.iceConnectionState);
+      setIceConnectionState(pc.iceConnectionState);
     };
 
     // Handle connection state changes
@@ -394,8 +431,15 @@ export function useRtcSession({
     updateStatus('connecting');
 
     try {
-      // 1. Check for existing session within last 2 minutes
-      let activeSessionId = await findExistingSession();
+      // 1. First check if existingSessionId was provided from Dashboard
+      let activeSessionId: string | null = existingSessionId || null;
+      
+      if (activeSessionId) {
+        console.log('[useRtcSession] Using provided session from Dashboard:', activeSessionId);
+      } else {
+        // 2. Check for existing session within last 2 minutes
+        activeSessionId = await findExistingSession();
+      }
       
       if (activeSessionId) {
         console.log('[useRtcSession] Reusing existing session:', activeSessionId);
@@ -451,7 +495,7 @@ export function useRtcSession({
       updateStatus('failed');
       return null;
     }
-  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, findExistingSession, status, sessionId]);
+  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, findExistingSession, status, sessionId, existingSessionId]);
 
   // Stop the current session
   const stopSession = useCallback(async () => {
@@ -460,9 +504,16 @@ export function useRtcSession({
     setSessionId(null);
     // Reset debug state
     setConnectionState(null);
+    setIceConnectionState(null);
     setLastSignalType(null);
     setLastError(null);
     setSignalsProcessed(0);
+    setSignalCounts({
+      offersReceived: 0,
+      answersSent: 0,
+      iceReceived: 0,
+      iceSent: 0,
+    });
   }, [cleanup]);
 
   // Force cleanup on unmount
@@ -479,9 +530,11 @@ export function useRtcSession({
     sessionId,
     status,
     connectionState,
+    iceConnectionState,
     lastSignalType,
     lastError,
     signalsProcessed,
+    signalCounts,
   };
 
   return {

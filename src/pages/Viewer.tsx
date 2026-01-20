@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
@@ -23,13 +23,21 @@ interface Device {
   last_seen_at: string | null;
 }
 
+interface LocationState {
+  sessionId?: string;
+}
+
 const Viewer: React.FC = () => {
   const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [primaryDevice, setPrimaryDevice] = useState<Device | null>(null);
+  
+  // Get sessionId from Dashboard navigation (if available)
+  const dashboardSessionId = (location.state as LocationState)?.sessionId;
   
   // Alert deep link state
   const alertDeviceId = searchParams.get('device_id');
@@ -105,6 +113,7 @@ const Viewer: React.FC = () => {
     onError: handleRtcError,
     onStatusChange: handleStatusChange,
     timeoutMs: 60000,
+    existingSessionId: dashboardSessionId, // Use session from Dashboard if available
   });
 
   // Cleanup stream helper - defined early for use in effects

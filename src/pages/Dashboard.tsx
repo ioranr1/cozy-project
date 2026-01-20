@@ -456,7 +456,11 @@ const Dashboard: React.FC = () => {
             </div>
 
             {/* View Stream Link - Always visible with status indicator */}
-            <Link to="/viewer" className="block mt-3">
+            <Link 
+              to="/viewer" 
+              state={{ sessionId: currentSessionId }}
+              className="block mt-3"
+            >
               <Button 
                 className={`w-full ${liveViewActive ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-600 hover:bg-slate-500'}`}
               >
