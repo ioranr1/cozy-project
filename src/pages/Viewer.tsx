@@ -376,6 +376,11 @@ const Viewer: React.FC = () => {
           </div>
         </div>
 
+        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">sessionId</span>
+          <span className="text-xs font-mono text-foreground truncate max-w-[60%]">{sessionId || 'none'}</span>
+        </div>
+
         {/* Alert Banner - Show when from alert and connecting/connected */}
         {isFromAlert && (viewerState === 'connecting' || viewerState === 'connected') && (
           <div className="bg-amber-500/20 border border-amber-500/40 rounded-xl p-3 flex items-center gap-3">

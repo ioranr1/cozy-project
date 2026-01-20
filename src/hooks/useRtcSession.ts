@@ -246,108 +246,96 @@ export function useRtcSession({
     console.log(`[useRtcSession] 📥 Processing signal: type=${signal.type}, from_role=${signal.from_role}, id=${signal.id}`);
     console.log(`[useRtcSession] Signal payload:`, JSON.stringify(signal.payload, null, 2));
 
-    try {
-      if (signal.type === 'offer') {
-        console.log('[LiveView] offer received');
-        
-        // Prevent duplicate offer processing
-        if (isProcessingOfferRef.current) {
-          console.log('[useRtcSession] Already processing an offer, skipping duplicate');
-          return;
-        }
-        isProcessingOfferRef.current = true;
-        
-        // Track offers received
-        setSignalCounts(prev => ({ ...prev, offersReceived: prev.offersReceived + 1 }));
-        
-        // CRITICAL: Normalize payload - desktop may send { sdp } without { type }
-        const offerPayload = signal.payload as Record<string, unknown>;
-        console.log('[useRtcSession] Raw offer payload keys:', Object.keys(offerPayload));
-        console.log('[useRtcSession] Raw offer payload.type:', offerPayload.type);
-        console.log('[useRtcSession] Raw offer payload.sdp exists:', !!offerPayload.sdp);
-        
-        // Explicitly construct RTCSessionDescriptionInit with type='offer'
+
+    // Offer handling MUST normalize SDP-only payloads from desktop
+    if (signal.type === 'offer') {
+      console.log('[LiveView] offer received');
+
+      // Prevent duplicate offer processing
+      if (isProcessingOfferRef.current) {
+        console.log('[useRtcSession] Already processing an offer, skipping duplicate');
+        return;
+      }
+      isProcessingOfferRef.current = true;
+
+      // Track offers received
+      setSignalCounts(prev => ({ ...prev, offersReceived: prev.offersReceived + 1 }));
+
+      try {
+        // IMPORTANT: desktop offer payload currently contains only { sdp }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const offerDesc: RTCSessionDescriptionInit = {
           type: 'offer',
-          sdp: offerPayload.sdp as string
+          sdp: (signal.payload as any)?.sdp,
         };
-        
+
         if (!offerDesc.sdp) {
           throw new Error('Invalid offer payload: missing sdp');
         }
-        
-        console.log('[useRtcSession] 📝 Normalized offer descriptor:', { type: offerDesc.type, sdpLength: offerDesc.sdp?.length });
-        console.log('[useRtcSession] Offer SDP (first 200 chars):', offerDesc.sdp?.substring(0, 200));
-        
-        // Set remote description from offer
-        console.log('[useRtcSession] 📝 Setting remote description...');
+
         await pc.setRemoteDescription(offerDesc);
-        console.log('[useRtcSession] ✅ Remote description set successfully');
-        console.log('[useRtcSession] PC signaling state after setRemoteDescription:', pc.signalingState);
-        
-        // Create and set local answer
+
         console.log('[LiveView] creating answer');
         const answer = await pc.createAnswer();
-        console.log('[useRtcSession] ✅ Answer created');
-        console.log('[useRtcSession] Answer SDP (first 200 chars):', answer.sdp?.substring(0, 200));
-        
         await pc.setLocalDescription(answer);
-        console.log('[useRtcSession] ✅ Local description (answer) set');
-        console.log('[useRtcSession] PC signaling state after setLocalDescription:', pc.signalingState);
-        
-        // Send answer back to database with verification
-        console.log('[useRtcSession] 📤 Inserting answer to rtc_signals...');
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)
           .from('rtc_signals')
           .insert({
             session_id: targetSessionId,
             from_role: 'mobile',
             type: 'answer',
-            payload: pc.localDescription
+            payload: pc.localDescription,
           })
           .select('id');
-        
-        console.log('[LiveView] answer insert result', { data, error });
-        
+
+        console.log('[LiveView] answer insert', { data, error });
+
         if (error) {
-          console.error('[useRtcSession] ❌ FAILED TO INSERT ANSWER!', error);
-          setLastError(`answer insert failed: ${error.message}`);
-        } else {
-          console.log('[useRtcSession] ✅✅ ANSWER SENT SUCCESSFULLY! id:', data?.[0]?.id);
-          setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
+          setLastError(error.message);
+          onError(error.message);
+          return;
         }
-        
-      } else if (signal.type === 'ice') {
-        // Track ICE candidates received
-        setSignalCounts(prev => ({ ...prev, iceReceived: prev.iceReceived + 1 }));
-        
-        // Add ICE candidate with try/catch
-        const candidate = signal.payload as RTCIceCandidateInit;
-        console.log('[useRtcSession] 🧊 Adding ICE candidate:', candidate.candidate?.substring(0, 80));
-        
-        if (candidate.candidate) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-            console.log('[useRtcSession] ✅ ICE candidate added successfully');
-          } catch (iceErr) {
-            console.error('[useRtcSession] ❌ Error adding ICE candidate:', iceErr);
-            setLastError(`ICE error: ${iceErr instanceof Error ? iceErr.message : 'Unknown'}`);
-          }
-        } else {
-          console.log('[useRtcSession] Empty ICE candidate (end-of-candidates)');
-        }
+
+        setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
+        return;
+      } catch (e) {
+        console.log('[LiveView] offer->answer failed', e);
+        const msg = e instanceof Error ? e.message : 'offer->answer failed';
+        setLastError(msg);
+        onError(msg);
+        isProcessingOfferRef.current = false;
+        return;
       }
-    } catch (err) {
-      console.error(`[useRtcSession] ❌ Error processing ${signal.type}:`, err);
-      const errorMsg = `Signal error: ${signal.type} - ${err instanceof Error ? err.message : 'Unknown'}`;
-      setLastError(errorMsg);
-      isProcessingOfferRef.current = false;
     }
-  }, [insertSignal]);
+
+    if (signal.type === 'ice') {
+      // Track ICE candidates received
+      setSignalCounts(prev => ({ ...prev, iceReceived: prev.iceReceived + 1 }));
+
+      const candidate = signal.payload as RTCIceCandidateInit;
+
+      if (candidate?.candidate) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) {
+          console.log('[LiveView] addIceCandidate failed', e);
+          const msg = e instanceof Error ? e.message : 'addIceCandidate failed';
+          setLastError(msg);
+          onError(msg);
+        }
+      } else {
+        console.log('[useRtcSession] Empty ICE candidate (end-of-candidates)');
+      }
+
+      return;
+    }
+  }, [onError]);
 
   // Subscribe to signals for a session - returns promise that resolves when subscribed
   const subscribeToSignals = useCallback((targetSessionId: string, pc: RTCPeerConnection) => {
-    console.log('[useRtcSession] 🔔 Subscribing to signals for session:', targetSessionId);
+    console.log('[LiveView] subscribing', { sessionId: targetSessionId });
     
     const channel = supabase
       .channel(`rtc-signals-${targetSessionId}`)
@@ -361,12 +349,23 @@ export function useRtcSession({
         },
         (payload) => {
           const signal = payload.new as RtcSignal;
-          console.log('[useRtcSession] 🔔 Realtime signal received:', { id: signal.id, type: signal.type, from_role: signal.from_role });
+
+          console.log('[LiveView] signal received', {
+            sessionId: targetSessionId,
+            id: signal.id,
+            from_role: signal.from_role,
+            type: signal.type,
+          });
+
           processSignal(signal, targetSessionId, pc);
         }
       )
       .subscribe((status, err) => {
-        console.log('[useRtcSession] 🔔 Signal subscription status:', status, err ? `Error: ${err}` : '');
+        console.log('[LiveView] subscription status', {
+          sessionId: targetSessionId,
+          status,
+          error: err ? String(err) : null,
+        });
       });
 
     channelRef.current = channel;
@@ -388,7 +387,15 @@ export function useRtcSession({
         console.log(`[useRtcSession] 📥 Found ${data?.length || 0} existing signals from desktop`);
         if (data && data.length > 0) {
           console.log('[useRtcSession] Processing existing signals:', data.map(s => ({ id: s.id, type: s.type })));
-          data.forEach((signal) => processSignal(signal, targetSessionId, pc));
+          data.forEach((signal) => {
+            console.log('[LiveView] signal received', {
+              sessionId: targetSessionId,
+              id: signal.id,
+              from_role: signal.from_role,
+              type: signal.type,
+            });
+            processSignal(signal, targetSessionId, pc);
+          });
         }
       });
   }, [processSignal]);
@@ -405,15 +412,29 @@ export function useRtcSession({
 
     // Handle ICE candidates
     pc.onicecandidate = async (event) => {
-      if (event.candidate) {
-        try {
-          await insertSignal(sessionId, 'ice', event.candidate.toJSON());
-          // Track ICE candidates sent
-          setSignalCounts(prev => ({ ...prev, iceSent: prev.iceSent + 1 }));
-        } catch (err) {
-          console.error('[useRtcSession] Error sending ICE candidate:', err);
-        }
+      if (!event.candidate) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('rtc_signals')
+        .insert({
+          session_id: sessionId,
+          from_role: 'mobile',
+          type: 'ice',
+          payload: event.candidate.toJSON(),
+        })
+        .select('id');
+
+      console.log('[LiveView] ice insert', { data, error });
+
+      if (error) {
+        setLastError(error.message);
+        onError(error.message);
+        return;
       }
+
+      // Track ICE candidates sent
+      setSignalCounts(prev => ({ ...prev, iceSent: prev.iceSent + 1 }));
     };
 
     // Handle ICE connection state changes
