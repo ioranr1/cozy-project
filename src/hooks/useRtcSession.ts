@@ -248,6 +248,8 @@ export function useRtcSession({
 
     try {
       if (signal.type === 'offer') {
+        console.log('[LiveView] offer received');
+        
         // Prevent duplicate offer processing
         if (isProcessingOfferRef.current) {
           console.log('[useRtcSession] Already processing an offer, skipping duplicate');
@@ -258,30 +260,33 @@ export function useRtcSession({
         // Track offers received
         setSignalCounts(prev => ({ ...prev, offersReceived: prev.offersReceived + 1 }));
         
-        // Validate and construct offer descriptor
-        const rawPayload = signal.payload as RTCSessionDescriptionInit;
-        let offerDesc: RTCSessionDescriptionInit;
+        // CRITICAL: Normalize payload - desktop may send { sdp } without { type }
+        const offerPayload = signal.payload as Record<string, unknown>;
+        console.log('[useRtcSession] Raw offer payload keys:', Object.keys(offerPayload));
+        console.log('[useRtcSession] Raw offer payload.type:', offerPayload.type);
+        console.log('[useRtcSession] Raw offer payload.sdp exists:', !!offerPayload.sdp);
         
-        // Handle case where payload might be missing 'type' field
-        if (rawPayload.sdp && !rawPayload.type) {
-          console.log('[useRtcSession] Payload missing type, constructing RTCSessionDescriptionInit');
-          offerDesc = { type: 'offer', sdp: rawPayload.sdp };
-        } else if (rawPayload.sdp && rawPayload.type) {
-          offerDesc = rawPayload;
-        } else {
+        // Explicitly construct RTCSessionDescriptionInit with type='offer'
+        const offerDesc: RTCSessionDescriptionInit = {
+          type: 'offer',
+          sdp: offerPayload.sdp as string
+        };
+        
+        if (!offerDesc.sdp) {
           throw new Error('Invalid offer payload: missing sdp');
         }
         
-        console.log('[useRtcSession] 📝 Setting remote description from offer...');
+        console.log('[useRtcSession] 📝 Normalized offer descriptor:', { type: offerDesc.type, sdpLength: offerDesc.sdp?.length });
         console.log('[useRtcSession] Offer SDP (first 200 chars):', offerDesc.sdp?.substring(0, 200));
         
         // Set remote description from offer
-        await pc.setRemoteDescription(new RTCSessionDescription(offerDesc));
+        console.log('[useRtcSession] 📝 Setting remote description...');
+        await pc.setRemoteDescription(offerDesc);
         console.log('[useRtcSession] ✅ Remote description set successfully');
         console.log('[useRtcSession] PC signaling state after setRemoteDescription:', pc.signalingState);
         
         // Create and set local answer
-        console.log('[useRtcSession] 📝 Creating answer...');
+        console.log('[LiveView] creating answer');
         const answer = await pc.createAnswer();
         console.log('[useRtcSession] ✅ Answer created');
         console.log('[useRtcSession] Answer SDP (first 200 chars):', answer.sdp?.substring(0, 200));
@@ -292,15 +297,24 @@ export function useRtcSession({
         
         // Send answer back to database with verification
         console.log('[useRtcSession] 📤 Inserting answer to rtc_signals...');
-        const success = await insertSignal(targetSessionId, 'answer', pc.localDescription!);
+        const { data, error } = await (supabase as any)
+          .from('rtc_signals')
+          .insert({
+            session_id: targetSessionId,
+            from_role: 'mobile',
+            type: 'answer',
+            payload: pc.localDescription
+          })
+          .select('id');
         
-        if (success) {
-          console.log('[useRtcSession] ✅✅ ANSWER SENT SUCCESSFULLY!');
-          // Track answers sent
-          setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
+        console.log('[LiveView] answer insert result', { data, error });
+        
+        if (error) {
+          console.error('[useRtcSession] ❌ FAILED TO INSERT ANSWER!', error);
+          setLastError(`answer insert failed: ${error.message}`);
         } else {
-          console.error('[useRtcSession] ❌ FAILED TO INSERT ANSWER!');
-          setLastError('answer insert failed');
+          console.log('[useRtcSession] ✅✅ ANSWER SENT SUCCESSFULLY! id:', data?.[0]?.id);
+          setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
         }
         
       } else if (signal.type === 'ice') {
