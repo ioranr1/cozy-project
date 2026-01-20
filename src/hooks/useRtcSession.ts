@@ -114,6 +114,8 @@ export function useRtcSession({
   const processedSignalsRef = useRef<Set<number>>(new Set());
   const isMountedRef = useRef(true);
   const isProcessingOfferRef = useRef(false); // Prevent duplicate offer processing
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPolledIdRef = useRef<number>(0);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -138,6 +140,13 @@ export function useRtcSession({
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
+
+    // 1b. Clear polling interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    lastPolledIdRef.current = 0;
 
     // 2. Close peer connection and all tracks
     if (peerConnectionRef.current) {
@@ -335,19 +344,25 @@ export function useRtcSession({
 
   // Subscribe to signals for a session - returns promise that resolves when subscribed
   const subscribeToSignals = useCallback((targetSessionId: string, pc: RTCPeerConnection) => {
-    console.log('[LiveView] subscribing', { sessionId: targetSessionId });
+    console.log('[LiveView] sessionId', targetSessionId);
+    console.log('[LiveView] subscribing to rtc_signals', { sessionId: targetSessionId });
+    
+    // Create channel with proper naming
+    const channelName = `rtc_signals_${targetSessionId}`;
+    console.log('[LiveView] creating channel:', channelName);
     
     const channel = supabase
-      .channel(`rtc-signals-${targetSessionId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'rtc_signals',
           filter: `session_id=eq.${targetSessionId}`,
         },
         (payload) => {
+          console.log('[LiveView] realtime payload', payload);
           const signal = payload.new as RtcSignal;
 
           console.log('[LiveView] signal received', {
@@ -361,43 +376,66 @@ export function useRtcSession({
         }
       )
       .subscribe((status, err) => {
-        console.log('[LiveView] subscription status', {
-          sessionId: targetSessionId,
-          status,
-          error: err ? String(err) : null,
-        });
+        console.log('[LiveView] realtime status', status, err ? String(err) : null);
       });
 
     channelRef.current = channel;
 
-    // Fetch any existing signals (in case they arrived before subscription)
-    console.log('[useRtcSession] 📥 Fetching existing signals from database...');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from('rtc_signals')
-      .select('*')
-      .eq('session_id', targetSessionId)
-      .eq('from_role', 'desktop')
-      .order('created_at', { ascending: true })
-      .then(({ data, error }: { data: RtcSignal[] | null; error: Error | null }) => {
+    // ============ POLLING FALLBACK ============
+    // Poll every 1000ms as a fallback in case Realtime doesn't work
+    console.log('[LiveView] starting polling fallback');
+    
+    const pollSignals = async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any)
+          .from('rtc_signals')
+          .select('id, from_role, type, payload, created_at')
+          .eq('session_id', targetSessionId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
         if (error) {
-          console.error('[useRtcSession] ❌ Error fetching existing signals:', error);
+          console.log('[LiveView] polling error', error);
           return;
         }
-        console.log(`[useRtcSession] 📥 Found ${data?.length || 0} existing signals from desktop`);
-        if (data && data.length > 0) {
-          console.log('[useRtcSession] Processing existing signals:', data.map(s => ({ id: s.id, type: s.type })));
-          data.forEach((signal) => {
-            console.log('[LiveView] signal received', {
-              sessionId: targetSessionId,
-              id: signal.id,
-              from_role: signal.from_role,
-              type: signal.type,
-            });
-            processSignal(signal, targetSessionId, pc);
-          });
+
+        const rows = data as RtcSignal[] | null;
+        const newestId = rows?.[0]?.id ?? null;
+        console.log('[LiveView] polling signals', { 
+          count: rows?.length || 0, 
+          newestId,
+          lastPolledId: lastPolledIdRef.current 
+        });
+
+        // Process any new signals we haven't seen
+        if (rows && rows.length > 0) {
+          // Reverse to process oldest first
+          const sortedRows = [...rows].reverse();
+          for (const signal of sortedRows) {
+            if (signal.id > lastPolledIdRef.current && signal.from_role === 'desktop') {
+              console.log('[LiveView] polling: processing signal', {
+                id: signal.id,
+                from_role: signal.from_role,
+                type: signal.type,
+              });
+              processSignal(signal, targetSessionId, pc);
+            }
+          }
+          // Update last polled ID
+          if (newestId && newestId > lastPolledIdRef.current) {
+            lastPolledIdRef.current = newestId;
+          }
         }
-      });
+      } catch (e) {
+        console.log('[LiveView] polling exception', e);
+      }
+    };
+
+    // Start polling immediately and every 1000ms
+    pollSignals();
+    pollingIntervalRef.current = setInterval(pollSignals, 1000);
+
   }, [processSignal]);
 
   // Initialize WebRTC peer connection
