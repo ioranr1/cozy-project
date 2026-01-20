@@ -50,6 +50,7 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
 // Fetch TURN credentials from edge function
 async function fetchTurnCredentials(): Promise<RTCIceServer[]> {
   try {
+    console.log('[useRtcSession] Fetching TURN credentials...');
     const response = await fetch(
       'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/get-turn-credentials',
       {
@@ -112,6 +113,7 @@ export function useRtcSession({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const processedSignalsRef = useRef<Set<number>>(new Set());
   const isMountedRef = useRef(true);
+  const isProcessingOfferRef = useRef(false); // Prevent duplicate offer processing
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -179,6 +181,7 @@ export function useRtcSession({
 
     // 5. Clear processed signals set
     processedSignalsRef.current.clear();
+    isProcessingOfferRef.current = false;
     
     // 6. Update local status
     if (finalStatus && isMountedRef.current) {
@@ -186,45 +189,51 @@ export function useRtcSession({
     }
   }, [sessionId, updateStatus]);
 
-  // Insert a signal to the database
-  // Note: Using 'as any' because rtc_signals table is new and types not yet regenerated
+  // Insert a signal to the database with verification
   const insertSignal = useCallback(async (
     targetSessionId: string,
     type: 'offer' | 'answer' | 'ice',
     payload: RTCSessionDescriptionInit | RTCIceCandidateInit
-  ) => {
-    console.log(`[useRtcSession] Inserting signal: ${type}`);
+  ): Promise<boolean> => {
+    console.log(`[useRtcSession] Inserting signal: ${type} for session: ${targetSessionId}`);
+    
+    const insertData = {
+      session_id: targetSessionId,
+      from_role: 'mobile',
+      type,
+      payload,
+    };
+    
+    console.log('[useRtcSession] Signal insert payload:', JSON.stringify(insertData, null, 2));
+    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
+    const { data, error } = await (supabase as any)
       .from('rtc_signals')
-      .insert({
-        session_id: targetSessionId,
-        from_role: 'mobile',
-        type,
-        payload,
-      });
+      .insert(insertData)
+      .select('id');
+    
+    console.log('[useRtcSession] Signal insert result:', { data, error });
     
     if (error) {
-      console.error('[useRtcSession] Error inserting signal:', error);
-      throw error;
+      console.error('[useRtcSession] ❌ Error inserting signal:', error);
+      setLastError(`Failed to insert ${type}: ${error.message}`);
+      return false;
     }
+    
+    console.log(`[useRtcSession] ✅ Signal ${type} inserted successfully, id:`, data?.[0]?.id);
+    return true;
   }, []);
 
-  // Queue for signals that arrive before peer connection is ready
-  const pendingSignalsRef = useRef<RtcSignal[]>([]);
-
-  // Process incoming signals - handles offer/answer/ice exchange
-  const processSignal = useCallback(async (signal: RtcSignal, targetSessionId: string) => {
+  // Process a single signal - ROBUST offer handling
+  const processSignal = useCallback(async (signal: RtcSignal, targetSessionId: string, pc: RTCPeerConnection) => {
     // Skip if already processed or from mobile (our own)
-    if (processedSignalsRef.current.has(signal.id) || signal.from_role === 'mobile') {
-      console.log(`[useRtcSession] Skipping signal ${signal.id}: already processed or from mobile`);
+    if (processedSignalsRef.current.has(signal.id)) {
+      console.log(`[useRtcSession] Skipping signal ${signal.id}: already processed`);
       return;
     }
-
-    const pc = peerConnectionRef.current;
-    if (!pc) {
-      console.log(`[useRtcSession] No peer connection yet, queuing signal ${signal.id}`);
-      pendingSignalsRef.current.push(signal);
+    
+    if (signal.from_role === 'mobile') {
+      console.log(`[useRtcSession] Skipping signal ${signal.id}: from mobile (our own)`);
       return;
     }
     
@@ -234,62 +243,97 @@ export function useRtcSession({
     setLastSignalType(signal.type);
     setSignalsProcessed(prev => prev + 1);
 
-    console.log(`[useRtcSession] Processing signal: ${signal.type} from ${signal.from_role}, id: ${signal.id}`);
+    console.log(`[useRtcSession] 📥 Processing signal: type=${signal.type}, from_role=${signal.from_role}, id=${signal.id}`);
+    console.log(`[useRtcSession] Signal payload:`, JSON.stringify(signal.payload, null, 2));
 
     try {
       if (signal.type === 'offer') {
+        // Prevent duplicate offer processing
+        if (isProcessingOfferRef.current) {
+          console.log('[useRtcSession] Already processing an offer, skipping duplicate');
+          return;
+        }
+        isProcessingOfferRef.current = true;
+        
         // Track offers received
         setSignalCounts(prev => ({ ...prev, offersReceived: prev.offersReceived + 1 }));
-        console.log('[useRtcSession] Setting remote description from offer...');
+        
+        // Validate and construct offer descriptor
+        const rawPayload = signal.payload as RTCSessionDescriptionInit;
+        let offerDesc: RTCSessionDescriptionInit;
+        
+        // Handle case where payload might be missing 'type' field
+        if (rawPayload.sdp && !rawPayload.type) {
+          console.log('[useRtcSession] Payload missing type, constructing RTCSessionDescriptionInit');
+          offerDesc = { type: 'offer', sdp: rawPayload.sdp };
+        } else if (rawPayload.sdp && rawPayload.type) {
+          offerDesc = rawPayload;
+        } else {
+          throw new Error('Invalid offer payload: missing sdp');
+        }
+        
+        console.log('[useRtcSession] 📝 Setting remote description from offer...');
+        console.log('[useRtcSession] Offer SDP (first 200 chars):', offerDesc.sdp?.substring(0, 200));
         
         // Set remote description from offer
-        await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
-        console.log('[useRtcSession] Remote description set');
+        await pc.setRemoteDescription(new RTCSessionDescription(offerDesc));
+        console.log('[useRtcSession] ✅ Remote description set successfully');
+        console.log('[useRtcSession] PC signaling state after setRemoteDescription:', pc.signalingState);
         
         // Create and set local answer
-        console.log('[useRtcSession] Creating answer...');
+        console.log('[useRtcSession] 📝 Creating answer...');
         const answer = await pc.createAnswer();
+        console.log('[useRtcSession] ✅ Answer created');
+        console.log('[useRtcSession] Answer SDP (first 200 chars):', answer.sdp?.substring(0, 200));
+        
         await pc.setLocalDescription(answer);
-        console.log('[useRtcSession] Local description (answer) set');
+        console.log('[useRtcSession] ✅ Local description (answer) set');
+        console.log('[useRtcSession] PC signaling state after setLocalDescription:', pc.signalingState);
         
-        // Send answer back to database
-        console.log('[useRtcSession] Inserting answer to rtc_signals...');
-        await insertSignal(targetSessionId, 'answer', answer);
-        console.log('[useRtcSession] ✅ Answer sent successfully!');
+        // Send answer back to database with verification
+        console.log('[useRtcSession] 📤 Inserting answer to rtc_signals...');
+        const success = await insertSignal(targetSessionId, 'answer', pc.localDescription!);
         
-        // Track answers sent
-        setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
+        if (success) {
+          console.log('[useRtcSession] ✅✅ ANSWER SENT SUCCESSFULLY!');
+          // Track answers sent
+          setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
+        } else {
+          console.error('[useRtcSession] ❌ FAILED TO INSERT ANSWER!');
+          setLastError('answer insert failed');
+        }
         
       } else if (signal.type === 'ice') {
         // Track ICE candidates received
         setSignalCounts(prev => ({ ...prev, iceReceived: prev.iceReceived + 1 }));
         
-        // Add ICE candidate
+        // Add ICE candidate with try/catch
         const candidate = signal.payload as RTCIceCandidateInit;
+        console.log('[useRtcSession] 🧊 Adding ICE candidate:', candidate.candidate?.substring(0, 80));
+        
         if (candidate.candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          console.log('[useRtcSession] ICE candidate added');
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            console.log('[useRtcSession] ✅ ICE candidate added successfully');
+          } catch (iceErr) {
+            console.error('[useRtcSession] ❌ Error adding ICE candidate:', iceErr);
+            setLastError(`ICE error: ${iceErr instanceof Error ? iceErr.message : 'Unknown'}`);
+          }
+        } else {
+          console.log('[useRtcSession] Empty ICE candidate (end-of-candidates)');
         }
       }
     } catch (err) {
-      console.error(`[useRtcSession] Error processing ${signal.type}:`, err);
-      setLastError(`Signal error: ${signal.type} - ${err instanceof Error ? err.message : 'Unknown'}`);
+      console.error(`[useRtcSession] ❌ Error processing ${signal.type}:`, err);
+      const errorMsg = `Signal error: ${signal.type} - ${err instanceof Error ? err.message : 'Unknown'}`;
+      setLastError(errorMsg);
+      isProcessingOfferRef.current = false;
     }
   }, [insertSignal]);
 
-  // Process any pending signals after peer connection is ready
-  const processPendingSignals = useCallback((targetSessionId: string) => {
-    if (pendingSignalsRef.current.length > 0) {
-      console.log(`[useRtcSession] Processing ${pendingSignalsRef.current.length} pending signals`);
-      const signals = [...pendingSignalsRef.current];
-      pendingSignalsRef.current = [];
-      signals.forEach((signal) => processSignal(signal, targetSessionId));
-    }
-  }, [processSignal]);
-
-  // Subscribe to signals for a session
-  const subscribeToSignals = useCallback((targetSessionId: string) => {
-    console.log('[useRtcSession] Subscribing to signals for session:', targetSessionId);
+  // Subscribe to signals for a session - returns promise that resolves when subscribed
+  const subscribeToSignals = useCallback((targetSessionId: string, pc: RTCPeerConnection) => {
+    console.log('[useRtcSession] 🔔 Subscribing to signals for session:', targetSessionId);
     
     const channel = supabase
       .channel(`rtc-signals-${targetSessionId}`)
@@ -303,18 +347,18 @@ export function useRtcSession({
         },
         (payload) => {
           const signal = payload.new as RtcSignal;
-          console.log('[useRtcSession] Realtime signal received:', signal.type, 'from', signal.from_role);
-          processSignal(signal, targetSessionId);
+          console.log('[useRtcSession] 🔔 Realtime signal received:', { id: signal.id, type: signal.type, from_role: signal.from_role });
+          processSignal(signal, targetSessionId, pc);
         }
       )
-      .subscribe((status) => {
-        console.log('[useRtcSession] Signal subscription status:', status);
+      .subscribe((status, err) => {
+        console.log('[useRtcSession] 🔔 Signal subscription status:', status, err ? `Error: ${err}` : '');
       });
 
     channelRef.current = channel;
 
-    // Also fetch any existing signals (in case they arrived before subscription)
-    console.log('[useRtcSession] Fetching existing signals from database...');
+    // Fetch any existing signals (in case they arrived before subscription)
+    console.log('[useRtcSession] 📥 Fetching existing signals from database...');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from('rtc_signals')
@@ -324,12 +368,13 @@ export function useRtcSession({
       .order('created_at', { ascending: true })
       .then(({ data, error }: { data: RtcSignal[] | null; error: Error | null }) => {
         if (error) {
-          console.error('[useRtcSession] Error fetching existing signals:', error);
+          console.error('[useRtcSession] ❌ Error fetching existing signals:', error);
           return;
         }
-        console.log(`[useRtcSession] Found ${data?.length || 0} existing signals from desktop`);
-        if (data) {
-          data.forEach((signal) => processSignal(signal, targetSessionId));
+        console.log(`[useRtcSession] 📥 Found ${data?.length || 0} existing signals from desktop`);
+        if (data && data.length > 0) {
+          console.log('[useRtcSession] Processing existing signals:', data.map(s => ({ id: s.id, type: s.type })));
+          data.forEach((signal) => processSignal(signal, targetSessionId, pc));
         }
       });
   }, [processSignal]);
@@ -441,6 +486,7 @@ export function useRtcSession({
   const startSession = useCallback(async (): Promise<string | null> => {
     if (!deviceId || !viewerId) {
       const error = language === 'he' ? 'חסרים פרטי מכשיר' : 'Missing device details';
+      console.error('[useRtcSession] ❌ Missing deviceId or viewerId:', { deviceId, viewerId });
       onError(error);
       return null;
     }
@@ -451,7 +497,7 @@ export function useRtcSession({
       return sessionId;
     }
 
-    console.log('[useRtcSession] Starting session for device:', deviceId);
+    console.log('[useRtcSession] 🚀 Starting session for device:', deviceId, 'viewer:', viewerId);
     updateStatus('connecting');
 
     try {
@@ -469,6 +515,7 @@ export function useRtcSession({
         console.log('[useRtcSession] Reusing existing session:', activeSessionId);
       } else {
         // Create new rtc_sessions row
+        console.log('[useRtcSession] Creating new rtc_session...');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: sessionData, error: sessionError } = await (supabase as any)
           .from('rtc_sessions')
@@ -481,28 +528,27 @@ export function useRtcSession({
           .single();
 
         if (sessionError || !sessionData) {
-          console.error('[useRtcSession] Error creating session:', sessionError);
+          console.error('[useRtcSession] ❌ Error creating session:', sessionError);
           throw new Error(sessionError?.message || 'Failed to create session');
         }
 
         activeSessionId = sessionData.id as string;
-        console.log('[useRtcSession] Session created:', activeSessionId);
+        console.log('[useRtcSession] ✅ Session created:', activeSessionId);
       }
 
       setSessionId(activeSessionId);
 
-      // 2. Subscribe to signals FIRST (so we don't miss any)
-      subscribeToSignals(activeSessionId);
+      // 2. Initialize WebRTC FIRST (creates the peer connection we need for signal processing)
+      console.log('[useRtcSession] Initializing WebRTC peer connection...');
+      const pc = await initPeerConnection(activeSessionId);
+      console.log('[useRtcSession] ✅ Peer connection initialized');
 
-      // 3. Initialize WebRTC (async - fetches TURN credentials)
-      await initPeerConnection(activeSessionId);
-      
-      // 4. Process any signals that arrived while peer connection was being initialized
-      processPendingSignals(activeSessionId);
+      // 3. NOW subscribe to signals (pass the pc so signals can be processed immediately)
+      subscribeToSignals(activeSessionId, pc);
 
       // 4. Set connection timeout
       timeoutRef.current = setTimeout(() => {
-        console.warn('[useRtcSession] Connection timeout');
+        console.warn('[useRtcSession] ⏱️ Connection timeout');
         const timeoutError = language === 'he' 
           ? 'פג הזמן להתחברות. נסה שוב.'
           : 'Connection timed out. Please try again.';
@@ -513,7 +559,7 @@ export function useRtcSession({
       return activeSessionId;
 
     } catch (err) {
-      console.error('[useRtcSession] Error starting session:', err);
+      console.error('[useRtcSession] ❌ Error starting session:', err);
       const error = language === 'he' 
         ? 'שגיאה בהתחלת החיבור'
         : 'Error starting connection';
@@ -522,7 +568,7 @@ export function useRtcSession({
       updateStatus('failed');
       return null;
     }
-  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, processPendingSignals, timeoutMs, cleanup, findExistingSession, status, sessionId, existingSessionId]);
+  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, findExistingSession, status, sessionId, existingSessionId]);
 
   // Stop the current session
   const stopSession = useCallback(async () => {
