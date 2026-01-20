@@ -192,11 +192,76 @@ const Viewer: React.FC = () => {
     };
   }, [cleanupStream]);
 
+  // Start viewing: create RTC session + send START_LIVE_VIEW command
+  const handleStartViewing = useCallback(async () => {
+    // Prevent duplicate calls - check all blocking states
+    if (!viewerId || isConnecting || isConnected || viewerState === 'connecting') {
+      console.log('[Viewer] Start blocked - already in progress or connected');
+      return;
+    }
+
+    setErrorMessage(null);
+    setViewerState('connecting');
+
+    // 1. Create or reuse RTC session (hook handles duplicate prevention)
+    const activeSessionId = await startSession();
+    if (!activeSessionId) {
+      return; // Error already handled in hook
+    }
+
+    // 2. Send START_LIVE_VIEW command (with session_id in payload via existing mechanism)
+    // The command tells Electron to start streaming to this session
+    const ok = await sendCommand('START_LIVE_VIEW');
+    if (!ok) {
+      // Command failed, cleanup session
+      await stopSession();
+      setViewerState('error');
+      setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
+    }
+  }, [
+    viewerId,
+    isConnecting,
+    isConnected,
+    viewerState,
+    startSession,
+    sendCommand,
+    stopSession,
+    language,
+  ]);
+
+  // Stop viewing: complete cleanup flow (used by both Stop button and X button)
+  // This ensures identical behavior for all stop actions
+  const handleStopViewing = useCallback(async (sendStopCommand = true) => {
+    console.log('[Viewer] Stopping viewing, sendCommand:', sendStopCommand);
+
+    // 1. Clear local video immediately
+    cleanupStream();
+
+    // 2. Stop RTC session (closes peer connection, updates rtc_sessions to 'ended')
+    await stopSession();
+
+    // 3. Send STOP_LIVE_VIEW command to desktop (only if requested)
+    // Note: This is for LIVE VIEW only - do NOT send motion detection commands
+    if (sendStopCommand) {
+      await sendCommand('STOP_LIVE_VIEW');
+    }
+
+    // 4. Reset viewer state
+    setViewerState('idle');
+    setErrorMessage(null);
+
+    // 5. Clear alert params if from alert
+    clearAlertParams();
+
+    // 6. Refresh live view state from DB
+    refreshState();
+  }, [cleanupStream, stopSession, sendCommand, refreshState, clearAlertParams]);
+
   // Watch liveViewActive and auto-start RTC session
   // Note: This only handles LIVE VIEW state, not motion detection
   useEffect(() => {
     if (!primaryDevice || !viewerId || liveStateLoading) return;
-    
+
     if (liveViewActive && viewerState === 'idle' && !isConnecting && !isConnected) {
       console.log('[Viewer] Live view active, starting RTC session...');
       handleStartViewing();
@@ -205,8 +270,17 @@ const Viewer: React.FC = () => {
       // External stop - just cleanup locally, don't send command
       handleStopViewing(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveViewActive, liveStateLoading]);
+  }, [
+    liveViewActive,
+    liveStateLoading,
+    primaryDevice,
+    viewerId,
+    viewerState,
+    isConnecting,
+    isConnected,
+    handleStartViewing,
+    handleStopViewing,
+  ]);
 
   const fetchDevices = async () => {
     try {
@@ -230,62 +304,6 @@ const Viewer: React.FC = () => {
       setLoading(false);
     }
   };
-
-  // Start viewing: create RTC session + send START_LIVE_VIEW command
-  const handleStartViewing = async () => {
-    // Prevent duplicate calls - check all blocking states
-    if (!viewerId || isConnecting || isConnected || viewerState === 'connecting') {
-      console.log('[Viewer] Start blocked - already in progress or connected');
-      return;
-    }
-    
-    setErrorMessage(null);
-    setViewerState('connecting');
-
-    // 1. Create or reuse RTC session (hook handles duplicate prevention)
-    const activeSessionId = await startSession();
-    if (!activeSessionId) {
-      return; // Error already handled in hook
-    }
-
-    // 2. Send START_LIVE_VIEW command (with session_id in payload via existing mechanism)
-    // The command tells Electron to start streaming to this session
-    const ok = await sendCommand('START_LIVE_VIEW');
-    if (!ok) {
-      // Command failed, cleanup session
-      await stopSession();
-      setViewerState('error');
-      setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
-    }
-  };
-
-  // Stop viewing: complete cleanup flow (used by both Stop button and X button)
-  // This ensures identical behavior for all stop actions
-  const handleStopViewing = useCallback(async (sendStopCommand = true) => {
-    console.log('[Viewer] Stopping viewing, sendCommand:', sendStopCommand);
-    
-    // 1. Clear local video immediately
-    cleanupStream();
-    
-    // 2. Stop RTC session (closes peer connection, updates rtc_sessions to 'ended')
-    await stopSession();
-    
-    // 3. Send STOP_LIVE_VIEW command to desktop (only if requested)
-    // Note: This is for LIVE VIEW only - do NOT send motion detection commands
-    if (sendStopCommand) {
-      await sendCommand('STOP_LIVE_VIEW');
-    }
-    
-    // 4. Reset viewer state
-    setViewerState('idle');
-    setErrorMessage(null);
-    
-    // 5. Clear alert params if from alert
-    clearAlertParams();
-    
-    // 6. Refresh live view state from DB
-    refreshState();
-  }, [cleanupStream, stopSession, sendCommand, refreshState, clearAlertParams]);
 
   const handleRetry = () => {
     setErrorMessage(null);
