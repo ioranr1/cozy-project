@@ -506,6 +506,13 @@ const Viewer: React.FC = () => {
             {viewerState === 'idle' && (language === 'he' ? 'ממתין לשידור' : 'Waiting for stream')}
           </span>
         </div>
+
+        {/* Debug: Session ID Display */}
+        <div className="mt-2 p-2 bg-slate-800/80 border border-slate-600/50 rounded-lg text-center">
+          <span className="text-xs font-mono text-cyan-400">
+            sessionId: {sessionId || 'none'}
+          </span>
+        </div>
       </div>
     );
   };
