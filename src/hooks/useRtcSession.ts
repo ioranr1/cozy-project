@@ -210,41 +210,52 @@ export function useRtcSession({
     }
   }, []);
 
-  // Process incoming signals
-  const processSignal = useCallback(async (signal: RtcSignal) => {
+  // Queue for signals that arrive before peer connection is ready
+  const pendingSignalsRef = useRef<RtcSignal[]>([]);
+
+  // Process incoming signals - handles offer/answer/ice exchange
+  const processSignal = useCallback(async (signal: RtcSignal, targetSessionId: string) => {
     // Skip if already processed or from mobile (our own)
     if (processedSignalsRef.current.has(signal.id) || signal.from_role === 'mobile') {
+      console.log(`[useRtcSession] Skipping signal ${signal.id}: already processed or from mobile`);
       return;
     }
+
+    const pc = peerConnectionRef.current;
+    if (!pc) {
+      console.log(`[useRtcSession] No peer connection yet, queuing signal ${signal.id}`);
+      pendingSignalsRef.current.push(signal);
+      return;
+    }
+    
     processedSignalsRef.current.add(signal.id);
     
     // Update debug info
     setLastSignalType(signal.type);
     setSignalsProcessed(prev => prev + 1);
 
-    const pc = peerConnectionRef.current;
-    if (!pc) {
-      console.warn('[useRtcSession] No peer connection for signal processing');
-      return;
-    }
-
-    console.log(`[useRtcSession] Processing signal: ${signal.type} from ${signal.from_role}`);
+    console.log(`[useRtcSession] Processing signal: ${signal.type} from ${signal.from_role}, id: ${signal.id}`);
 
     try {
       if (signal.type === 'offer') {
         // Track offers received
         setSignalCounts(prev => ({ ...prev, offersReceived: prev.offersReceived + 1 }));
+        console.log('[useRtcSession] Setting remote description from offer...');
         
         // Set remote description from offer
         await pc.setRemoteDescription(new RTCSessionDescription(signal.payload as RTCSessionDescriptionInit));
+        console.log('[useRtcSession] Remote description set');
         
         // Create and set local answer
+        console.log('[useRtcSession] Creating answer...');
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
+        console.log('[useRtcSession] Local description (answer) set');
         
-        // Send answer back
-        await insertSignal(signal.session_id, 'answer', answer);
-        console.log('[useRtcSession] Answer sent');
+        // Send answer back to database
+        console.log('[useRtcSession] Inserting answer to rtc_signals...');
+        await insertSignal(targetSessionId, 'answer', answer);
+        console.log('[useRtcSession] ✅ Answer sent successfully!');
         
         // Track answers sent
         setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
@@ -262,27 +273,38 @@ export function useRtcSession({
       }
     } catch (err) {
       console.error(`[useRtcSession] Error processing ${signal.type}:`, err);
-      setLastError(`Signal error: ${signal.type}`);
+      setLastError(`Signal error: ${signal.type} - ${err instanceof Error ? err.message : 'Unknown'}`);
     }
   }, [insertSignal]);
 
+  // Process any pending signals after peer connection is ready
+  const processPendingSignals = useCallback((targetSessionId: string) => {
+    if (pendingSignalsRef.current.length > 0) {
+      console.log(`[useRtcSession] Processing ${pendingSignalsRef.current.length} pending signals`);
+      const signals = [...pendingSignalsRef.current];
+      pendingSignalsRef.current = [];
+      signals.forEach((signal) => processSignal(signal, targetSessionId));
+    }
+  }, [processSignal]);
+
   // Subscribe to signals for a session
-  const subscribeToSignals = useCallback((sessionId: string) => {
-    console.log('[useRtcSession] Subscribing to signals for session:', sessionId);
+  const subscribeToSignals = useCallback((targetSessionId: string) => {
+    console.log('[useRtcSession] Subscribing to signals for session:', targetSessionId);
     
     const channel = supabase
-      .channel(`rtc-signals-${sessionId}`)
+      .channel(`rtc-signals-${targetSessionId}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'rtc_signals',
-          filter: `session_id=eq.${sessionId}`,
+          filter: `session_id=eq.${targetSessionId}`,
         },
         (payload) => {
           const signal = payload.new as RtcSignal;
-          processSignal(signal);
+          console.log('[useRtcSession] Realtime signal received:', signal.type, 'from', signal.from_role);
+          processSignal(signal, targetSessionId);
         }
       )
       .subscribe((status) => {
@@ -292,11 +314,12 @@ export function useRtcSession({
     channelRef.current = channel;
 
     // Also fetch any existing signals (in case they arrived before subscription)
+    console.log('[useRtcSession] Fetching existing signals from database...');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from('rtc_signals')
       .select('*')
-      .eq('session_id', sessionId)
+      .eq('session_id', targetSessionId)
       .eq('from_role', 'desktop')
       .order('created_at', { ascending: true })
       .then(({ data, error }: { data: RtcSignal[] | null; error: Error | null }) => {
@@ -304,8 +327,9 @@ export function useRtcSession({
           console.error('[useRtcSession] Error fetching existing signals:', error);
           return;
         }
+        console.log(`[useRtcSession] Found ${data?.length || 0} existing signals from desktop`);
         if (data) {
-          data.forEach((signal) => processSignal(signal));
+          data.forEach((signal) => processSignal(signal, targetSessionId));
         }
       });
   }, [processSignal]);
@@ -467,11 +491,14 @@ export function useRtcSession({
 
       setSessionId(activeSessionId);
 
-      // 2. Initialize WebRTC (async - fetches TURN credentials)
-      await initPeerConnection(activeSessionId);
-
-      // 3. Subscribe to signals
+      // 2. Subscribe to signals FIRST (so we don't miss any)
       subscribeToSignals(activeSessionId);
+
+      // 3. Initialize WebRTC (async - fetches TURN credentials)
+      await initPeerConnection(activeSessionId);
+      
+      // 4. Process any signals that arrived while peer connection was being initialized
+      processPendingSignals(activeSessionId);
 
       // 4. Set connection timeout
       timeoutRef.current = setTimeout(() => {
@@ -495,7 +522,7 @@ export function useRtcSession({
       updateStatus('failed');
       return null;
     }
-  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, findExistingSession, status, sessionId, existingSessionId]);
+  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, processPendingSignals, timeoutMs, cleanup, findExistingSession, status, sessionId, existingSessionId]);
 
   // Stop the current session
   const stopSession = useCallback(async () => {
