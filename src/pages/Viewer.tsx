@@ -48,7 +48,8 @@ const Viewer: React.FC = () => {
   // Live View state
   const [viewerState, setViewerState] = useState<ViewerState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
+  // Must start muted for reliable autoplay on mobile
+  const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
@@ -71,12 +72,38 @@ const Viewer: React.FC = () => {
 
   // RTC Session callbacks
   const handleStreamReceived = useCallback((stream: MediaStream) => {
-    console.log('[Viewer] Stream received');
+    console.log('[viewer] ontrack fired');
+    console.log(
+      '[viewer] stream tracks:',
+      stream.getTracks().map((t) => ({
+        kind: t.kind,
+        id: t.id,
+        enabled: t.enabled,
+        muted: t.muted,
+        readyState: t.readyState,
+      }))
+    );
+
     mediaStreamRef.current = stream;
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      setViewerState('connected');
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.srcObject = stream;
+
+    // Ensure autoplay works on mobile (muted autoplay is the only reliable path)
+    video.playsInline = true;
+    video.muted = true;
+    setIsMuted(true);
+
+    const playPromise = video.play();
+    if (playPromise && typeof (playPromise as Promise<void>).catch === 'function') {
+      (playPromise as Promise<void>).catch((e) => {
+        console.warn('[viewer] video.play() blocked:', e);
+      });
     }
+
+    setViewerState('connected');
   }, []);
 
   const handleRtcError = useCallback((error: string) => {
