@@ -527,10 +527,27 @@ export function useRtcSession({
 
     // Handle incoming tracks (video stream from desktop)
     pc.ontrack = (event) => {
-      console.log('[useRtcSession] Track received:', event.streams.length, 'streams');
+      console.log('[useRtcSession] 🎥 Track received:', {
+        kind: event.track.kind,
+        streamsCount: event.streams?.length ?? 0,
+        trackId: event.track.id,
+        trackEnabled: event.track.enabled,
+        trackMuted: event.track.muted,
+        trackReadyState: event.track.readyState,
+      });
+      
+      // Primary path: use the stream from the event if available
       if (event.streams && event.streams[0]) {
+        console.log('[useRtcSession] ✅ Using event.streams[0]');
         onStreamReceived(event.streams[0]);
+        return;
       }
+      
+      // Fallback: if no stream is attached, create one from the track
+      // This happens with some WebRTC implementations
+      console.log('[useRtcSession] ⚠️ No streams in event, creating MediaStream from track');
+      const stream = new MediaStream([event.track]);
+      onStreamReceived(stream);
     };
 
     // IMPORTANT: recvonly - mobile viewer does NOT send any media
