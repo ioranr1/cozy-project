@@ -239,6 +239,10 @@ const Dashboard: React.FC = () => {
       }
       
       console.log('[LiveView] START_LIVE_VIEW command sent successfully');
+      
+      // 3. Navigate to Viewer with the sessionId so it can listen to RTC signals
+      console.log('[LiveView] Navigating to Viewer with sessionId:', sessionId);
+      navigate('/viewer', { state: { sessionId } });
     } else if (commandType === 'STOP_LIVE_VIEW') {
       console.log('[LiveView] Stop clicked', { currentSessionId });
       setViewStatus('stopping');
