@@ -13,6 +13,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { useRemoteCommand, CommandType } from '@/hooks/useRemoteCommand';
 import { useLiveViewState } from '@/hooks/useLiveViewState';
+import { toast } from 'sonner';
 
 interface UserProfile {
   id?: string;
@@ -30,6 +31,7 @@ const Dashboard: React.FC = () => {
   const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const [motionDetectionActive, setMotionDetectionActive] = useState(false);
   const [viewStatus, setViewStatus] = useState<ViewStatus>('idle');
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const isMobileDevice = useIsMobileDevice();
   const capabilities = useCapabilities();
 
@@ -134,26 +136,103 @@ const Dashboard: React.FC = () => {
     }
   }, [navigate]);
 
+  // Create rtc_session for live view
+  const createRtcSession = async (): Promise<string | null> => {
+    const viewerId = userProfile?.id || `viewer_${Date.now()}`;
+    
+    console.log('[Dashboard] Creating rtc_session for device:', laptopDeviceId);
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from('rtc_sessions')
+      .insert({
+        device_id: laptopDeviceId,
+        viewer_id: viewerId,
+        status: 'pending',
+      })
+      .select('id')
+      .single();
+
+    if (error || !data) {
+      console.error('[Dashboard] Error creating rtc_session:', error);
+      toast.error(language === 'he' ? 'שגיאה ביצירת session' : 'Error creating session');
+      return null;
+    }
+
+    console.log('[Dashboard] rtc_session created:', data.id);
+    return data.id as string;
+  };
+
+  // Update rtc_session to ended
+  const endRtcSession = async (sessionId: string) => {
+    console.log('[Dashboard] Ending rtc_session:', sessionId);
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from('rtc_sessions')
+      .update({
+        status: 'ended',
+        ended_at: new Date().toISOString(),
+      })
+      .eq('id', sessionId);
+
+    if (error) {
+      console.error('[Dashboard] Error ending rtc_session:', error);
+    }
+  };
+
   // Handle command sending with proper status tracking
   const handleCommand = async (commandType: CommandType) => {
     if (commandType === 'START_LIVE_VIEW') {
       setViewStatus('starting');
+
+      // 1. First create rtc_session
+      const sessionId = await createRtcSession();
+      if (!sessionId) {
+        setViewStatus('idle');
+        return; // Error already shown via toast
+      }
+      setCurrentSessionId(sessionId);
+
+      // 2. Then send START_LIVE_VIEW command
+      const ok = await sendCommand(commandType);
+      if (!ok) {
+        // Command failed - cleanup session
+        await endRtcSession(sessionId);
+        setCurrentSessionId(null);
+        setViewStatus('idle');
+        return;
+      }
     } else if (commandType === 'STOP_LIVE_VIEW') {
       setViewStatus('stopping');
-    }
 
-    const ok = await sendCommand(commandType);
+      // 1. Send STOP_LIVE_VIEW command
+      const ok = await sendCommand(commandType);
 
-    // Bootstrap-safe: always re-fetch live view state after sending live view commands
-    // (covers cases where Supabase Realtime doesn't deliver the UPDATE on mobile)
-    if (commandType === 'START_LIVE_VIEW' || commandType === 'STOP_LIVE_VIEW') {
-      refreshState();
-      window.setTimeout(() => refreshState(), 1500);
+      // 2. End the rtc_session
+      if (currentSessionId) {
+        await endRtcSession(currentSessionId);
+        setCurrentSessionId(null);
+      }
 
-      // If sending failed, return UI to the last known state quickly
       if (!ok) {
         setViewStatus(liveViewActive ? 'streaming' : 'idle');
       }
+    } else {
+      // Motion detection commands - no rtc_session needed
+      if (commandType === 'START_MOTION_DETECTION') {
+        // No status change needed
+      } else if (commandType === 'STOP_MOTION_DETECTION') {
+        // No status change needed
+      }
+
+      await sendCommand(commandType);
+    }
+
+    // Bootstrap-safe: always re-fetch live view state after sending live view commands
+    if (commandType === 'START_LIVE_VIEW' || commandType === 'STOP_LIVE_VIEW') {
+      refreshState();
+      window.setTimeout(() => refreshState(), 1500);
     }
   };
 
@@ -367,6 +446,13 @@ const Dashboard: React.FC = () => {
                 )}
                 {language === 'he' ? 'הפסק' : 'Stop'}
               </Button>
+            </div>
+
+            {/* Debug: Session ID Display */}
+            <div className="mt-2 p-2 bg-slate-800/80 border border-slate-600/50 rounded-lg text-center">
+              <span className="text-xs font-mono text-cyan-400">
+                sessionId: {currentSessionId || 'none'}
+              </span>
             </div>
 
             {/* View Stream Link - Always visible with status indicator */}
