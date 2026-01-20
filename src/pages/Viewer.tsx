@@ -452,7 +452,7 @@ const Viewer: React.FC = () => {
       );
     }
 
-    const deviceStatus = getDeviceStatus(primaryDevice);
+    const deviceStatus = primaryDevice ? getDeviceStatus(primaryDevice) : null;
 
     return (
       <div className="space-y-4">
@@ -463,14 +463,18 @@ const Viewer: React.FC = () => {
               <Laptop className="w-5 h-5 text-blue-400" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-white">{primaryDevice.device_name}</h3>
-              <Badge className={`${deviceStatus.color} border text-xs mt-0.5`}>
-                {deviceStatus.label}
-              </Badge>
+              <h3 className="text-sm font-medium text-white">
+                {primaryDevice?.device_name || (language === 'he' ? 'מתחבר...' : 'Connecting...')}
+              </h3>
+              {deviceStatus && (
+                <Badge className={`${deviceStatus.color} border text-xs mt-0.5`}>
+                  {deviceStatus.label}
+                </Badge>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${deviceStatus.isOnline ? 'bg-green-500 animate-pulse' : 'bg-slate-500'}`} />
+            <div className={`w-2 h-2 rounded-full ${deviceStatus?.isOnline ? 'bg-green-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
           </div>
         </div>
 
