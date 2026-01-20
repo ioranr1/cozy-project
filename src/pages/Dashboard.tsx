@@ -136,39 +136,58 @@ const Dashboard: React.FC = () => {
     }
   }, [navigate]);
 
-  // Create rtc_session for live view
+  // Create rtc_session for live view - MUST happen before START_LIVE_VIEW command
   const createRtcSession = async (): Promise<string | null> => {
-    const viewerId = userProfile?.id || `viewer_${Date.now()}`;
+    const profileId = userProfile?.id;
+    const userId = profileId || `anon_${Date.now()}`;
     
-    console.log('[Dashboard] Creating rtc_session for device:', laptopDeviceId);
+    console.log('[LiveView] Creating rtc_session', { 
+      selectedDeviceId: laptopDeviceId, 
+      profileId, 
+      userId 
+    });
+
+    if (!laptopDeviceId) {
+      console.error('[LiveView] No device_id available');
+      toast.error(language === 'he' ? 'לא נבחר מכשיר' : 'No device selected');
+      return null;
+    }
     
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
+    const insertPayload = {
+      device_id: laptopDeviceId,
+      viewer_id: userId,
+      status: 'pending' as const,
+    };
+
+    console.log('[LiveView] rtc_sessions INSERT payload:', insertPayload);
+
+    const { data: session, error: sessErr } = await supabase
       .from('rtc_sessions')
-      .insert({
-        device_id: laptopDeviceId,
-        viewer_id: viewerId,
-        status: 'pending',
-      })
-      .select('id')
+      .insert(insertPayload)
+      .select()
       .single();
 
-    if (error || !data) {
-      console.error('[Dashboard] Error creating rtc_session:', error);
-      toast.error(language === 'he' ? 'שגיאה ביצירת session' : 'Error creating session');
+    console.log('[LiveView] rtc_sessions insert result', { session, sessErr });
+
+    if (sessErr || !session) {
+      console.error('[LiveView] Failed to create rtc_session:', sessErr);
+      toast.error(
+        language === 'he' 
+          ? `שגיאה ביצירת session: ${sessErr?.message || 'Unknown error'}` 
+          : `Error creating session: ${sessErr?.message || 'Unknown error'}`
+      );
       return null;
     }
 
-    console.log('[Dashboard] rtc_session created:', data.id);
-    return data.id as string;
+    console.log('[LiveView] rtc_session created successfully:', session.id);
+    return session.id;
   };
 
   // Update rtc_session to ended
   const endRtcSession = async (sessionId: string) => {
-    console.log('[Dashboard] Ending rtc_session:', sessionId);
+    console.log('[LiveView] Ending rtc_session:', sessionId);
     
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from('rtc_sessions')
       .update({
         status: 'ended',
@@ -177,33 +196,51 @@ const Dashboard: React.FC = () => {
       .eq('id', sessionId);
 
     if (error) {
-      console.error('[Dashboard] Error ending rtc_session:', error);
+      console.error('[LiveView] Error ending rtc_session:', error);
     }
   };
 
   // Handle command sending with proper status tracking
   const handleCommand = async (commandType: CommandType) => {
     if (commandType === 'START_LIVE_VIEW') {
+      const profileId = userProfile?.id;
+      console.log('[LiveView] Start clicked', { 
+        selectedDeviceId: laptopDeviceId, 
+        profileId, 
+        userId: profileId || 'anonymous' 
+      });
+
       setViewStatus('starting');
 
-      // 1. First create rtc_session
+      // 1. FIRST: Create rtc_session (MUST happen before command)
       const sessionId = await createRtcSession();
+      
       if (!sessionId) {
+        // Session creation failed - do NOT send command
+        console.error('[LiveView] Aborting START_LIVE_VIEW - no session created');
         setViewStatus('idle');
-        return; // Error already shown via toast
+        return;
       }
+      
       setCurrentSessionId(sessionId);
+      console.log('[LiveView] Session stored in state:', sessionId);
 
-      // 2. Then send START_LIVE_VIEW command
+      // 2. ONLY if session succeeded: send START_LIVE_VIEW command
+      console.log('[LiveView] inserting START_LIVE_VIEW', { sessionId });
       const ok = await sendCommand(commandType);
+      
       if (!ok) {
         // Command failed - cleanup session
+        console.error('[LiveView] START_LIVE_VIEW command failed, cleaning up session');
         await endRtcSession(sessionId);
         setCurrentSessionId(null);
         setViewStatus('idle');
         return;
       }
+      
+      console.log('[LiveView] START_LIVE_VIEW command sent successfully');
     } else if (commandType === 'STOP_LIVE_VIEW') {
+      console.log('[LiveView] Stop clicked', { currentSessionId });
       setViewStatus('stopping');
 
       // 1. Send STOP_LIVE_VIEW command
@@ -220,12 +257,6 @@ const Dashboard: React.FC = () => {
       }
     } else {
       // Motion detection commands - no rtc_session needed
-      if (commandType === 'START_MOTION_DETECTION') {
-        // No status change needed
-      } else if (commandType === 'STOP_MOTION_DETECTION') {
-        // No status change needed
-      }
-
       await sendCommand(commandType);
     }
 
@@ -418,6 +449,11 @@ const Dashboard: React.FC = () => {
                      viewStatus === 'starting' ? 'Starting...' : 
                      viewStatus === 'stopping' ? 'Stopping...' : 'Off')}
               </div>
+            </div>
+
+            {/* Debug: Session ID */}
+            <div className="mb-3 p-2 bg-slate-900/50 rounded text-xs font-mono text-slate-400">
+              sessionId: {currentSessionId || 'none'}
             </div>
 
             <div className="grid grid-cols-2 gap-3 mb-3">
