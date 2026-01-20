@@ -116,6 +116,10 @@ export function useRtcSession({
   const isProcessingOfferRef = useRef(false); // Prevent duplicate offer processing
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastPolledIdRef = useRef<number>(0);
+  
+  // ICE Queue: store ICE candidates that arrive before setRemoteDescription
+  const iceCandidateQueueRef = useRef<RTCIceCandidateInit[]>([]);
+  const remoteDescriptionSetRef = useRef(false);
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -188,9 +192,11 @@ export function useRtcSession({
       }
     }
 
-    // 5. Clear processed signals set
+    // 5. Clear processed signals set and ICE queue
     processedSignalsRef.current.clear();
     isProcessingOfferRef.current = false;
+    iceCandidateQueueRef.current = [];
+    remoteDescriptionSetRef.current = false;
     
     // 6. Update local status
     if (finalStatus && isMountedRef.current) {
@@ -288,7 +294,23 @@ export function useRtcSession({
 
         console.log('[LiveView] before setRemoteDescription, offerDesc.type:', offerDesc.type, 'sdp length:', offerDesc.sdp?.length);
         await pc.setRemoteDescription(offerDesc);
+        remoteDescriptionSetRef.current = true;
         console.log('[LiveView] after setRemoteDescription, signalingState:', pc.signalingState);
+
+        // Process queued ICE candidates now that remote description is set
+        const queuedCandidates = iceCandidateQueueRef.current;
+        if (queuedCandidates.length > 0) {
+          console.log(`[LiveView] 🧊 Processing ${queuedCandidates.length} queued ICE candidates`);
+          for (const candidate of queuedCandidates) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+              console.log('[LiveView] ✅ Queued ICE candidate added');
+            } catch (e) {
+              console.log('[LiveView] ⚠️ Failed to add queued ICE candidate:', e);
+            }
+          }
+          iceCandidateQueueRef.current = [];
+        }
 
         console.log('[LiveView] creating answer...');
         const answer = await pc.createAnswer();
@@ -339,8 +361,16 @@ export function useRtcSession({
       const candidate = signal.payload as RTCIceCandidateInit;
 
       if (candidate?.candidate) {
+        // ICE Queue: only add candidate if remote description is set
+        if (!remoteDescriptionSetRef.current) {
+          console.log('[LiveView] 🧊 ICE candidate queued (waiting for remote description)');
+          iceCandidateQueueRef.current.push(candidate);
+          return;
+        }
+        
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          console.log('[LiveView] ✅ ICE candidate added directly');
         } catch (e) {
           console.log('[LiveView] addIceCandidate failed', e);
           const msg = e instanceof Error ? e.message : 'addIceCandidate failed';
