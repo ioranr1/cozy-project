@@ -428,7 +428,8 @@ const Viewer: React.FC = () => {
       );
     }
 
-    if (!primaryDevice) {
+    // If we have a dashboardSessionId, skip the device check - we're joining an existing session
+    if (!primaryDevice && !dashboardSessionId) {
       return (
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-12 text-center">
           <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-slate-600/20 to-slate-800/20 border border-slate-500/30 flex items-center justify-center mx-auto mb-6">
