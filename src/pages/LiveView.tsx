@@ -27,6 +27,10 @@ const LiveView: React.FC = () => {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
+
+  // ICE queue (viewer side): don't add candidates before remoteDescription is set
+  const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
+  const remoteDescriptionSetRef = useRef(false);
   
   const [connectionState, setConnectionState] = useState<string>('connecting');
   const [timeRemaining, setTimeRemaining] = useState<number>(state?.ttlSeconds || 60);
@@ -39,7 +43,22 @@ const LiveView: React.FC = () => {
     if (!pcRef.current) return;
     try {
       await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp));
+      remoteDescriptionSetRef.current = true;
       console.log('[LiveView] Remote description set');
+
+      // Flush queued ICE candidates now that remote description is ready
+      const queued = pendingIceRef.current;
+      if (queued.length > 0) {
+        console.log(`[LiveView] 🧊 Flushing ${queued.length} queued ICE candidates`);
+        for (const c of queued) {
+          try {
+            await pcRef.current.addIceCandidate(new RTCIceCandidate(c));
+          } catch (error) {
+            console.error('[LiveView] Error adding queued ICE candidate:', error);
+          }
+        }
+        pendingIceRef.current = [];
+      }
     } catch (error) {
       console.error('[LiveView] Error setting remote description:', error);
     }
@@ -47,9 +66,18 @@ const LiveView: React.FC = () => {
 
   // Handle incoming ICE candidate
   const handleCandidate = useCallback(async (candidate: RTCIceCandidateInit) => {
-    if (!pcRef.current) return;
+    const pc = pcRef.current;
+    if (!pc) return;
+
+    // Don't add ICE before remoteDescription exists (queue it)
+    if (!remoteDescriptionSetRef.current && !pc.remoteDescription) {
+      pendingIceRef.current.push(candidate);
+      console.log('[LiveView] 🧊 ICE candidate queued (waiting for answer/remoteDescription)');
+      return;
+    }
+
     try {
-      await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
       console.log('[LiveView] ICE candidate added');
     } catch (error) {
       console.error('[LiveView] Error adding ICE candidate:', error);
@@ -80,6 +108,9 @@ const LiveView: React.FC = () => {
 
   // Cleanup function
   const cleanup = useCallback(() => {
+    remoteDescriptionSetRef.current = false;
+    pendingIceRef.current = [];
+
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;

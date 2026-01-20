@@ -557,6 +557,7 @@ export function useRtcSession({
 
     // Handle incoming tracks (video stream from desktop)
     pc.ontrack = (event) => {
+      console.log('[viewer] ontrack fired');
       console.log('[useRtcSession] 🎥 Track received:', {
         kind: event.track.kind,
         streamsCount: event.streams?.length ?? 0,
@@ -565,18 +566,20 @@ export function useRtcSession({
         trackMuted: event.track.muted,
         trackReadyState: event.track.readyState,
       });
-      
-      // Primary path: use the stream from the event if available
-      if (event.streams && event.streams[0]) {
-        console.log('[useRtcSession] ✅ Using event.streams[0]');
-        onStreamReceived(event.streams[0]);
-        return;
-      }
-      
-      // Fallback: if no stream is attached, create one from the track
-      // This happens with some WebRTC implementations
-      console.log('[useRtcSession] ⚠️ No streams in event, creating MediaStream from track');
-      const stream = new MediaStream([event.track]);
+
+      const stream = event.streams?.[0] ?? new MediaStream([event.track]);
+
+      console.log(
+        '[viewer] stream tracks:',
+        stream.getTracks().map((t) => ({
+          kind: t.kind,
+          id: t.id,
+          enabled: t.enabled,
+          muted: t.muted,
+          readyState: t.readyState,
+        }))
+      );
+
       onStreamReceived(stream);
     };
 
