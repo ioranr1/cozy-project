@@ -237,7 +237,9 @@ const Viewer: React.FC = () => {
     };
   }, [cleanupStream]);
 
-  // Start viewing: create RTC session + send START_LIVE_VIEW command
+  // Start viewing: connect to RTC session
+  // If dashboardSessionId exists, the Dashboard already created the session AND sent the command
+  // We only need to initialize the RTC peer connection
   const handleStartViewing = useCallback(async () => {
     // Prevent duplicate calls - check all blocking states
     if (!viewerId || isConnecting || isConnected || viewerState === 'connecting') {
@@ -248,14 +250,27 @@ const Viewer: React.FC = () => {
     setErrorMessage(null);
     setViewerState('connecting');
 
-    // 1. Create or reuse RTC session (hook handles duplicate prevention)
+    // If Dashboard already created session and sent command, just start RTC
+    // Do NOT create new session or send command again!
+    if (dashboardSessionId) {
+      console.log('[Viewer] Using Dashboard session, starting RTC only:', dashboardSessionId);
+      const activeSessionId = await startSession();
+      if (!activeSessionId) {
+        setViewerState('error');
+        setErrorMessage(language === 'he' ? 'נכשל בהתחברות' : 'Failed to connect');
+      }
+      // Command was already sent by Dashboard - don't send again
+      return;
+    }
+
+    // Manual start from Viewer (no Dashboard session) - need to create session AND send command
+    console.log('[Viewer] Manual start - creating session and sending command');
     const activeSessionId = await startSession();
     if (!activeSessionId) {
       return; // Error already handled in hook
     }
 
-    // 2. Send START_LIVE_VIEW command (with session_id in payload via existing mechanism)
-    // The command tells Electron to start streaming to this session
+    // Send START_LIVE_VIEW command (only for manual Viewer start)
     const ok = await sendCommand('START_LIVE_VIEW');
     if (!ok) {
       // Command failed, cleanup session
@@ -268,6 +283,7 @@ const Viewer: React.FC = () => {
     isConnecting,
     isConnected,
     viewerState,
+    dashboardSessionId,
     startSession,
     sendCommand,
     stopSession,
