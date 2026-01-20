@@ -258,7 +258,8 @@ export function useRtcSession({
 
     // Offer handling MUST normalize SDP-only payloads from desktop
     if (signal.type === 'offer') {
-      console.log('[LiveView] offer received');
+      console.log('[LiveView] ============ OFFER RECEIVED ============');
+      console.log('[LiveView] offer raw payload:', JSON.stringify(signal.payload));
 
       // Prevent duplicate offer processing
       if (isProcessingOfferRef.current) {
@@ -271,23 +272,33 @@ export function useRtcSession({
       setSignalCounts(prev => ({ ...prev, offersReceived: prev.offersReceived + 1 }));
 
       try {
-        // IMPORTANT: desktop offer payload currently contains only { sdp }
+        // CRITICAL: desktop offer payload only contains { sdp }, but WebRTC needs { type: 'offer', sdp }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const offerDesc: RTCSessionDescriptionInit = {
-          type: 'offer',
-          sdp: (signal.payload as any)?.sdp,
-        };
-
-        if (!offerDesc.sdp) {
-          throw new Error('Invalid offer payload: missing sdp');
+        const rawPayload = signal.payload as any;
+        const sdpString = rawPayload?.sdp || rawPayload?.SDP || (typeof rawPayload === 'string' ? rawPayload : null);
+        
+        if (!sdpString) {
+          throw new Error(`Invalid offer payload: missing sdp. Keys: ${Object.keys(rawPayload || {}).join(',')}`);
         }
 
+        const offerDesc: RTCSessionDescriptionInit = {
+          type: 'offer',
+          sdp: sdpString,
+        };
+
+        console.log('[LiveView] before setRemoteDescription, offerDesc.type:', offerDesc.type, 'sdp length:', offerDesc.sdp?.length);
         await pc.setRemoteDescription(offerDesc);
+        console.log('[LiveView] after setRemoteDescription, signalingState:', pc.signalingState);
 
-        console.log('[LiveView] creating answer');
+        console.log('[LiveView] creating answer...');
         const answer = await pc.createAnswer();
+        console.log('[LiveView] answer created, sdp length:', answer.sdp?.length);
+        
         await pc.setLocalDescription(answer);
+        console.log('[LiveView] after setLocalDescription, signalingState:', pc.signalingState);
 
+        // Insert answer into database
+        console.log('[LiveView] inserting answer to rtc_signals...');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data, error } = await (supabase as any)
           .from('rtc_signals')
@@ -299,18 +310,20 @@ export function useRtcSession({
           })
           .select('id');
 
-        console.log('[LiveView] answer insert', { data, error });
+        console.log('[LiveView] answer insert result:', { data, error: error?.message || null });
 
         if (error) {
+          console.error('[LiveView] ❌ ANSWER INSERT FAILED:', error.message);
           setLastError(error.message);
           onError(error.message);
           return;
         }
 
+        console.log('[LiveView] ✅ ANSWER INSERTED SUCCESSFULLY, id:', data?.[0]?.id);
         setSignalCounts(prev => ({ ...prev, answersSent: prev.answersSent + 1 }));
         return;
       } catch (e) {
-        console.log('[LiveView] offer->answer failed', e);
+        console.error('[LiveView] ❌ offer->answer FAILED:', e);
         const msg = e instanceof Error ? e.message : 'offer->answer failed';
         setLastError(msg);
         onError(msg);
