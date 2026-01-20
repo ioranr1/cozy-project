@@ -72,23 +72,31 @@ const Viewer: React.FC = () => {
 
   // RTC Session callbacks
   const handleStreamReceived = useCallback((stream: MediaStream) => {
-    console.log('[viewer] ontrack fired');
-    console.log(
-      '[viewer] stream tracks:',
-      stream.getTracks().map((t) => ({
+    console.log('🎬 ═══════════════════════════════════════════════════');
+    console.log('🎬 [VIEWER] ████ VIDEO STREAM RECEIVED ████');
+    console.log('🎬 ═══════════════════════════════════════════════════');
+    
+    const tracks = stream.getTracks();
+    console.log('🎬 [VIEWER] Total tracks:', tracks.length);
+    tracks.forEach((t, i) => {
+      console.log(`🎬 [VIEWER] Track ${i + 1}:`, {
         kind: t.kind,
-        id: t.id,
+        id: t.id.substring(0, 8) + '...',
         enabled: t.enabled,
         muted: t.muted,
         readyState: t.readyState,
-      }))
-    );
+      });
+    });
 
     mediaStreamRef.current = stream;
 
     const video = videoRef.current;
-    if (!video) return;
+    if (!video) {
+      console.error('❌ [VIEWER] Video element not found!');
+      return;
+    }
 
+    console.log('🎬 [VIEWER] Attaching stream to video element...');
     video.srcObject = stream;
 
     // Ensure autoplay works on mobile (muted autoplay is the only reliable path)
@@ -96,31 +104,41 @@ const Viewer: React.FC = () => {
     video.muted = true;
     setIsMuted(true);
 
+    console.log('🎬 [VIEWER] Attempting video.play()...');
     const playPromise = video.play();
     if (playPromise && typeof (playPromise as Promise<void>).catch === 'function') {
-      (playPromise as Promise<void>).catch((e) => {
-        console.warn('[viewer] video.play() blocked:', e);
+      (playPromise as Promise<void>).then(() => {
+        console.log('✅ [VIEWER] Video playing successfully!');
+      }).catch((e) => {
+        console.warn('⚠️ [VIEWER] video.play() blocked:', e);
       });
     }
 
     setViewerState('connected');
+    console.log('✅ [VIEWER] State set to CONNECTED');
   }, []);
 
   const handleRtcError = useCallback((error: string) => {
-    console.error('[Viewer] RTC Error:', error);
+    console.error('❌ ═══════════════════════════════════════════════════');
+    console.error('❌ [VIEWER] RTC ERROR:', error);
+    console.error('❌ ═══════════════════════════════════════════════════');
     setErrorMessage(error);
     setViewerState('error');
   }, []);
 
   const handleStatusChange = useCallback((status: RtcSessionStatus) => {
-    console.log('[Viewer] RTC Status:', status);
+    console.log('🔄 [VIEWER] RTC Status changed:', status);
     if (status === 'connecting') {
+      console.log('🟡 [VIEWER] State: CONNECTING - Waiting for desktop...');
       setViewerState('connecting');
     } else if (status === 'connected') {
+      console.log('🟢 [VIEWER] State: CONNECTED - Stream should be visible!');
       setViewerState('connected');
     } else if (status === 'failed') {
+      console.log('🔴 [VIEWER] State: FAILED');
       setViewerState('error');
     } else if (status === 'ended' || status === 'idle') {
+      console.log('⚪ [VIEWER] State: IDLE');
       setViewerState('idle');
     }
   }, []);
