@@ -64,22 +64,6 @@ const Viewer: React.FC = () => {
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const videoReadyTimeoutRef = useRef<number | null>(null);
-
-  // Debug state for video element
-  const [videoDebugInfo, setVideoDebugInfo] = useState({
-    videoWidth: 0,
-    videoHeight: 0,
-    readyState: 0,
-    paused: true,
-    currentTime: 0,
-    srcObjectSet: false,
-    trackCount: 0,
-    videoTrackWidth: 0,
-    videoTrackHeight: 0,
-    containerWidth: 0,
-    containerHeight: 0,
-  });
 
   // Get stable viewer ID (profile ID or device fingerprint)
   const [viewerId, setViewerId] = useState<string>('');
@@ -118,12 +102,6 @@ const Viewer: React.FC = () => {
 
     mediaStreamRef.current = stream;
 
-    // Clear any previous "wait for frames" loop
-    if (videoReadyTimeoutRef.current) {
-      window.clearTimeout(videoReadyTimeoutRef.current);
-      videoReadyTimeoutRef.current = null;
-    }
-
     const video = videoRef.current;
     if (!video) {
       console.error('❌ [VIEWER] Video element not found!');
@@ -131,100 +109,26 @@ const Viewer: React.FC = () => {
     }
 
     console.log('🎬 [VIEWER] Attaching stream to video element...');
-    console.log('🎬 [VIEWER] Video element state before attach:', {
-      videoWidth: video.videoWidth,
-      videoHeight: video.videoHeight,
-      readyState: video.readyState,
-      currentSrc: video.currentSrc,
-      paused: video.paused,
-    });
-
     video.srcObject = stream;
 
-    // Ensure autoplay works on mobile AND desktop emulation
+    // Ensure autoplay works on mobile (muted autoplay is the only reliable path)
     video.playsInline = true;
     video.muted = true;
     setIsMuted(true);
-
-    // Wait until we have real video frames before marking UI as "connected".
-    // Some environments can report connected + srcObject set, but videoWidth/videoHeight stays tiny (e.g. 2x2).
-    const startedAt = Date.now();
-    const waitForRenderableFrames = () => {
-      const v = videoRef.current;
-      if (!v) return;
-
-      const w = v.videoWidth || 0;
-      const h = v.videoHeight || 0;
-      const isRenderable = v.readyState >= 2 && w > 10 && h > 10;
-
-      if (isRenderable) {
-        console.log('✅ [VIEWER] Video frames are renderable:', { w, h, readyState: v.readyState });
-        setViewerState('connected');
-        return;
-      }
-
-      if (Date.now() - startedAt > 8000) {
-        console.warn('❌ [VIEWER] Video never became renderable (timeout)', {
-          w,
-          h,
-          readyState: v.readyState,
-          currentTime: v.currentTime,
-        });
-        setViewerState('error');
-        setErrorMessage(language === 'he'
-          ? 'התחברנו אבל לא התקבל וידאו (ייתכן בעיית מקור/רשת). נסה שוב.'
-          : 'Connected but no video frames arrived. Please try again.');
-        return;
-      }
-
-      videoReadyTimeoutRef.current = window.setTimeout(waitForRenderableFrames, 250);
-    };
-
-    // Debug listeners
-    video.onloadedmetadata = () => {
-      console.log('🎥 [VIEWER] Video metadata loaded:', {
-        videoWidth: video.videoWidth,
-        videoHeight: video.videoHeight,
-        duration: video.duration,
-      });
-      waitForRenderableFrames();
-    };
-
-    video.onplay = () => {
-      console.log('▶️ [VIEWER] Video onplay event fired');
-      waitForRenderableFrames();
-    };
-
-    video.onplaying = () => {
-      console.log('▶️ [VIEWER] Video onplaying event fired');
-      waitForRenderableFrames();
-    };
 
     console.log('🎬 [VIEWER] Attempting video.play()...');
     const playPromise = video.play();
     if (playPromise && typeof (playPromise as Promise<void>).catch === 'function') {
       (playPromise as Promise<void>).then(() => {
         console.log('✅ [VIEWER] Video playing successfully!');
-        console.log('✅ [VIEWER] Video dimensions after play:', {
-          videoWidth: video.videoWidth,
-          videoHeight: video.videoHeight,
-          offsetWidth: video.offsetWidth,
-          offsetHeight: video.offsetHeight,
-        });
-        waitForRenderableFrames();
       }).catch((e) => {
         console.warn('⚠️ [VIEWER] video.play() blocked:', e);
-        // Try to play again after a short delay (helps with desktop emulation)
-        setTimeout(() => {
-          video.play().catch(e2 => console.error('❌ [VIEWER] Retry play failed:', e2));
-        }, 100);
       });
     }
 
-    // Keep UI in connecting until we actually have renderable frames
-    setViewerState('connecting');
-    waitForRenderableFrames();
-  }, [language]);
+    setViewerState('connected');
+    console.log('✅ [VIEWER] State set to CONNECTED');
+  }, []);
 
   const handleRtcError = useCallback((error: string) => {
     console.error('❌ ═══════════════════════════════════════════════════');
@@ -238,34 +142,27 @@ const Viewer: React.FC = () => {
   const manualStopRef = useRef(false);
 
   const handleStatusChange = useCallback((status: RtcSessionStatus) => {
-    console.log('🔄 ═══════════════════════════════════════════════════');
-    console.log('🔄 [VIEWER] RTC Status changed:', status);
-    console.log('🔄 [VIEWER] manualStopRef:', manualStopRef.current);
-    console.log('🔄 [VIEWER] currentViewerState:', viewerState);
-    console.log('🔄 ═══════════════════════════════════════════════════');
-    
+    console.log('🔄 [VIEWER] RTC Status changed:', status, 'manualStop:', manualStopRef.current);
     if (status === 'connecting') {
       console.log('🟡 [VIEWER] State: CONNECTING - Waiting for desktop...');
       setViewerState('connecting');
     } else if (status === 'connected') {
-      // Don't mark UI as connected here; we do it only when video frames are actually renderable.
-      console.log('🟢 [VIEWER] RTC connected (waiting for frames to render)');
-      if (viewerState !== 'connected') setViewerState('connecting');
+      console.log('🟢 [VIEWER] State: CONNECTED - Stream should be visible!');
+      setViewerState('connected');
     } else if (status === 'failed') {
       // Show "ended" if manual stop, otherwise show error
       if (manualStopRef.current) {
-        console.log('✅ [VIEWER] State: ENDED (manual stop, status was failed)');
+        console.log('✅ [VIEWER] State: ENDED (manual stop)');
         setViewerState('ended');
         manualStopRef.current = false;
       } else {
-        console.log('🔴 [VIEWER] State: ERROR (network failure, NOT manual stop)');
-        console.log('🔴 [VIEWER] Expected screen: "שגיאת חיבור" with "נסה שוב" button');
+        console.log('🔴 [VIEWER] State: FAILED');
         setViewerState('error');
       }
     } else if (status === 'ended' || status === 'idle') {
       // If manual stop, show ended state
       if (manualStopRef.current) {
-        console.log('✅ [VIEWER] State: ENDED (manual stop, status was', status, ')');
+        console.log('✅ [VIEWER] State: ENDED (manual stop)');
         setViewerState('ended');
         manualStopRef.current = false;
       } else {
@@ -273,7 +170,7 @@ const Viewer: React.FC = () => {
         setViewerState('idle');
       }
     }
-  }, [viewerState]);
+  }, []);
 
   // RTC Session hook
   const { 
@@ -296,12 +193,6 @@ const Viewer: React.FC = () => {
   // Cleanup stream helper - defined early for use in effects
   const cleanupStream = useCallback(() => {
     console.log('[Viewer] Cleaning up stream');
-
-    if (videoReadyTimeoutRef.current) {
-      window.clearTimeout(videoReadyTimeoutRef.current);
-      videoReadyTimeoutRef.current = null;
-    }
-
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => {
         track.stop();
@@ -374,47 +265,6 @@ const Viewer: React.FC = () => {
       cleanupStream();
     };
   }, [cleanupStream]);
-
-  // Real-time video debug info updater
-  useEffect(() => {
-    const updateDebugInfo = () => {
-      const video = videoRef.current;
-      const stream = mediaStreamRef.current;
-      const videoTrack = stream?.getVideoTracks()?.[0];
-      let trackWidth = 0;
-      let trackHeight = 0;
-      
-      if (videoTrack) {
-        try {
-          const settings = videoTrack.getSettings();
-          trackWidth = settings.width ?? 0;
-          trackHeight = settings.height ?? 0;
-        } catch {
-          // Ignore errors
-        }
-      }
-      
-      setVideoDebugInfo({
-        videoWidth: video?.videoWidth ?? 0,
-        videoHeight: video?.videoHeight ?? 0,
-        readyState: video?.readyState ?? 0,
-        paused: video?.paused ?? true,
-        currentTime: video?.currentTime ?? 0,
-        srcObjectSet: !!video?.srcObject,
-        trackCount: stream?.getTracks()?.length ?? 0,
-        videoTrackWidth: trackWidth,
-        videoTrackHeight: trackHeight,
-        containerWidth: video?.offsetWidth ?? 0,
-        containerHeight: video?.offsetHeight ?? 0,
-      });
-    };
-
-    // Update immediately and every 500ms
-    updateDebugInfo();
-    const interval = setInterval(updateDebugInfo, 500);
-
-    return () => clearInterval(interval);
-  }, [viewerState]);
 
   // Start viewing: connect to RTC session
   // If dashboardSessionId exists, the Dashboard already created the session AND sent the command
@@ -753,24 +603,13 @@ const Viewer: React.FC = () => {
 
         {/* Live View Container */}
         <div className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden aspect-video relative">
-          {/* Video Element - ALWAYS visible (not display:none) for stream attachment compatibility
-              Using opacity and position to hide when not connected, since display:none 
-              can cause issues with srcObject assignment in desktop emulation */}
+          {/* Video Element - Always present but hidden when not connected */}
           <video
             ref={videoRef}
             autoPlay
             playsInline
             muted={isMuted}
-            style={{
-              position: viewerState === 'connected' ? 'relative' : 'absolute',
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              backgroundColor: '#000',
-              opacity: viewerState === 'connected' ? 1 : 0,
-              pointerEvents: viewerState === 'connected' ? 'auto' : 'none',
-              zIndex: viewerState === 'connected' ? 10 : -1,
-            }}
+            className={`w-full h-full object-contain bg-black ${viewerState !== 'connected' ? 'hidden' : ''}`}
           />
 
           {/* Idle State */}
@@ -897,88 +736,6 @@ const Viewer: React.FC = () => {
           <span className="text-xs font-mono text-cyan-400">
             sessionId: {sessionId || 'none'}
           </span>
-        </div>
-
-        {/* Real-time Video + RTC Debug Overlay */}
-        <div className="mt-2 p-3 bg-amber-900/80 border border-amber-500/50 rounded-lg">
-          <div className="text-xs font-mono text-amber-200 space-y-2">
-            <div className="font-bold text-amber-400">🔍 Debug (Real-time)</div>
-
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              <span>Video Dimensions:</span>
-              <span className={videoDebugInfo.videoWidth > 10 ? 'text-green-400' : 'text-red-400'}>
-                {videoDebugInfo.videoWidth} x {videoDebugInfo.videoHeight}
-                {videoDebugInfo.videoWidth <= 10 && ' ⚠️ TOO SMALL!'}
-              </span>
-              
-              <span>Track Settings:</span>
-              <span className={videoDebugInfo.videoTrackWidth > 0 ? 'text-green-400' : 'text-yellow-400'}>
-                {videoDebugInfo.videoTrackWidth} x {videoDebugInfo.videoTrackHeight}
-              </span>
-              
-              <span>Container Size:</span>
-              <span className="text-cyan-400">
-                {videoDebugInfo.containerWidth} x {videoDebugInfo.containerHeight}
-              </span>
-              
-              <span>readyState:</span>
-              <span className={videoDebugInfo.readyState >= 3 ? 'text-green-400' : 'text-yellow-400'}>
-                {videoDebugInfo.readyState} {videoDebugInfo.readyState === 0 && '(HAVE_NOTHING)'}
-                {videoDebugInfo.readyState === 1 && '(HAVE_METADATA)'}
-                {videoDebugInfo.readyState === 2 && '(HAVE_CURRENT_DATA)'}
-                {videoDebugInfo.readyState === 3 && '(HAVE_FUTURE_DATA)'}
-                {videoDebugInfo.readyState === 4 && '(HAVE_ENOUGH_DATA)'}
-              </span>
-              
-              <span>Paused:</span>
-              <span className={!videoDebugInfo.paused ? 'text-green-400' : 'text-red-400'}>
-                {videoDebugInfo.paused ? 'YES ❌' : 'NO ▶️'}
-              </span>
-              
-              <span>srcObject:</span>
-              <span className={videoDebugInfo.srcObjectSet ? 'text-green-400' : 'text-red-400'}>
-                {videoDebugInfo.srcObjectSet ? 'SET ✓' : 'NULL ❌'}
-              </span>
-              
-              <span>Track Count:</span>
-              <span className={videoDebugInfo.trackCount > 0 ? 'text-green-400' : 'text-red-400'}>
-                {videoDebugInfo.trackCount}
-              </span>
-              
-              <span>Current Time:</span>
-              <span className="text-cyan-400">
-                {videoDebugInfo.currentTime.toFixed(2)}s
-              </span>
-              
-              <span>viewerState:</span>
-              <span className={viewerState === 'connected' ? 'text-green-400' : 'text-yellow-400'}>
-                {viewerState}
-              </span>
-            </div>
-
-            <div className="h-px bg-amber-500/30" />
-
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              <span>RTC status:</span>
-              <span className="text-cyan-200">{rtcDebugInfo?.status ?? 'n/a'}</span>
-
-              <span>PC state:</span>
-              <span className="text-cyan-200">{rtcDebugInfo?.connectionState ?? 'n/a'}</span>
-
-              <span>ICE state:</span>
-              <span className="text-cyan-200">{rtcDebugInfo?.iceConnectionState ?? 'n/a'}</span>
-
-              <span>Signals:</span>
-              <span className="text-cyan-200">
-                proc {rtcDebugInfo?.signalsProcessed ?? 0} | offer {rtcDebugInfo?.signalCounts?.offersReceived ?? 0} | ans {rtcDebugInfo?.signalCounts?.answersSent ?? 0} | iceR {rtcDebugInfo?.signalCounts?.iceReceived ?? 0} | iceS {rtcDebugInfo?.signalCounts?.iceSent ?? 0}
-              </span>
-
-              <span>Last error:</span>
-              <span className={rtcDebugInfo?.lastError ? 'text-red-300' : 'text-green-300'}>
-                {rtcDebugInfo?.lastError ? rtcDebugInfo.lastError.slice(0, 90) : 'none'}
-              </span>
-            </div>
-          </div>
         </div>
       </div>
     );
