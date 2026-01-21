@@ -23,7 +23,7 @@ serve(async (req) => {
     }
 
     // Metered.ca API endpoint for getting ICE servers
-    const meteredDomain = 'cozyprojectlovable.metered.live';
+    const meteredDomain = 'aiguard.metered.live';
     const apiUrl = `https://${meteredDomain}/api/v1/turn/credentials?apiKey=${METERED_SECRET_KEY}`;
 
     console.log('Fetching TURN credentials from Metered.ca...');
