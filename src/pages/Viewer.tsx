@@ -497,6 +497,32 @@ const Viewer: React.FC = () => {
   const ArrowIcon = isRTL ? ArrowRight : ArrowLeft;
 
   const renderViewerContent = () => {
+    // CRITICAL: Check 'ended' state FIRST before any other checks
+    // This ensures the "Stream Ended" screen stays visible after manual stop
+    if (viewerState === 'ended') {
+      return (
+        <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 p-12 text-center">
+          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 flex items-center justify-center mx-auto mb-6">
+            <Video className="w-10 h-10 text-green-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-3">
+            {language === 'he' ? 'השידור הסתיים' : 'Stream Ended'}
+          </h2>
+          <p className="text-white/60 mb-6">
+            {language === 'he'
+              ? 'נא לחץ על הכפתור חזרה לדשבורד'
+              : 'Please click the button to return to dashboard'}
+          </p>
+          <Link to="/dashboard">
+            <Button className="bg-primary hover:bg-primary/90">
+              <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+              {language === 'he' ? 'חזרה לדשבורד' : 'Back to Dashboard'}
+            </Button>
+          </Link>
+        </div>
+      );
+    }
+
     if (loading || liveStateLoading) {
       return (
         <div className="flex flex-col items-center justify-center py-16">
@@ -655,28 +681,7 @@ const Viewer: React.FC = () => {
             </div>
           )}
 
-          {/* Ended State - After user manually stops */}
-          {viewerState === 'ended' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 flex items-center justify-center mb-6">
-                <Video className="w-10 h-10 text-green-400" />
-              </div>
-              <h3 className="text-lg font-medium text-white mb-2">
-                {language === 'he' ? 'השידור הסתיים' : 'Stream Ended'}
-              </h3>
-              <p className="text-white/60 text-sm text-center max-w-xs mb-6">
-                {language === 'he'
-                  ? 'השידור הופסק בהצלחה'
-                  : 'The stream was stopped successfully'}
-              </p>
-              <Link to="/dashboard">
-                <Button className="bg-primary hover:bg-primary/90">
-                  <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  {language === 'he' ? 'חזרה לדשבורד' : 'Back to Dashboard'}
-                </Button>
-              </Link>
-            </div>
-          )}
+          {/* Ended State is now handled at top of renderViewerContent */}
 
           {/* Controls Overlay - Only when connected */}
           {viewerState === 'connected' && (
@@ -716,14 +721,12 @@ const Viewer: React.FC = () => {
             viewerState === 'connected' ? 'bg-green-500 animate-pulse' :
             viewerState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
             viewerState === 'error' ? 'bg-red-500' :
-            viewerState === 'ended' ? 'bg-green-500' :
             'bg-slate-500'
           }`} />
           <span className="text-white/60">
             {viewerState === 'connected' && (language === 'he' ? 'שידור פעיל' : 'Stream Active')}
             {viewerState === 'connecting' && (language === 'he' ? 'מתחבר...' : 'Connecting...')}
             {viewerState === 'error' && (language === 'he' ? 'שגיאה' : 'Error')}
-            {viewerState === 'ended' && (language === 'he' ? 'השידור הסתיים' : 'Stream Ended')}
             {viewerState === 'idle' && (language === 'he' ? 'ממתין לשידור' : 'Waiting for stream')}
           </span>
         </div>
