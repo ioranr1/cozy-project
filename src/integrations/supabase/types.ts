@@ -151,6 +151,44 @@ export type Database = {
           },
         ]
       }
+      device_status: {
+        Row: {
+          created_at: string
+          device_id: string
+          id: string
+          is_armed: boolean
+          last_command: string | null
+          last_command_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          id?: string
+          is_armed?: boolean
+          last_command?: string | null
+          last_command_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          id?: string
+          is_armed?: boolean
+          last_command?: string | null
+          last_command_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_status_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: true
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       devices: {
         Row: {
           created_at: string
