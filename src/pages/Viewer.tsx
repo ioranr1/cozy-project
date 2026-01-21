@@ -644,19 +644,23 @@ const Viewer: React.FC = () => {
 
         {/* Live View Container */}
         <div className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden aspect-video relative">
-          {/* Video Element - Always present, visibility controlled for desktop emulation compatibility */}
+          {/* Video Element - ALWAYS visible (not display:none) for stream attachment compatibility
+              Using opacity and position to hide when not connected, since display:none 
+              can cause issues with srcObject assignment in desktop emulation */}
           <video
             ref={videoRef}
             autoPlay
             playsInline
             muted={isMuted}
             style={{
-              // Use inline styles for better cross-browser compatibility (especially desktop emulation)
+              position: viewerState === 'connected' ? 'relative' : 'absolute',
               width: '100%',
               height: '100%',
               objectFit: 'contain',
               backgroundColor: '#000',
-              display: viewerState === 'connected' ? 'block' : 'none',
+              opacity: viewerState === 'connected' ? 1 : 0,
+              pointerEvents: viewerState === 'connected' ? 'auto' : 'none',
+              zIndex: viewerState === 'connected' ? 10 : -1,
             }}
           />
 
