@@ -14,6 +14,7 @@ import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { useRemoteCommand, CommandType } from '@/hooks/useRemoteCommand';
 import { useLiveViewState } from '@/hooks/useLiveViewState';
 import { toast } from 'sonner';
+import { SecurityArmToggle } from '@/components/SecurityArmToggle';
 
 interface UserProfile {
   id?: string;
@@ -334,6 +335,9 @@ const Dashboard: React.FC = () => {
         />
 
         <div className="p-4 space-y-4">
+          {/* Security Arm Toggle - Main Control */}
+          <SecurityArmToggle />
+
           {/* Connection Status with Command Feedback */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
             <div className="flex items-center justify-between">
