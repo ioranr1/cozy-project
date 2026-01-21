@@ -597,6 +597,9 @@ export function useRtcSession({
     };
 
     // Handle incoming tracks (video stream from desktop)
+    // We need to wait for the VIDEO track specifically, not just any track
+    let streamForCallback: MediaStream | null = null;
+    
     pc.ontrack = (event) => {
       console.log('[viewer] ontrack fired');
       console.log('[useRtcSession] 🎥 Track received:', {
@@ -608,10 +611,18 @@ export function useRtcSession({
         trackReadyState: event.track.readyState,
       });
 
-      const stream = event.streams?.[0] ?? new MediaStream([event.track]);
+      // Get or create the stream
+      const stream = event.streams?.[0] ?? streamForCallback ?? new MediaStream();
+      
+      // Add the track to the stream if it wasn't already there
+      if (!stream.getTracks().find(t => t.id === event.track.id)) {
+        stream.addTrack(event.track);
+      }
+      
+      streamForCallback = stream;
 
       console.log(
-        '[viewer] stream tracks:',
+        '[viewer] stream tracks after adding:',
         stream.getTracks().map((t) => ({
           kind: t.kind,
           id: t.id,
@@ -621,7 +632,31 @@ export function useRtcSession({
         }))
       );
 
-      onStreamReceived(stream);
+      // Only call onStreamReceived when we have a VIDEO track
+      const hasVideoTrack = stream.getVideoTracks().length > 0;
+      const videoTrack = stream.getVideoTracks()[0];
+      
+      if (hasVideoTrack && videoTrack) {
+        console.log('[viewer] ✅ Video track found, checking settings...');
+        
+        // Log video track settings for debugging
+        try {
+          const settings = videoTrack.getSettings();
+          console.log('[viewer] Video track settings:', {
+            width: settings.width,
+            height: settings.height,
+            frameRate: settings.frameRate,
+            deviceId: settings.deviceId,
+          });
+        } catch (e) {
+          console.log('[viewer] Could not get track settings:', e);
+        }
+
+        // Send stream to viewer
+        onStreamReceived(stream);
+      } else {
+        console.log('[viewer] ⏳ Waiting for video track... (got', event.track.kind, 'track)');
+      }
     };
 
     // NOTE: We do NOT add transceivers here. 
