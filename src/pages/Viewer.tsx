@@ -384,8 +384,25 @@ const Viewer: React.FC = () => {
     }
   };
 
-  const handleRetry = () => {
+  const handleRetry = async () => {
+    console.log('[Viewer] Retry clicked - resetting state completely');
+    
+    // 1. Reset error message
     setErrorMessage(null);
+    
+    // 2. Clean up any lingering stream
+    cleanupStream();
+    
+    // 3. Stop previous session completely (but don't send stop command)
+    await stopSession();
+    
+    // 4. Reset viewer state to idle BEFORE starting
+    setViewerState('idle');
+    
+    // 5. Small delay to ensure state is reset
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 6. Now start fresh
     handleStartViewing();
   };
 

@@ -752,6 +752,8 @@ export function useRtcSession({
     console.log('[useRtcSession] Stopping session');
     await cleanup('ended');
     setSessionId(null);
+    // Reset ALL state including status to allow fresh start
+    setStatus('idle');
     // Reset debug state
     setConnectionState(null);
     setIceConnectionState(null);
