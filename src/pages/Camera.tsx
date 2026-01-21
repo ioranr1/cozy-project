@@ -4,8 +4,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobileDevice } from '@/hooks/use-platform';
-import { Shield, ArrowLeft, ArrowRight, Video, VideoOff, Settings, Maximize, Minimize, Smartphone, AlertCircle, Lock, RefreshCw } from 'lucide-react';
-
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Shield, ArrowLeft, ArrowRight, Video, VideoOff, Maximize, Minimize, Smartphone, Lock, RefreshCw, Camera as CameraIcon, MousePointer, CheckCircle } from 'lucide-react';
 const Camera: React.FC = () => {
   const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
@@ -18,6 +18,7 @@ const Camera: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
 
   const startCamera = useCallback(async () => {
     try {
@@ -49,6 +50,7 @@ const Camera: React.FC = () => {
       setPermissionDenied(isPermissionError);
       
       if (isPermissionError) {
+        setShowPermissionDialog(true);
         setError(language === 'he' 
           ? 'הגישה למצלמה נחסמה. יש לאשר הרשאות בדפדפן.'
           : 'Camera access was blocked. Please allow permissions in your browser.');
@@ -207,7 +209,7 @@ const Camera: React.FC = () => {
               </div>
             )}
 
-            {/* Permission Denied Help */}
+            {/* Permission Denied - Simple Message */}
             {!isStreaming && permissionDenied && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 p-6">
                 <div className="w-16 h-16 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center mb-4">
@@ -216,46 +218,16 @@ const Camera: React.FC = () => {
                 <h3 className="text-white text-lg font-bold mb-2">
                   {language === 'he' ? 'הגישה למצלמה נחסמה' : 'Camera Access Blocked'}
                 </h3>
-                <p className="text-white/60 text-sm text-center mb-6 max-w-md">
+                <p className="text-white/60 text-sm text-center mb-4 max-w-md">
                   {language === 'he' 
-                    ? 'הדפדפן חסם את הגישה למצלמה. יש לאשר הרשאות כדי להמשיך.'
-                    : 'Your browser blocked camera access. You need to allow permissions to continue.'}
+                    ? 'יש לאשר הרשאות מצלמה כדי להמשיך'
+                    : 'Camera permissions required to continue'}
                 </p>
-                
-                <div className={`bg-slate-700/50 rounded-xl p-4 max-w-md w-full mb-4 ${isRTL ? 'text-right' : 'text-left'}`}>
-                  <p className="text-amber-400 text-sm font-medium mb-3">
-                    {language === 'he' ? 'איך לאשר:' : 'How to allow:'}
-                  </p>
-                  <ol className={`text-white/70 text-sm space-y-2 ${isRTL ? 'pr-4' : 'pl-4'}`}>
-                    <li className="list-decimal">
-                      {language === 'he' 
-                        ? 'לחץ על אייקון המנעול 🔒 בסרגל הכתובות'
-                        : 'Click the lock icon 🔒 in the address bar'}
-                    </li>
-                    <li className="list-decimal">
-                      {language === 'he'
-                        ? 'בחר "הגדרות אתר" או "Site settings"'
-                        : 'Select "Site settings"'}
-                    </li>
-                    <li className="list-decimal">
-                      {language === 'he'
-                        ? 'שנה את "מצלמה" ל"אפשר"'
-                        : 'Change "Camera" to "Allow"'}
-                    </li>
-                    <li className="list-decimal">
-                      {language === 'he'
-                        ? 'רענן את הדף ונסה שוב'
-                        : 'Refresh the page and try again'}
-                    </li>
-                  </ol>
-                </div>
-
                 <Button
-                  onClick={() => window.location.reload()}
+                  onClick={() => setShowPermissionDialog(true)}
                   className="bg-primary hover:bg-primary/90"
                 >
-                  <RefreshCw className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  {language === 'he' ? 'רענן דף' : 'Refresh Page'}
+                  {language === 'he' ? 'הצג הוראות' : 'Show Instructions'}
                 </Button>
               </div>
             )}
@@ -341,6 +313,107 @@ const Camera: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Permission Help Dialog */}
+      <Dialog open={showPermissionDialog} onOpenChange={setShowPermissionDialog}>
+        <DialogContent className="sm:max-w-lg bg-slate-800 border-slate-700 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                <CameraIcon className="w-5 h-5 text-primary" />
+              </div>
+              {language === 'he' ? 'אישור גישה למצלמה' : 'Allow Camera Access'}
+            </DialogTitle>
+            <DialogDescription className="text-white/60 pt-2">
+              {language === 'he' 
+                ? 'בצע את הצעדים הבאים כדי לאשר גישה למצלמה:'
+                : 'Follow these steps to allow camera access:'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Step 1 */}
+            <div className={`flex items-start gap-4 p-4 rounded-xl bg-slate-700/50 ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-primary font-bold">1</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium mb-1">
+                  {language === 'he' ? 'לחץ על אייקון המנעול' : 'Click the lock icon'}
+                </p>
+                <p className="text-white/60 text-sm">
+                  {language === 'he' 
+                    ? 'נמצא בצד שמאל של שורת הכתובת בדפדפן'
+                    : 'Located on the left side of the address bar'}
+                </p>
+                <div className="mt-2 flex items-center gap-2 bg-slate-600/50 rounded-lg px-3 py-2 w-fit">
+                  <Lock className="w-4 h-4 text-white/70" />
+                  <span className="text-white/70 text-sm font-mono">🔒</span>
+                  <MousePointer className="w-4 h-4 text-amber-400 animate-pulse" />
+                </div>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className={`flex items-start gap-4 p-4 rounded-xl bg-slate-700/50 ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-primary font-bold">2</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium mb-1">
+                  {language === 'he' ? 'שנה הרשאת מצלמה ל"אפשר"' : 'Change Camera to "Allow"'}
+                </p>
+                <p className="text-white/60 text-sm">
+                  {language === 'he' 
+                    ? 'בחר "מצלמה" ושנה את ההגדרה'
+                    : 'Select "Camera" and change the setting'}
+                </p>
+                <div className="mt-2 flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-lg px-3 py-2 w-fit">
+                  <CameraIcon className="w-4 h-4 text-green-400" />
+                  <span className="text-green-400 text-sm font-medium">
+                    {language === 'he' ? 'אפשר' : 'Allow'}
+                  </span>
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                </div>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className={`flex items-start gap-4 p-4 rounded-xl bg-slate-700/50 ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
+              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                <span className="text-primary font-bold">3</span>
+              </div>
+              <div className="flex-1">
+                <p className="text-white font-medium mb-1">
+                  {language === 'he' ? 'רענן את הדף' : 'Refresh the page'}
+                </p>
+                <p className="text-white/60 text-sm">
+                  {language === 'he' 
+                    ? 'לחץ על הכפתור למטה כדי לרענן ולנסות שוב'
+                    : 'Click the button below to refresh and try again'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-2">
+            <Button
+              onClick={() => window.location.reload()}
+              className="w-full bg-primary hover:bg-primary/90 py-6 text-lg"
+            >
+              <RefreshCw className={`w-5 h-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+              {language === 'he' ? 'רענן דף ונסה שוב' : 'Refresh & Try Again'}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setShowPermissionDialog(false)}
+              className="text-white/60 hover:text-white hover:bg-slate-700"
+            >
+              {language === 'he' ? 'סגור' : 'Close'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
