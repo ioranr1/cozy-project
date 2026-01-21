@@ -142,7 +142,12 @@ const Viewer: React.FC = () => {
   const manualStopRef = useRef(false);
 
   const handleStatusChange = useCallback((status: RtcSessionStatus) => {
-    console.log('🔄 [VIEWER] RTC Status changed:', status, 'manualStop:', manualStopRef.current);
+    console.log('🔄 ═══════════════════════════════════════════════════');
+    console.log('🔄 [VIEWER] RTC Status changed:', status);
+    console.log('🔄 [VIEWER] manualStopRef:', manualStopRef.current);
+    console.log('🔄 [VIEWER] currentViewerState:', viewerState);
+    console.log('🔄 ═══════════════════════════════════════════════════');
+    
     if (status === 'connecting') {
       console.log('🟡 [VIEWER] State: CONNECTING - Waiting for desktop...');
       setViewerState('connecting');
@@ -152,17 +157,18 @@ const Viewer: React.FC = () => {
     } else if (status === 'failed') {
       // Show "ended" if manual stop, otherwise show error
       if (manualStopRef.current) {
-        console.log('✅ [VIEWER] State: ENDED (manual stop)');
+        console.log('✅ [VIEWER] State: ENDED (manual stop, status was failed)');
         setViewerState('ended');
         manualStopRef.current = false;
       } else {
-        console.log('🔴 [VIEWER] State: FAILED');
+        console.log('🔴 [VIEWER] State: ERROR (network failure, NOT manual stop)');
+        console.log('🔴 [VIEWER] Expected screen: "שגיאת חיבור" with "נסה שוב" button');
         setViewerState('error');
       }
     } else if (status === 'ended' || status === 'idle') {
       // If manual stop, show ended state
       if (manualStopRef.current) {
-        console.log('✅ [VIEWER] State: ENDED (manual stop)');
+        console.log('✅ [VIEWER] State: ENDED (manual stop, status was', status, ')');
         setViewerState('ended');
         manualStopRef.current = false;
       } else {
@@ -170,7 +176,7 @@ const Viewer: React.FC = () => {
         setViewerState('idle');
       }
     }
-  }, []);
+  }, [viewerState]);
 
   // RTC Session hook
   const { 
