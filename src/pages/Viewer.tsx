@@ -899,10 +899,11 @@ const Viewer: React.FC = () => {
           </span>
         </div>
 
-        {/* Real-time Video Debug Overlay */}
+        {/* Real-time Video + RTC Debug Overlay */}
         <div className="mt-2 p-3 bg-amber-900/80 border border-amber-500/50 rounded-lg">
-          <div className="text-xs font-mono text-amber-200 space-y-1">
-            <div className="font-bold text-amber-400 mb-2">🔍 Video Debug Info (Real-time)</div>
+          <div className="text-xs font-mono text-amber-200 space-y-2">
+            <div className="font-bold text-amber-400">🔍 Debug (Real-time)</div>
+
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
               <span>Video Dimensions:</span>
               <span className={videoDebugInfo.videoWidth > 10 ? 'text-green-400' : 'text-red-400'}>
@@ -952,6 +953,29 @@ const Viewer: React.FC = () => {
               <span>viewerState:</span>
               <span className={viewerState === 'connected' ? 'text-green-400' : 'text-yellow-400'}>
                 {viewerState}
+              </span>
+            </div>
+
+            <div className="h-px bg-amber-500/30" />
+
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              <span>RTC status:</span>
+              <span className="text-cyan-200">{rtcDebugInfo?.status ?? 'n/a'}</span>
+
+              <span>PC state:</span>
+              <span className="text-cyan-200">{rtcDebugInfo?.connectionState ?? 'n/a'}</span>
+
+              <span>ICE state:</span>
+              <span className="text-cyan-200">{rtcDebugInfo?.iceConnectionState ?? 'n/a'}</span>
+
+              <span>Signals:</span>
+              <span className="text-cyan-200">
+                proc {rtcDebugInfo?.signalsProcessed ?? 0} | offer {rtcDebugInfo?.signalCounts?.offersReceived ?? 0} | ans {rtcDebugInfo?.signalCounts?.answersSent ?? 0} | iceR {rtcDebugInfo?.signalCounts?.iceReceived ?? 0} | iceS {rtcDebugInfo?.signalCounts?.iceSent ?? 0}
+              </span>
+
+              <span>Last error:</span>
+              <span className={rtcDebugInfo?.lastError ? 'text-red-300' : 'text-green-300'}>
+                {rtcDebugInfo?.lastError ? rtcDebugInfo.lastError.slice(0, 90) : 'none'}
               </span>
             </div>
           </div>
