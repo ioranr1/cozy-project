@@ -52,8 +52,8 @@ const Camera: React.FC = () => {
       if (isPermissionError) {
         setShowPermissionDialog(true);
         setError(language === 'he' 
-          ? 'הגישה למצלמה נחסמה. יש לאשר הרשאות בדפדפן.'
-          : 'Camera access was blocked. Please allow permissions in your browser.');
+          ? 'הגישה למצלמה ולמיקרופון נחסמה. יש לאשר הרשאות בדפדפן.'
+          : 'Camera and microphone access was blocked. Please allow permissions in your browser.');
       } else {
         setError(language === 'he' 
           ? 'לא ניתן לגשת למצלמה. ודא שהמצלמה מחוברת ולא בשימוש.'
@@ -217,12 +217,12 @@ const Camera: React.FC = () => {
                   <Lock className="w-8 h-8 text-red-400" />
                 </div>
                 <h3 className="text-white text-lg font-bold mb-2">
-                  {language === 'he' ? 'הגישה למצלמה נחסמה' : 'Camera Access Blocked'}
+                  {language === 'he' ? 'הגישה למצלמה ומיקרופון נחסמה' : 'Camera & Microphone Access Blocked'}
                 </h3>
                 <p className="text-white/60 text-sm text-center mb-4 max-w-md">
                   {language === 'he' 
-                    ? 'יש לאשר הרשאות מצלמה כדי להמשיך'
-                    : 'Camera permissions required to continue'}
+                    ? 'יש לאשר הרשאות מצלמה ומיקרופון כדי להמשיך'
+                    : 'Camera and microphone permissions required to continue'}
                 </p>
                 <Button
                   onClick={() => setShowPermissionDialog(true)}
@@ -323,12 +323,12 @@ const Camera: React.FC = () => {
               <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
                 <CameraIcon className="w-5 h-5 text-primary" />
               </div>
-              {language === 'he' ? 'אישור גישה למצלמה' : 'Allow Camera Access'}
+              {language === 'he' ? 'אישור גישה למצלמה ומיקרופון' : 'Allow Camera & Microphone Access'}
             </DialogTitle>
             <DialogDescription className="text-white/60 pt-2">
               {language === 'he' 
-                ? 'בצע את הצעדים הבאים כדי לאשר גישה למצלמה:'
-                : 'Follow these steps to allow camera access:'}
+                ? 'בצע את הצעדים הבאים כדי לאשר גישה למצלמה ולמיקרופון:'
+                : 'Follow these steps to allow camera and microphone access:'}
             </DialogDescription>
           </DialogHeader>
 
@@ -362,19 +362,28 @@ const Camera: React.FC = () => {
               </div>
               <div className="flex-1">
                 <p className="text-white font-medium mb-1">
-                  {language === 'he' ? 'שנה הרשאת מצלמה ל"אפשר"' : 'Change Camera to "Allow"'}
+                  {language === 'he' ? 'שנה הרשאות מצלמה ומיקרופון ל"אפשר"' : 'Change Camera & Microphone to "Allow"'}
                 </p>
                 <p className="text-white/60 text-sm">
                   {language === 'he' 
-                    ? 'בחר "מצלמה" ושנה את ההגדרה'
-                    : 'Select "Camera" and change the setting'}
+                    ? 'בחר כל אחד ושנה את ההגדרה'
+                    : 'Select each one and change the setting'}
                 </p>
-                <div className="mt-2 flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-lg px-3 py-2 w-fit">
-                  <CameraIcon className="w-4 h-4 text-green-400" />
-                  <span className="text-green-400 text-sm font-medium">
-                    {language === 'he' ? 'אפשר' : 'Allow'}
-                  </span>
-                  <CheckCircle className="w-4 h-4 text-green-400" />
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-lg px-3 py-2">
+                    <CameraIcon className="w-4 h-4 text-green-400" />
+                    <span className="text-green-400 text-sm font-medium">
+                      {language === 'he' ? 'אפשר' : 'Allow'}
+                    </span>
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                  </div>
+                  <div className="flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-lg px-3 py-2">
+                    <span className="text-green-400 text-sm">🎤</span>
+                    <span className="text-green-400 text-sm font-medium">
+                      {language === 'he' ? 'אפשר' : 'Allow'}
+                    </span>
+                    <CheckCircle className="w-4 h-4 text-green-400" />
+                  </div>
                 </div>
               </div>
             </div>
