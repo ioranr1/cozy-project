@@ -13,7 +13,7 @@ import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { laptopDeviceId } from '@/config/devices';
 import { toast } from 'sonner';
 
-type ViewerState = 'idle' | 'connecting' | 'connected' | 'error';
+type ViewerState = 'idle' | 'connecting' | 'connected' | 'error' | 'ended';
 
 interface Device {
   id: string;
@@ -138,7 +138,7 @@ const Viewer: React.FC = () => {
     setViewerState('error');
   }, []);
 
-  // Track if user manually stopped (to avoid showing error)
+  // Track if user manually stopped (to show "ended" instead of "error")
   const manualStopRef = useRef(false);
 
   const handleStatusChange = useCallback((status: RtcSessionStatus) => {
@@ -150,19 +150,25 @@ const Viewer: React.FC = () => {
       console.log('🟢 [VIEWER] State: CONNECTED - Stream should be visible!');
       setViewerState('connected');
     } else if (status === 'failed') {
-      // Only show error if NOT a manual stop
+      // Show "ended" if manual stop, otherwise show error
       if (manualStopRef.current) {
-        console.log('⚪ [VIEWER] State: IDLE (manual stop, not error)');
-        setViewerState('idle');
+        console.log('✅ [VIEWER] State: ENDED (manual stop)');
+        setViewerState('ended');
         manualStopRef.current = false;
       } else {
         console.log('🔴 [VIEWER] State: FAILED');
         setViewerState('error');
       }
     } else if (status === 'ended' || status === 'idle') {
-      console.log('⚪ [VIEWER] State: IDLE');
-      setViewerState('idle');
-      manualStopRef.current = false;
+      // If manual stop, show ended state
+      if (manualStopRef.current) {
+        console.log('✅ [VIEWER] State: ENDED (manual stop)');
+        setViewerState('ended');
+        manualStopRef.current = false;
+      } else {
+        console.log('⚪ [VIEWER] State: IDLE');
+        setViewerState('idle');
+      }
     }
   }, []);
 
@@ -333,8 +339,8 @@ const Viewer: React.FC = () => {
       await sendCommand('STOP_LIVE_VIEW');
     }
 
-    // 4. Reset viewer state
-    setViewerState('idle');
+    // 4. Reset viewer state to "ended" (not idle - shows user that stream ended)
+    setViewerState('ended');
     setErrorMessage(null);
 
     // 5. Clear alert params if from alert
@@ -642,6 +648,29 @@ const Viewer: React.FC = () => {
             </div>
           )}
 
+          {/* Ended State - After user manually stops */}
+          {viewerState === 'ended' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90">
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-600/20 to-green-800/20 border border-green-500/30 flex items-center justify-center mb-6">
+                <Video className="w-10 h-10 text-green-400" />
+              </div>
+              <h3 className="text-lg font-medium text-white mb-2">
+                {language === 'he' ? 'השידור הסתיים' : 'Stream Ended'}
+              </h3>
+              <p className="text-white/60 text-sm text-center max-w-xs mb-6">
+                {language === 'he'
+                  ? 'השידור הופסק בהצלחה'
+                  : 'The stream was stopped successfully'}
+              </p>
+              <Link to="/dashboard">
+                <Button className="bg-primary hover:bg-primary/90">
+                  <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'חזרה לדשבורד' : 'Back to Dashboard'}
+                </Button>
+              </Link>
+            </div>
+          )}
+
           {/* Controls Overlay - Only when connected */}
           {viewerState === 'connected' && (
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
@@ -680,12 +709,14 @@ const Viewer: React.FC = () => {
             viewerState === 'connected' ? 'bg-green-500 animate-pulse' :
             viewerState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
             viewerState === 'error' ? 'bg-red-500' :
+            viewerState === 'ended' ? 'bg-green-500' :
             'bg-slate-500'
           }`} />
           <span className="text-white/60">
             {viewerState === 'connected' && (language === 'he' ? 'שידור פעיל' : 'Stream Active')}
             {viewerState === 'connecting' && (language === 'he' ? 'מתחבר...' : 'Connecting...')}
             {viewerState === 'error' && (language === 'he' ? 'שגיאה' : 'Error')}
+            {viewerState === 'ended' && (language === 'he' ? 'השידור הסתיים' : 'Stream Ended')}
             {viewerState === 'idle' && (language === 'he' ? 'ממתין לשידור' : 'Waiting for stream')}
           </span>
         </div>
