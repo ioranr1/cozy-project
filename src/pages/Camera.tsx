@@ -4,7 +4,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobileDevice } from '@/hooks/use-platform';
-import { Shield, ArrowLeft, ArrowRight, Video, VideoOff, Settings, Maximize, Minimize, Smartphone } from 'lucide-react';
+import { Shield, ArrowLeft, ArrowRight, Video, VideoOff, Settings, Maximize, Minimize, Smartphone, AlertCircle, Lock, RefreshCw } from 'lucide-react';
 
 const Camera: React.FC = () => {
   const { language, isRTL } = useLanguage();
@@ -17,6 +17,7 @@ const Camera: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   const startCamera = useCallback(async () => {
     try {
@@ -43,9 +44,19 @@ const Camera: React.FC = () => {
       });
     } catch (err: any) {
       console.error('Camera error:', err);
-      setError(language === 'he' 
-        ? 'לא ניתן לגשת למצלמה. אנא אשר הרשאות.'
-        : 'Cannot access camera. Please allow permissions.');
+      
+      const isPermissionError = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+      setPermissionDenied(isPermissionError);
+      
+      if (isPermissionError) {
+        setError(language === 'he' 
+          ? 'הגישה למצלמה נחסמה. יש לאשר הרשאות בדפדפן.'
+          : 'Camera access was blocked. Please allow permissions in your browser.');
+      } else {
+        setError(language === 'he' 
+          ? 'לא ניתן לגשת למצלמה. ודא שהמצלמה מחוברת ולא בשימוש.'
+          : 'Cannot access camera. Make sure it is connected and not in use.');
+      }
       
       toast({
         title: language === 'he' ? 'שגיאה' : 'Error',
@@ -180,7 +191,7 @@ const Camera: React.FC = () => {
             />
 
             {/* Placeholder when not streaming */}
-            {!isStreaming && (
+            {!isStreaming && !permissionDenied && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800">
                 <div className="w-20 h-20 rounded-2xl bg-slate-700/50 flex items-center justify-center mb-4">
                   <VideoOff className="w-10 h-10 text-white/40" />
@@ -188,11 +199,64 @@ const Camera: React.FC = () => {
                 <p className="text-white/60 text-lg">
                   {language === 'he' ? 'המצלמה כבויה' : 'Camera is off'}
                 </p>
-                {error && (
+                {error && !permissionDenied && (
                   <p className="text-red-400 text-sm mt-2 max-w-sm text-center px-4">
                     {error}
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Permission Denied Help */}
+            {!isStreaming && permissionDenied && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-800 p-6">
+                <div className="w-16 h-16 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center mb-4">
+                  <Lock className="w-8 h-8 text-red-400" />
+                </div>
+                <h3 className="text-white text-lg font-bold mb-2">
+                  {language === 'he' ? 'הגישה למצלמה נחסמה' : 'Camera Access Blocked'}
+                </h3>
+                <p className="text-white/60 text-sm text-center mb-6 max-w-md">
+                  {language === 'he' 
+                    ? 'הדפדפן חסם את הגישה למצלמה. יש לאשר הרשאות כדי להמשיך.'
+                    : 'Your browser blocked camera access. You need to allow permissions to continue.'}
+                </p>
+                
+                <div className={`bg-slate-700/50 rounded-xl p-4 max-w-md w-full mb-4 ${isRTL ? 'text-right' : 'text-left'}`}>
+                  <p className="text-amber-400 text-sm font-medium mb-3">
+                    {language === 'he' ? 'איך לאשר:' : 'How to allow:'}
+                  </p>
+                  <ol className={`text-white/70 text-sm space-y-2 ${isRTL ? 'pr-4' : 'pl-4'}`}>
+                    <li className="list-decimal">
+                      {language === 'he' 
+                        ? 'לחץ על אייקון המנעול 🔒 בסרגל הכתובות'
+                        : 'Click the lock icon 🔒 in the address bar'}
+                    </li>
+                    <li className="list-decimal">
+                      {language === 'he'
+                        ? 'בחר "הגדרות אתר" או "Site settings"'
+                        : 'Select "Site settings"'}
+                    </li>
+                    <li className="list-decimal">
+                      {language === 'he'
+                        ? 'שנה את "מצלמה" ל"אפשר"'
+                        : 'Change "Camera" to "Allow"'}
+                    </li>
+                    <li className="list-decimal">
+                      {language === 'he'
+                        ? 'רענן את הדף ונסה שוב'
+                        : 'Refresh the page and try again'}
+                    </li>
+                  </ol>
+                </div>
+
+                <Button
+                  onClick={() => window.location.reload()}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'רענן דף' : 'Refresh Page'}
+                </Button>
               </div>
             )}
 
