@@ -493,20 +493,32 @@ export function useRtcSession({
         });
 
         // Process any new signals we haven't seen
+        // CRITICAL: Process ALL signals we haven't processed yet, regardless of ID order
+        // The offer might have a lower ID than ICE candidates that arrived first
         if (rows && rows.length > 0) {
-          // Reverse to process oldest first
+          // Reverse to process oldest first (by created_at, not ID)
           const sortedRows = [...rows].reverse();
-          for (const signal of sortedRows) {
-            if (signal.id > lastPolledIdRef.current && signal.from_role === 'desktop') {
+          
+          // First pass: prioritize OFFER signals (process them first)
+          const offerSignals = sortedRows.filter(s => s.type === 'offer' && s.from_role === 'desktop');
+          const otherSignals = sortedRows.filter(s => s.type !== 'offer' && s.from_role === 'desktop');
+          
+          // Process offers first, then other signals
+          const orderedSignals = [...offerSignals, ...otherSignals];
+          
+          for (const signal of orderedSignals) {
+            // Use processedSignalsRef (inside processSignal) to skip already-processed signals
+            // Don't rely on lastPolledIdRef which can miss out-of-order signals
+            if (signal.from_role === 'desktop') {
               console.log('[LiveView] polling: processing signal', {
                 id: signal.id,
                 from_role: signal.from_role,
                 type: signal.type,
               });
-              processSignal(signal, targetSessionId, pc);
+              await processSignal(signal, targetSessionId, pc);
             }
           }
-          // Update last polled ID
+          // Update last polled ID (for logging purposes only, not for filtering)
           if (newestId && newestId > lastPolledIdRef.current) {
             lastPolledIdRef.current = newestId;
           }
