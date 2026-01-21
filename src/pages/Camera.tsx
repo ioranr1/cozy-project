@@ -59,7 +59,10 @@ const Camera: React.FC = () => {
       setPermissionDenied(isPermissionError);
       
       if (isPermissionError) {
-        setShowPermissionDialog(true);
+        // IMPORTANT UX: when the browser has the permission set to "Block",
+        // it won't show the native prompt again. We show a simple blocked state
+        // with an optional "Show Instructions" button instead of auto-opening the dialog.
+        setShowPermissionDialog(false);
         setError(language === 'he' 
           ? 'הגישה למצלמה ולמיקרופון נחסמה. יש לאשר הרשאות בדפדפן.'
           : 'Camera and microphone access was blocked. Please allow permissions in your browser.');
