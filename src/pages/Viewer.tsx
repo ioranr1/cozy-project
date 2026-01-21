@@ -74,6 +74,10 @@ const Viewer: React.FC = () => {
     currentTime: 0,
     srcObjectSet: false,
     trackCount: 0,
+    videoTrackWidth: 0,
+    videoTrackHeight: 0,
+    containerWidth: 0,
+    containerHeight: 0,
   });
 
   // Get stable viewer ID (profile ID or device fingerprint)
@@ -323,6 +327,19 @@ const Viewer: React.FC = () => {
     const updateDebugInfo = () => {
       const video = videoRef.current;
       const stream = mediaStreamRef.current;
+      const videoTrack = stream?.getVideoTracks()?.[0];
+      let trackWidth = 0;
+      let trackHeight = 0;
+      
+      if (videoTrack) {
+        try {
+          const settings = videoTrack.getSettings();
+          trackWidth = settings.width ?? 0;
+          trackHeight = settings.height ?? 0;
+        } catch {
+          // Ignore errors
+        }
+      }
       
       setVideoDebugInfo({
         videoWidth: video?.videoWidth ?? 0,
@@ -332,6 +349,10 @@ const Viewer: React.FC = () => {
         currentTime: video?.currentTime ?? 0,
         srcObjectSet: !!video?.srcObject,
         trackCount: stream?.getTracks()?.length ?? 0,
+        videoTrackWidth: trackWidth,
+        videoTrackHeight: trackHeight,
+        containerWidth: video?.offsetWidth ?? 0,
+        containerHeight: video?.offsetHeight ?? 0,
       });
     };
 
@@ -830,9 +851,20 @@ const Viewer: React.FC = () => {
           <div className="text-xs font-mono text-amber-200 space-y-1">
             <div className="font-bold text-amber-400 mb-2">🔍 Video Debug Info (Real-time)</div>
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              <span>Dimensions:</span>
-              <span className={videoDebugInfo.videoWidth > 0 ? 'text-green-400' : 'text-red-400'}>
+              <span>Video Dimensions:</span>
+              <span className={videoDebugInfo.videoWidth > 10 ? 'text-green-400' : 'text-red-400'}>
                 {videoDebugInfo.videoWidth} x {videoDebugInfo.videoHeight}
+                {videoDebugInfo.videoWidth <= 10 && ' ⚠️ TOO SMALL!'}
+              </span>
+              
+              <span>Track Settings:</span>
+              <span className={videoDebugInfo.videoTrackWidth > 0 ? 'text-green-400' : 'text-yellow-400'}>
+                {videoDebugInfo.videoTrackWidth} x {videoDebugInfo.videoTrackHeight}
+              </span>
+              
+              <span>Container Size:</span>
+              <span className="text-cyan-400">
+                {videoDebugInfo.containerWidth} x {videoDebugInfo.containerHeight}
               </span>
               
               <span>readyState:</span>
