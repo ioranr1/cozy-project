@@ -339,7 +339,7 @@ const Camera: React.FC = () => {
               <Button
                 size="lg"
                 variant="outline"
-                className="px-8 py-6 text-lg rounded-xl border-slate-600 text-white hover:bg-slate-800"
+                className="px-8 py-6 text-lg rounded-xl bg-slate-800 border-slate-600 text-white hover:bg-slate-700"
                 onClick={stopCamera}
               >
                 <VideoOff className={`w-5 h-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
