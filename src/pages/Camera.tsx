@@ -6,11 +6,22 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Shield, ArrowLeft, ArrowRight, Video, VideoOff, Maximize, Minimize, Smartphone, Lock, RefreshCw, Camera as CameraIcon, MousePointer, CheckCircle } from 'lucide-react';
+
+function isRunningInIframe(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch {
+    // Cross-origin access to window.top can throw
+    return true;
+  }
+}
+
 const Camera: React.FC = () => {
   const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const { toast } = useToast();
   const isMobile = useIsMobileDevice();
+  const inIframe = isRunningInIframe();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
@@ -23,6 +34,20 @@ const Camera: React.FC = () => {
 
   const startCamera = useCallback(async () => {
     try {
+      // Camera/mic prompts are commonly blocked inside embedded iframes.
+      // We guide the user to open the preview in a new tab.
+      if (isRunningInIframe()) {
+        toast({
+          title: language === 'he' ? 'פתח בטאב חדש' : 'Open in a new tab',
+          description:
+            language === 'he'
+              ? 'דפדפנים לרוב חוסמים בקשת מצלמה בתוך iframe. פתח את דף ה-preview בטאב חדש ואז נסה שוב.'
+              : 'Browsers often block camera requests inside an iframe. Open the preview in a new tab and try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       // Keep getUserMedia as the first awaited operation in the click-chain
       setIsRequesting(true);
       setError(null);
@@ -194,6 +219,25 @@ const Camera: React.FC = () => {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
+          {inIframe && (
+            <div className="mb-4 rounded-xl border border-slate-700/50 bg-slate-800/50 backdrop-blur-sm p-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <p className="text-white/70 text-sm">
+                  {language === 'he'
+                    ? 'שימו לב: בדיקת מצלמה מתוך חלון ה-Preview (iframe) יכולה להיחסם ולכן לא יופיע פופאפ הרשאות. פתח בטאב חדש כדי לקבל בקשת הרשאה.'
+                    : 'Note: Camera test inside the Preview iframe may be blocked, so no permission prompt appears. Open in a new tab to allow permissions.'}
+                </p>
+                <Button
+                  variant="secondary"
+                  className="bg-slate-700/60 hover:bg-slate-700 text-white"
+                  onClick={() => window.open(window.location.href, '_blank', 'noopener,noreferrer')}
+                >
+                  {language === 'he' ? 'פתח בטאב חדש' : 'Open in New Tab'}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Camera View */}
           <div className="relative bg-slate-800 rounded-2xl overflow-hidden aspect-video mb-6 shadow-2xl">
             {/* Video Element */}
@@ -284,7 +328,7 @@ const Camera: React.FC = () => {
                 size="lg"
                 className="bg-slate-600 hover:bg-slate-700 text-white px-8 py-6 text-lg rounded-xl"
                 onClick={startCamera}
-                disabled={isRequesting}
+                disabled={isRequesting || inIframe}
               >
                 <Video className={`w-5 h-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
                 {isRequesting
