@@ -523,7 +523,7 @@ const Viewer: React.FC = () => {
               <div className="flex gap-3">
                 <Button 
                   onClick={handleStartViewing}
-                  disabled={isCommandLoading || !deviceStatus.isOnline || isConnecting || isConnected}
+                  disabled={isCommandLoading || !(deviceStatus?.isOnline) || isConnecting || isConnected}
                   className="bg-primary hover:bg-primary/90"
                 >
                   {(isCommandLoading || isConnecting) ? (
