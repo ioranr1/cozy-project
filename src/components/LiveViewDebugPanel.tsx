@@ -6,7 +6,7 @@ import { RtcDebugInfo } from '@/hooks/useRtcSession';
 import { toast } from 'sonner';
 
 interface LiveViewDebugPanelProps {
-  viewerState: 'idle' | 'connecting' | 'connected' | 'error';
+  viewerState: 'idle' | 'connecting' | 'connected' | 'error' | 'ended';
   rtcDebugInfo: RtcDebugInfo;
   errorMessage: string | null;
 }
