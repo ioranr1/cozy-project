@@ -38,6 +38,18 @@ const Viewer: React.FC = () => {
   
   // Get sessionId from Dashboard navigation (if available)
   const dashboardSessionId = (location.state as LocationState)?.sessionId;
+
+  // When coming from Dashboard we may have a sessionId in navigation state.
+  // After Stop/Retry we MUST clear it, otherwise the auto-start effect will re-trigger and cause a loop.
+  const clearDashboardSession = useCallback(() => {
+    if (!dashboardSessionId) return;
+    try {
+      navigate(location.pathname + location.search, { replace: true, state: {} });
+      console.log('[Viewer] Cleared dashboard navigation sessionId');
+    } catch (e) {
+      console.warn('[Viewer] Failed to clear dashboard navigation state:', e);
+    }
+  }, [dashboardSessionId, navigate, location.pathname, location.search]);
   
   // Alert deep link state
   const alertDeviceId = searchParams.get('device_id');
@@ -314,9 +326,12 @@ const Viewer: React.FC = () => {
     // 5. Clear alert params if from alert
     clearAlertParams();
 
+    // 5b. Clear Dashboard sessionId (prevents auto-start loop after stop)
+    clearDashboardSession();
+
     // 6. Refresh live view state from DB
     refreshState();
-  }, [cleanupStream, stopSession, sendCommand, refreshState, clearAlertParams]);
+  }, [cleanupStream, stopSession, sendCommand, refreshState, clearAlertParams, clearDashboardSession]);
 
   // Auto-start RTC session when Dashboard passes sessionId
   // This MUST happen immediately when we have a sessionId from navigation
@@ -395,6 +410,9 @@ const Viewer: React.FC = () => {
     
     // 3. Stop previous session completely (but don't send stop command)
     await stopSession();
+
+    // 3b. If we came from Dashboard, clear the navigation sessionId so we don't auto-start-loop
+    clearDashboardSession();
     
     // 4. Reset viewer state to idle BEFORE starting
     setViewerState('idle');
