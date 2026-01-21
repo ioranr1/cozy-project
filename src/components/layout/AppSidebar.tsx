@@ -29,7 +29,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { key: 'dashboard', labelHe: 'לוח בקרה', labelEn: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { key: 'live', labelHe: 'שידור חי', labelEn: 'Live View', icon: Video, path: '/viewer' },
   { key: 'cameras', labelHe: 'מצלמות', labelEn: 'Cameras', icon: Camera, path: '/camera' },
   { key: 'motion', labelHe: 'זיהוי תנועה', labelEn: 'Motion Detection', icon: Radar, path: '/motion-detection', desktopOnly: true },
   { key: 'events', labelHe: 'אירועים', labelEn: 'Events', icon: Bell, path: '/events' },
