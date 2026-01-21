@@ -95,12 +95,16 @@ const Camera: React.FC = () => {
     }
   };
 
+  // Auto-request camera permission on page load
   useEffect(() => {
     const stored = localStorage.getItem('userProfile');
-    if (!stored) {
+    if (stored && !isMobile) {
+      // Automatically start camera to trigger permission request
+      startCamera();
+    } else if (!stored) {
       navigate('/login');
     }
-  }, [navigate]);
+  }, [navigate, isMobile, startCamera]);
 
   useEffect(() => {
     return () => {
