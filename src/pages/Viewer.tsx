@@ -109,20 +109,55 @@ const Viewer: React.FC = () => {
     }
 
     console.log('🎬 [VIEWER] Attaching stream to video element...');
+    console.log('🎬 [VIEWER] Video element state before attach:', {
+      videoWidth: video.videoWidth,
+      videoHeight: video.videoHeight,
+      readyState: video.readyState,
+      currentSrc: video.currentSrc,
+      paused: video.paused,
+    });
+
     video.srcObject = stream;
 
-    // Ensure autoplay works on mobile (muted autoplay is the only reliable path)
+    // Ensure autoplay works on mobile AND desktop emulation
     video.playsInline = true;
     video.muted = true;
     setIsMuted(true);
+
+    // Add event listeners for debugging video state changes
+    video.onloadedmetadata = () => {
+      console.log('🎥 [VIEWER] Video metadata loaded:', {
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        duration: video.duration,
+      });
+    };
+    
+    video.onplay = () => {
+      console.log('▶️ [VIEWER] Video onplay event fired');
+    };
+    
+    video.onplaying = () => {
+      console.log('▶️ [VIEWER] Video onplaying event fired - VIDEO IS NOW PLAYING');
+    };
 
     console.log('🎬 [VIEWER] Attempting video.play()...');
     const playPromise = video.play();
     if (playPromise && typeof (playPromise as Promise<void>).catch === 'function') {
       (playPromise as Promise<void>).then(() => {
         console.log('✅ [VIEWER] Video playing successfully!');
+        console.log('✅ [VIEWER] Video dimensions after play:', {
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          offsetWidth: video.offsetWidth,
+          offsetHeight: video.offsetHeight,
+        });
       }).catch((e) => {
         console.warn('⚠️ [VIEWER] video.play() blocked:', e);
+        // Try to play again after a short delay (helps with desktop emulation)
+        setTimeout(() => {
+          video.play().catch(e2 => console.error('❌ [VIEWER] Retry play failed:', e2));
+        }, 100);
       });
     }
 
@@ -609,13 +644,20 @@ const Viewer: React.FC = () => {
 
         {/* Live View Container */}
         <div className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden aspect-video relative">
-          {/* Video Element - Always present but hidden when not connected */}
+          {/* Video Element - Always present, visibility controlled for desktop emulation compatibility */}
           <video
             ref={videoRef}
             autoPlay
             playsInline
             muted={isMuted}
-            className={`w-full h-full object-contain bg-black ${viewerState !== 'connected' ? 'hidden' : ''}`}
+            style={{
+              // Use inline styles for better cross-browser compatibility (especially desktop emulation)
+              width: '100%',
+              height: '100%',
+              objectFit: 'contain',
+              backgroundColor: '#000',
+              display: viewerState === 'connected' ? 'block' : 'none',
+            }}
           />
 
           {/* Idle State */}
