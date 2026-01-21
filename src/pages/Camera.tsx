@@ -229,7 +229,7 @@ const Camera: React.FC = () => {
                 </p>
                 <Button
                   variant="secondary"
-                  className="bg-slate-700/60 hover:bg-slate-700 text-white"
+                  className="bg-white hover:bg-slate-100 text-slate-800"
                   onClick={() => window.open(window.location.href, '_blank', 'noopener,noreferrer')}
                 >
                   {language === 'he' ? 'פתח בטאב חדש' : 'Open in New Tab'}
