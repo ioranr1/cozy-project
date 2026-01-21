@@ -228,8 +228,8 @@ const Camera: React.FC = () => {
                     : 'Note: Camera test inside the Preview iframe may be blocked, so no permission prompt appears. Open in a new tab to allow permissions.'}
                 </p>
                 <Button
-                  variant="secondary"
-                  className="bg-white hover:bg-slate-100 text-slate-800"
+                  variant="outline"
+                  className="bg-slate-800 hover:bg-slate-700 text-white border-slate-600"
                   onClick={() => window.open(window.location.href, '_blank', 'noopener,noreferrer')}
                 >
                   {language === 'he' ? 'פתח בטאב חדש' : 'Open in New Tab'}
