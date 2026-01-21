@@ -50,7 +50,11 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
 // Fetch TURN credentials from edge function
 async function fetchTurnCredentials(): Promise<RTCIceServer[]> {
   try {
-    console.log('[useRtcSession] Fetching TURN credentials...');
+    console.log('🔑 ═══════════════════════════════════════════════════');
+    console.log('🔑 [TURN] Fetching TURN credentials from Metered.ca...');
+    console.log('🔑 ═══════════════════════════════════════════════════');
+    
+    const startTime = performance.now();
     const response = await fetch(
       'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/get-turn-credentials',
       {
@@ -60,22 +64,38 @@ async function fetchTurnCredentials(): Promise<RTCIceServer[]> {
         },
       }
     );
+    const elapsed = Math.round(performance.now() - startTime);
+
+    console.log(`🔑 [TURN] Response status: ${response.status} (${elapsed}ms)`);
 
     if (!response.ok) {
-      console.warn('[useRtcSession] Failed to fetch TURN credentials, using STUN fallback');
+      const errorText = await response.text();
+      console.error('❌ [TURN] Failed to fetch TURN credentials:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText.substring(0, 200),
+      });
+      console.warn('⚠️ [TURN] Falling back to STUN-only (may fail behind NAT/firewalls)');
       return DEFAULT_ICE_SERVERS;
     }
 
     const data = await response.json();
+    console.log('🔑 [TURN] Response data keys:', Object.keys(data));
     
     if (data.iceServers && Array.isArray(data.iceServers) && data.iceServers.length > 0) {
-      console.log('[useRtcSession] Using Metered.ca TURN servers:', data.iceServers.length, 'servers');
+      console.log('✅ [TURN] Got Metered.ca TURN servers:', data.iceServers.length, 'servers');
+      data.iceServers.forEach((server: RTCIceServer, i: number) => {
+        const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+        console.log(`   [TURN] Server ${i + 1}:`, urls.join(', '), server.username ? '(with auth)' : '(no auth)');
+      });
       return data.iceServers;
     }
     
+    console.warn('⚠️ [TURN] No iceServers in response, falling back to STUN');
     return DEFAULT_ICE_SERVERS;
   } catch (error) {
-    console.warn('[useRtcSession] Error fetching TURN credentials:', error);
+    console.error('❌ [TURN] Network error fetching credentials:', error);
+    console.warn('⚠️ [TURN] Falling back to STUN-only');
     return DEFAULT_ICE_SERVERS;
   }
 }
