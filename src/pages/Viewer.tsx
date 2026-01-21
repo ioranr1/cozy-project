@@ -65,6 +65,17 @@ const Viewer: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
+  // Debug state for video element
+  const [videoDebugInfo, setVideoDebugInfo] = useState({
+    videoWidth: 0,
+    videoHeight: 0,
+    readyState: 0,
+    paused: true,
+    currentTime: 0,
+    srcObjectSet: false,
+    trackCount: 0,
+  });
+
   // Get stable viewer ID (profile ID or device fingerprint)
   const [viewerId, setViewerId] = useState<string>('');
 
@@ -306,6 +317,30 @@ const Viewer: React.FC = () => {
       cleanupStream();
     };
   }, [cleanupStream]);
+
+  // Real-time video debug info updater
+  useEffect(() => {
+    const updateDebugInfo = () => {
+      const video = videoRef.current;
+      const stream = mediaStreamRef.current;
+      
+      setVideoDebugInfo({
+        videoWidth: video?.videoWidth ?? 0,
+        videoHeight: video?.videoHeight ?? 0,
+        readyState: video?.readyState ?? 0,
+        paused: video?.paused ?? true,
+        currentTime: video?.currentTime ?? 0,
+        srcObjectSet: !!video?.srcObject,
+        trackCount: stream?.getTracks()?.length ?? 0,
+      });
+    };
+
+    // Update immediately and every 500ms
+    updateDebugInfo();
+    const interval = setInterval(updateDebugInfo, 500);
+
+    return () => clearInterval(interval);
+  }, [viewerState]);
 
   // Start viewing: connect to RTC session
   // If dashboardSessionId exists, the Dashboard already created the session AND sent the command
@@ -788,6 +823,53 @@ const Viewer: React.FC = () => {
           <span className="text-xs font-mono text-cyan-400">
             sessionId: {sessionId || 'none'}
           </span>
+        </div>
+
+        {/* Real-time Video Debug Overlay */}
+        <div className="mt-2 p-3 bg-amber-900/80 border border-amber-500/50 rounded-lg">
+          <div className="text-xs font-mono text-amber-200 space-y-1">
+            <div className="font-bold text-amber-400 mb-2">🔍 Video Debug Info (Real-time)</div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              <span>Dimensions:</span>
+              <span className={videoDebugInfo.videoWidth > 0 ? 'text-green-400' : 'text-red-400'}>
+                {videoDebugInfo.videoWidth} x {videoDebugInfo.videoHeight}
+              </span>
+              
+              <span>readyState:</span>
+              <span className={videoDebugInfo.readyState >= 3 ? 'text-green-400' : 'text-yellow-400'}>
+                {videoDebugInfo.readyState} {videoDebugInfo.readyState === 0 && '(HAVE_NOTHING)'}
+                {videoDebugInfo.readyState === 1 && '(HAVE_METADATA)'}
+                {videoDebugInfo.readyState === 2 && '(HAVE_CURRENT_DATA)'}
+                {videoDebugInfo.readyState === 3 && '(HAVE_FUTURE_DATA)'}
+                {videoDebugInfo.readyState === 4 && '(HAVE_ENOUGH_DATA)'}
+              </span>
+              
+              <span>Paused:</span>
+              <span className={!videoDebugInfo.paused ? 'text-green-400' : 'text-red-400'}>
+                {videoDebugInfo.paused ? 'YES ❌' : 'NO ▶️'}
+              </span>
+              
+              <span>srcObject:</span>
+              <span className={videoDebugInfo.srcObjectSet ? 'text-green-400' : 'text-red-400'}>
+                {videoDebugInfo.srcObjectSet ? 'SET ✓' : 'NULL ❌'}
+              </span>
+              
+              <span>Track Count:</span>
+              <span className={videoDebugInfo.trackCount > 0 ? 'text-green-400' : 'text-red-400'}>
+                {videoDebugInfo.trackCount}
+              </span>
+              
+              <span>Current Time:</span>
+              <span className="text-cyan-400">
+                {videoDebugInfo.currentTime.toFixed(2)}s
+              </span>
+              
+              <span>viewerState:</span>
+              <span className={viewerState === 'connected' ? 'text-green-400' : 'text-yellow-400'}>
+                {viewerState}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     );
