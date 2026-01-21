@@ -64,6 +64,7 @@ const Viewer: React.FC = () => {
   const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const videoReadyTimeoutRef = useRef<number | null>(null);
 
   // Debug state for video element
   const [videoDebugInfo, setVideoDebugInfo] = useState({
@@ -117,6 +118,12 @@ const Viewer: React.FC = () => {
 
     mediaStreamRef.current = stream;
 
+    // Clear any previous "wait for frames" loop
+    if (videoReadyTimeoutRef.current) {
+      window.clearTimeout(videoReadyTimeoutRef.current);
+      videoReadyTimeoutRef.current = null;
+    }
+
     const video = videoRef.current;
     if (!video) {
       console.error('❌ [VIEWER] Video element not found!');
@@ -139,21 +146,58 @@ const Viewer: React.FC = () => {
     video.muted = true;
     setIsMuted(true);
 
-    // Add event listeners for debugging video state changes
+    // Wait until we have real video frames before marking UI as "connected".
+    // Some environments can report connected + srcObject set, but videoWidth/videoHeight stays tiny (e.g. 2x2).
+    const startedAt = Date.now();
+    const waitForRenderableFrames = () => {
+      const v = videoRef.current;
+      if (!v) return;
+
+      const w = v.videoWidth || 0;
+      const h = v.videoHeight || 0;
+      const isRenderable = v.readyState >= 2 && w > 10 && h > 10;
+
+      if (isRenderable) {
+        console.log('✅ [VIEWER] Video frames are renderable:', { w, h, readyState: v.readyState });
+        setViewerState('connected');
+        return;
+      }
+
+      if (Date.now() - startedAt > 8000) {
+        console.warn('❌ [VIEWER] Video never became renderable (timeout)', {
+          w,
+          h,
+          readyState: v.readyState,
+          currentTime: v.currentTime,
+        });
+        setViewerState('error');
+        setErrorMessage(language === 'he'
+          ? 'התחברנו אבל לא התקבל וידאו (ייתכן בעיית מקור/רשת). נסה שוב.'
+          : 'Connected but no video frames arrived. Please try again.');
+        return;
+      }
+
+      videoReadyTimeoutRef.current = window.setTimeout(waitForRenderableFrames, 250);
+    };
+
+    // Debug listeners
     video.onloadedmetadata = () => {
       console.log('🎥 [VIEWER] Video metadata loaded:', {
         videoWidth: video.videoWidth,
         videoHeight: video.videoHeight,
         duration: video.duration,
       });
+      waitForRenderableFrames();
     };
-    
+
     video.onplay = () => {
       console.log('▶️ [VIEWER] Video onplay event fired');
+      waitForRenderableFrames();
     };
-    
+
     video.onplaying = () => {
-      console.log('▶️ [VIEWER] Video onplaying event fired - VIDEO IS NOW PLAYING');
+      console.log('▶️ [VIEWER] Video onplaying event fired');
+      waitForRenderableFrames();
     };
 
     console.log('🎬 [VIEWER] Attempting video.play()...');
@@ -167,6 +211,7 @@ const Viewer: React.FC = () => {
           offsetWidth: video.offsetWidth,
           offsetHeight: video.offsetHeight,
         });
+        waitForRenderableFrames();
       }).catch((e) => {
         console.warn('⚠️ [VIEWER] video.play() blocked:', e);
         // Try to play again after a short delay (helps with desktop emulation)
@@ -176,9 +221,10 @@ const Viewer: React.FC = () => {
       });
     }
 
-    setViewerState('connected');
-    console.log('✅ [VIEWER] State set to CONNECTED');
-  }, []);
+    // Keep UI in connecting until we actually have renderable frames
+    setViewerState('connecting');
+    waitForRenderableFrames();
+  }, [language]);
 
   const handleRtcError = useCallback((error: string) => {
     console.error('❌ ═══════════════════════════════════════════════════');
@@ -202,8 +248,9 @@ const Viewer: React.FC = () => {
       console.log('🟡 [VIEWER] State: CONNECTING - Waiting for desktop...');
       setViewerState('connecting');
     } else if (status === 'connected') {
-      console.log('🟢 [VIEWER] State: CONNECTED - Stream should be visible!');
-      setViewerState('connected');
+      // Don't mark UI as connected here; we do it only when video frames are actually renderable.
+      console.log('🟢 [VIEWER] RTC connected (waiting for frames to render)');
+      if (viewerState !== 'connected') setViewerState('connecting');
     } else if (status === 'failed') {
       // Show "ended" if manual stop, otherwise show error
       if (manualStopRef.current) {
@@ -249,6 +296,12 @@ const Viewer: React.FC = () => {
   // Cleanup stream helper - defined early for use in effects
   const cleanupStream = useCallback(() => {
     console.log('[Viewer] Cleaning up stream');
+
+    if (videoReadyTimeoutRef.current) {
+      window.clearTimeout(videoReadyTimeoutRef.current);
+      videoReadyTimeoutRef.current = null;
+    }
+
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => {
         track.stop();
