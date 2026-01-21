@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
+import Devices from "./pages/Devices";
 import Camera from "./pages/Camera";
 import Viewer from "./pages/Viewer";
 import EventDetails from "./pages/EventDetails";
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/devices" element={<Devices />} />
             <Route path="/camera" element={<Camera />} />
             <Route path="/viewer" element={<Viewer />} />
             <Route path="/events/:eventId" element={<EventDetails />} />

@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { LogOut } from 'lucide-react';
 
 interface DashboardHeaderProps {
-  userFullName: string;
+  userFullName?: string;
+  title?: string;
   subtitle?: string;
   roleBadge?: {
     label: string;
@@ -16,6 +17,7 @@ interface DashboardHeaderProps {
 
 export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ 
   userFullName, 
+  title,
   subtitle,
   roleBadge 
 }) => {
@@ -35,7 +37,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl md:text-2xl font-bold text-white">
-                {language === 'he' ? `שלום, ${userFullName}` : `Hello, ${userFullName}`}
+                {title || (userFullName ? (language === 'he' ? `שלום, ${userFullName}` : `Hello, ${userFullName}`) : '')}
               </h1>
               {roleBadge && (
                 <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
