@@ -19,10 +19,16 @@ const Camera: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  const [isRequesting, setIsRequesting] = useState(false);
 
   const startCamera = useCallback(async () => {
     try {
+      // Keep getUserMedia as the first awaited operation in the click-chain
+      setIsRequesting(true);
       setError(null);
+      setPermissionDenied(false);
+      setShowPermissionDialog(false);
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
@@ -38,6 +44,7 @@ const Camera: React.FC = () => {
       
       setStream(mediaStream);
       setIsStreaming(true);
+      setIsRequesting(false);
 
       toast({
         title: language === 'he' ? 'תצוגה מקדימה פעילה' : 'Preview Active',
@@ -45,6 +52,8 @@ const Camera: React.FC = () => {
       });
     } catch (err: any) {
       console.error('Camera error:', err);
+
+      setIsRequesting(false);
       
       const isPermissionError = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
       setPermissionDenied(isPermissionError);
@@ -272,9 +281,12 @@ const Camera: React.FC = () => {
                 size="lg"
                 className="bg-slate-600 hover:bg-slate-700 text-white px-8 py-6 text-lg rounded-xl"
                 onClick={startCamera}
+                disabled={isRequesting}
               >
                 <Video className={`w-5 h-5 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                {language === 'he' ? 'בדיקת מצלמה' : 'Camera Preview'}
+                {isRequesting
+                  ? (language === 'he' ? 'מבקש הרשאה…' : 'Requesting permission…')
+                  : (language === 'he' ? 'בדיקת מצלמה' : 'Camera Preview')}
               </Button>
             ) : (
               <Button
