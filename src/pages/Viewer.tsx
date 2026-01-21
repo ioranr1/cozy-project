@@ -138,8 +138,11 @@ const Viewer: React.FC = () => {
     setViewerState('error');
   }, []);
 
+  // Track if user manually stopped (to avoid showing error)
+  const manualStopRef = useRef(false);
+
   const handleStatusChange = useCallback((status: RtcSessionStatus) => {
-    console.log('🔄 [VIEWER] RTC Status changed:', status);
+    console.log('🔄 [VIEWER] RTC Status changed:', status, 'manualStop:', manualStopRef.current);
     if (status === 'connecting') {
       console.log('🟡 [VIEWER] State: CONNECTING - Waiting for desktop...');
       setViewerState('connecting');
@@ -147,11 +150,19 @@ const Viewer: React.FC = () => {
       console.log('🟢 [VIEWER] State: CONNECTED - Stream should be visible!');
       setViewerState('connected');
     } else if (status === 'failed') {
-      console.log('🔴 [VIEWER] State: FAILED');
-      setViewerState('error');
+      // Only show error if NOT a manual stop
+      if (manualStopRef.current) {
+        console.log('⚪ [VIEWER] State: IDLE (manual stop, not error)');
+        setViewerState('idle');
+        manualStopRef.current = false;
+      } else {
+        console.log('🔴 [VIEWER] State: FAILED');
+        setViewerState('error');
+      }
     } else if (status === 'ended' || status === 'idle') {
       console.log('⚪ [VIEWER] State: IDLE');
       setViewerState('idle');
+      manualStopRef.current = false;
     }
   }, []);
 
@@ -307,6 +318,9 @@ const Viewer: React.FC = () => {
   const handleStopViewing = useCallback(async (sendStopCommand = true) => {
     console.log('[Viewer] Stopping viewing, sendCommand:', sendStopCommand);
 
+    // Mark as manual stop to prevent error state
+    manualStopRef.current = true;
+
     // 1. Clear local video immediately
     cleanupStream();
 
@@ -402,8 +416,9 @@ const Viewer: React.FC = () => {
   const handleRetry = async () => {
     console.log('[Viewer] Retry clicked - resetting state completely');
     
-    // 1. Reset error message
+    // 1. Reset error message and mark as manual stop (so status change doesn't trigger error again)
     setErrorMessage(null);
+    manualStopRef.current = true;
     
     // 2. Clean up any lingering stream
     cleanupStream();
@@ -417,11 +432,28 @@ const Viewer: React.FC = () => {
     // 4. Reset viewer state to idle BEFORE starting
     setViewerState('idle');
     
-    // 5. Small delay to ensure state is reset
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // 5. Give React time to re-render and hook to update isConnecting/isConnected
+    await new Promise(resolve => setTimeout(resolve, 200));
     
-    // 6. Now start fresh
-    handleStartViewing();
+    // 6. Clear manual stop flag before starting fresh
+    manualStopRef.current = false;
+    
+    // 7. Now start fresh - create new session and send command
+    console.log('[Viewer] Starting fresh session after retry');
+    const activeSessionId = await startSession();
+    if (!activeSessionId) {
+      setViewerState('error');
+      setErrorMessage(language === 'he' ? 'נכשל בהתחברות' : 'Failed to connect');
+      return;
+    }
+
+    // For retry, always send START command (we're not coming from Dashboard anymore)
+    const ok = await sendCommand('START_LIVE_VIEW');
+    if (!ok) {
+      await stopSession();
+      setViewerState('error');
+      setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
+    }
   };
 
   const toggleMute = () => {
