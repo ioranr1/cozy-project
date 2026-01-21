@@ -29,7 +29,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { key: 'dashboard', labelHe: 'לוח בקרה', labelEn: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { key: 'cameras', labelHe: 'מצלמות', labelEn: 'Cameras', icon: Camera, path: '/camera' },
+  { key: 'camera-test', labelHe: 'בדיקת מצלמה', labelEn: 'Camera Test', icon: Camera, path: '/camera', desktopOnly: true },
   { key: 'motion', labelHe: 'זיהוי תנועה', labelEn: 'Motion Detection', icon: Radar, path: '/motion-detection', desktopOnly: true },
   { key: 'events', labelHe: 'אירועים', labelEn: 'Events', icon: Bell, path: '/events' },
   { key: 'system', labelHe: 'בריאות מערכת', labelEn: 'System Health', icon: Activity, path: '/system', desktopOnly: true },
