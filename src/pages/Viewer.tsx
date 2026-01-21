@@ -374,6 +374,13 @@ const Viewer: React.FC = () => {
     // Skip if we already have a dashboard session (handled above)
     if (dashboardSessionId) return;
     if (!primaryDevice || !viewerId || liveStateLoading) return;
+    
+    // CRITICAL: Skip if viewer state is 'ended' - user already stopped manually
+    // This prevents resetting back to 'idle' after manual stop
+    if (viewerState === 'ended') {
+      console.log('[Viewer] Skipping liveViewActive effect - already ended');
+      return;
+    }
 
     if (liveViewActive && viewerState === 'idle' && !isConnecting && !isConnected) {
       console.log('[Viewer] Live view active (non-dashboard), starting RTC session...');
