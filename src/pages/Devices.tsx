@@ -492,7 +492,7 @@ const Devices: React.FC = () => {
           <div className="py-6">
             {/* Large Code Display */}
             <div className="bg-slate-800/80 border-2 border-primary/30 rounded-2xl p-6 text-center">
-              <div className="text-4xl font-mono font-bold text-primary tracking-[0.5em] mb-4">
+              <div className="text-4xl font-mono font-bold text-primary tracking-[0.5em] mb-4" dir="ltr">
                 {pairingCode || '------'}
               </div>
               <Button
