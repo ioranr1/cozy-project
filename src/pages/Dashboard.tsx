@@ -2,12 +2,12 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Laptop, Smartphone, Video, Radar, Activity, Bell, Clock, Eye, EyeOff, Power, PowerOff, Loader2, CheckCircle, XCircle, AlertCircle, RefreshCw, Monitor } from 'lucide-react';
+import { Laptop, Video, Radar, Activity, Bell, Clock, Eye, EyeOff, Power, PowerOff, Loader2, CheckCircle, XCircle, AlertCircle, Monitor } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
-import { getActiveDeviceId } from '@/config/devices';
+import { getSelectedDeviceId } from '@/hooks/useDevices';
 import { Switch } from '@/components/ui/switch';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
@@ -51,15 +51,16 @@ const Dashboard: React.FC = () => {
   }, []);
 
   // Load devices and get selected device
-  const { selectedDevice, devices } = useDevices(profileId);
+  const { selectedDevice } = useDevices(profileId);
   
-  // Get active device ID - use selected device or fallback to legacy
+  // Get active device ID - use selected device only (no fallback to legacy)
   const activeDeviceId = useMemo(() => {
-    return selectedDevice?.id || getActiveDeviceId();
+    // Only use selectedDevice from useDevices hook - no legacy fallback
+    return selectedDevice?.id || getSelectedDeviceId() || null;
   }, [selectedDevice]);
 
   // Live view state from Supabase (source of truth)
-  const { liveViewActive, lastAckedCommand, isLoading: isLiveViewLoading, refreshState } = useLiveViewState({ 
+  const { liveViewActive, isLoading: isLiveViewLoading, refreshState } = useLiveViewState({ 
     deviceId: activeDeviceId 
   });
 

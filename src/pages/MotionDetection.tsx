@@ -1,21 +1,35 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Power, PowerOff, Radar, AlertCircle, CheckCircle2, X } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { laptopDeviceId } from '@/config/devices';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useDevices } from '@/hooks/useDevices';
 
 const MotionDetection: React.FC = () => {
   const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
 
+  // Get profile ID and selected device dynamically
+  const profileId = useMemo(() => {
+    const stored = localStorage.getItem('userProfile');
+    if (stored) {
+      try {
+        return JSON.parse(stored).id;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }, []);
+
+  const { selectedDevice } = useDevices(profileId);
+  const deviceId = selectedDevice?.id;
   // Motion Detection command handler
   const sendMotionDetectionCommand = async (command: 'START_CAMERA' | 'STOP_CAMERA') => {
-    if (!laptopDeviceId) {
-      toast.error(language === 'he' ? 'לא הוגדר device_id ללפטופ' : 'No device_id configured for laptop');
+    if (!deviceId) {
+      toast.error(language === 'he' ? 'לא נבחר מכשיר' : 'No device selected');
       return;
     }
     
@@ -32,7 +46,7 @@ const MotionDetection: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           session_token: sessionToken,
-          device_id: laptopDeviceId,
+          device_id: deviceId,
           command
         })
       });

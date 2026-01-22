@@ -10,7 +10,7 @@ import { useLiveViewState } from '@/hooks/useLiveViewState';
 import { useRtcSession, RtcSessionStatus } from '@/hooks/useRtcSession';
 import { LiveViewDebugPanel } from '@/components/LiveViewDebugPanel';
 import { useRemoteCommand } from '@/hooks/useRemoteCommand';
-import { laptopDeviceId } from '@/config/devices';
+import { useDevices, getSelectedDeviceId } from '@/hooks/useDevices';
 import { toast } from 'sonner';
 
 type ViewerState = 'idle' | 'connecting' | 'connected' | 'error' | 'ended';
@@ -35,6 +35,22 @@ const Viewer: React.FC = () => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [primaryDevice, setPrimaryDevice] = useState<Device | null>(null);
+
+  // Get profile ID for dynamic device selection
+  const profileId = useMemo(() => {
+    const stored = localStorage.getItem('userProfile');
+    if (stored) {
+      try {
+        return JSON.parse(stored).id;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }, []);
+
+  // Get selected device from useDevices hook
+  const { selectedDevice } = useDevices(profileId);
 
   // Treat the host as online only if it is actively connected AND seen recently.
   // This prevents navigating/auto-starting into a connection loop when the desktop app is offline.
@@ -77,9 +93,9 @@ const Viewer: React.FC = () => {
   // Get stable viewer ID (profile ID or device fingerprint)
   const [viewerId, setViewerId] = useState<string>('');
 
-  // Get primary device ID for live view state hook
-  const primaryDeviceId = primaryDevice?.id || laptopDeviceId;
-  const { liveViewActive, isLoading: liveStateLoading, refreshState } = useLiveViewState({ deviceId: primaryDeviceId });
+  // Get primary device ID for live view state hook - use selectedDevice or fallback to localStorage
+  const primaryDeviceId = selectedDevice?.id || primaryDevice?.id || getSelectedDeviceId() || '';
+  const { liveViewActive, isLoading: liveStateLoading, refreshState } = useLiveViewState({ deviceId: primaryDeviceId || undefined });
 
   // Remote command hook for START/STOP
   const { sendCommand, commandState, isLoading: isCommandLoading } = useRemoteCommand({
@@ -438,9 +454,10 @@ const Viewer: React.FC = () => {
       }
 
       setDevices(data || []);
-      // Set primary device - prefer the configured laptop
-      const laptop = data?.find(d => d.id === laptopDeviceId);
-      setPrimaryDevice(laptop || (data && data.length > 0 ? data[0] : null));
+      // Set primary device - prefer the selected device from useDevices
+      const savedDeviceId = getSelectedDeviceId();
+      const savedDevice = savedDeviceId ? data?.find(d => d.id === savedDeviceId) : null;
+      setPrimaryDevice(savedDevice || (data && data.length > 0 ? data[0] : null));
     } catch (error) {
       console.error('Error:', error);
     } finally {

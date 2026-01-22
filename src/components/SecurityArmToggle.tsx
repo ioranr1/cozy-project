@@ -1,11 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Shield, ShieldOff, Loader2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { laptopDeviceId } from '@/config/devices';
-
+import { useDevices } from '@/hooks/useDevices';
 interface DeviceStatus {
   id: string;
   device_id: string;
@@ -24,13 +23,33 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className 
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Get profile ID and selected device dynamically
+  const profileId = useMemo(() => {
+    const stored = localStorage.getItem('userProfile');
+    if (stored) {
+      try {
+        return JSON.parse(stored).id;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }, []);
+
+  const { selectedDevice } = useDevices(profileId);
+  const deviceId = selectedDevice?.id;
   // Fetch initial status
   const fetchStatus = useCallback(async () => {
+    if (!deviceId) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('device_status')
         .select('*')
-        .eq('device_id', laptopDeviceId)
+        .eq('device_id', deviceId)
         .maybeSingle();
 
       if (error) {
@@ -46,7 +65,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className 
         const { error: insertError } = await supabase
           .from('device_status')
           .insert({
-            device_id: laptopDeviceId,
+            device_id: deviceId,
             is_armed: false,
             last_command: 'STANDBY'
           });
@@ -60,10 +79,12 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [deviceId]);
 
   // Subscribe to realtime changes
   useEffect(() => {
+    if (!deviceId) return;
+
     fetchStatus();
 
     // Realtime subscription for status changes
@@ -75,7 +96,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className 
           event: 'UPDATE',
           schema: 'public',
           table: 'device_status',
-          filter: `device_id=eq.${laptopDeviceId}`
+          filter: `device_id=eq.${deviceId}`
         },
         (payload) => {
           console.log('[SecurityArmToggle] Realtime update:', payload.new);
@@ -88,10 +109,15 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchStatus]);
+  }, [fetchStatus, deviceId]);
 
   // Toggle armed status
   const handleToggle = async (checked: boolean) => {
+    if (!deviceId) {
+      toast.error(language === 'he' ? 'לא נבחר מכשיר' : 'No device selected');
+      return;
+    }
+
     setIsUpdating(true);
     
     const newCommand = checked ? 'ARM' : 'DISARM';
@@ -104,7 +130,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className 
           last_command: newCommand,
           last_command_at: new Date().toISOString()
         })
-        .eq('device_id', laptopDeviceId);
+        .eq('device_id', deviceId);
 
       if (error) {
         console.error('[SecurityArmToggle] Error updating status:', error);
