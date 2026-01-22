@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
@@ -35,6 +35,15 @@ const Viewer: React.FC = () => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [primaryDevice, setPrimaryDevice] = useState<Device | null>(null);
+
+  // Treat the host as online only if it is actively connected AND seen recently.
+  // This prevents navigating/auto-starting into a connection loop when the desktop app is offline.
+  const isPrimaryDeviceOnline = useMemo(() => {
+    if (!primaryDevice?.last_seen_at) return false;
+    const lastSeen = new Date(primaryDevice.last_seen_at);
+    const diffSeconds = (Date.now() - lastSeen.getTime()) / 1000;
+    return diffSeconds <= 30 && !!primaryDevice.is_active;
+  }, [primaryDevice]);
   
   // Get sessionId from Dashboard navigation (if available)
   const dashboardSessionId = (location.state as LocationState)?.sessionId;
@@ -360,13 +369,26 @@ const Viewer: React.FC = () => {
       console.log('[Viewer] No dashboardSessionId or viewerId yet', { dashboardSessionId, viewerId });
       return;
     }
+
+    // If the dashboard tried to start live view while the desktop is offline,
+    // immediately send the user back instead of spinning in a connect loop.
+    if (!loading && primaryDevice && !isPrimaryDeviceOnline) {
+      toast.error(
+        language === 'he'
+          ? 'המחשב לא מחובר כרגע. הפעל את אפליקציית הדסקטופ ונסה שוב.'
+          : 'Computer is offline. Start the desktop app and try again.'
+      );
+      clearDashboardSession();
+      navigate('/dashboard', { replace: true });
+      return;
+    }
     
     // Only start if we're idle and not already connecting
-    if (viewerState === 'idle' && !isConnecting && !isConnected) {
+    if (!loading && viewerState === 'idle' && !isConnecting && !isConnected) {
       console.log('[Viewer] Dashboard passed sessionId, auto-starting RTC...', dashboardSessionId);
       handleStartViewing();
     }
-  }, [dashboardSessionId, viewerId, viewerState, isConnecting, isConnected, handleStartViewing]);
+  }, [dashboardSessionId, viewerId, viewerState, isConnecting, isConnected, handleStartViewing, loading, primaryDevice, isPrimaryDeviceOnline, language, clearDashboardSession, navigate]);
 
   // Watch liveViewActive and auto-start RTC session (fallback for non-Dashboard entry)
   // Note: This only handles LIVE VIEW state, not motion detection
@@ -486,7 +508,7 @@ const Viewer: React.FC = () => {
     const diffMs = now.getTime() - lastSeen.getTime();
     const diffSeconds = diffMs / 1000;
     
-    if (diffSeconds < 30) {
+    if (diffSeconds < 30 && device.is_active) {
       return { label: language === 'he' ? 'מחובר' : 'Online', color: 'bg-green-500/20 text-green-400 border-green-500/30', isOnline: true };
     } else if (diffSeconds < 120) {
       return { label: language === 'he' ? 'לאחרונה' : 'Recently', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', isOnline: false };
