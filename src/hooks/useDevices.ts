@@ -58,13 +58,16 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
       const typedDevices = (data || []) as Device[];
       setDevices(typedDevices);
 
-      // Auto-select first device if none selected
-      if (!selectedDeviceId && typedDevices.length > 0) {
-        const firstCameraDevice = typedDevices.find(d => d.device_type === 'camera');
-        if (firstCameraDevice) {
-          setSelectedDeviceId(firstCameraDevice.id);
-          localStorage.setItem(SELECTED_DEVICE_KEY, firstCameraDevice.id);
-        }
+      // Auto-select first camera device if none selected OR if selected device no longer exists
+      const cameraDevices = typedDevices.filter(d => d.device_type === 'camera');
+      const currentSelectionValid = selectedDeviceId && cameraDevices.some(d => d.id === selectedDeviceId);
+      
+      if (!currentSelectionValid && cameraDevices.length > 0) {
+        // Select the newest camera device (first in the list since sorted by created_at desc)
+        const newestCamera = cameraDevices[0];
+        setSelectedDeviceId(newestCamera.id);
+        localStorage.setItem(SELECTED_DEVICE_KEY, newestCamera.id);
+        console.log('[useDevices] Auto-selected newest camera:', newestCamera.device_name, newestCamera.id);
       }
     } catch (err) {
       console.error('[useDevices] Error fetching devices:', err);
