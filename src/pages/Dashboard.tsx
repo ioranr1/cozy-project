@@ -51,12 +51,13 @@ const Dashboard: React.FC = () => {
   }, []);
 
   // Load devices and get selected device
-  const { selectedDevice } = useDevices(profileId);
+  const { selectedDevice, devices, isLoading: isDevicesLoading } = useDevices(profileId);
   
   // Get active device ID - use selected device only (no fallback to legacy)
   const activeDeviceId = useMemo(() => {
-    // Only use selectedDevice from useDevices hook - no legacy fallback
-    return selectedDevice?.id || getSelectedDeviceId() || null;
+    const deviceId = selectedDevice?.id || getSelectedDeviceId() || null;
+    console.log('[Dashboard] activeDeviceId computed:', deviceId, 'selectedDevice:', selectedDevice?.device_name);
+    return deviceId;
   }, [selectedDevice]);
 
   // Live view state from Supabase (source of truth)
@@ -226,7 +227,20 @@ const Dashboard: React.FC = () => {
 
   // Handle command sending with proper status tracking
   const handleCommand = async (commandType: CommandType) => {
+    console.log('[Dashboard] handleCommand:', commandType, { activeDeviceId, laptopStatus, isDevicesLoading });
+    
     if (commandType === 'START_LIVE_VIEW') {
+      // Validate device is selected
+      if (!activeDeviceId) {
+        toast.error(
+          language === 'he'
+            ? 'לא נבחר מכשיר. עבור להגדרות ובחר מצלמה.'
+            : 'No device selected. Go to settings and select a camera.'
+        );
+        setViewStatus('idle');
+        return;
+      }
+
       // Prevent starting live view when the host computer is offline.
       // This avoids navigating to Viewer and getting stuck in a connect loop.
       if (laptopStatus !== 'online') {
