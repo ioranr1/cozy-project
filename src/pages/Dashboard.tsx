@@ -204,6 +204,18 @@ const Dashboard: React.FC = () => {
   // Handle command sending with proper status tracking
   const handleCommand = async (commandType: CommandType) => {
     if (commandType === 'START_LIVE_VIEW') {
+      // Prevent starting live view when the host computer is offline.
+      // This avoids navigating to Viewer and getting stuck in a connect loop.
+      if (laptopStatus !== 'online') {
+        toast.error(
+          language === 'he'
+            ? 'המחשב לא מחובר כרגע. פתח את אפליקציית הדסקטופ ונסה שוב.'
+            : 'Computer is offline. Open the desktop app and try again.'
+        );
+        setViewStatus('idle');
+        return;
+      }
+
       const profileId = userProfile?.id;
       console.log('[LiveView] Start clicked', { 
         selectedDeviceId: laptopDeviceId, 
@@ -469,7 +481,12 @@ const Dashboard: React.FC = () => {
             <div className="grid grid-cols-2 gap-3 mb-3">
               <Button 
                 onClick={() => handleCommand('START_LIVE_VIEW')}
-                disabled={(isLoading && commandState.commandType?.includes('LIVE')) || isLiveViewLoading || liveViewActive}
+                disabled={
+                  (isLoading && commandState.commandType?.includes('LIVE')) ||
+                  isLiveViewLoading ||
+                  liveViewActive ||
+                  laptopStatus !== 'online'
+                }
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
               >
                 {viewStatus === 'starting' ? (
