@@ -317,6 +317,51 @@ export type Database = {
         }
         Relationships: []
       }
+      pairing_codes: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string
+          id: string
+          profile_id: string
+          used_at: string | null
+          used_by_device_id: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          profile_id: string
+          used_at?: string | null
+          used_by_device_id?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          profile_id?: string
+          used_at?: string | null
+          used_by_device_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pairing_codes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pairing_codes_used_by_device_id_fkey"
+            columns: ["used_by_device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           country_code: string
