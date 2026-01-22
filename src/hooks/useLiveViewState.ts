@@ -91,14 +91,27 @@ export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLive
   }, [fetchLatestAckedCommand]);
 
   // Poll fallback (in case Realtime doesn't fire on some mobile browsers)
+  // Only poll when on viewer-related pages to avoid unnecessary DB calls
   useEffect(() => {
     if (!deviceId) return;
 
+    // Check if we're on a page that needs live view polling
+    const isViewerPage = () => {
+      const path = window.location.pathname;
+      return path.includes('/viewer') || path.includes('/live');
+    };
+
+    // Only set up polling on viewer pages
+    if (!isViewerPage()) {
+      console.log('[useLiveViewState] Not on viewer page, skipping polling');
+      return;
+    }
+
     const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && isViewerPage()) {
         fetchLatestAckedCommand();
       }
-    }, 2000);
+    }, 5000); // Increased to 5 seconds to reduce load
 
     return () => window.clearInterval(interval);
   }, [deviceId, fetchLatestAckedCommand]);
