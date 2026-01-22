@@ -516,7 +516,11 @@ const Devices: React.FC = () => {
 
       {/* Pairing Code Dialog */}
       <Dialog open={pairingDialogOpen} onOpenChange={setPairingDialogOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700">
+        <DialogContent
+          className="bg-slate-900 border-slate-700"
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle className="text-white text-center">
               {language === 'he' ? '🔗 קוד צימוד' : '🔗 Pairing Code'}
