@@ -224,6 +224,10 @@ export function useRemoteCommand({
           errorMessage = language === 'he' 
             ? 'נדרשת התחברות מחדש'
             : 'Please log in again';
+          // Clear invalid session and redirect to login
+          localStorage.removeItem('aiguard_session_token');
+          localStorage.removeItem('userProfile');
+          window.location.href = '/login';
         }
         
         toast.error(errorMessage);
