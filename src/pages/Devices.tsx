@@ -542,7 +542,7 @@ const Devices: React.FC = () => {
             <Button
               variant="outline"
               onClick={() => setPairingDialogOpen(false)}
-              className="w-full border-slate-600 text-white"
+              className="w-full border-slate-700 text-white bg-slate-800 hover:bg-slate-700"
             >
               {language === 'he' ? 'סגור' : 'Close'}
             </Button>
