@@ -509,6 +509,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      profile_exists: { Args: { _profile_id: string }; Returns: boolean }
       validate_access_token: {
         Args: { p_token: string }
         Returns: {
