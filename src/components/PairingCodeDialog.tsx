@@ -53,6 +53,17 @@ export const PairingCodeDialog: React.FC<PairingCodeDialogProps> = ({
 
   const handleOpenChange = useCallback((open: boolean) => {
     console.log('[PairingCodeDialog] onOpenChange called with:', open);
+
+    // When the dialog is already open, we block Radix-driven close attempts
+    // (overlay click / Escape / any unexpected internal dismissal) and only
+    // allow closing via our explicit "Close" button.
+    if (!open && isDialogOpenRef.current) {
+      console.log('[PairingCodeDialog] Blocking close attempt (keeping dialog open)');
+      setDialogOpen(true);
+      onExternalOpenChange?.(true);
+      return;
+    }
+
     setDialogOpen(open);
     onExternalOpenChange?.(open);
   }, [onExternalOpenChange]);
@@ -138,6 +149,7 @@ export const PairingCodeDialog: React.FC<PairingCodeDialogProps> = ({
       {/* Pairing Code Dialog */}
       <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
         <DialogContent
+          hideCloseButton
           className="bg-slate-900 border-slate-700"
           onPointerDownOutside={(e) => {
             console.log('[PairingCodeDialog] onPointerDownOutside - preventing');
