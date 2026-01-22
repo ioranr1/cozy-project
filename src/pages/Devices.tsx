@@ -254,7 +254,7 @@ const Devices: React.FC = () => {
             size="sm"
             onClick={() => refreshDevices()}
             disabled={isLoading}
-            className="border-slate-600 text-slate-300 hover:bg-slate-800"
+            className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
           >
             {isLoading ? (
               <Loader2 className={cn("w-4 h-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
