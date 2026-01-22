@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface UseLiveViewStateOptions {
-  deviceId: string;
+  deviceId: string | null | undefined;
 }
 
 interface UseLiveViewStateResult {
