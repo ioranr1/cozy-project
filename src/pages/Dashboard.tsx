@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
-import { laptopDeviceId } from '@/config/devices';
+import { getActiveDeviceId } from '@/config/devices';
 import { Switch } from '@/components/ui/switch';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
@@ -15,6 +15,7 @@ import { useRemoteCommand, CommandType } from '@/hooks/useRemoteCommand';
 import { useLiveViewState } from '@/hooks/useLiveViewState';
 import { toast } from 'sonner';
 import { SecurityArmToggle } from '@/components/SecurityArmToggle';
+import { useDevices } from '@/hooks/useDevices';
 
 interface UserProfile {
   id?: string;
@@ -36,9 +37,30 @@ const Dashboard: React.FC = () => {
   const isMobileDevice = useIsMobileDevice();
   const capabilities = useCapabilities();
 
+  // Get profile ID for device loading
+  const profileId = useMemo(() => {
+    const stored = localStorage.getItem('userProfile');
+    if (stored) {
+      try {
+        return JSON.parse(stored).id;
+      } catch {
+        return undefined;
+      }
+    }
+    return undefined;
+  }, []);
+
+  // Load devices and get selected device
+  const { selectedDevice, devices } = useDevices(profileId);
+  
+  // Get active device ID - use selected device or fallback to legacy
+  const activeDeviceId = useMemo(() => {
+    return selectedDevice?.id || getActiveDeviceId();
+  }, [selectedDevice]);
+
   // Live view state from Supabase (source of truth)
   const { liveViewActive, lastAckedCommand, isLoading: isLiveViewLoading, refreshState } = useLiveViewState({ 
-    deviceId: laptopDeviceId 
+    deviceId: activeDeviceId 
   });
 
   // Sync viewStatus with liveViewActive from Supabase
@@ -52,7 +74,7 @@ const Dashboard: React.FC = () => {
 
   // Remote command hook
   const { sendCommand, commandState, isLoading, resetState } = useRemoteCommand({
-    deviceId: laptopDeviceId,
+    deviceId: activeDeviceId,
     onAcknowledged: (commandType) => {
       if (commandType === 'START_MOTION_DETECTION') {
         setMotionDetectionActive(true);
@@ -88,7 +110,7 @@ const Dashboard: React.FC = () => {
   // Check laptop connection status
   useEffect(() => {
     const checkLaptopStatus = async () => {
-      if (!laptopDeviceId) {
+      if (!activeDeviceId) {
         setLaptopStatus('unknown');
         return;
       }
@@ -97,7 +119,7 @@ const Dashboard: React.FC = () => {
         const { data, error } = await supabase
           .from('devices')
           .select('last_seen_at, is_active')
-          .eq('id', laptopDeviceId)
+          .eq('id', activeDeviceId)
           .maybeSingle();
 
         if (error || !data) {
@@ -126,7 +148,7 @@ const Dashboard: React.FC = () => {
     checkLaptopStatus();
     const interval = setInterval(checkLaptopStatus, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeDeviceId]);
 
   useEffect(() => {
     const stored = localStorage.getItem('userProfile');
@@ -143,19 +165,19 @@ const Dashboard: React.FC = () => {
     const userId = profileId || `anon_${Date.now()}`;
     
     console.log('[LiveView] Creating rtc_session', { 
-      selectedDeviceId: laptopDeviceId, 
+      selectedDeviceId: activeDeviceId, 
       profileId, 
       userId 
     });
 
-    if (!laptopDeviceId) {
+    if (!activeDeviceId) {
       console.error('[LiveView] No device_id available');
       toast.error(language === 'he' ? 'לא נבחר מכשיר' : 'No device selected');
       return null;
     }
     
     const insertPayload = {
-      device_id: laptopDeviceId,
+      device_id: activeDeviceId,
       viewer_id: userId,
       status: 'pending' as const,
     };
@@ -218,7 +240,7 @@ const Dashboard: React.FC = () => {
 
       const profileId = userProfile?.id;
       console.log('[LiveView] Start clicked', { 
-        selectedDeviceId: laptopDeviceId, 
+        selectedDeviceId: activeDeviceId, 
         profileId, 
         userId: profileId || 'anonymous' 
       });
