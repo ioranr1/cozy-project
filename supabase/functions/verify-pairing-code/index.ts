@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
         .insert({
           profile_id: profileId,
           device_name: device_name || "Camera Computer",
-          device_type: "laptop",
+          device_type: "camera",
           is_active: true,
           last_seen_at: new Date().toISOString(),
         })
