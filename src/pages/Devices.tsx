@@ -405,6 +405,45 @@ const Devices: React.FC = () => {
               : 'The Desktop app registers itself automatically after login. Device ID is stored locally and uses the same profile_id.'}
           </p>
         </div>
+
+        {/* Re-open last pairing code (in case the dialog was closed) */}
+        {pairingCode && !pairingDialogOpen && (
+          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-white font-medium">
+                  {language === 'he' ? 'קוד צימוד אחרון' : 'Last pairing code'}
+                </p>
+                <p className="text-white/60 text-sm" dir="ltr">
+                  {pairingCode}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyCode}
+                  className="border-primary/50 text-primary hover:bg-primary/10"
+                >
+                  <Copy className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+                  {language === 'he' ? 'העתק' : 'Copy'}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setPairingDialogOpen(true)}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  {language === 'he' ? 'הצג חלון' : 'Show'}
+                </Button>
+              </div>
+            </div>
+            {pairingExpiresAt && (
+              <p className="text-white/40 text-xs mt-2">
+                {language === 'he' ? 'אם פג תוקף הקוד, צור חדש' : 'If the code expired, generate a new one'}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Rename Dialog */}
