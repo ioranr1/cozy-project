@@ -105,6 +105,15 @@ const Viewer: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
+  // Keep latest session/device/connection flags for unload/unmount handlers without
+  // re-registering effects (prevents STOP spam + flicker).
+  const sessionIdRef = useRef<string | null>(null);
+  const primaryDeviceIdRef = useRef<string>('');
+  const connectionFlagsRef = useRef<{ isConnecting: boolean; isConnected: boolean }>({
+    isConnecting: false,
+    isConnected: false,
+  });
+
   // Get stable viewer ID (profile ID or device fingerprint)
   const [viewerId, setViewerId] = useState<string>('');
 
@@ -233,6 +242,19 @@ const Viewer: React.FC = () => {
     existingSessionId: dashboardSessionId, // Use session from Dashboard if available
   });
 
+  // Sync latest values into refs (so event handlers always see current state)
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => {
+    primaryDeviceIdRef.current = primaryDeviceId;
+  }, [primaryDeviceId]);
+
+  useEffect(() => {
+    connectionFlagsRef.current = { isConnecting, isConnected };
+  }, [isConnecting, isConnected]);
+
   // Cleanup stream helper - defined early for use in effects
   const cleanupStream = useCallback(() => {
     console.log('[Viewer] Cleaning up stream');
@@ -305,19 +327,27 @@ const Viewer: React.FC = () => {
   // Cleanup on unmount (including page refresh/navigation)
   // MUST send STOP command and close RTC session to prevent auto-restart on refresh
   useEffect(() => {
+    // IMPORTANT:
+    // This effect MUST NOT depend on sessionId/isConnecting/isConnected.
+    // Otherwise React will run the cleanup on every state change and we will spam STOP commands
+    // (causing the session to end before the desktop sends an offer, and the UI to flicker).
+
     const handleBeforeUnload = () => {
       // Prevent duplicate STOP commands
       if (stopSentRef.current) {
         console.log('[Viewer] beforeunload: STOP already sent, skipping');
         return;
       }
-      
+
+      const sid = sessionIdRef.current;
+      const did = primaryDeviceIdRef.current;
+
       // Use sendBeacon for reliable cleanup on page unload
-      if (sessionId && primaryDeviceId) {
-        console.log('[Viewer] Page unloading, sending stop command via beacon');
+      if (sid && did) {
+        console.log('[Viewer] Page unloading, sending stop command via beacon', { sid });
         stopSentRef.current = true;
         const payload = JSON.stringify({
-          device_id: primaryDeviceId,
+          device_id: did,
           command: 'STOP_LIVE_VIEW',
         });
         navigator.sendBeacon(
@@ -328,20 +358,28 @@ const Viewer: React.FC = () => {
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    
+
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Also cleanup stream on component unmount (navigation within app)
       cleanupStream();
-      // If we have an active session and haven't already sent STOP, do it now
-      if (sessionId && (isConnecting || isConnected) && !stopSentRef.current) {
-        console.log('[Viewer] Component unmounting with active session, stopping...');
-        stopSentRef.current = true;
+
+      const sid = sessionIdRef.current;
+      const { isConnecting: c, isConnected: d } = connectionFlagsRef.current;
+      // Only stop if we were actually in a session
+      if (sid && (c || d)) {
+        console.log('[Viewer] Unmount cleanup: stopping RTC session', { sid });
+        // Close local RTC session (DB status update happens inside hook)
         stopSession();
-        sendCommand('STOP_LIVE_VIEW');
+
+        // Send STOP to desktop once (best-effort)
+        if (!stopSentRef.current && primaryDeviceIdRef.current) {
+          stopSentRef.current = true;
+          sendCommand('STOP_LIVE_VIEW');
+        }
       }
     };
-  }, [cleanupStream, sessionId, primaryDeviceId, isConnecting, isConnected, stopSession, sendCommand]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleanupStream, stopSession, sendCommand]);
 
   // Start viewing: connect to RTC session
   // If dashboardSessionId exists, the Dashboard already created the session AND sent the command
