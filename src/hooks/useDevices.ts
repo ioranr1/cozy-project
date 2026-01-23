@@ -73,9 +73,36 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
       const typedDevices = (data || []) as Device[];
       setDevices(typedDevices);
 
-      // Auto-select first camera device if none selected OR if selected device no longer exists
+      // Auto-select a camera when needed.
+      // IMPORTANT UX: if there's at least one CONNECTED camera (last_seen_at within threshold),
+      // we prefer it even if the user previously selected an older/offline duplicate in this browser.
       const cameraDevices = typedDevices.filter(d => d.device_type === 'camera');
       const currentSelectionValid = selectedDeviceId && cameraDevices.some(d => d.id === selectedDeviceId);
+
+      const connectedCamera = cameraDevices.find(d => {
+        if (!d.last_seen_at) return false;
+        const lastSeen = new Date(d.last_seen_at);
+        const diffSeconds = (new Date().getTime() - lastSeen.getTime()) / 1000;
+        return diffSeconds <= CONNECTION_THRESHOLD_SECONDS;
+      });
+
+      const selectedCamera = cameraDevices.find(d => d.id === selectedDeviceId) || null;
+      const selectedIsConnected = !!(
+        selectedCamera?.last_seen_at &&
+        (new Date().getTime() - new Date(selectedCamera.last_seen_at).getTime()) / 1000 <=
+          CONNECTION_THRESHOLD_SECONDS
+      );
+
+      // If we have a connected camera, and the current selection is missing or disconnected,
+      // switch selection to the connected one.
+      if (connectedCamera && (!currentSelectionValid || !selectedIsConnected)) {
+        if (selectedDeviceId !== connectedCamera.id) {
+          setSelectedDeviceId(connectedCamera.id);
+          localStorage.setItem(SELECTED_DEVICE_KEY, connectedCamera.id);
+          console.log('[useDevices] Auto-selected connected camera:', connectedCamera.device_name, connectedCamera.id);
+        }
+        return;
+      }
       
       if (!currentSelectionValid && cameraDevices.length > 0) {
         // Select the camera with most recent last_seen_at
