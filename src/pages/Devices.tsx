@@ -18,7 +18,10 @@ import {
   Wifi,
   WifiOff,
   HelpCircle,
-  Monitor
+  Monitor,
+  ChevronDown,
+  ChevronUp,
+  Archive
 } from 'lucide-react';
 import {
   Dialog,
@@ -48,6 +51,7 @@ const Devices: React.FC = () => {
   const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [profileId, setProfileId] = useState<string | undefined>();
+  const [showOldDevices, setShowOldDevices] = useState(false);
   
   // Get profile from localStorage
   useEffect(() => {
@@ -68,7 +72,10 @@ const Devices: React.FC = () => {
     refreshDevices,
     renameDevice,
     deleteDevice,
-    getDeviceStatus 
+    getDeviceStatus,
+    primaryDevice,
+    oldDevices,
+    hasOldDevices
   } = useDevices(profileId);
 
   // Rename dialog state
@@ -81,8 +88,6 @@ const Devices: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Pairing dialog is now handled by PairingCodeDialog component
 
   const handleRenameClick = (device: Device) => {
     setDeviceToRename(device);
@@ -162,7 +167,96 @@ const Devices: React.FC = () => {
     }
   };
 
+  const renderDeviceCard = (device: Device, isOldDevice: boolean = false) => {
+    const DeviceIcon = getDeviceIcon(device.device_type);
+    const status = getDeviceStatus(device);
+    const isSelected = selectedDevice?.id === device.id;
+
+    return (
+      <div
+        key={device.id}
+        className={cn(
+          "bg-slate-800/50 border rounded-xl p-4 transition-all",
+          isOldDevice && "opacity-70",
+          isSelected 
+            ? "border-primary/50 bg-primary/5" 
+            : "border-slate-700/50 hover:border-slate-600"
+        )}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={cn(
+              "w-10 h-10 rounded-lg flex items-center justify-center",
+              isSelected 
+                ? "bg-primary/20 text-primary" 
+                : "bg-slate-700/50 text-slate-400"
+            )}>
+              <DeviceIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-white font-medium">
+                  {device.device_name}
+                </span>
+                {isSelected && (
+                  <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs">
+                    {language === 'he' ? 'נבחר' : 'Selected'}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                {getStatusIcon(status)}
+                <span className={cn(
+                  "text-xs",
+                  status === 'online' ? "text-green-400" :
+                  status === 'offline' ? "text-yellow-400" : "text-slate-400"
+                )}>
+                  {getStatusText(status)}
+                </span>
+                <span className="text-white/30 text-xs">•</span>
+                <span className="text-white/40 text-xs">
+                  ID: {device.id.slice(0, 8)}...
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!isSelected && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => selectDevice(device.id)}
+                className="border-primary/50 text-primary hover:bg-primary/10"
+              >
+                <Check className={cn("w-4 h-4", isRTL ? "ml-1" : "mr-1")} />
+                {language === 'he' ? 'בחר' : 'Select'}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleRenameClick(device)}
+              className="text-white/60 hover:text-white hover:bg-slate-700"
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleDeleteClick(device)}
+              className="text-red-400/60 hover:text-red-400 hover:bg-red-500/10"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const cameraDevices = devices.filter(d => d.device_type === 'camera');
+  const hasCameras = cameraDevices.length > 0;
 
   return (
     <AppLayout>
@@ -199,14 +293,16 @@ const Devices: React.FC = () => {
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
             <Camera className="w-5 h-5 text-primary" />
             {language === 'he' ? 'מצלמות' : 'Cameras'}
-            <span className="text-sm text-white/50">({cameraDevices.length})</span>
+            <span className="text-sm text-white/50">
+              ({hasCameras ? (primaryDevice ? 1 : 0) : 0}{hasOldDevices ? ` + ${oldDevices.length}` : ''})
+            </span>
           </h2>
 
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
-          ) : cameraDevices.length === 0 ? (
+          ) : !hasCameras ? (
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-8 text-center">
               <Monitor className="w-12 h-12 text-slate-500 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-white mb-2">
@@ -232,93 +328,56 @@ const Devices: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
-              {cameraDevices.map((device) => {
-                const DeviceIcon = getDeviceIcon(device.device_type);
-                const status = getDeviceStatus(device);
-                const isSelected = selectedDevice?.id === device.id;
+            <div className="space-y-3">
+              {/* Primary Device */}
+              {primaryDevice && (
+                <div className="space-y-2">
+                  {renderDeviceCard(primaryDevice)}
+                </div>
+              )}
 
-                return (
-                  <div
-                    key={device.id}
-                    className={cn(
-                      "bg-slate-800/50 border rounded-xl p-4 transition-all",
-                      isSelected 
-                        ? "border-primary/50 bg-primary/5" 
-                        : "border-slate-700/50 hover:border-slate-600"
-                    )}
+              {/* Old Devices Toggle */}
+              {hasOldDevices && (
+                <div className="pt-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowOldDevices(!showOldDevices)}
+                    className="text-white/60 hover:text-white hover:bg-slate-800 w-full justify-between"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-10 h-10 rounded-lg flex items-center justify-center",
-                          isSelected 
-                            ? "bg-primary/20 text-primary" 
-                            : "bg-slate-700/50 text-slate-400"
-                        )}>
-                          <DeviceIcon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-white font-medium">
-                              {device.device_name}
-                            </span>
-                            {isSelected && (
-                              <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs">
-                                {language === 'he' ? 'נבחר' : 'Selected'}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            {getStatusIcon(status)}
-                            <span className={cn(
-                              "text-xs",
-                              status === 'online' ? "text-green-400" :
-                              status === 'offline' ? "text-yellow-400" : "text-slate-400"
-                            )}>
-                              {getStatusText(status)}
-                            </span>
-                            <span className="text-white/30 text-xs">•</span>
-                            <span className="text-white/40 text-xs">
-                              ID: {device.id.slice(0, 8)}...
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {!isSelected && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => selectDevice(device.id)}
-                            className="border-primary/50 text-primary hover:bg-primary/10"
-                          >
-                            <Check className={cn("w-4 h-4", isRTL ? "ml-1" : "mr-1")} />
-                            {language === 'he' ? 'בחר' : 'Select'}
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRenameClick(device)}
-                          className="text-white/60 hover:text-white hover:bg-slate-700"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteClick(device)}
-                          className="text-red-400/60 hover:text-red-400 hover:bg-red-500/10"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <Archive className="w-4 h-4" />
+                      <span>
+                        {language === 'he' ? 'מכשירים ישנים' : 'Old devices'}
+                        <span className="text-white/40 ml-2">({oldDevices.length})</span>
+                      </span>
                     </div>
-                  </div>
-                );
-              })}
+                    {showOldDevices ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </Button>
+
+                  {showOldDevices && (
+                    <div className="mt-2 space-y-2 border-t border-slate-700/50 pt-3">
+                      <p className="text-white/40 text-xs px-2">
+                        {language === 'he' 
+                          ? 'מכשירים שלא שלחו עדכון לאחרונה'
+                          : 'Devices that haven\'t sent updates recently'}
+                      </p>
+                      {oldDevices.map(device => renderDeviceCard(device, true))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Status explanation */}
+              <p className="text-white/40 text-xs text-center pt-2">
+                {language === 'he' 
+                  ? 'מכשיר נחשב מחובר אם עודכן ב-30 השניות האחרונות'
+                  : 'A device is considered connected if updated in the last 30 seconds'}
+              </p>
             </div>
           )}
         </div>
@@ -334,8 +393,6 @@ const Devices: React.FC = () => {
               : 'The Desktop app registers itself automatically after login. Device ID is stored locally and uses the same profile_id.'}
           </p>
         </div>
-
-        {/* Pairing code is now managed by PairingCodeDialog component */}
       </div>
 
       {/* Rename Dialog */}
@@ -405,8 +462,6 @@ const Devices: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Pairing Code Dialog is now rendered inside PairingCodeDialog component */}
     </AppLayout>
   );
 };

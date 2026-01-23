@@ -23,13 +23,16 @@ export const DeviceSelector: React.FC<DeviceSelectorProps> = ({
   className
 }) => {
   const { language } = useLanguage();
-  const { devices, selectedDevice, selectDevice, getDeviceStatus, isLoading } = useDevices(profileId);
+  const { primaryDevice, oldDevices, selectedDevice, selectDevice, getDeviceStatus, isLoading } = useDevices(profileId);
   
-  const cameraDevices = devices.filter(d => d.device_type === 'camera');
+  // Combine primary + old devices for selection, but show primary first
+  const availableDevices = primaryDevice 
+    ? [primaryDevice, ...oldDevices] 
+    : oldDevices;
 
   const handleValueChange = (deviceId: string) => {
     selectDevice(deviceId);
-    const device = devices.find(d => d.id === deviceId) || null;
+    const device = availableDevices.find(d => d.id === deviceId) || null;
     onDeviceChange?.(device);
   };
 
@@ -50,7 +53,7 @@ export const DeviceSelector: React.FC<DeviceSelectorProps> = ({
     );
   }
 
-  if (cameraDevices.length === 0) {
+  if (availableDevices.length === 0) {
     return (
       <div className={cn(
         "flex items-center gap-2 px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-white/50 text-sm",
@@ -74,7 +77,7 @@ export const DeviceSelector: React.FC<DeviceSelectorProps> = ({
         <SelectValue placeholder={language === 'he' ? 'בחר מצלמה' : 'Select camera'} />
       </SelectTrigger>
       <SelectContent className="bg-slate-900 border-slate-700">
-        {cameraDevices.map((device) => {
+        {availableDevices.map((device) => {
           const status = getDeviceStatus(device);
           return (
             <SelectItem 
