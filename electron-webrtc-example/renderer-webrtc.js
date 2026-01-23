@@ -28,6 +28,103 @@ const DEFAULT_ICE_SERVERS = [
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
+// Camera timeout configuration
+const CAMERA_TIMEOUT_MS = 30000; // 30 seconds
+const CAMERA_MAX_RETRIES = 3;
+
+// ============================================================
+// CAMERA HELPERS WITH TIMEOUT & RETRY
+// ============================================================
+
+/**
+ * Get camera access with timeout and retry logic
+ */
+async function getCameraWithRetry(maxRetries = CAMERA_MAX_RETRIES) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    console.log(`[Desktop] 📷 Camera access attempt ${attempt}/${maxRetries}...`);
+    
+    try {
+      const stream = await getCameraWithTimeout(CAMERA_TIMEOUT_MS);
+      console.log(`[Desktop] ✅ Camera access granted on attempt ${attempt}`);
+      return stream;
+    } catch (error) {
+      console.error(`[Desktop] ❌ Camera attempt ${attempt} failed:`, error.message);
+      
+      if (attempt < maxRetries) {
+        // Wait before retry (exponential backoff)
+        const waitTime = 1000 * attempt;
+        console.log(`[Desktop] Waiting ${waitTime}ms before retry...`);
+        await new Promise(r => setTimeout(r, waitTime));
+      } else {
+        throw error;
+      }
+    }
+  }
+}
+
+/**
+ * Get camera access with a specific timeout
+ */
+async function getCameraWithTimeout(timeoutMs) {
+  return new Promise(async (resolve, reject) => {
+    let timeoutId = null;
+    let resolved = false;
+    
+    // Set timeout
+    timeoutId = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        reject(new Error(`Camera access timed out after ${timeoutMs}ms`));
+      }
+    }, timeoutMs);
+    
+    try {
+      // Try with ideal constraints first
+      const constraints = {
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 }
+        },
+        audio: false
+      };
+      
+      console.log('[Desktop] Requesting camera with constraints:', JSON.stringify(constraints));
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeoutId);
+        resolve(stream);
+      } else {
+        // If we already timed out, stop the tracks
+        stream.getTracks().forEach(t => t.stop());
+      }
+    } catch (constraintError) {
+      console.warn('[Desktop] Failed with ideal constraints, trying minimal...', constraintError.message);
+      
+      // Fallback to minimal constraints
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          resolve(stream);
+        } else {
+          stream.getTracks().forEach(t => t.stop());
+        }
+      } catch (minimalError) {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeoutId);
+          reject(minimalError);
+        }
+      }
+    }
+  });
+}
+
 // ============================================================
 // SUPABASE HELPERS
 // ============================================================
@@ -145,13 +242,10 @@ async function startLiveView(sessionId) {
   processedSignalIds.clear();
   
   try {
-    // 1. Get camera access
-    console.log('[Desktop] Step 1/5: Getting camera access...');
-    localStream = await navigator.mediaDevices.getUserMedia({ 
-      video: true, 
-      audio: false 
-    });
-    console.log('[Desktop] ✅ Camera access granted');
+    // 1. Get camera access (with timeout and retry)
+    console.log('[Desktop] Step 1/5: Getting camera access (30s timeout, 3 retries)...');
+    localStream = await getCameraWithRetry(CAMERA_MAX_RETRIES);
+    console.log('[Desktop] ✅ Camera access granted, tracks:', localStream.getTracks().map(t => t.kind).join(', '));
     
     // 2. Get ICE servers
     console.log('[Desktop] Step 2/5: Fetching ICE servers...');
