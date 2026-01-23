@@ -329,7 +329,7 @@ const Devices: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-3" key={refreshKey}>
               {/* Primary Device */}
               {primaryDevice && (
                 <div className="space-y-2">
