@@ -32,24 +32,43 @@ const DEFAULT_ICE_SERVERS = [
 // SUPABASE HELPERS
 // ============================================================
 
-async function supabaseInsert(table, data) {
+async function supabaseInsert(table, data, { prefer = 'return=minimal' } = {}) {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      'Prefer': 'return=representation',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Prefer: prefer,
     },
     body: JSON.stringify(data),
   });
-  
+
   if (!response.ok) {
     const error = await response.text();
     throw new Error(`Insert failed: ${error}`);
   }
-  
+
+  // return=minimal => empty body
+  if (prefer === 'return=minimal') return null;
   return response.json();
+}
+
+async function insertRtcSignalWithRetry(signal, { label, retries = 3 } = {}) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await supabaseInsert('rtc_signals', signal, { prefer: 'return=minimal' });
+      return true;
+    } catch (e) {
+      lastErr = e;
+      console.error(`[Desktop] ❌ Failed to insert rtc_signal (${label || signal.type}) attempt ${attempt}/${retries}:`, e);
+      // Small backoff
+      await new Promise((r) => setTimeout(r, 150 * attempt));
+    }
+  }
+  console.error(`[Desktop] ❌ Giving up inserting rtc_signal (${label || signal.type}). Last error:`, lastErr);
+  return false;
 }
 
 async function supabaseUpdate(table, id, data) {
@@ -150,22 +169,42 @@ async function startLiveView(sessionId) {
     
     // 4. Handle ICE candidates
     peerConnection.onicecandidate = async (event) => {
-      if (event.candidate) {
-        console.log('[Desktop] ICE candidate generated, sending to DB...');
-        try {
-          await supabaseInsert('rtc_signals', {
-            session_id: sessionId,
-            from_role: 'desktop',
-            type: 'ice',
-            payload: event.candidate.toJSON(),
-          });
-          console.log('[Desktop] ✅ ICE candidate sent');
-        } catch (error) {
-          console.error('[Desktop] ❌ Failed to send ICE:', error);
-        }
-      } else {
+      if (!event.candidate) {
         console.log('[Desktop] ICE gathering complete');
+        return;
       }
+
+      // Electron/Chromium candidates are sometimes not serializable via toJSON in some builds.
+      const c = event.candidate;
+      const payload =
+        typeof c.toJSON === 'function'
+          ? c.toJSON()
+          : {
+              candidate: c.candidate,
+              sdpMid: c.sdpMid,
+              sdpMLineIndex: c.sdpMLineIndex,
+              usernameFragment: c.usernameFragment,
+            };
+
+      console.log('[Desktop] ICE candidate generated, sending to DB...', {
+        sdpMid: payload?.sdpMid,
+        sdpMLineIndex: payload?.sdpMLineIndex,
+        candidatePrefix: typeof payload?.candidate === 'string' ? payload.candidate.slice(0, 32) : undefined,
+      });
+
+      await insertRtcSignalWithRetry(
+        {
+          session_id: sessionId,
+          from_role: 'desktop',
+          type: 'ice',
+          payload,
+        },
+        { label: 'ice' }
+      );
+    };
+
+    peerConnection.onicecandidateerror = (event) => {
+      console.error('[Desktop] ❌ ICE candidate error:', event);
     };
     
     // Connection state changes
@@ -193,12 +232,15 @@ async function startLiveView(sessionId) {
     console.log('[Desktop] ✅ Local description set');
     
     console.log('[Desktop] Step 5/5: Sending offer to DB...');
-    await supabaseInsert('rtc_signals', {
-      session_id: sessionId,
-      from_role: 'desktop',
-      type: 'offer',
-      payload: { sdp: offer.sdp, type: offer.type },
-    });
+    await insertRtcSignalWithRetry(
+      {
+        session_id: sessionId,
+        from_role: 'desktop',
+        type: 'offer',
+        payload: { sdp: offer.sdp, type: offer.type },
+      },
+      { label: 'offer' }
+    );
     console.log('✅ [Desktop] OFFER SENT - Waiting for answer...');
 
     // IMPORTANT: Promote the session to 'active' only AFTER the offer is sent.
