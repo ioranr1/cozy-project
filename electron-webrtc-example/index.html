@@ -685,14 +685,11 @@
       });
 
       // ============================================================
-      // IPC -> UI live indicator
+      // IPC -> UI live indicator (NOTE: actual WebRTC logic is in renderer-webrtc.js)
       // ============================================================
-      if (window.electronAPI?.onStartLiveView) {
-        window.electronAPI.onStartLiveView(() => setLiveIndicator(true));
-      }
-      if (window.electronAPI?.onStopLiveView) {
-        window.electronAPI.onStopLiveView(() => setLiveIndicator(false));
-      }
+      // DO NOT register onStartLiveView/onStopLiveView here - it would override 
+      // the WebRTC handlers in renderer-webrtc.js. The UI indicator is now 
+      // handled via a separate approach if needed.
 
       // Allow main process to switch to success screen (auto-login)
       if (window.electronAPI?.onShowSuccessScreen) {
