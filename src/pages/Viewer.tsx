@@ -131,6 +131,13 @@ const Viewer: React.FC = () => {
     },
   });
 
+  // IMPORTANT: stopSession/sendCommand identities can change as hooks update internal state.
+  // If we include them in effect deps, React will run the cleanup function repeatedly (NOT just on unmount),
+  // which can spam STOP_LIVE_VIEW and cause flicker / no-video.
+  // Keep latest fns in refs and keep the unload/unmount effect stable.
+  const stopSessionFnRef = useRef<null | (() => Promise<void>)>(null);
+  const sendCommandFnRef = useRef<null | ((cmd: 'START_LIVE_VIEW' | 'STOP_LIVE_VIEW') => Promise<boolean>)>(null);
+
   // RTC Session callbacks
   const handleStreamReceived = useCallback((stream: MediaStream) => {
     console.log('🎬 ═══════════════════════════════════════════════════');
@@ -242,6 +249,15 @@ const Viewer: React.FC = () => {
     existingSessionId: dashboardSessionId, // Use session from Dashboard if available
   });
 
+  // Keep latest stop/send functions for stable unmount/unload handlers
+  useEffect(() => {
+    stopSessionFnRef.current = stopSession;
+  }, [stopSession]);
+
+  useEffect(() => {
+    sendCommandFnRef.current = sendCommand;
+  }, [sendCommand]);
+
   // Sync latest values into refs (so event handlers always see current state)
   useEffect(() => {
     sessionIdRef.current = sessionId;
@@ -346,9 +362,20 @@ const Viewer: React.FC = () => {
       if (sid && did) {
         console.log('[Viewer] Page unloading, sending stop command via beacon', { sid });
         stopSentRef.current = true;
+
+        // Include session token, otherwise the edge function will reject it.
+        // Wrap in try/catch because some environments can block storage access.
+        let sessionToken: string | null = null;
+        try {
+          sessionToken = localStorage.getItem('aiguard_session_token');
+        } catch {
+          sessionToken = null;
+        }
+
         const payload = JSON.stringify({
           device_id: did,
           command: 'STOP_LIVE_VIEW',
+          session_token: sessionToken,
         });
         navigator.sendBeacon(
           'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command',
@@ -369,17 +396,17 @@ const Viewer: React.FC = () => {
       if (sid && (c || d)) {
         console.log('[Viewer] Unmount cleanup: stopping RTC session', { sid });
         // Close local RTC session (DB status update happens inside hook)
-        stopSession();
+        void stopSessionFnRef.current?.();
 
         // Send STOP to desktop once (best-effort)
         if (!stopSentRef.current && primaryDeviceIdRef.current) {
           stopSentRef.current = true;
-          sendCommand('STOP_LIVE_VIEW');
+          void sendCommandFnRef.current?.('STOP_LIVE_VIEW');
         }
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cleanupStream, stopSession, sendCommand]);
+  }, [cleanupStream]);
 
   // Start viewing: connect to RTC session
   // If dashboardSessionId exists, the Dashboard already created the session AND sent the command
