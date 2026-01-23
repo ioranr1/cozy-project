@@ -53,7 +53,8 @@ export function useRemoteCommand({
       timeoutRef.current = null;
     }
     if (subscriptionRef.current) {
-      subscriptionRef.current.unsubscribe();
+      // IMPORTANT: Use removeChannel instead of just unsubscribe to fully release resources
+      supabase.removeChannel(subscriptionRef.current);
       subscriptionRef.current = null;
     }
   }, []);
