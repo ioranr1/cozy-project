@@ -17,13 +17,16 @@ interface UseLiveViewStateResult {
  * based on the latest ACKed command (START_LIVE_VIEW or STOP_LIVE_VIEW).
  * Supabase is the SOLE source of truth for live view state.
  */
-export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLiveViewStateResult => {
-  const [liveViewActive, setLiveViewActive] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+export const useLiveViewState = (options: UseLiveViewStateOptions): UseLiveViewStateResult => {
+  const { deviceId } = options;
+  
+  const [liveViewActive, setLiveViewActive] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastAckedCommand, setLastAckedCommand] = useState<string | null>(null);
 
   // Track mount state to avoid state updates after unmount
-  const isMountedRef = useRef(true);
+  const isMountedRef = useRef<boolean>(true);
+  
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -96,7 +99,7 @@ export const useLiveViewState = ({ deviceId }: UseLiveViewStateOptions): UseLive
     if (!deviceId) return;
 
     // Check if we're on a page that needs live view polling
-    const isViewerPage = () => {
+    const isViewerPage = (): boolean => {
       const path = window.location.pathname;
       return path.includes('/viewer') || path.includes('/live');
     };
