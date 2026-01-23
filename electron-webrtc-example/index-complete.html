@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AIGuard Camera</title>
+    <style>
+      *
+      {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body
+      {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: #e2e8f0;
+      }
+
+      .container
+      {
+        background: rgba(30, 41, 59, 0.9);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 40px;
+        width: 420px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(71, 85, 105, 0.5);
+        position: relative;
+      }
+
+      .header
+      {
+        text-align: center;
+        margin-bottom: 28px;
+      }
+
+      .logo
+      {
+        font-size: 48px;
+        margin-bottom: 12px;
+      }
+
+      h1
+      {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: #f1f5f9;
+      }
+
+      .subtitle
+      {
+        color: #94a3b8;
+        font-size: 14px;
+        line-height: 1.35;
+      }
+
+      .lang-toggle
+      {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        display: flex;
+        gap: 8px;
+      }
+
+      .lang-btn
+      {
+        padding: 8px 14px;
+        border: 1px solid rgba(71, 85, 105, 0.5);
+        background: rgba(30, 41, 59, 0.8);
+        color: #94a3b8;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+        user-select: none;
+      }
+
+      .lang-btn:hover
+      {
+        background: rgba(51, 65, 85, 0.8);
+        color: #e2e8f0;
+      }
+
+      .lang-btn.active
+      {
+        background: #3b82f6;
+        border-color: #3b82f6;
+        color: #ffffff;
+      }
+
+      .code-section
+      {
+        margin-bottom: 18px;
+      }
+
+      .code-label
+      {
+        display: block;
+        margin-bottom: 12px;
+        font-size: 13px;
+        color: #cbd5e1;
+        text-align: center;
+      }
+
+      .code-inputs
+      {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-bottom: 14px;
+      }
+
+      .code-input
+      {
+        width: 50px;
+        height: 58px;
+        text-align: center;
+        font-size: 24px;
+        font-weight: 700;
+        border: 2px solid rgba(71, 85, 105, 0.5);
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.6);
+        color: #f1f5f9;
+        outline: none;
+        transition: all 0.2s;
+      }
+
+      .code-input:focus
+      {
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+      }
+
+      .paste-btn
+      {
+        width: 100%;
+        padding: 12px;
+        background: rgba(51, 65, 85, 0.6);
+        border: 1px solid rgba(71, 85, 105, 0.5);
+        color: #94a3b8;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        transition: all 0.2s;
+        user-select: none;
+      }
+
+      .paste-btn:hover
+      {
+        background: rgba(71, 85, 105, 0.6);
+        color: #e2e8f0;
+      }
+
+      .submit-btn,
+      .minimize-btn
+      {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border: none;
+        color: white;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 700;
+        transition: all 0.2s;
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        user-select: none;
+      }
+
+      .submit-btn:hover:not(:disabled),
+      .minimize-btn:hover
+      {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 22px rgba(59, 130, 246, 0.28);
+      }
+
+      .submit-btn:disabled
+      {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .error-message
+      {
+        background: rgba(239, 68, 68, 0.18);
+        border: 1px solid rgba(239, 68, 68, 0.45);
+        color: #fecaca;
+        padding: 12px;
+        border-radius: 10px;
+        text-align: center;
+        margin-top: 14px;
+        font-size: 14px;
+        display: none;
+        line-height: 1.35;
+      }
+
+      .success-screen
+      {
+        display: none;
+        text-align: center;
+      }
+
+      .success-icon
+      {
+        font-size: 64px;
+        margin-bottom: 12px;
+      }
+
+      .success-title
+      {
+        font-size: 24px;
+        font-weight: 800;
+        color: #4ade80;
+        margin-bottom: 8px;
+      }
+
+      .success-subtitle
+      {
+        color: #94a3b8;
+        margin-bottom: 18px;
+        line-height: 1.35;
+      }
+
+      .info-box
+      {
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px solid rgba(59, 130, 246, 0.28);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 16px;
+        text-align: start;
+      }
+
+      .info-box-title
+      {
+        font-weight: 800;
+        color: #93c5fd;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+      }
+
+      .info-box-text
+      {
+        color: #cbd5e1;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .action-buttons
+      {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .close-btn
+      {
+        width: 100%;
+        padding: 14px;
+        background: rgba(239, 68, 68, 0.18);
+        border: 1px solid rgba(239, 68, 68, 0.45);
+        color: #fecaca;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 800;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        user-select: none;
+      }
+
+      .close-btn:hover
+      {
+        background: rgba(239, 68, 68, 0.26);
+      }
+
+      .warning-text
+      {
+        color: #fbbf24;
+        font-size: 12px;
+        margin-top: 6px;
+        text-align: center;
+        line-height: 1.35;
+      }
+
+      .hint-text
+      {
+        color: #94a3b8;
+        font-size: 12px;
+        margin-top: 10px;
+        text-align: center;
+        line-height: 1.35;
+      }
+
+      .spinner
+      {
+        width: 20px;
+        height: 20px;
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin
+      {
+        to
+        {
+          transform: rotate(360deg);
+        }
+      }
+
+      .live-indicator
+      {
+        display: none;
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid rgba(239, 68, 68, 0.5);
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 16px;
+        text-align: center;
+      }
+
+      .live-indicator.active
+      {
+        display: block;
+      }
+
+      .live-dot
+      {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        background: #ef4444;
+        border-radius: 50%;
+        margin-right: 8px;
+        animation: pulse 1.5s infinite;
+      }
+
+      @keyframes pulse
+      {
+        0%,
+        100%
+        {
+          opacity: 1;
+        }
+        50%
+        {
+          opacity: 0.5;
+        }
+      }
+
+      .live-text
+      {
+        color: #fecaca;
+        font-weight: 700;
+      }
+
+      [dir="rtl"] .lang-toggle
+      {
+        right: auto;
+        left: 18px;
+      }
+
+      [dir="rtl"] .info-box
+      {
+        text-align: right;
+      }
+
+      [dir="rtl"] .code-inputs
+      {
+        flex-direction: row-reverse;
+      }
+
+      [dir="rtl"] .info-box-title
+      {
+        flex-direction: row-reverse;
+      }
+
+      [dir="rtl"] .live-dot
+      {
+        margin-right: 0;
+        margin-left: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="lang-toggle">
+        <button id="lang-en" class="lang-btn active" type="button">EN</button>
+        <button id="lang-he" class="lang-btn" type="button">עב</button>
+      </div>
+
+      <div id="pairing-screen">
+        <div class="header">
+          <div class="logo">🛡️</div>
+          <h1 id="title">Connect Camera</h1>
+          <div class="subtitle" id="subtitle">Enter the 6-digit code from your dashboard</div>
+        </div>
+
+        <div class="code-section">
+          <label class="code-label" id="code-label">Pairing Code</label>
+          <div class="code-inputs" id="code-inputs">
+            <input class="code-input" inputmode="numeric" maxlength="1" />
+            <input class="code-input" inputmode="numeric" maxlength="1" />
+            <input class="code-input" inputmode="numeric" maxlength="1" />
+            <input class="code-input" inputmode="numeric" maxlength="1" />
+            <input class="code-input" inputmode="numeric" maxlength="1" />
+            <input class="code-input" inputmode="numeric" maxlength="1" />
+          </div>
+
+          <button class="paste-btn" id="paste-btn" type="button">📋 <span id="paste-text">Paste Code</span></button>
+          <div class="hint-text" id="paste-hint">Tip: You can paste the full code and we will fill it automatically.</div>
+        </div>
+
+        <button class="submit-btn" id="connect-btn" type="button">Connect</button>
+        <div class="error-message" id="error"></div>
+      </div>
+
+      <div id="success-screen" class="success-screen">
+        <div class="success-icon">✅</div>
+        <div class="success-title" id="success-title">Connected Successfully</div>
+        <div class="success-subtitle" id="success-subtitle">Your camera is now linked to your account</div>
+
+        <div id="live-indicator" class="live-indicator">
+          <span class="live-dot"></span>
+          <span class="live-text" id="live-text">LIVE - Streaming</span>
+        </div>
+
+        <div class="info-box">
+          <div class="info-box-title"><span>ℹ️</span> <span id="bg-title">Background Operation</span></div>
+          <div class="info-box-text" id="bg-text">
+            The camera will continue to work in the background even when this window is closed or minimized.
+            To reopen the app, click the AIGuard icon near the clock.
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button class="minimize-btn" id="minimize-btn" type="button">🔽 <span id="minimize-text">Minimize to Background</span></button>
+          <div>
+            <button class="close-btn" id="exit-btn" type="button">⛔ <span id="exit-text">Exit Application</span></button>
+            <div class="warning-text" id="exit-warning">Warning: Exiting will stop the camera service</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // ============================================================
+      // WEBRTC CONFIGURATION
+      // ============================================================
+      const SUPABASE_URL = "https://zoripeohnedivxkvrpbi.supabase.co";
+      const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvcmlwZW9obmVkaXZ4a3ZycGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0ODMyMDIsImV4cCI6MjA4NDA1OTIwMn0.I24w1VjEWUNf2jCBnPo4-ypu3aq5rATJldbLgSSt9mo";
+
+      // WebRTC State
+      let peerConnection = null;
+      let localStream = null;
+      let currentSessionId = null;
+      let pollingInterval = null;
+      let processedSignalIds = new Set();
+
+      // Default ICE servers (STUN only - fallback)
+      const DEFAULT_ICE_SERVERS = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ];
+
+      // ============================================================
+      // SUPABASE HELPERS
+      // ============================================================
+
+      async function supabaseInsert(table, data, { prefer = 'return=minimal' } = {}) {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Prefer: prefer,
+          },
+          body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Insert failed: ${error}`);
+        }
+
+        if (prefer === 'return=minimal') return null;
+        return response.json();
+      }
+
+      async function insertRtcSignalWithRetry(signal, { label, retries = 3 } = {}) {
+        let lastErr = null;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+          try {
+            await supabaseInsert('rtc_signals', signal, { prefer: 'return=minimal' });
+            console.log(`[Desktop] ✅ Signal sent: ${label || signal.type}`);
+            return true;
+          } catch (e) {
+            lastErr = e;
+            console.error(`[Desktop] ❌ Failed to insert rtc_signal (${label || signal.type}) attempt ${attempt}/${retries}:`, e);
+            await new Promise((r) => setTimeout(r, 150 * attempt));
+          }
+        }
+        console.error(`[Desktop] ❌ Giving up inserting rtc_signal (${label || signal.type}). Last error:`, lastErr);
+        return false;
+      }
+
+      async function supabaseUpdate(table, id, data) {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Update failed: ${error}`);
+        }
+      }
+
+      async function supabaseSelect(table, filters) {
+        const queryParams = Object.entries(filters)
+          .map(([key, value]) => `${key}=eq.${value}`)
+          .join('&');
+        
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${queryParams}&order=id.desc`, {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        });
+        
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Select failed: ${error}`);
+        }
+        
+        return response.json();
+      }
+
+      async function fetchTurnCredentials() {
+        try {
+          console.log('[WebRTC] Fetching TURN credentials...');
+          const response = await fetch(`${SUPABASE_URL}/functions/v1/get-turn-credentials`);
+          
+          if (!response.ok) {
+            console.warn('[WebRTC] TURN fetch failed, using STUN only');
+            return DEFAULT_ICE_SERVERS;
+          }
+          
+          const data = await response.json();
+          if (data.iceServers && Array.isArray(data.iceServers)) {
+            console.log('[WebRTC] Got TURN servers:', data.iceServers.length);
+            return data.iceServers;
+          }
+          
+          return DEFAULT_ICE_SERVERS;
+        } catch (error) {
+          console.error('[WebRTC] Error fetching TURN:', error);
+          return DEFAULT_ICE_SERVERS;
+        }
+      }
+
+      // ============================================================
+      // WEBRTC CORE
+      // ============================================================
+
+      async function startLiveView(sessionId) {
+        console.log('═══════════════════════════════════════════════════');
+        console.log('[Desktop] START LIVE VIEW - Session:', sessionId);
+        console.log('═══════════════════════════════════════════════════');
+        
+        currentSessionId = sessionId;
+        processedSignalIds.clear();
+        
+        try {
+          // 1. Get camera access
+          console.log('[Desktop] Step 1/5: Getting camera access...');
+          localStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: false 
+          });
+          console.log('[Desktop] ✅ Camera access granted');
+          
+          // 2. Get ICE servers
+          console.log('[Desktop] Step 2/5: Fetching ICE servers...');
+          const iceServers = await fetchTurnCredentials();
+          
+          // 3. Create peer connection
+          console.log('[Desktop] Step 3/5: Creating RTCPeerConnection...');
+          peerConnection = new RTCPeerConnection({ iceServers });
+          
+          // Add tracks to peer connection
+          localStream.getTracks().forEach(track => {
+            console.log('[Desktop] Adding track:', track.kind);
+            peerConnection.addTrack(track, localStream);
+          });
+          
+          // 4. Handle ICE candidates - WITH RETRY AND PROPER SERIALIZATION
+          peerConnection.onicecandidate = async (event) => {
+            if (!event.candidate) {
+              console.log('[Desktop] ICE gathering complete');
+              return;
+            }
+
+            // Serialize candidate properly (some Electron builds don't have toJSON)
+            const c = event.candidate;
+            const payload =
+              typeof c.toJSON === 'function'
+                ? c.toJSON()
+                : {
+                    candidate: c.candidate,
+                    sdpMid: c.sdpMid,
+                    sdpMLineIndex: c.sdpMLineIndex,
+                    usernameFragment: c.usernameFragment,
+                  };
+
+            console.log('[Desktop] ICE candidate generated, sending to DB...', {
+              sdpMid: payload?.sdpMid,
+              sdpMLineIndex: payload?.sdpMLineIndex,
+              candidatePrefix: typeof payload?.candidate === 'string' ? payload.candidate.slice(0, 32) : undefined,
+            });
+
+            await insertRtcSignalWithRetry(
+              {
+                session_id: sessionId,
+                from_role: 'desktop',
+                type: 'ice',
+                payload,
+              },
+              { label: 'ice' }
+            );
+          };
+
+          peerConnection.onicecandidateerror = (event) => {
+            console.error('[Desktop] ❌ ICE candidate error:', event);
+          };
+          
+          // Connection state changes
+          peerConnection.onconnectionstatechange = async () => {
+            console.log('[Desktop] Connection state:', peerConnection.connectionState);
+            
+            if (peerConnection.connectionState === 'connected') {
+              console.log('✅ ═══════════════════════════════════════════════════');
+              console.log('✅ [Desktop] PEER CONNECTION ESTABLISHED');
+              console.log('✅ ═══════════════════════════════════════════════════');
+            } else if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
+              console.log('[Desktop] Connection failed/disconnected, stopping...');
+              await stopLiveView();
+            }
+          };
+          
+          peerConnection.oniceconnectionstatechange = () => {
+            console.log('[Desktop] ICE connection state:', peerConnection.iceConnectionState);
+          };
+          
+          // 5. Create and send offer
+          console.log('[Desktop] Step 4/5: Creating offer...');
+          const offer = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offer);
+          console.log('[Desktop] ✅ Local description set');
+          
+          console.log('[Desktop] Step 5/5: Sending offer to DB...');
+          await insertRtcSignalWithRetry(
+            {
+              session_id: sessionId,
+              from_role: 'desktop',
+              type: 'offer',
+              payload: { sdp: offer.sdp, type: offer.type },
+            },
+            { label: 'offer' }
+          );
+          console.log('✅ [Desktop] OFFER SENT - Waiting for answer...');
+
+          // Update session to 'active' AFTER offer is sent
+          try {
+            await supabaseUpdate('rtc_sessions', sessionId, { status: 'active' });
+            console.log('[Desktop] Session status updated to active');
+          } catch (error) {
+            console.error('[Desktop] Failed to update session status:', error);
+          }
+
+          // Notify Electron main process
+          try {
+            if (window?.electronAPI?.notifyOfferSent) {
+              window.electronAPI.notifyOfferSent(sessionId);
+              console.log('[Desktop] ✅ notifyOfferSent dispatched');
+            }
+          } catch (e) {
+            console.warn('[Desktop] notifyOfferSent failed:', e);
+          }
+          
+          // Start polling for answer and ICE candidates
+          startPollingForSignals(sessionId);
+          
+        } catch (error) {
+          console.error('❌ [Desktop] startLiveView FAILED:', error);
+          await stopLiveView();
+        }
+      }
+
+      function startPollingForSignals(sessionId) {
+        console.log('[Desktop] Starting signal polling for session:', sessionId);
+        
+        pollingInterval = setInterval(async () => {
+          try {
+            const signals = await supabaseSelect('rtc_signals', { session_id: sessionId });
+            
+            for (const signal of signals) {
+              if (processedSignalIds.has(signal.id) || signal.from_role === 'desktop') {
+                continue;
+              }
+              
+              processedSignalIds.add(signal.id);
+              await processSignal(signal);
+            }
+          } catch (error) {
+            console.error('[Desktop] Polling error:', error);
+          }
+        }, 500);
+      }
+
+      async function processSignal(signal) {
+        console.log('[Desktop] Processing signal:', signal.type, 'id:', signal.id);
+        
+        if (!peerConnection) {
+          console.warn('[Desktop] No peer connection, ignoring signal');
+          return;
+        }
+        
+        if (signal.type === 'answer') {
+          console.log('[Desktop] 📥 Received ANSWER from mobile');
+          try {
+            const answerDesc = {
+              type: 'answer',
+              sdp: signal.payload.sdp || signal.payload.SDP,
+            };
+            await peerConnection.setRemoteDescription(answerDesc);
+            console.log('✅ [Desktop] Remote description set - Handshake complete!');
+          } catch (error) {
+            console.error('❌ [Desktop] Failed to set remote description:', error);
+          }
+        } else if (signal.type === 'ice') {
+          console.log('[Desktop] 🧊 Received ICE candidate from mobile');
+          try {
+            const candidate = new RTCIceCandidate(signal.payload);
+            await peerConnection.addIceCandidate(candidate);
+            console.log('✅ [Desktop] ICE candidate added');
+          } catch (error) {
+            console.error('❌ [Desktop] Failed to add ICE candidate:', error);
+          }
+        }
+      }
+
+      async function stopLiveView() {
+        console.log('═══════════════════════════════════════════════════');
+        console.log('[Desktop] STOP LIVE VIEW');
+        console.log('═══════════════════════════════════════════════════');
+        
+        if (pollingInterval) {
+          clearInterval(pollingInterval);
+          pollingInterval = null;
+        }
+        
+        if (localStream) {
+          localStream.getTracks().forEach(track => {
+            track.stop();
+            console.log('[Desktop] Track stopped:', track.kind);
+          });
+          localStream = null;
+        }
+        
+        if (peerConnection) {
+          peerConnection.close();
+          peerConnection = null;
+          console.log('[Desktop] Peer connection closed');
+        }
+        
+        if (currentSessionId) {
+          try {
+            await supabaseUpdate('rtc_sessions', currentSessionId, {
+              status: 'ended',
+              ended_at: new Date().toISOString(),
+            });
+            console.log('[Desktop] Session marked as ended');
+          } catch (error) {
+            console.error('[Desktop] Failed to update session:', error);
+          }
+        }
+        
+        currentSessionId = null;
+        processedSignalIds.clear();
+        setLiveIndicator(false);
+        console.log('[Desktop] ✅ Cleanup complete');
+      }
+
+      // ============================================================
+      // IPC LISTENERS (Electron)
+      // ============================================================
+      if (typeof window !== 'undefined' && window.electronAPI) {
+        window.electronAPI.onStartLiveView((sessionId) => {
+          console.log('[Desktop] Received start-live-view IPC with sessionId:', sessionId);
+          setLiveIndicator(true);
+          startLiveView(sessionId);
+        });
+        
+        window.electronAPI.onStopLiveView(() => {
+          console.log('[Desktop] Received stop-live-view IPC');
+          stopLiveView();
+        });
+        
+        console.log('[Desktop] ✅ WebRTC initialized, waiting for IPC...');
+      } else {
+        console.log('[Desktop] Not in Electron environment, exposing global functions');
+        window.startLiveView = startLiveView;
+        window.stopLiveView = stopLiveView;
+      }
+
+      // ============================================================
+      // I18N
+      // ============================================================
+      const STRINGS = {
+        en: {
+          dir: "ltr",
+          title: "Connect Camera",
+          subtitle: "Enter the 6-digit code from your dashboard",
+          codeLabel: "Pairing Code",
+          pasteText: "Paste Code",
+          pasteHint: "Tip: You can paste the full code and we will fill it automatically.",
+          connect: "Connect",
+          successTitle: "Connected Successfully",
+          successSubtitle: "Your camera is now linked to your account",
+          live: "LIVE - Streaming",
+          bgTitle: "Background Operation",
+          bgText:
+            "The camera will continue to work in the background even when this window is closed or minimized.\nTo reopen the app, click the AIGuard icon near the clock.",
+          minimize: "Minimize to Background",
+          exit: "Exit Application",
+          exitWarning: "Warning: Exiting will stop the camera service",
+          errClipboard: "Could not read clipboard. Please paste the code manually.",
+          errInvalid: "Please enter a 6-digit code.",
+          errVerify: "Invalid or expired code.",
+          errGeneric: "Something went wrong. Please try again.",
+          connecting: "Connecting…",
+        },
+        he: {
+          dir: "rtl",
+          title: "חיבור מצלמה",
+          subtitle: "הזן/י קוד בן 6 ספרות מהדשבורד",
+          codeLabel: "קוד צימוד",
+          pasteText: "הדבק קוד",
+          pasteHint: "טיפ: אפשר להדביק את כל הקוד ואנחנו נמלא אותו אוטומטית.",
+          connect: "התחבר",
+          successTitle: "חיבור הצליח",
+          successSubtitle: "המצלמה קושרה לחשבון שלך",
+          live: "LIVE - שידור פעיל",
+          bgTitle: "פעילות ברקע",
+          bgText:
+            "המצלמה תמשיך לעבוד ברקע גם אם החלון נסגר או ממוזער.\nכדי לפתוח שוב, לחץ/י על האייקון ליד השעון.",
+          minimize: "מזער לרקע",
+          exit: "יציאה מהאפליקציה",
+          exitWarning: "אזהרה: יציאה תעצור את שירות המצלמה",
+          errClipboard: "לא ניתן לקרוא מהלוח. נא להדביק ידנית.",
+          errInvalid: "נא להזין קוד בן 6 ספרות.",
+          errVerify: "קוד לא תקין או פג תוקף.",
+          errGeneric: "משהו השתבש. נסה/י שוב.",
+          connecting: "מתחבר…",
+        },
+      };
+
+      let currentLang = "en";
+
+      function setLanguage(lang) {
+        currentLang = lang;
+        const t = STRINGS[lang];
+
+        document.documentElement.lang = lang;
+        document.documentElement.dir = t.dir;
+
+        document.getElementById("lang-en").classList.toggle("active", lang === "en");
+        document.getElementById("lang-he").classList.toggle("active", lang === "he");
+
+        document.getElementById("title").textContent = t.title;
+        document.getElementById("subtitle").textContent = t.subtitle;
+        document.getElementById("code-label").textContent = t.codeLabel;
+        document.getElementById("paste-text").textContent = t.pasteText;
+        document.getElementById("paste-hint").textContent = t.pasteHint;
+        document.getElementById("connect-btn").textContent = t.connect;
+
+        document.getElementById("success-title").textContent = t.successTitle;
+        document.getElementById("success-subtitle").textContent = t.successSubtitle;
+        document.getElementById("live-text").textContent = t.live;
+        document.getElementById("bg-title").textContent = t.bgTitle;
+        document.getElementById("bg-text").textContent = t.bgText;
+        document.getElementById("minimize-text").textContent = t.minimize;
+        document.getElementById("exit-text").textContent = t.exit;
+        document.getElementById("exit-warning").textContent = t.exitWarning;
+      }
+
+      // ============================================================
+      // PAIRING UI HELPERS
+      // ============================================================
+      const codeInputs = Array.from(document.querySelectorAll(".code-input"));
+      const errorEl = document.getElementById("error");
+      const connectBtn = document.getElementById("connect-btn");
+      const pasteBtn = document.getElementById("paste-btn");
+
+      function showError(msg) {
+        errorEl.textContent = msg;
+        errorEl.style.display = "block";
+      }
+
+      function clearError() {
+        errorEl.textContent = "";
+        errorEl.style.display = "none";
+      }
+
+      function getCode() {
+        return codeInputs.map((i) => (i.value || "").replace(/\D/g, "")).join("").slice(0, 6);
+      }
+
+      function setCode(code) {
+        const digits = String(code || "")
+          .replace(/\D/g, "")
+          .slice(0, 6)
+          .split("");
+
+        for (let idx = 0; idx < codeInputs.length; idx++) {
+          codeInputs[idx].value = digits[idx] || "";
+        }
+
+        const nextIndex = Math.min(digits.length, codeInputs.length - 1);
+        codeInputs[nextIndex].focus();
+      }
+
+      async function readClipboardText() {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          return navigator.clipboard.readText();
+        }
+        return null;
+      }
+
+      function showSuccessScreen() {
+        document.getElementById("pairing-screen").style.display = "none";
+        document.getElementById("success-screen").style.display = "block";
+      }
+
+      function setLiveIndicator(isLive) {
+        document.getElementById("live-indicator").classList.toggle("active", !!isLive);
+      }
+
+      // ============================================================
+      // INPUT BEHAVIOR (auto-advance, backspace)
+      // ============================================================
+      codeInputs.forEach((input, idx) => {
+        input.addEventListener("input", (e) => {
+          clearError();
+          const v = String(e.target.value || "").replace(/\D/g, "");
+          e.target.value = v.slice(-1);
+          if (e.target.value && idx < codeInputs.length - 1) {
+            codeInputs[idx + 1].focus();
+          }
+        });
+
+        input.addEventListener("keydown", (e) => {
+          if (e.key === "Backspace" && !input.value && idx > 0) {
+            codeInputs[idx - 1].focus();
+          }
+          if (e.key === "Enter") {
+            connectBtn.click();
+          }
+        });
+
+        input.addEventListener("paste", (e) => {
+          const text = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+          const digits = text.replace(/\D/g, "").slice(0, 6);
+          if (digits.length) {
+            e.preventDefault();
+            setCode(digits);
+          }
+        });
+      });
+
+      pasteBtn.addEventListener("click", async () => {
+        clearError();
+        const t = STRINGS[currentLang];
+        try {
+          const text = (await readClipboardText()) || prompt(t.pasteText) || "";
+          const digits = String(text).replace(/\D/g, "").slice(0, 6);
+          if (!digits) {
+            showError(t.errClipboard);
+            return;
+          }
+          setCode(digits);
+        } catch (e) {
+          showError(t.errClipboard);
+        }
+      });
+
+      // ============================================================
+      // PAIRING (Edge Function)
+      // ============================================================
+      async function verifyPairingCode(code) {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/verify-pairing-code`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const err = data?.error || "verify_failed";
+          throw new Error(err);
+        }
+        return data;
+      }
+
+      connectBtn.addEventListener("click", async () => {
+        clearError();
+        const t = STRINGS[currentLang];
+
+        const code = getCode();
+        if (code.length !== 6) {
+          showError(t.errInvalid);
+          return;
+        }
+
+        const originalText = connectBtn.textContent;
+        connectBtn.disabled = true;
+        connectBtn.textContent = t.connecting;
+
+        try {
+          const data = await verifyPairingCode(code);
+
+          // IMPORTANT: keep snake_case for IPC sync
+          if (window.electronAPI?.loginUser) {
+            window.electronAPI.loginUser({
+              profile_id: data.profile_id,
+              session_token: data.session_token,
+              device_id: data.device_id,
+            });
+          }
+
+          showSuccessScreen();
+        } catch (e) {
+          const msg = String(e?.message || "");
+          if (msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("expired")) {
+            showError(t.errVerify);
+          } else {
+            showError(t.errGeneric);
+          }
+        } finally {
+          connectBtn.disabled = false;
+          connectBtn.textContent = originalText;
+        }
+      });
+
+      // ============================================================
+      // SUCCESS SCREEN ACTIONS
+      // ============================================================
+      document.getElementById("minimize-btn").addEventListener("click", () => {
+        window.electronAPI?.minimizeToTray?.();
+      });
+
+      document.getElementById("exit-btn").addEventListener("click", () => {
+        window.electronAPI?.exitApp?.();
+      });
+
+      // ============================================================
+      // IPC -> UI live indicator (alternative path)
+      // ============================================================
+      if (window.electronAPI?.onShowSuccessScreen) {
+        window.electronAPI.onShowSuccessScreen(() => {
+          showSuccessScreen();
+        });
+      }
+
+      // Init
+      setLanguage("en");
+      document.getElementById("lang-en").addEventListener("click", () => setLanguage("en"));
+      document.getElementById("lang-he").addEventListener("click", () => setLanguage("he"));
+      codeInputs[0]?.focus();
+    </script>
+  </body>
+</html>
