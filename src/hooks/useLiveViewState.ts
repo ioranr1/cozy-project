@@ -71,13 +71,19 @@ export const useLiveViewState = (options: UseLiveViewStateOptions): UseLiveViewS
 
       if (latestAcked) {
         const isActive = latestAcked.command === 'START_LIVE_VIEW';
-        console.log('[useLiveViewState] Latest ACKed command:', latestAcked.command, '→ liveViewActive:', isActive);
-        setLastAckedCommand(latestAcked.command);
-        setLiveViewActive(isActive);
+        // Only update state if value actually changed - prevents infinite re-render loops
+        setLastAckedCommand(prev => {
+          if (prev !== latestAcked.command) {
+            console.log('[useLiveViewState] Latest ACKed command:', latestAcked.command, '→ liveViewActive:', isActive);
+            return latestAcked.command;
+          }
+          return prev;
+        });
+        setLiveViewActive(prev => prev !== isActive ? isActive : prev);
       } else {
-        console.log('[useLiveViewState] No ACKed live view commands found → liveViewActive: false');
-        setLiveViewActive(false);
-        setLastAckedCommand(null);
+        // Only update if different from current state
+        setLiveViewActive(prev => prev !== false ? false : prev);
+        setLastAckedCommand(prev => prev !== null ? null : prev);
       }
     } catch (err) {
       console.error('[useLiveViewState] Exception fetching command:', err);
