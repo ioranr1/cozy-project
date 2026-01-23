@@ -156,8 +156,8 @@ const Devices: React.FC = () => {
   const getStatusText = (status: 'online' | 'offline' | 'unknown') => {
     if (language === 'he') {
       switch (status) {
-        case 'online': return 'מחובר';
-        case 'offline': return 'לא מחובר';
+        case 'online': return 'מקוון';
+        case 'offline': return 'לא מקוון';
         default: return 'לא ידוע';
       }
     }
@@ -376,8 +376,8 @@ const Devices: React.FC = () => {
               {/* Status explanation */}
               <p className="text-white/40 text-xs text-center pt-2">
                 {language === 'he' 
-                  ? 'מכשיר נחשב מחובר אם עודכן ב-2 הדקות האחרונות'
-                  : 'A device is considered connected if updated in the last 2 minutes'}
+                  ? 'מכשיר נחשב מקוון אם שלח עדכון ב-2 הדקות האחרונות'
+                  : 'A device is considered online if it reported in the last 2 minutes'}
               </p>
             </div>
           )}
