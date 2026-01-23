@@ -434,21 +434,20 @@ const Viewer: React.FC = () => {
     if (dashboardSessionId) return;
     if (!primaryDevice || !viewerId || liveStateLoading) return;
     
-    // CRITICAL: Skip if viewer state is 'ended' - user already stopped manually
-    // This prevents resetting back to 'idle' after manual stop
-    if (viewerState === 'ended') {
-      console.log('[Viewer] Skipping liveViewActive effect - already ended');
+    // CRITICAL: Skip if viewer state is 'ended' or 'error' - user already stopped manually
+    // This prevents loop where liveViewActive updates cause repeated start/stop cycles
+    if (viewerState === 'ended' || viewerState === 'error') {
+      console.log('[Viewer] Skipping liveViewActive effect - state is:', viewerState);
       return;
     }
 
+    // Only auto-start if liveViewActive is true AND we're in idle state
     if (liveViewActive && viewerState === 'idle' && !isConnecting && !isConnected) {
       console.log('[Viewer] Live view active (non-dashboard), starting RTC session...');
       handleStartViewing();
-    } else if (!liveViewActive && (isConnecting || isConnected)) {
-      console.log('[Viewer] Live view stopped externally, cleaning up...');
-      // External stop - just cleanup locally, don't send command
-      handleStopViewing(false);
     }
+    // NOTE: Removed auto-stop on !liveViewActive - this was causing loop issues
+    // Manual stop already handles cleanup via handleStopViewing
   }, [
     dashboardSessionId,
     liveViewActive,
@@ -459,7 +458,6 @@ const Viewer: React.FC = () => {
     isConnecting,
     isConnected,
     handleStartViewing,
-    handleStopViewing,
   ]);
 
   const fetchDevices = async () => {
