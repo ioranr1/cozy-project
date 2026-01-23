@@ -76,8 +76,6 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
       setDevices(typedDevices);
 
       // Auto-select a camera when needed.
-      // IMPORTANT UX: if there's at least one CONNECTED camera (last_seen_at within threshold),
-      // we prefer it even if the user previously selected an older/offline duplicate in this browser.
       const cameraDevices = typedDevices.filter(d => d.device_type === 'camera');
       const currentSelectionValid = selectedDeviceId && cameraDevices.some(d => d.id === selectedDeviceId);
 
@@ -119,7 +117,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [profileId, selectedDeviceId]);
+  }, [profileId]); // Removed selectedDeviceId dependency to prevent re-subscribe loops
 
   useEffect(() => {
     fetchDevices();
@@ -129,24 +127,58 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   useEffect(() => {
     if (!profileId) return;
 
+    console.log('[useDevices] Setting up realtime subscription for profile:', profileId);
+    
     const channel = supabase
-      .channel('devices-changes')
+      .channel(`devices-${profileId}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'UPDATE',
           schema: 'public',
           table: 'devices',
           filter: `profile_id=eq.${profileId}`,
         },
         (payload) => {
-          console.log('[useDevices] Realtime update:', payload);
+          console.log('[useDevices] Realtime UPDATE:', payload);
+          // Update device in state directly for faster UI response
+          setDevices(prev => prev.map(d => 
+            d.id === payload.new.id ? { ...d, ...payload.new } as Device : d
+          ));
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'devices',
+          filter: `profile_id=eq.${profileId}`,
+        },
+        (payload) => {
+          console.log('[useDevices] Realtime INSERT:', payload);
           fetchDevices();
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'devices',
+          filter: `profile_id=eq.${profileId}`,
+        },
+        (payload) => {
+          console.log('[useDevices] Realtime DELETE:', payload);
+          fetchDevices();
+        }
+      )
+      .subscribe((status) => {
+        console.log('[useDevices] Subscription status:', status);
+      });
 
     return () => {
+      console.log('[useDevices] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, [profileId, fetchDevices]);
