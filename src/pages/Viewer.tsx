@@ -286,38 +286,21 @@ const Viewer: React.FC = () => {
     }
   }, [isAlertSource, alertDeviceId, setSearchParams]);
 
-  // Track session state in refs to avoid effect re-runs
-  const sessionIdRef = useRef<string | null>(null);
-  const primaryDeviceIdRef = useRef<string>('');
-  const isActiveRef = useRef<boolean>(false);
-  
-  // Keep refs in sync
-  useEffect(() => {
-    sessionIdRef.current = sessionId;
-    primaryDeviceIdRef.current = primaryDeviceId;
-    isActiveRef.current = isConnecting || isConnected;
-  }, [sessionId, primaryDeviceId, isConnecting, isConnected]);
-
   // Cleanup on unmount (including page refresh/navigation)
-  // Uses refs to avoid effect dependencies that cause loops
+  // MUST send STOP command and close RTC session to prevent auto-restart on refresh
   useEffect(() => {
-    const handleBeforeUnload = async () => {
-      // Mark session as ended in DB directly (beacon can't include auth headers)
-      if (sessionIdRef.current) {
-        console.log('[Viewer] Page unloading, marking session as ended');
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
-            .from('rtc_sessions')
-            .update({
-              status: 'ended',
-              ended_at: new Date().toISOString(),
-              fail_reason: 'page_closed',
-            })
-            .eq('id', sessionIdRef.current);
-        } catch (e) {
-          console.warn('[Viewer] Failed to end session on unload:', e);
-        }
+    const handleBeforeUnload = () => {
+      // Use sendBeacon for reliable cleanup on page unload
+      if (sessionId && primaryDeviceId) {
+        console.log('[Viewer] Page unloading, sending stop command via beacon');
+        const payload = JSON.stringify({
+          device_id: primaryDeviceId,
+          command: 'STOP_LIVE_VIEW',
+        });
+        navigator.sendBeacon(
+          'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command',
+          payload
+        );
       }
     };
 
@@ -325,9 +308,16 @@ const Viewer: React.FC = () => {
     
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Also cleanup stream on component unmount (navigation within app)
       cleanupStream();
+      // If we have an active session, stop it properly
+      if (sessionId && (isConnecting || isConnected)) {
+        console.log('[Viewer] Component unmounting with active session, stopping...');
+        stopSession();
+        sendCommand('STOP_LIVE_VIEW');
+      }
     };
-  }, [cleanupStream]); // Only cleanupStream as dependency - refs handle the rest
+  }, [cleanupStream, sessionId, primaryDeviceId, isConnecting, isConnected, stopSession, sendCommand]);
 
   // Start viewing: connect to RTC session
   // If dashboardSessionId exists, the Dashboard already created the session AND sent the command
@@ -339,9 +329,6 @@ const Viewer: React.FC = () => {
       return;
     }
 
-    // Clear manual stop flag when user explicitly starts viewing
-    sessionStorage.removeItem('viewer_manual_stop');
-    
     setErrorMessage(null);
     setViewerState('connecting');
 
@@ -392,9 +379,6 @@ const Viewer: React.FC = () => {
 
     // Mark as manual stop to prevent error state
     manualStopRef.current = true;
-    
-    // CRITICAL: Set sessionStorage flag to prevent auto-restart on F5
-    sessionStorage.setItem('viewer_manual_stop', 'true');
 
     // 1. Clear local video immediately
     cleanupStream();
@@ -475,14 +459,6 @@ const Viewer: React.FC = () => {
     // Skip if we already have a dashboard session (handled above)
     if (dashboardSessionId) return;
     if (!primaryDevice || !viewerId || liveStateLoading) return;
-    
-    // CRITICAL: Skip if user manually stopped - check sessionStorage flag
-    // This persists across F5 refresh and prevents unwanted auto-restart
-    const manualStopFlag = sessionStorage.getItem('viewer_manual_stop');
-    if (manualStopFlag === 'true') {
-      console.log('[Viewer] Skipping liveViewActive effect - manual stop flag is set');
-      return;
-    }
     
     // CRITICAL: Skip if viewer state is 'ended' or 'error' - user already stopped manually
     // This prevents loop where liveViewActive updates cause repeated start/stop cycles

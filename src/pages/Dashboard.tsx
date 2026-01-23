@@ -543,9 +543,7 @@ const Dashboard: React.FC = () => {
               </Button>
               <Button 
                 onClick={() => handleCommand('STOP_LIVE_VIEW')}
-                // Safety override: Stop should always be available, even if SSOT says not active yet
-                // (e.g., when desktop hasn't ACKed STOP and UI is desynced).
-                disabled={!activeDeviceId || isLiveViewLoading}
+                disabled={(isLoading && commandState.commandType?.includes('LIVE')) || isLiveViewLoading || !liveViewActive}
                 variant="outline"
                 className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
               >
