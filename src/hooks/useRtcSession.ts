@@ -431,6 +431,13 @@ export function useRtcSession({
     console.log('[LiveView] sessionId', targetSessionId);
     console.log('[LiveView] subscribing to rtc_signals', { sessionId: targetSessionId });
     
+    // IMPORTANT: Close existing channel first to prevent resource leaks
+    if (channelRef.current) {
+      console.log('[LiveView] Closing existing channel before creating new one');
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+    
     // Create channel with proper naming
     const channelName = `rtc_signals_${targetSessionId}`;
     console.log('[LiveView] creating channel:', channelName);
@@ -467,6 +474,12 @@ export function useRtcSession({
 
     // ============ POLLING FALLBACK ============
     // Poll every 1000ms as a fallback in case Realtime doesn't work
+    // IMPORTANT: Clear existing polling before starting new one
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    lastPolledIdRef.current = 0;
     console.log('[LiveView] starting polling fallback');
     
     const pollSignals = async () => {
