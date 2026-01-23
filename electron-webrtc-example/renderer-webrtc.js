@@ -176,14 +176,6 @@ async function startLiveView(sessionId) {
         console.log('✅ ═══════════════════════════════════════════════════');
         console.log('✅ [Desktop] PEER CONNECTION ESTABLISHED');
         console.log('✅ ═══════════════════════════════════════════════════');
-        
-        // Update session status to 'active'
-        try {
-          await supabaseUpdate('rtc_sessions', sessionId, { status: 'active' });
-          console.log('[Desktop] Session status updated to active');
-        } catch (error) {
-          console.error('[Desktop] Failed to update session status:', error);
-        }
       } else if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
         console.log('[Desktop] Connection failed/disconnected, stopping...');
         await stopLiveView();
@@ -208,6 +200,25 @@ async function startLiveView(sessionId) {
       payload: { sdp: offer.sdp, type: offer.type },
     });
     console.log('✅ [Desktop] OFFER SENT - Waiting for answer...');
+
+    // IMPORTANT: Promote the session to 'active' only AFTER the offer is sent.
+    // This prevents race conditions where the mobile viewer checks status before the offer exists.
+    try {
+      await supabaseUpdate('rtc_sessions', sessionId, { status: 'active' });
+      console.log('[Desktop] Session status updated to active (after offer sent)');
+    } catch (error) {
+      console.error('[Desktop] Failed to update session status to active:', error);
+    }
+
+    // Notify Electron main process (if implemented) that the offer is sent
+    try {
+      if (window?.electronAPI?.notifyOfferSent) {
+        window.electronAPI.notifyOfferSent(sessionId);
+        console.log('[Desktop] ✅ notifyOfferSent dispatched to main process');
+      }
+    } catch (e) {
+      console.warn('[Desktop] notifyOfferSent failed:', e);
+    }
     
     // Start polling for answer and ICE candidates
     startPollingForSignals(sessionId);
