@@ -21,9 +21,13 @@ interface UseDevicesReturn {
   renameDevice: (deviceId: string, newName: string) => Promise<boolean>;
   deleteDevice: (deviceId: string) => Promise<boolean>;
   getDeviceStatus: (device: Device) => 'online' | 'offline' | 'unknown';
+  primaryDevice: Device | null;
+  oldDevices: Device[];
+  hasOldDevices: boolean;
 }
 
 const SELECTED_DEVICE_KEY = 'aiguard_selected_device_id';
+const CONNECTION_THRESHOLD_SECONDS = 30;
 
 export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -32,6 +36,15 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState<Date>(new Date());
+
+  // Update "now" every 10 seconds to keep status fresh
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchDevices = useCallback(async () => {
     if (!profileId) {
@@ -44,11 +57,13 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
       setIsLoading(true);
       setError(null);
 
+      // Fetch only active devices, sorted by last_seen_at descending
       const { data, error: fetchError } = await supabase
         .from('devices')
         .select('*')
         .eq('profile_id', profileId)
-        .order('created_at', { ascending: false });
+        .eq('is_active', true)
+        .order('last_seen_at', { ascending: false, nullsFirst: false });
 
       if (fetchError) {
         throw fetchError;
@@ -63,7 +78,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
       const currentSelectionValid = selectedDeviceId && cameraDevices.some(d => d.id === selectedDeviceId);
       
       if (!currentSelectionValid && cameraDevices.length > 0) {
-        // Select the newest camera device (first in the list since sorted by created_at desc)
+        // Select the camera with most recent last_seen_at
         const newestCamera = cameraDevices[0];
         setSelectedDeviceId(newestCamera.id);
         localStorage.setItem(SELECTED_DEVICE_KEY, newestCamera.id);
@@ -156,20 +171,43 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     }
   }, [selectedDeviceId, fetchDevices]);
 
+  // Status is determined ONLY by last_seen_at (within 30 seconds = online)
   const getDeviceStatus = useCallback((device: Device): 'online' | 'offline' | 'unknown' => {
     if (!device.last_seen_at) return 'unknown';
 
     const lastSeen = new Date(device.last_seen_at);
-    const now = new Date();
     const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
 
-    if (diffSeconds <= 30 && device.is_active) {
+    if (diffSeconds <= CONNECTION_THRESHOLD_SECONDS) {
       return 'online';
     }
     return 'offline';
-  }, []);
+  }, [now]);
 
   const selectedDevice = devices.find(d => d.id === selectedDeviceId) || null;
+
+  // Compute primary and old devices for camera type
+  const cameraDevices = devices.filter(d => d.device_type === 'camera');
+  
+  // Find connected devices (last_seen_at within threshold)
+  const connectedCameras = cameraDevices.filter(d => getDeviceStatus(d) === 'online');
+  
+  // Determine primary device and old devices
+  let primaryDevice: Device | null = null;
+  let oldDevices: Device[] = [];
+  
+  if (connectedCameras.length > 0) {
+    // If there's at least one connected camera, show only the most recently connected
+    primaryDevice = connectedCameras[0]; // Already sorted by last_seen_at desc
+    // Old devices are all others (both connected and disconnected, except primary)
+    oldDevices = cameraDevices.filter(d => d.id !== primaryDevice!.id);
+  } else {
+    // No connected cameras - show all as disconnected
+    primaryDevice = cameraDevices.length > 0 ? cameraDevices[0] : null;
+    oldDevices = cameraDevices.slice(1);
+  }
+
+  const hasOldDevices = oldDevices.length > 0;
 
   return {
     devices,
@@ -181,6 +219,9 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     renameDevice,
     deleteDevice,
     getDeviceStatus,
+    primaryDevice,
+    oldDevices,
+    hasOldDevices,
   };
 };
 
