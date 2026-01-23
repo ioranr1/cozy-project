@@ -286,12 +286,38 @@ const Viewer: React.FC = () => {
     }
   }, [isAlertSource, alertDeviceId, setSearchParams]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount (including page refresh/navigation)
+  // MUST send STOP command and close RTC session to prevent auto-restart on refresh
   useEffect(() => {
-    return () => {
-      cleanupStream();
+    const handleBeforeUnload = () => {
+      // Use sendBeacon for reliable cleanup on page unload
+      if (sessionId && primaryDeviceId) {
+        console.log('[Viewer] Page unloading, sending stop command via beacon');
+        const payload = JSON.stringify({
+          device_id: primaryDeviceId,
+          command: 'STOP_LIVE_VIEW',
+        });
+        navigator.sendBeacon(
+          'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command',
+          payload
+        );
+      }
     };
-  }, [cleanupStream]);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Also cleanup stream on component unmount (navigation within app)
+      cleanupStream();
+      // If we have an active session, stop it properly
+      if (sessionId && (isConnecting || isConnected)) {
+        console.log('[Viewer] Component unmounting with active session, stopping...');
+        stopSession();
+        sendCommand('STOP_LIVE_VIEW');
+      }
+    };
+  }, [cleanupStream, sessionId, primaryDeviceId, isConnecting, isConnected, stopSession, sendCommand]);
 
   // Start viewing: connect to RTC session
   // If dashboardSessionId exists, the Dashboard already created the session AND sent the command
