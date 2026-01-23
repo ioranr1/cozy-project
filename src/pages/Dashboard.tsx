@@ -31,6 +31,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
+  const [isLaptopStatusLoading, setIsLaptopStatusLoading] = useState(true);
   const [motionDetectionActive, setMotionDetectionActive] = useState(false);
   const [viewStatus, setViewStatus] = useState<ViewStatus>('idle');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -109,11 +110,12 @@ const Dashboard: React.FC = () => {
     }
   }, [liveViewActive, commandState.commandType, commandState.error, resetState]);
 
-  // Check laptop connection status
+  // Check laptop connection status - runs immediately on device change
   useEffect(() => {
     const checkLaptopStatus = async () => {
       if (!activeDeviceId) {
         setLaptopStatus('unknown');
+        setIsLaptopStatusLoading(false);
         return;
       }
 
@@ -126,6 +128,7 @@ const Dashboard: React.FC = () => {
 
         if (error || !data) {
           setLaptopStatus('unknown');
+          setIsLaptopStatusLoading(false);
           return;
         }
 
@@ -144,10 +147,18 @@ const Dashboard: React.FC = () => {
         }
       } catch {
         setLaptopStatus('unknown');
+      } finally {
+        setIsLaptopStatusLoading(false);
       }
     };
 
+    // Reset loading state when device changes
+    setIsLaptopStatusLoading(true);
+    
+    // Check immediately
     checkLaptopStatus();
+    
+    // Then poll every 10 seconds
     const interval = setInterval(checkLaptopStatus, 10000);
     return () => clearInterval(interval);
   }, [activeDeviceId]);
@@ -522,7 +533,8 @@ const Dashboard: React.FC = () => {
                   (isLoading && commandState.commandType?.includes('LIVE')) ||
                   isLiveViewLoading ||
                   liveViewActive ||
-                  laptopStatus !== 'online'
+                  isLaptopStatusLoading ||
+                  (laptopStatus !== 'online' && !isLaptopStatusLoading)
                 }
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
               >
