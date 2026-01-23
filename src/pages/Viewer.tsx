@@ -180,6 +180,9 @@ const Viewer: React.FC = () => {
 
   // Track if user manually stopped (to show "ended" instead of "error")
   const manualStopRef = useRef(false);
+  
+  // Prevent duplicate STOP commands (beforeunload + cleanup + handleStopViewing can all fire)
+  const stopSentRef = useRef(false);
 
   const handleStatusChange = useCallback((status: RtcSessionStatus) => {
     console.log('🔄 [VIEWER] RTC Status changed:', status, 'manualStop:', manualStopRef.current);
@@ -303,9 +306,16 @@ const Viewer: React.FC = () => {
   // MUST send STOP command and close RTC session to prevent auto-restart on refresh
   useEffect(() => {
     const handleBeforeUnload = () => {
+      // Prevent duplicate STOP commands
+      if (stopSentRef.current) {
+        console.log('[Viewer] beforeunload: STOP already sent, skipping');
+        return;
+      }
+      
       // Use sendBeacon for reliable cleanup on page unload
       if (sessionId && primaryDeviceId) {
         console.log('[Viewer] Page unloading, sending stop command via beacon');
+        stopSentRef.current = true;
         const payload = JSON.stringify({
           device_id: primaryDeviceId,
           command: 'STOP_LIVE_VIEW',
@@ -323,9 +333,10 @@ const Viewer: React.FC = () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       // Also cleanup stream on component unmount (navigation within app)
       cleanupStream();
-      // If we have an active session, stop it properly
-      if (sessionId && (isConnecting || isConnected)) {
+      // If we have an active session and haven't already sent STOP, do it now
+      if (sessionId && (isConnecting || isConnected) && !stopSentRef.current) {
         console.log('[Viewer] Component unmounting with active session, stopping...');
+        stopSentRef.current = true;
         stopSession();
         sendCommand('STOP_LIVE_VIEW');
       }
@@ -341,6 +352,9 @@ const Viewer: React.FC = () => {
       console.log('[Viewer] Start blocked - already in progress or connected');
       return;
     }
+
+    // Reset stop flag for new session
+    stopSentRef.current = false;
 
     setErrorMessage(null);
     setViewerState('connecting');
@@ -388,7 +402,7 @@ const Viewer: React.FC = () => {
   // Stop viewing: complete cleanup flow (used by both Stop button and X button)
   // This ensures identical behavior for all stop actions
   const handleStopViewing = useCallback(async (sendStopCommand = true) => {
-    console.log('[Viewer] Stopping viewing, sendCommand:', sendStopCommand);
+    console.log('[Viewer] Stopping viewing, sendCommand:', sendStopCommand, 'stopSentRef:', stopSentRef.current);
 
     // Mark as manual stop to prevent error state
     manualStopRef.current = true;
@@ -399,9 +413,10 @@ const Viewer: React.FC = () => {
     // 2. Stop RTC session (closes peer connection, updates rtc_sessions to 'ended')
     await stopSession();
 
-    // 3. Send STOP_LIVE_VIEW command to desktop (only if requested)
+    // 3. Send STOP_LIVE_VIEW command to desktop (only if requested AND not already sent)
     // Note: This is for LIVE VIEW only - do NOT send motion detection commands
-    if (sendStopCommand) {
+    if (sendStopCommand && !stopSentRef.current) {
+      stopSentRef.current = true;
       await sendCommand('STOP_LIVE_VIEW');
     }
 
