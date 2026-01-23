@@ -35,6 +35,15 @@ const Viewer: React.FC = () => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [primaryDevice, setPrimaryDevice] = useState<Device | null>(null);
+  
+  // Flag to prevent auto-start after page refresh (F5)
+  // If user refreshed the page, we should NOT auto-start based on stale liveViewActive from DB
+  const isPageRefresh = useRef(() => {
+    const wasViewing = sessionStorage.getItem('viewer_was_active') === 'true';
+    // Clear immediately - this is a one-time check
+    sessionStorage.removeItem('viewer_was_active');
+    return wasViewing;
+  });
 
   // Get profile ID for dynamic device selection
   const profileId = useMemo(() => {
@@ -290,18 +299,21 @@ const Viewer: React.FC = () => {
   // MUST send STOP command and close RTC session to prevent auto-restart on refresh
   useEffect(() => {
     const handleBeforeUnload = () => {
-      // Use sendBeacon for reliable cleanup on page unload
-      if (sessionId && primaryDeviceId) {
-        console.log('[Viewer] Page unloading, sending stop command via beacon');
-        const payload = JSON.stringify({
-          device_id: primaryDeviceId,
-          command: 'STOP_LIVE_VIEW',
-        });
-        navigator.sendBeacon(
-          'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command',
-          payload
-        );
-      }
+    // Use sendBeacon for reliable cleanup on page unload
+    if (sessionId && primaryDeviceId) {
+      console.log('[Viewer] Page unloading, sending stop command via beacon');
+      // Mark that we were viewing - so on refresh we don't auto-start
+      sessionStorage.setItem('viewer_was_active', 'true');
+      
+      const payload = JSON.stringify({
+        device_id: primaryDeviceId,
+        command: 'STOP_LIVE_VIEW',
+      });
+      navigator.sendBeacon(
+        'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/send-command',
+        payload
+      );
+    }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -464,6 +476,13 @@ const Viewer: React.FC = () => {
     // This prevents loop where liveViewActive updates cause repeated start/stop cycles
     if (viewerState === 'ended' || viewerState === 'error') {
       console.log('[Viewer] Skipping liveViewActive effect - state is:', viewerState);
+      return;
+    }
+    
+    // CRITICAL: Skip auto-start if this is a page refresh
+    // The user refreshed the page, so we should NOT auto-start based on stale DB state
+    if (isPageRefresh.current()) {
+      console.log('[Viewer] Skipping auto-start - page was refreshed (F5)');
       return;
     }
 
