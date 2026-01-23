@@ -727,6 +727,24 @@ export function useRtcSession({
 
       setSessionId(activeSessionId);
 
+       // Mark the session as active once the viewer is ready to receive signaling.
+       // Some desktop hosts only react to sessions that are explicitly marked active.
+       try {
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         const { error: activateErr } = await (supabase as any)
+           .from('rtc_sessions')
+           .update({ status: 'active' })
+           .eq('id', activeSessionId);
+
+         if (activateErr) {
+           console.warn('[useRtcSession] Failed to mark session active:', activateErr);
+         } else {
+           console.log('[useRtcSession] Session marked active:', activeSessionId);
+         }
+       } catch (e) {
+         console.warn('[useRtcSession] Failed to mark session active (exception):', e);
+       }
+
       // 2. Initialize WebRTC FIRST (creates the peer connection we need for signal processing)
       console.log('[useRtcSession] Initializing WebRTC peer connection...');
       const pc = await initPeerConnection(activeSessionId);
