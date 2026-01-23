@@ -58,7 +58,9 @@ const Viewer: React.FC = () => {
     if (!primaryDevice?.last_seen_at) return false;
     const lastSeen = new Date(primaryDevice.last_seen_at);
     const diffSeconds = (Date.now() - lastSeen.getTime()) / 1000;
-    return diffSeconds <= 30 && !!primaryDevice.is_active;
+    // Be consistent with Dashboard: connectivity is based only on last_seen_at freshness.
+    // Some environments/devices may keep is_active stale.
+    return diffSeconds <= 30;
   }, [primaryDevice]);
   
   // Get sessionId from Dashboard navigation (if available)
@@ -394,6 +396,25 @@ const Viewer: React.FC = () => {
           ? 'המחשב לא מחובר כרגע. הפעל את אפליקציית הדסקטופ ונסה שוב.'
           : 'Computer is offline. Start the desktop app and try again.'
       );
+
+      // IMPORTANT: Dashboard already created an rtc_session before navigation.
+      // If we bail out here, we must close it to avoid leaving it stuck in `pending`.
+      void (async () => {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any)
+            .from('rtc_sessions')
+            .update({
+              status: 'ended',
+              ended_at: new Date().toISOString(),
+              fail_reason: 'host_offline',
+            })
+            .eq('id', dashboardSessionId);
+        } catch (e) {
+          console.warn('[Viewer] Failed to end rtc_session on offline bailout:', e);
+        }
+      })();
+
       clearDashboardSession();
       navigate('/dashboard', { replace: true });
       return;
