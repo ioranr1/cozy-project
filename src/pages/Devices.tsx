@@ -75,7 +75,8 @@ const Devices: React.FC = () => {
     getDeviceStatus,
     primaryDevice,
     oldDevices,
-    hasOldDevices
+    hasOldDevices,
+    refreshKey // Used to force re-render every 10 seconds for status updates
   } = useDevices(profileId);
 
   // Rename dialog state
@@ -375,8 +376,8 @@ const Devices: React.FC = () => {
               {/* Status explanation */}
               <p className="text-white/40 text-xs text-center pt-2">
                 {language === 'he' 
-                  ? 'מכשיר נחשב מחובר אם עודכן ב-30 השניות האחרונות'
-                  : 'A device is considered connected if updated in the last 30 seconds'}
+                  ? 'מכשיר נחשב מחובר אם עודכן ב-2 הדקות האחרונות'
+                  : 'A device is considered connected if updated in the last 2 minutes'}
               </p>
             </div>
           )}

@@ -24,6 +24,8 @@ interface UseDevicesReturn {
   primaryDevice: Device | null;
   oldDevices: Device[];
   hasOldDevices: boolean;
+  /** Changes every 10 seconds to force re-render for status updates */
+  refreshKey: number;
 }
 
 const SELECTED_DEVICE_KEY = 'aiguard_selected_device_id';
@@ -261,6 +263,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     primaryDevice,
     oldDevices,
     hasOldDevices,
+    refreshKey: now.getTime(),
   };
 };
 
