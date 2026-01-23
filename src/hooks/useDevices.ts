@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface Device {
@@ -36,7 +36,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState<Date>(new Date());
+  const [now, setNow] = useState(() => new Date());
 
   // Update "now" every 10 seconds to keep status fresh
   useEffect(() => {
@@ -184,30 +184,42 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     return 'offline';
   }, [now]);
 
-  const selectedDevice = devices.find(d => d.id === selectedDeviceId) || null;
+  const selectedDevice = useMemo(() => {
+    return devices.find(d => d.id === selectedDeviceId) || null;
+  }, [devices, selectedDeviceId]);
 
-  // Compute primary and old devices for camera type
-  const cameraDevices = devices.filter(d => d.device_type === 'camera');
-  
-  // Find connected devices (last_seen_at within threshold)
-  const connectedCameras = cameraDevices.filter(d => getDeviceStatus(d) === 'online');
-  
-  // Determine primary device and old devices
-  let primaryDevice: Device | null = null;
-  let oldDevices: Device[] = [];
-  
-  if (connectedCameras.length > 0) {
-    // If there's at least one connected camera, show only the most recently connected
-    primaryDevice = connectedCameras[0]; // Already sorted by last_seen_at desc
-    // Old devices are all others (both connected and disconnected, except primary)
-    oldDevices = cameraDevices.filter(d => d.id !== primaryDevice!.id);
-  } else {
-    // No connected cameras - show all as disconnected
-    primaryDevice = cameraDevices.length > 0 ? cameraDevices[0] : null;
-    oldDevices = cameraDevices.slice(1);
-  }
+  // Compute primary and old devices for camera type using useMemo
+  const { primaryDevice, oldDevices, hasOldDevices } = useMemo(() => {
+    const cameraDevices = devices.filter(d => d.device_type === 'camera');
+    
+    // Find connected devices (last_seen_at within threshold)
+    const connectedCameras = cameraDevices.filter(d => {
+      if (!d.last_seen_at) return false;
+      const lastSeen = new Date(d.last_seen_at);
+      const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
+      return diffSeconds <= CONNECTION_THRESHOLD_SECONDS;
+    });
+    
+    let primary: Device | null = null;
+    let old: Device[] = [];
+    
+    if (connectedCameras.length > 0) {
+      // If there's at least one connected camera, show only the most recently connected
+      primary = connectedCameras[0]; // Already sorted by last_seen_at desc
+      // Old devices are all others (both connected and disconnected, except primary)
+      old = cameraDevices.filter(d => d.id !== primary!.id);
+    } else {
+      // No connected cameras - show all as disconnected
+      primary = cameraDevices.length > 0 ? cameraDevices[0] : null;
+      old = cameraDevices.slice(1);
+    }
 
-  const hasOldDevices = oldDevices.length > 0;
+    return {
+      primaryDevice: primary,
+      oldDevices: old,
+      hasOldDevices: old.length > 0,
+    };
+  }, [devices, now]);
 
   return {
     devices,
