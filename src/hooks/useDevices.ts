@@ -27,7 +27,7 @@ interface UseDevicesReturn {
 }
 
 const SELECTED_DEVICE_KEY = 'aiguard_selected_device_id';
-const CONNECTION_THRESHOLD_SECONDS = 30;
+const CONNECTION_THRESHOLD_SECONDS = 120;
 
 export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   const [devices, setDevices] = useState<Device[]>([]);
