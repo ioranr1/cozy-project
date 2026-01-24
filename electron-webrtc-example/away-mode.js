@@ -223,46 +223,64 @@ function allowSleep() {
 /**
  * Attempt to turn off the display
  * This is best-effort and platform-dependent
+ * Returns true if attempt was made, false on error
  */
 function turnOffDisplay() {
   console.log('[AwayMode] Attempting to turn off display (best effort)...');
   
   try {
-    // On Windows, we can use nircmd or similar, but that requires external tools
-    // On macOS, we can use pmset
-    // For now, we'll just log - actual implementation depends on platform
-    
     const platform = process.platform;
     
     if (platform === 'darwin') {
       // macOS: pmset displaysleepnow
       const { exec } = require('child_process');
       exec('pmset displaysleepnow', (err) => {
-        if (err) console.warn('[AwayMode] macOS display off failed:', err.message);
-        else console.log('[AwayMode] macOS display turned off');
+        if (err) {
+          console.warn('[AwayMode] macOS display off failed:', err.message);
+          logAwayModeAnalytics('display_off_failed', { platform, error: err.message });
+        } else {
+          console.log('[AwayMode] macOS display turned off');
+          logAwayModeAnalytics('display_off_success', { platform });
+        }
       });
+      return true;
     } else if (platform === 'win32') {
       // Windows: SendMessage to turn off monitor
-      // This requires native bindings or external tools
-      // For now, we'll just log
-      console.log('[AwayMode] Windows display-off not implemented (requires native bindings)');
+      console.log('[AwayMode] Windows display-off attempt (requires nircmd)');
       
       // Alternative: Use nircmd if available
       const { exec } = require('child_process');
       exec('nircmd.exe monitor off', (err) => {
-        if (err) console.log('[AwayMode] nircmd not available, display remains on');
-        else console.log('[AwayMode] Windows display turned off via nircmd');
+        if (err) {
+          console.log('[AwayMode] nircmd not available, display remains on');
+          logAwayModeAnalytics('display_off_failed', { platform, error: 'nircmd not available' });
+        } else {
+          console.log('[AwayMode] Windows display turned off via nircmd');
+          logAwayModeAnalytics('display_off_success', { platform });
+        }
       });
+      return true;
     } else if (platform === 'linux') {
       // Linux: xset dpms force off
       const { exec } = require('child_process');
       exec('xset dpms force off', (err) => {
-        if (err) console.warn('[AwayMode] Linux display off failed:', err.message);
-        else console.log('[AwayMode] Linux display turned off');
+        if (err) {
+          console.warn('[AwayMode] Linux display off failed:', err.message);
+          logAwayModeAnalytics('display_off_failed', { platform, error: err.message });
+        } else {
+          console.log('[AwayMode] Linux display turned off');
+          logAwayModeAnalytics('display_off_success', { platform });
+        }
       });
+      return true;
     }
+    
+    console.log('[AwayMode] Unknown platform, display off not attempted:', platform);
+    return false;
   } catch (err) {
     console.warn('[AwayMode] Display off error:', err.message);
+    logAwayModeAnalytics('display_off_error', { error: err.message });
+    return false;
   }
 }
 
@@ -280,6 +298,13 @@ function restoreDisplay() {
 // USER INPUT DETECTION
 // ============================================================
 
+// Analytics/logging helper
+function logAwayModeAnalytics(event, data = {}) {
+  const timestamp = new Date().toISOString();
+  console.log(`[AwayMode:Analytics] ${timestamp} - ${event}`, data);
+  // Future: Send to analytics service
+}
+
 /**
  * Start listening for user input while in Away mode
  * This uses Electron's powerMonitor events
@@ -292,14 +317,18 @@ function startInputDetection() {
   awayModeState.userReturnedPromptShown = false;
   awayModeState.lastInputTime = Date.now();
   
-  // Listen for system resume events (user activity)
-  powerMonitor.on('resume', handleUserReturned);
+  // Listen for system suspend/resume events
+  powerMonitor.on('suspend', handleSystemSuspend);
+  powerMonitor.on('resume', handleSystemResume);
   powerMonitor.on('unlock-screen', handleUserReturned);
+  powerMonitor.on('lock-screen', handleScreenLock);
   
   // Also listen for window focus as a proxy for user activity
   if (mainWindow) {
     mainWindow.on('focus', handleUserReturned);
   }
+  
+  logAwayModeAnalytics('input_detection_started');
 }
 
 /**
@@ -311,12 +340,60 @@ function stopInputDetection() {
   console.log('[AwayMode] Stopping user input detection...');
   awayModeState.inputListenerActive = false;
   
-  powerMonitor.removeListener('resume', handleUserReturned);
+  powerMonitor.removeListener('suspend', handleSystemSuspend);
+  powerMonitor.removeListener('resume', handleSystemResume);
   powerMonitor.removeListener('unlock-screen', handleUserReturned);
+  powerMonitor.removeListener('lock-screen', handleScreenLock);
   
   if (mainWindow) {
     mainWindow.removeListener('focus', handleUserReturned);
   }
+  
+  logAwayModeAnalytics('input_detection_stopped');
+}
+
+/**
+ * Handle system suspend event
+ * Log but don't take action - Away mode should prevent this
+ */
+function handleSystemSuspend() {
+  console.log('[AwayMode] System SUSPEND detected while Away mode active!');
+  logAwayModeAnalytics('system_suspend_detected', {
+    isAwayActive: awayModeState.isActive,
+    powerBlockerId: awayModeState.powerSaveBlockerId,
+  });
+  
+  // Notify renderer about potential issue
+  if (mainWindow && mainWindow.webContents) {
+    const t = AWAY_MODE_STRINGS[awayModeState.currentLanguage];
+    mainWindow.webContents.send('away-mode-warning', {
+      type: 'suspend',
+      message: t.noPower || 'System is suspending - Away mode may not work correctly',
+    });
+  }
+}
+
+/**
+ * Handle system resume from sleep
+ */
+function handleSystemResume() {
+  console.log('[AwayMode] System RESUME detected');
+  logAwayModeAnalytics('system_resume_detected', {
+    isAwayActive: awayModeState.isActive,
+  });
+  
+  // This also counts as user returned
+  handleUserReturned();
+}
+
+/**
+ * Handle screen lock event
+ */
+function handleScreenLock() {
+  console.log('[AwayMode] Screen LOCK detected');
+  logAwayModeAnalytics('screen_lock_detected', {
+    isAwayActive: awayModeState.isActive,
+  });
 }
 
 /**
@@ -335,6 +412,8 @@ function handleUserReturned() {
   if (!awayModeState.isActive) return;
   
   console.log('[AwayMode] User returned detected, showing prompt...');
+  logAwayModeAnalytics('user_returned_detected');
+  
   awayModeState.userReturnedPromptShown = true;
   
   // Send IPC to renderer to show prompt
@@ -356,21 +435,30 @@ async function enableAwayMode() {
   const t = AWAY_MODE_STRINGS[awayModeState.currentLanguage];
   
   console.log('[AwayMode] Enabling Away mode...');
+  logAwayModeAnalytics('mode_change_requested', { from: 'NORMAL', to: 'AWAY', source: 'LOCAL' });
   
   // Run preflight checks
   const preflight = await runPreflightChecks();
   
   if (!preflight.success) {
     console.log('[AwayMode] Preflight failed, reverting to NORMAL mode');
+    logAwayModeAnalytics('mode_change_failed', { 
+      reason: 'preflight_failed', 
+      errors: preflight.errors 
+    });
     
     // Revert device_mode in DB
     await revertToNormalMode(preflight.errors.join('\n'));
     
-    // Notify renderer of failure
+    // Notify renderer of failure with detailed errors
     if (mainWindow && mainWindow.webContents) {
       mainWindow.webContents.send('away-mode-preflight-failed', {
         errors: preflight.errors,
         title: t.preflightFailed,
+        guidance: {
+          power: t.noPower,
+          camera: t.noCamera,
+        },
       });
     }
     
@@ -384,7 +472,12 @@ async function enableAwayMode() {
   preventSleep();
   
   // 2. Turn off display (best effort)
-  turnOffDisplay();
+  const displayResult = turnOffDisplay();
+  if (!displayResult) {
+    // Non-blocking warning
+    console.log('[AwayMode] Display off failed (non-blocking)');
+    logAwayModeAnalytics('display_off_failed', { nonBlocking: true });
+  }
   
   // 3. Start input detection for "user returned" prompt
   startInputDetection();
@@ -394,6 +487,7 @@ async function enableAwayMode() {
   
   console.log('[AwayMode] Away mode ENABLED successfully');
   console.log('[AwayMode] Transition: NORMAL -> AWAY');
+  logAwayModeAnalytics('mode_change_succeeded', { from: 'NORMAL', to: 'AWAY' });
   
   // Notify renderer
   if (mainWindow && mainWindow.webContents) {
@@ -413,6 +507,7 @@ async function disableAwayMode() {
   const t = AWAY_MODE_STRINGS[awayModeState.currentLanguage];
   
   console.log('[AwayMode] Disabling Away mode...');
+  logAwayModeAnalytics('mode_change_requested', { from: 'AWAY', to: 'NORMAL', source: 'LOCAL' });
   
   awayModeState.isActive = false;
   
@@ -432,6 +527,7 @@ async function disableAwayMode() {
   // If device_mode != AWAY, security_enabled MUST be false
   if (awayModeState.currentDeviceId) {
     console.log('[AwayMode] Enforcing security_enabled = false (dependency rule)');
+    logAwayModeAnalytics('security_disabled_enforced', { reason: 'away_mode_disabled' });
     await supabase
       .from('device_status')
       .update({
@@ -442,6 +538,7 @@ async function disableAwayMode() {
   
   console.log('[AwayMode] Away mode DISABLED');
   console.log('[AwayMode] Transition: AWAY -> NORMAL');
+  logAwayModeAnalytics('mode_change_succeeded', { from: 'AWAY', to: 'NORMAL' });
   
   // Notify renderer
   if (mainWindow && mainWindow.webContents) {
