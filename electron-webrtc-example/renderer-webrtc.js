@@ -79,14 +79,14 @@ async function getCameraWithTimeout(timeoutMs) {
     }, timeoutMs);
     
     try {
-      // Try with ideal constraints first
+      // Try with ideal constraints first (video + audio for live view)
       const constraints = {
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
           frameRate: { ideal: 30 }
         },
-        audio: false
+        audio: true  // Enable microphone for audio streaming
       };
       
       console.log('[Desktop] Requesting camera with constraints:', JSON.stringify(constraints));
@@ -103,9 +103,9 @@ async function getCameraWithTimeout(timeoutMs) {
     } catch (constraintError) {
       console.warn('[Desktop] Failed with ideal constraints, trying minimal...', constraintError.message);
       
-      // Fallback to minimal constraints
+      // Fallback to minimal constraints (still request audio)
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         
         if (!resolved) {
           resolved = true;
