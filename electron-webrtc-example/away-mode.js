@@ -407,6 +407,7 @@ async function enableAwayMode() {
 
 /**
  * Disable Away mode behavior
+ * IMPORTANT: Also enforces security_enabled = false when Away mode is disabled
  */
 async function disableAwayMode() {
   const t = AWAY_MODE_STRINGS[awayModeState.currentLanguage];
@@ -426,6 +427,18 @@ async function disableAwayMode() {
   
   // 4. Report status to DB
   await reportAwayModeStatus('NORMAL', 'disabled');
+  
+  // 5. DEPENDENCY ENFORCEMENT: Force security_enabled = false when Away mode is disabled
+  // If device_mode != AWAY, security_enabled MUST be false
+  if (awayModeState.currentDeviceId) {
+    console.log('[AwayMode] Enforcing security_enabled = false (dependency rule)');
+    await supabase
+      .from('device_status')
+      .update({
+        security_enabled: false,
+      })
+      .eq('device_id', awayModeState.currentDeviceId);
+  }
   
   console.log('[AwayMode] Away mode DISABLED');
   console.log('[AwayMode] Transition: AWAY -> NORMAL');
@@ -611,18 +624,27 @@ async function subscribeToCommands(deviceId) {
         const command = payload.new;
         console.log('[AwayMode] Command received:', command);
         
-        // Only handle SET_DEVICE_MODE commands
-        if (!command.command?.startsWith('SET_DEVICE_MODE')) {
+        // Handle SET_DEVICE_MODE commands
+        if (command.command?.startsWith('SET_DEVICE_MODE')) {
+          // Already handled?
+          if (command.handled || command.status !== 'pending') {
+            console.log('[AwayMode] Command already handled, skipping');
+            return;
+          }
+          await handleSetDeviceModeCommand(command);
           return;
         }
         
-        // Already handled?
-        if (command.handled || command.status !== 'pending') {
-          console.log('[AwayMode] Command already handled, skipping');
+        // Handle SET_SECURITY_ENABLED commands (scaffold - reject for now)
+        if (command.command?.startsWith('SET_SECURITY_ENABLED')) {
+          // Already handled?
+          if (command.handled || command.status !== 'pending') {
+            console.log('[AwayMode] Command already handled, skipping');
+            return;
+          }
+          await handleSetSecurityEnabledCommand(command);
           return;
         }
-        
-        await handleSetDeviceModeCommand(command);
       }
     )
     .subscribe((status) => {
@@ -781,6 +803,62 @@ async function acknowledgeCommand(commandId, status, errorMessage) {
 }
 
 // ============================================================
+// SET_SECURITY_ENABLED COMMAND (SCAFFOLD - NOT FUNCTIONAL)
+// ============================================================
+
+const SECURITY_MODE_STRINGS = {
+  en: {
+    notAvailable: 'Security mode is not yet available. Feature coming soon.',
+    requiresAwayMode: 'Security mode requires Away mode to be active.',
+  },
+  he: {
+    notAvailable: 'מצב אבטחה עדיין לא זמין. התכונה בקרוב.',
+    requiresAwayMode: 'מצב אבטחה דורש הפעלת מצב Away.',
+  },
+};
+
+/**
+ * Handle SET_SECURITY_ENABLED command
+ * SCAFFOLD ONLY: Always rejects with clear message
+ * 
+ * Format: SET_SECURITY_ENABLED:true or SET_SECURITY_ENABLED:false
+ */
+async function handleSetSecurityEnabledCommand(command) {
+  const commandId = command.id;
+  const commandStr = command.command;
+  const t = SECURITY_MODE_STRINGS[awayModeState.currentLanguage];
+  
+  console.log('[SecurityMode] Handling SET_SECURITY_ENABLED command (scaffold):', commandId, commandStr);
+  
+  // Parse enabled from command string
+  const parts = commandStr.split(':');
+  const enabledStr = parts[1] || 'false';
+  const enabled = enabledStr === 'true';
+  
+  console.log('[SecurityMode] Target enabled:', enabled);
+  
+  // SCAFFOLD: Always reject with "not available" message
+  // This ensures the command is tracked but not executed
+  console.log('[SecurityMode] Rejecting command - feature not yet implemented');
+  
+  // Check dependency: if Away mode is not active, reject with specific message
+  if (enabled && !awayModeState.isActive) {
+    await acknowledgeCommand(commandId, 'failed', t.requiresAwayMode);
+    return;
+  }
+  
+  // For now, always reject - feature not implemented
+  await acknowledgeCommand(commandId, 'failed', t.notAvailable);
+  
+  // Notify renderer that security mode is not available
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('security-mode-not-available', {
+      message: t.notAvailable,
+    });
+  }
+}
+
+// ============================================================
 // IPC HANDLERS
 // ============================================================
 
@@ -917,5 +995,6 @@ module.exports = {
   disableAwayMode,
   // Command handling
   handleSetDeviceModeCommand,
+  handleSetSecurityEnabledCommand,
   acknowledgeCommand,
 };
