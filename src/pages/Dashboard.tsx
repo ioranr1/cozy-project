@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Laptop, Video, Radar, Activity, Bell, Clock, Eye, EyeOff, Power, PowerOff, Loader2, CheckCircle, XCircle, AlertCircle, Monitor } from 'lucide-react';
+import { Laptop, Video, Activity, Bell, Clock, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Monitor } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
@@ -32,7 +32,6 @@ const Dashboard: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [laptopStatus, setLaptopStatus] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const [isLaptopStatusLoading, setIsLaptopStatusLoading] = useState(true);
-  const [motionDetectionActive, setMotionDetectionActive] = useState(false);
   const [viewStatus, setViewStatus] = useState<ViewStatus>('idle');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const isMobileDevice = useIsMobileDevice();
@@ -78,13 +77,9 @@ const Dashboard: React.FC = () => {
   // Remote command hook
   const { sendCommand, commandState, isLoading, resetState } = useRemoteCommand({
     deviceId: activeDeviceId,
-    onAcknowledged: (commandType) => {
-      if (commandType === 'START_MOTION_DETECTION') {
-        setMotionDetectionActive(true);
-      } else if (commandType === 'STOP_MOTION_DETECTION') {
-        setMotionDetectionActive(false);
-      }
-      // Live view state is now managed by useLiveViewState hook
+    onAcknowledged: (_commandType) => {
+      // Motion detection removed - only live view uses this hook now
+      // Live view state is managed by useLiveViewState hook
     },
     onFailed: (commandType) => {
       // Reset viewStatus on failure/timeout
@@ -322,9 +317,6 @@ const Dashboard: React.FC = () => {
       if (!ok) {
         setViewStatus(liveViewActive ? 'streaming' : 'idle');
       }
-    } else {
-      // Motion detection commands - no rtc_session needed
-      await sendCommand(commandType);
     }
 
     // Bootstrap-safe: always re-fetch live view state after sending live view commands
@@ -430,63 +422,6 @@ const Dashboard: React.FC = () => {
             )}
           </div>
 
-          {/* Motion Detection Control Card */}
-          <div className="bg-gradient-to-br from-amber-600/20 to-amber-800/20 border border-amber-500/30 rounded-2xl p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                motionDetectionActive 
-                  ? 'bg-gradient-to-br from-amber-500 to-amber-600' 
-                  : 'bg-slate-700/50'
-              }`}>
-                <Radar className={`w-6 h-6 ${motionDetectionActive ? 'text-white' : 'text-slate-400'}`} />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-white">
-                  {language === 'he' ? 'זיהוי תנועה' : 'Motion Detection'}
-                </h3>
-                <p className="text-white/60 text-sm">
-                  {language === 'he' ? 'התראות ואירועים • ללא וידאו חי' : 'Alerts & events • No live video'}
-                </p>
-              </div>
-              <div className={`px-2 py-1 rounded-full text-xs ${
-                motionDetectionActive 
-                  ? 'bg-amber-500/20 text-amber-400' 
-                  : 'bg-slate-600/50 text-slate-400'
-              }`}>
-                {language === 'he' 
-                  ? (motionDetectionActive ? 'פעיל' : 'כבוי')
-                  : (motionDetectionActive ? 'Active' : 'Off')}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <Button 
-                onClick={() => handleCommand('START_MOTION_DETECTION')}
-                disabled={(isLoading && commandState.commandType?.includes('MOTION')) || motionDetectionActive}
-                className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50"
-              >
-                {isLoading && commandState.commandType === 'START_MOTION_DETECTION' ? (
-                  <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                ) : (
-                  <Power className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                )}
-                {language === 'he' ? 'הפעל' : 'Enable'}
-              </Button>
-              <Button 
-                onClick={() => handleCommand('STOP_MOTION_DETECTION')}
-                disabled={(isLoading && commandState.commandType?.includes('MOTION')) || !motionDetectionActive}
-                variant="outline"
-                className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10"
-              >
-                {isLoading && commandState.commandType === 'STOP_MOTION_DETECTION' ? (
-                  <Loader2 className={`w-4 h-4 animate-spin ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                ) : (
-                  <PowerOff className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                )}
-                {language === 'he' ? 'כבה' : 'Disable'}
-              </Button>
-            </div>
-          </div>
 
           {/* Manual Live View Control Card */}
           <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-5">
@@ -644,31 +579,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* Status Grid - Read Only */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Motion Detection Status */}
-                <div className={`p-4 rounded-xl border ${
-                  motionDetectionActive 
-                    ? 'bg-amber-500/10 border-amber-500/30' 
-                    : 'bg-slate-700/30 border-slate-600/30'
-                }`}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <Radar className={`w-5 h-5 ${motionDetectionActive ? 'text-amber-400' : 'text-slate-500'}`} />
-                    <span className="text-white font-medium text-sm">
-                      {language === 'he' ? 'זיהוי תנועה' : 'Motion Detection'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-xs ${motionDetectionActive ? 'text-amber-400' : 'text-slate-500'}`}>
-                      {language === 'he' 
-                        ? (motionDetectionActive ? 'פעיל' : 'כבוי')
-                        : (motionDetectionActive ? 'Active' : 'Off')}
-                    </span>
-                    <span className="text-white/40 text-xs">
-                      {language === 'he' ? 'קריאה בלבד' : 'Read-only'}
-                    </span>
-                  </div>
-                </div>
-
+              <div className="grid grid-cols-1 gap-4">
                 {/* Live View Status */}
                 <div className={`p-4 rounded-xl border ${
                   liveViewActive 
@@ -692,15 +603,6 @@ const Dashboard: React.FC = () => {
                     </span>
                   </div>
                 </div>
-              </div>
-
-              {/* Link to Controls */}
-              <div className="mt-4 pt-4 border-t border-slate-600/30">
-                <Link to="/motion-detection">
-                  <Button variant="secondary" size="sm" className="w-full">
-                    {language === 'he' ? 'נהל מצבי פעולה' : 'Manage Operation Modes'}
-                  </Button>
-                </Link>
               </div>
             </div>
 

@@ -13,7 +13,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Shield,
-  Radar,
   Monitor
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -32,7 +31,6 @@ const navItems: NavItem[] = [
   { key: 'dashboard', labelHe: 'לוח בקרה', labelEn: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
   { key: 'devices', labelHe: 'מכשירים', labelEn: 'Devices', icon: Monitor, path: '/devices' },
   { key: 'camera-test', labelHe: 'בדיקת מצלמה', labelEn: 'Camera Test', icon: Camera, path: '/camera' },
-  { key: 'motion', labelHe: 'זיהוי תנועה', labelEn: 'Motion Detection', icon: Radar, path: '/motion-detection', desktopOnly: true },
   { key: 'events', labelHe: 'אירועים', labelEn: 'Events', icon: Bell, path: '/events' },
   { key: 'system', labelHe: 'בריאות מערכת', labelEn: 'System Health', icon: Activity, path: '/system', desktopOnly: true },
   { key: 'settings', labelHe: 'הגדרות', labelEn: 'Settings', icon: Settings, path: '/settings' },
