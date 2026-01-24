@@ -579,6 +579,208 @@ async function subscribeToFeatureFlags() {
 }
 
 // ============================================================
+// COMMAND HANDLING (for remote SET_DEVICE_MODE commands)
+// ============================================================
+
+let commandsChannel = null;
+
+/**
+ * Subscribe to commands table for SET_DEVICE_MODE commands
+ * This allows mobile to remotely control Away mode
+ */
+async function subscribeToCommands(deviceId) {
+  console.log('[AwayMode] Subscribing to commands for device:', deviceId);
+  
+  // Unsubscribe from previous channel
+  if (commandsChannel) {
+    await supabase.removeChannel(commandsChannel);
+  }
+  
+  // Subscribe to new commands
+  commandsChannel = supabase
+    .channel('away_mode_commands')
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'commands',
+        filter: `device_id=eq.${deviceId}`,
+      },
+      async (payload) => {
+        const command = payload.new;
+        console.log('[AwayMode] Command received:', command);
+        
+        // Only handle SET_DEVICE_MODE commands
+        if (!command.command?.startsWith('SET_DEVICE_MODE')) {
+          return;
+        }
+        
+        // Already handled?
+        if (command.handled || command.status !== 'pending') {
+          console.log('[AwayMode] Command already handled, skipping');
+          return;
+        }
+        
+        await handleSetDeviceModeCommand(command);
+      }
+    )
+    .subscribe((status) => {
+      console.log('[AwayMode] commands subscription:', status);
+    });
+}
+
+/**
+ * Handle SET_DEVICE_MODE command from mobile
+ * Format: SET_DEVICE_MODE:AWAY or SET_DEVICE_MODE:NORMAL
+ */
+async function handleSetDeviceModeCommand(command) {
+  const commandId = command.id;
+  const commandStr = command.command;
+  
+  console.log('[AwayMode] Handling SET_DEVICE_MODE command:', commandId, commandStr);
+  
+  // Parse mode from command string (SET_DEVICE_MODE:AWAY or SET_DEVICE_MODE:NORMAL)
+  const parts = commandStr.split(':');
+  const targetMode = parts[1] || 'NORMAL';
+  
+  console.log('[AwayMode] Target mode:', targetMode);
+  
+  // Only react if feature flag is enabled
+  if (!awayModeState.isFeatureEnabled) {
+    console.log('[AwayMode] Feature flag OFF, failing command');
+    await acknowledgeCommand(commandId, 'failed', 'Away mode feature is disabled');
+    return;
+  }
+  
+  try {
+    if (targetMode === 'AWAY') {
+      // Run preflight and enable
+      const success = await enableAwayModeForCommand(commandId);
+      
+      if (success) {
+        // Update device_status to AWAY
+        await supabase
+          .from('device_status')
+          .update({
+            device_mode: 'AWAY',
+            last_mode_changed_at: new Date().toISOString(),
+            last_mode_changed_by: 'MOBILE',
+          })
+          .eq('device_id', awayModeState.currentDeviceId);
+        
+        await acknowledgeCommand(commandId, 'acknowledged', null);
+      }
+      // If not success, enableAwayModeForCommand already handled the failure
+      
+    } else if (targetMode === 'NORMAL') {
+      // Disable Away mode
+      await disableAwayMode();
+      
+      // Update device_status to NORMAL
+      await supabase
+        .from('device_status')
+        .update({
+          device_mode: 'NORMAL',
+          last_mode_changed_at: new Date().toISOString(),
+          last_mode_changed_by: 'MOBILE',
+        })
+        .eq('device_id', awayModeState.currentDeviceId);
+      
+      await acknowledgeCommand(commandId, 'acknowledged', null);
+    } else {
+      await acknowledgeCommand(commandId, 'failed', `Unknown mode: ${targetMode}`);
+    }
+    
+  } catch (err) {
+    console.error('[AwayMode] Error handling command:', err);
+    await acknowledgeCommand(commandId, 'failed', err.message);
+  }
+}
+
+/**
+ * Enable Away mode for a command (with preflight)
+ * Returns true if successful, false if failed
+ */
+async function enableAwayModeForCommand(commandId) {
+  const t = AWAY_MODE_STRINGS[awayModeState.currentLanguage];
+  
+  console.log('[AwayMode] Enabling Away mode for command:', commandId);
+  
+  // Run preflight checks
+  const preflight = await runPreflightChecks();
+  
+  if (!preflight.success) {
+    console.log('[AwayMode] Preflight failed for command:', preflight.errors);
+    
+    // ACK with failure
+    await acknowledgeCommand(commandId, 'failed', `Preflight failed: ${preflight.errors.join(', ')}`);
+    
+    // Notify renderer of failure
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('away-mode-preflight-failed', {
+        errors: preflight.errors,
+        title: t.preflightFailed,
+      });
+    }
+    
+    return false;
+  }
+  
+  // Preflight passed - enable system behaviors
+  awayModeState.isActive = true;
+  
+  // 1. Prevent sleep
+  preventSleep();
+  
+  // 2. Turn off display (best effort)
+  turnOffDisplay();
+  
+  // 3. Start input detection for "user returned" prompt
+  startInputDetection();
+  
+  console.log('[AwayMode] Away mode ENABLED via remote command');
+  console.log('[AwayMode] Transition: NORMAL -> AWAY (remote)');
+  
+  // Notify renderer
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('away-mode-enabled', {
+      message: t.awayEnabled,
+    });
+  }
+  
+  return true;
+}
+
+/**
+ * Acknowledge a command in the database
+ */
+async function acknowledgeCommand(commandId, status, errorMessage) {
+  console.log('[AwayMode] Acknowledging command:', commandId, status, errorMessage);
+  
+  const updateData = {
+    handled: true,
+    handled_at: new Date().toISOString(),
+    status: status,
+  };
+  
+  if (errorMessage) {
+    updateData.error_message = errorMessage;
+  }
+  
+  const { error } = await supabase
+    .from('commands')
+    .update(updateData)
+    .eq('id', commandId);
+  
+  if (error) {
+    console.error('[AwayMode] Error acknowledging command:', error);
+  } else {
+    console.log('[AwayMode] Command acknowledged successfully:', status);
+  }
+}
+
+// ============================================================
 // IPC HANDLERS
 // ============================================================
 
@@ -644,9 +846,10 @@ async function initAwayMode(window, deviceId, language = 'en') {
   // Subscribe to feature flags
   await subscribeToFeatureFlags();
   
-  // Subscribe to device status
+  // Subscribe to device status and commands
   if (deviceId) {
     await subscribeToDeviceStatus(deviceId);
+    await subscribeToCommands(deviceId);
   }
   
   console.log('[AwayMode] Initialization complete');
@@ -658,6 +861,7 @@ async function initAwayMode(window, deviceId, language = 'en') {
 async function setAwayModeDeviceId(deviceId) {
   if (deviceId !== awayModeState.currentDeviceId) {
     await subscribeToDeviceStatus(deviceId);
+    await subscribeToCommands(deviceId);
   }
 }
 
@@ -687,6 +891,9 @@ async function cleanupAwayMode() {
   if (awayModeState.featureFlagsChannel) {
     await supabase.removeChannel(awayModeState.featureFlagsChannel);
   }
+  if (commandsChannel) {
+    await supabase.removeChannel(commandsChannel);
+  }
   
   console.log('[AwayMode] Cleanup complete');
 }
@@ -708,4 +915,7 @@ module.exports = {
   allowSleep,
   enableAwayMode,
   disableAwayMode,
+  // Command handling
+  handleSetDeviceModeCommand,
+  acknowledgeCommand,
 };

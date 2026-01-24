@@ -10,7 +10,13 @@ export type CommandType =
   | 'START_LIVE_VIEW' 
   | 'STOP_LIVE_VIEW'
   | 'START_CAMERA'
-  | 'STOP_CAMERA';
+  | 'STOP_CAMERA'
+  | 'SET_DEVICE_MODE';
+
+export interface CommandPayload {
+  mode?: 'AWAY' | 'NORMAL';
+  // Future: security_enabled?: boolean;
+}
 
 export type CommandStatus = 'idle' | 'sending' | 'pending' | 'acknowledged' | 'failed' | 'timeout';
 
@@ -156,8 +162,8 @@ export function useRemoteCommand({
     subscriptionRef.current = channel;
   }, [cleanup, language, onAcknowledged, onFailed, timeoutMs]);
 
-  // Send a remote command
-  const sendCommand = useCallback(async (commandType: CommandType): Promise<boolean> => {
+  // Send a remote command with optional payload
+  const sendCommand = useCallback(async (commandType: CommandType, payload?: CommandPayload): Promise<boolean> => {
     if (!deviceId) {
       const error = language === 'he' 
         ? 'לא נמצא מחשב מחובר. פתח את האפליקציה במחשב ונסה שוב.'
@@ -187,12 +193,19 @@ export function useRemoteCommand({
         return false;
       }
 
-      console.log(`[useRemoteCommand] Sending ${commandType} to device ${deviceId}`);
+      // Build command string - for SET_DEVICE_MODE, include mode in command name
+      let commandString = commandType;
+      if (commandType === 'SET_DEVICE_MODE' && payload?.mode) {
+        commandString = `SET_DEVICE_MODE:${payload.mode}` as CommandType;
+      }
+
+      console.log(`[useRemoteCommand] Sending ${commandString} to device ${deviceId}`, payload);
 
       const response = await supabase.functions.invoke('send-command', {
         body: { 
           device_id: deviceId, 
-          command: commandType,
+          command: commandString,
+          payload: payload,
           session_token: sessionToken 
         },
       });
