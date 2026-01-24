@@ -184,9 +184,46 @@ All transitions are logged with `[AwayMode]` prefix:
 [AwayMode] Transition: NORMAL -> AWAY
 ```
 
-## Feature Flag
+## Feature Flags
 
-Away mode only activates when `feature_flags.away_mode = true` in the database. This allows gradual rollout without code changes.
+- `feature_flags.away_mode = true` - Enables Away Mode functionality
+- `feature_flags.security_mode = true` - Shows Security Mode placeholder (coming soon)
+
+Away mode only activates when the flag is enabled. This allows gradual rollout without code changes.
+
+## Security Mode Scaffold (STEP 5)
+
+Security Mode is currently scaffolded but NOT functional:
+
+### Dependency Rules
+
+1. **If `device_mode != AWAY`, `security_enabled` MUST be `false`**
+   - Enforced in `disableAwayMode()`: when Away mode is disabled, security_enabled is automatically set to false
+   
+2. **SET_SECURITY_ENABLED commands are rejected with clear message:**
+   - If Away mode is not active: "Security mode requires Away mode to be active"
+   - Always: "Security mode is not yet available. Feature coming soon."
+
+### Command Scaffold
+
+The `SET_SECURITY_ENABLED` command type is defined but always fails:
+
+```
+SET_SECURITY_ENABLED:true  → FAILED: "Security mode is not yet available"
+SET_SECURITY_ENABLED:false → FAILED: "Security mode is not yet available"
+```
+
+### UI Placeholder
+
+A disabled "Security Mode (Coming Soon)" card is shown in the dashboard when `feature_flags.security_mode = true`.
+
+### What's NOT Implemented (by design)
+
+- ❌ Motion detection
+- ❌ AI/ML analysis
+- ❌ Audio detection
+- ❌ Recording
+- ❌ Alerts
 
 ## Hard Constraints (Confirmed)
 
@@ -195,3 +232,5 @@ Away mode only activates when `feature_flags.away_mode = true` in the database. 
 - ✅ Does NOT implement wake from sleep
 - ✅ Preflight failure reverts to NORMAL with clear error
 - ✅ User returned prompt does NOT auto-disable (requires confirmation)
+- ✅ Security mode scaffold only - no detection implemented
+- ✅ Dependency enforcement: security_enabled=false when device_mode!=AWAY

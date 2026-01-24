@@ -11,11 +11,12 @@ export type CommandType =
   | 'STOP_LIVE_VIEW'
   | 'START_CAMERA'
   | 'STOP_CAMERA'
-  | 'SET_DEVICE_MODE';
+  | 'SET_DEVICE_MODE'
+  | 'SET_SECURITY_ENABLED';
 
 export interface CommandPayload {
   mode?: 'AWAY' | 'NORMAL';
-  // Future: security_enabled?: boolean;
+  enabled?: boolean; // For SET_SECURITY_ENABLED
 }
 
 export type CommandStatus = 'idle' | 'sending' | 'pending' | 'acknowledged' | 'failed' | 'timeout';

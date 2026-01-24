@@ -112,6 +112,14 @@ export const translations = {
       preflightFailed: 'המחשב לא עמד בדרישות (חשמל/מצלמה)',
       noDevice: 'לא נבחר מכשיר',
     },
+    // Security Mode
+    securityMode: {
+      title: 'מצב אבטחה',
+      comingSoon: 'בקרוב...',
+      description: 'זיהוי תנועה וקול אוטומטי כשאתה לא בבית',
+      requiresAwayMode: 'דורש הפעלת מצב Away',
+      notAvailable: 'מצב אבטחה עדיין לא זמין',
+    },
     // Validation
     validation: {
       required: 'שדה חובה',
@@ -231,6 +239,14 @@ export const translations = {
       commandFailed: 'Command failed',
       preflightFailed: 'Computer failed preflight checks (power/camera)',
       noDevice: 'No device selected',
+    },
+    // Security Mode
+    securityMode: {
+      title: 'Security Mode',
+      comingSoon: 'Coming Soon...',
+      description: 'Automatic motion and sound detection while you\'re away',
+      requiresAwayMode: 'Requires Away Mode to be active',
+      notAvailable: 'Security mode is not yet available',
     },
     // Validation
     validation: {

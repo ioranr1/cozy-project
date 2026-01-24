@@ -19,6 +19,7 @@ import { useDevices } from '@/hooks/useDevices';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { AwayModeCard } from '@/components/AwayModeCard';
 import { MobileAwayModeCard } from '@/components/MobileAwayModeCard';
+import { SecurityModeComingSoon } from '@/components/SecurityModeComingSoon';
 
 interface UserProfile {
   id?: string;
@@ -395,6 +396,11 @@ const Dashboard: React.FC = () => {
             <MobileAwayModeCard />
           )}
 
+          {/* Security Mode Placeholder - Only visible when feature flag is ON */}
+          {featureFlags.security_mode && (
+            <SecurityModeComingSoon />
+          )}
+
           {/* Connection Status with Command Feedback */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
             <div className="flex items-center justify-between">
@@ -618,6 +624,11 @@ const Dashboard: React.FC = () => {
             {/* Away Mode Card - Only visible when feature flag is ON */}
             {featureFlags.away_mode && (
               <AwayModeCard />
+            )}
+
+            {/* Security Mode Placeholder - Only visible when feature flag is ON */}
+            {featureFlags.security_mode && (
+              <SecurityModeComingSoon />
             )}
 
             {/* Advanced Settings */}
