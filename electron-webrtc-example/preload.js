@@ -162,7 +162,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Set the current language
    * @param {string} lang - 'en' or 'he'
    */
-  setLanguage: (lang) => ipcRenderer.invoke('set-language', lang)
+  setLanguage: (lang) => ipcRenderer.invoke('set-language', lang),
+
+  // -------------------------------------------------------------------------
+  // Auto-Login / Success Screen
+  // -------------------------------------------------------------------------
+  
+  /**
+   * Called after successful pairing to sync credentials with main process
+   * @param {{profile_id: string, session_token: string, device_id: string}} data
+   */
+  loginUser: (data) => {
+    ipcRenderer.send('login-user', data);
+  },
+  
+  /**
+   * Listen for auto-show success screen (when device is already paired)
+   * @param {function()} callback
+   */
+  onShowSuccessScreen: (callback) => {
+    ipcRenderer.on('show-success-screen', () => {
+      callback();
+    });
+  }
 });
 
 console.log('[Preload] electronAPI exposed to renderer');

@@ -706,6 +706,30 @@ function setupIpcHandlers() {
     // Handled in runPreflightChecks
   });
 
+  // Login from renderer (after pairing)
+  ipcMain.on('login-user', (event, data) => {
+    console.log('[IPC] Login user received:', data);
+    if (data.device_id) {
+      deviceId = data.device_id;
+      store.set('deviceId', data.device_id);
+    }
+    if (data.profile_id) {
+      profileId = data.profile_id;
+      store.set('profileId', data.profile_id);
+    }
+    if (data.session_token) {
+      store.set('sessionToken', data.session_token);
+    }
+    
+    // Start services if not already running
+    if (!heartbeatInterval) {
+      startHeartbeat();
+      subscribeToCommands();
+      subscribeToRtcSessions();
+      subscribeToDeviceStatus();
+    }
+  });
+
   // Language
   ipcMain.handle('set-language', (event, lang) => {
     currentLanguage = lang;
