@@ -651,12 +651,12 @@ async function subscribeToFeatureFlags() {
   // First, fetch current flag status
   const { data, error } = await supabase
     .from('feature_flags')
-    .select('flag_name, is_enabled')
-    .eq('flag_name', 'away_mode')
+    .select('name, enabled')
+    .eq('name', 'away_mode')
     .maybeSingle();
   
   if (!error && data) {
-    awayModeState.isFeatureEnabled = data.is_enabled;
+    awayModeState.isFeatureEnabled = data.enabled;
     console.log('[AwayMode] Initial feature flag status:', awayModeState.isFeatureEnabled);
   }
   
@@ -671,8 +671,8 @@ async function subscribeToFeatureFlags() {
         table: 'feature_flags',
       },
       (payload) => {
-        if (payload.new?.flag_name === 'away_mode') {
-          awayModeState.isFeatureEnabled = payload.new.is_enabled;
+        if (payload.new?.name === 'away_mode') {
+          awayModeState.isFeatureEnabled = payload.new.enabled;
           console.log('[AwayMode] Feature flag updated:', awayModeState.isFeatureEnabled);
           
           // If feature is disabled while Away mode is active, disable Away mode
