@@ -18,6 +18,7 @@ import { SecurityArmToggle } from '@/components/SecurityArmToggle';
 import { useDevices } from '@/hooks/useDevices';
 import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { AwayModeCard } from '@/components/AwayModeCard';
+import { MobileAwayModeCard } from '@/components/MobileAwayModeCard';
 
 interface UserProfile {
   id?: string;
@@ -388,6 +389,11 @@ const Dashboard: React.FC = () => {
         <div className="p-4 space-y-4">
           {/* Security Arm Toggle - Main Control */}
           <SecurityArmToggle />
+
+          {/* Away Mode Card - Only visible when feature flag is ON */}
+          {featureFlags.away_mode && (
+            <MobileAwayModeCard />
+          )}
 
           {/* Connection Status with Command Feedback */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">

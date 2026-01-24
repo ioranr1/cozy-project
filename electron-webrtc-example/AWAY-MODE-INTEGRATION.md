@@ -66,6 +66,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 │                    DATABASE (SSOT)                          │
 │  device_status.device_mode = 'NORMAL' | 'AWAY'              │
 │  feature_flags.away_mode = true | false                     │
+│  commands table for SET_DEVICE_MODE commands                │
 └─────────────────────────────────────────────────────────────┘
                               │
                               │ Realtime subscription
@@ -74,8 +75,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 │                ELECTRON MAIN PROCESS                        │
 │  away-mode.js                                               │
 │  - Listens for device_mode changes                          │
+│  - Listens for SET_DEVICE_MODE commands (from mobile)       │
 │  - Runs preflight checks (power, camera)                    │
 │  - Controls powerSaveBlocker                                │
+│  - ACKs or FAILs commands                                   │
 │  - Detects user input                                       │
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -88,6 +91,48 @@ contextBridge.exposeInMainWorld('electronAPI', {
 │  - Shows "user returned" prompt                             │
 │  - Checks camera availability                               │
 └─────────────────────────────────────────────────────────────┘
+```
+
+## Remote Command Flow (Mobile → Desktop)
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Mobile     │     │   Supabase   │     │   Desktop    │
+│   Dashboard  │     │   Database   │     │   Electron   │
+└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
+       │                    │                    │
+       │ 1. Toggle ON       │                    │
+       │───────────────────>│                    │
+       │ INSERT command     │                    │
+       │ SET_DEVICE_MODE:AWAY                    │
+       │                    │                    │
+       │                    │ 2. Realtime INSERT │
+       │                    │───────────────────>│
+       │                    │                    │
+       │                    │    3. Preflight    │
+       │                    │    checks (power,  │
+       │                    │    camera)         │
+       │                    │                    │
+       │                    │ 4a. If PASS:       │
+       │                    │    - preventSleep()│
+       │                    │    - Update status │
+       │                    │<───────────────────│
+       │                    │ ACK command        │
+       │                    │                    │
+       │ 5. Realtime UPDATE │                    │
+       │<───────────────────│                    │
+       │ status='acknowledged'                   │
+       │                    │                    │
+       │ 4b. If FAIL:       │                    │
+       │                    │<───────────────────│
+       │                    │ FAIL command       │
+       │                    │ + error_message    │
+       │                    │                    │
+       │ 5. Realtime UPDATE │                    │
+       │<───────────────────│                    │
+       │ status='failed'    │                    │
+       │ Show error toast   │                    │
+       └────────────────────┴────────────────────┘
 ```
 
 ## Transitions

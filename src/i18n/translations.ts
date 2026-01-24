@@ -96,13 +96,21 @@ export const translations = {
     awayMode: {
       title: 'מצב Away',
       description: 'השאר את המחשב דלוק כשאתה לא בבית',
+      descriptionMobile: 'השאר את המחשב דלוק מרחוק',
       requirementPower: 'חייב להיות מחובר לחשמל',
       requirementLid: 'השאר את המכסה פתוח',
       statusActive: 'פעיל',
       statusInactive: 'כבוי',
+      statusPending: 'ממתין...',
       activeMessage: 'מצב Away פעיל - המחשב יישאר ער',
       activatedToast: '🏠 מצב Away הופעל!',
       deactivatedToast: '🔌 מצב Away כבוי',
+      sendingCommand: 'שולח פקודה...',
+      waitingAck: 'ממתין לאישור...',
+      commandSuccess: 'הפקודה התקבלה',
+      commandFailed: 'הפקודה נכשלה',
+      preflightFailed: 'המחשב לא עמד בדרישות (חשמל/מצלמה)',
+      noDevice: 'לא נבחר מכשיר',
     },
     // Validation
     validation: {
@@ -208,13 +216,21 @@ export const translations = {
     awayMode: {
       title: 'Away Mode',
       description: 'Keep your computer running while you\'re away',
+      descriptionMobile: 'Keep your computer running remotely',
       requirementPower: 'Must be plugged into power',
       requirementLid: 'Keep the lid open',
       statusActive: 'Active',
       statusInactive: 'Inactive',
+      statusPending: 'Pending...',
       activeMessage: 'Away mode active - Computer will stay awake',
       activatedToast: '🏠 Away Mode Activated!',
       deactivatedToast: '🔌 Away Mode Deactivated',
+      sendingCommand: 'Sending command...',
+      waitingAck: 'Waiting for ACK...',
+      commandSuccess: 'Command acknowledged',
+      commandFailed: 'Command failed',
+      preflightFailed: 'Computer failed preflight checks (power/camera)',
+      noDevice: 'No device selected',
     },
     // Validation
     validation: {
