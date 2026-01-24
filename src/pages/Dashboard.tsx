@@ -16,6 +16,8 @@ import { useLiveViewState } from '@/hooks/useLiveViewState';
 import { toast } from 'sonner';
 import { SecurityArmToggle } from '@/components/SecurityArmToggle';
 import { useDevices } from '@/hooks/useDevices';
+import { useFeatureFlags } from '@/hooks/useFeatureFlags';
+import { AwayModeCard } from '@/components/AwayModeCard';
 
 interface UserProfile {
   id?: string;
@@ -36,6 +38,7 @@ const Dashboard: React.FC = () => {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const isMobileDevice = useIsMobileDevice();
   const capabilities = useCapabilities();
+  const { flags: featureFlags, isLoading: isFlagsLoading } = useFeatureFlags();
 
   // Get profile ID for device loading
   const profileId = useMemo(() => {
@@ -605,6 +608,11 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Away Mode Card - Only visible when feature flag is ON */}
+            {featureFlags.away_mode && (
+              <AwayModeCard />
+            )}
 
             {/* Advanced Settings */}
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">

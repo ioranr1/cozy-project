@@ -92,6 +92,18 @@ export const translations = {
       next: 'הבא',
       close: 'סגור',
     },
+    // Away Mode
+    awayMode: {
+      title: 'מצב Away',
+      description: 'השאר את המחשב דלוק כשאתה לא בבית',
+      requirementPower: 'חייב להיות מחובר לחשמל',
+      requirementLid: 'השאר את המכסה פתוח',
+      statusActive: 'פעיל',
+      statusInactive: 'כבוי',
+      activeMessage: 'מצב Away פעיל - המחשב יישאר ער',
+      activatedToast: '🏠 מצב Away הופעל!',
+      deactivatedToast: '🔌 מצב Away כבוי',
+    },
     // Validation
     validation: {
       required: 'שדה חובה',
@@ -191,6 +203,18 @@ export const translations = {
       back: 'Back',
       next: 'Next',
       close: 'Close',
+    },
+    // Away Mode
+    awayMode: {
+      title: 'Away Mode',
+      description: 'Keep your computer running while you\'re away',
+      requirementPower: 'Must be plugged into power',
+      requirementLid: 'Keep the lid open',
+      statusActive: 'Active',
+      statusInactive: 'Inactive',
+      activeMessage: 'Away mode active - Computer will stay awake',
+      activatedToast: '🏠 Away Mode Activated!',
+      deactivatedToast: '🔌 Away Mode Deactivated',
     },
     // Validation
     validation: {
