@@ -50,12 +50,13 @@ export const useLiveViewState = (options: UseLiveViewStateOptions): UseLiveViewS
 
     try {
       // Query the latest ACKed live view command ordered by handled_at DESC
+      // Flexibility: Accept 'ack', 'acknowledged', 'completed' OR handled=true OR handled_at IS NOT NULL
       const { data, error } = await supabase
         .from('commands')
         .select('id, command, status, handled, handled_at')
         .eq('device_id', deviceId)
         .in('command', ['START_LIVE_VIEW', 'STOP_LIVE_VIEW'])
-        .eq('status', 'ack')
+        .or('status.in.(ack,acknowledged,completed),handled.eq.true,handled_at.not.is.null')
         .order('handled_at', { ascending: false, nullsFirst: false })
         .limit(1);
 
