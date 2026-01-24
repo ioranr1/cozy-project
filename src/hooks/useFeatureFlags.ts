@@ -17,11 +17,11 @@ export const useFeatureFlags = () => {
 
   const fetchFlags = useCallback(async () => {
     try {
-      // Query feature_flags table - use type assertion for now until types are regenerated
+      // Query feature_flags table - columns are 'name' and 'enabled'
       const { data, error } = await supabase
-        .from('feature_flags' as any)
-        .select('flag_name, is_enabled')
-        .in('flag_name', ['away_mode', 'security_mode']);
+        .from('feature_flags')
+        .select('name, enabled')
+        .in('name', ['away_mode', 'security_mode']);
 
       if (error) {
         console.error('[useFeatureFlags] Error fetching flags:', error);
@@ -30,11 +30,11 @@ export const useFeatureFlags = () => {
 
       if (data && Array.isArray(data)) {
         const newFlags = { ...DEFAULT_FLAGS };
-        data.forEach((row: any) => {
-          if (row.flag_name === 'away_mode') {
-            newFlags.away_mode = row.is_enabled;
-          } else if (row.flag_name === 'security_mode') {
-            newFlags.security_mode = row.is_enabled;
+        data.forEach((row) => {
+          if (row.name === 'away_mode') {
+            newFlags.away_mode = row.enabled;
+          } else if (row.name === 'security_mode') {
+            newFlags.security_mode = row.enabled;
           }
         });
         setFlags(newFlags);
