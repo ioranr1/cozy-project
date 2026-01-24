@@ -99,9 +99,17 @@ export const translations = {
       descriptionMobile: 'השאר את המחשב דלוק מרחוק',
       requirementPower: 'חייב להיות מחובר לחשמל',
       requirementLid: 'השאר את המכסה פתוח',
+      // Status labels
+      statusNormal: 'רגיל',
+      statusAwayActive: 'Away פעיל',
+      statusOffline: 'לא מחובר',
+      statusSleeping: 'במצב שינה',
       statusActive: 'פעיל',
       statusInactive: 'כבוי',
       statusPending: 'ממתין...',
+      statusUnknown: 'לא ידוע',
+      updating: 'מעדכן...',
+      // Messages
       activeMessage: 'מצב Away פעיל - המחשב יישאר ער',
       activatedToast: '🏠 מצב Away הופעל!',
       deactivatedToast: '🔌 מצב Away כבוי',
@@ -109,8 +117,18 @@ export const translations = {
       waitingAck: 'ממתין לאישור...',
       commandSuccess: 'הפקודה התקבלה',
       commandFailed: 'הפקודה נכשלה',
+      // Error messages - detailed guidance
       preflightFailed: 'המחשב לא עמד בדרישות (חשמל/מצלמה)',
+      errorPowerRequired: 'נדרש חיבור לחשמל - חבר את המחשב לחשמל ונסה שוב',
+      errorCameraNotAvailable: 'המצלמה לא זמינה - בדוק את החיבור',
+      errorKeepLidOpen: 'שמור את המכסה פתוח כדי שהמצלמה תפעל',
+      errorDisplayOffFailed: 'לא הצלחנו לכבות את המסך (לא קריטי)',
+      errorDeviceOffline: 'המחשב לא מחובר - פתח את האפליקציה במחשב',
+      errorDeviceSleeping: 'המחשב במצב שינה - הער אותו ונסה שוב',
+      errorTimeout: 'לא התקבלה תשובה - ודא שהמחשב מחובר',
+      displayOffNote: 'המסך יכבה אוטומטית (אם נתמך)',
       noDevice: 'לא נבחר מכשיר',
+      updateError: 'שגיאה בעדכון מצב Away',
     },
     // Security Mode
     securityMode: {
@@ -227,9 +245,17 @@ export const translations = {
       descriptionMobile: 'Keep your computer running remotely',
       requirementPower: 'Must be plugged into power',
       requirementLid: 'Keep the lid open',
+      // Status labels
+      statusNormal: 'Normal',
+      statusAwayActive: 'Away Active',
+      statusOffline: 'Offline',
+      statusSleeping: 'Sleeping',
       statusActive: 'Active',
       statusInactive: 'Inactive',
       statusPending: 'Pending...',
+      statusUnknown: 'Unknown',
+      updating: 'Updating...',
+      // Messages
       activeMessage: 'Away mode active - Computer will stay awake',
       activatedToast: '🏠 Away Mode Activated!',
       deactivatedToast: '🔌 Away Mode Deactivated',
@@ -237,8 +263,18 @@ export const translations = {
       waitingAck: 'Waiting for ACK...',
       commandSuccess: 'Command acknowledged',
       commandFailed: 'Command failed',
+      // Error messages - detailed guidance
       preflightFailed: 'Computer failed preflight checks (power/camera)',
+      errorPowerRequired: 'Power connection required - plug in your computer and try again',
+      errorCameraNotAvailable: 'Camera not available - check connection',
+      errorKeepLidOpen: 'Keep the lid open for the camera to work',
+      errorDisplayOffFailed: 'Could not turn off display (non-critical)',
+      errorDeviceOffline: 'Computer is offline - open the app on your computer',
+      errorDeviceSleeping: 'Computer is sleeping - wake it up and try again',
+      errorTimeout: 'No response - ensure computer is connected',
+      displayOffNote: 'Display will turn off automatically (if supported)',
       noDevice: 'No device selected',
+      updateError: 'Failed to update Away mode',
     },
     // Security Mode
     securityMode: {
