@@ -174,6 +174,20 @@ const Dashboard: React.FC = () => {
     const stored = localStorage.getItem('userProfile');
     if (stored) {
       setUserProfile(JSON.parse(stored));
+      
+      // Silent auto-cleanup of old sessions on dashboard entry
+      const sessionToken = localStorage.getItem('aiguard_session_token');
+      if (sessionToken) {
+        supabase.functions.invoke('cleanup-sessions', {
+          headers: { 'x-session-token': sessionToken },
+        }).then(({ data }) => {
+          if (data?.cleanedSessions > 0 || data?.cleanedCommands > 0) {
+            console.log(`[Dashboard] Auto-cleanup: ${data.cleanedSessions} sessions, ${data.cleanedCommands} commands`);
+          }
+        }).catch(() => {
+          // Silent fail - cleanup is best-effort
+        });
+      }
     } else {
       navigate('/login');
     }
