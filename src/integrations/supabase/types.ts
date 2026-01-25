@@ -155,28 +155,34 @@ export type Database = {
         Row: {
           created_at: string
           device_id: string
+          device_mode: string
           id: string
           is_armed: boolean
           last_command: string | null
           last_command_at: string | null
+          security_enabled: boolean
           updated_at: string
         }
         Insert: {
           created_at?: string
           device_id: string
+          device_mode?: string
           id?: string
           is_armed?: boolean
           last_command?: string | null
           last_command_at?: string | null
+          security_enabled?: boolean
           updated_at?: string
         }
         Update: {
           created_at?: string
           device_id?: string
+          device_mode?: string
           id?: string
           is_armed?: boolean
           last_command?: string | null
           last_command_at?: string | null
+          security_enabled?: boolean
           updated_at?: string
         }
         Relationships: [
