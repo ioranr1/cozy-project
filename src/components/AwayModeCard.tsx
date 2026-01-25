@@ -4,7 +4,7 @@ import { Switch } from '@/components/ui/switch';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { useDevices } from '@/hooks/useDevices';
+import { DEVICE_ONLINE_THRESHOLD_SECONDS, parseDbTimestamp, useDevices } from '@/hooks/useDevices';
 
 type DeviceMode = 'NORMAL' | 'AWAY';
 type ChangedBy = 'DESKTOP' | 'MOBILE' | 'SERVER';
@@ -109,19 +109,20 @@ export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
         return;
       }
 
-      if (data.last_seen_at) {
-        const lastSeen = new Date(data.last_seen_at);
-        const now = new Date();
-        const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
-        
-        if (diffSeconds <= 30) {
-          setConnectionStatus('online');
-        } else if (diffSeconds <= 300) {
-          // Between 30s and 5min - might be sleeping
-          setConnectionStatus('sleeping');
-        } else {
-          setConnectionStatus('offline');
-        }
+      const lastSeen = parseDbTimestamp(data.last_seen_at);
+      if (!lastSeen) {
+        setConnectionStatus('offline');
+        return;
+      }
+
+      const now = new Date();
+      const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
+
+      if (diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS) {
+        setConnectionStatus('online');
+      } else if (diffSeconds <= 300) {
+        // Beyond online threshold but still recent: might be sleeping / throttled.
+        setConnectionStatus('sleeping');
       } else {
         setConnectionStatus('offline');
       }
