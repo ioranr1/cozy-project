@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+// Force clean rebuild - HMR fix
 interface UseLiveViewStateOptions {
   deviceId: string | null | undefined;
 }
