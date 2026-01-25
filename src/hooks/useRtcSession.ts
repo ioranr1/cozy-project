@@ -657,98 +657,32 @@ export function useRtcSession({
     return pc;
   }, [insertSignal, language, onError, onStreamReceived, updateStatus, cleanup]);
 
-  // Cleanup stale sessions (pending older than 30s OR active older than 60s with no activity)
-  // This MUST run before starting a new session to prevent reconnection blocks
-  const cleanupStaleSessions = useCallback(async (): Promise<void> => {
-    const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
-    const sixtySecondsAgo = new Date(Date.now() - 60 * 1000).toISOString();
-    
-    console.log('[useRtcSession] Cleaning up stale sessions...');
-    
-    // 1. Clean up stale PENDING sessions (older than 30 seconds)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: stalePending, error: pendingError } = await (supabase as any)
-      .from('rtc_sessions')
-      .select('id')
-      .eq('device_id', deviceId)
-      .eq('status', 'pending')
-      .lt('created_at', thirtySecondsAgo);
+  // End any open sessions for this device.
+  // Goal: STOP→START must never reuse/compete with a previous (possibly stuck) session.
+  const endOpenSessionsForDevice = useCallback(async (reason: string) => {
+    if (!deviceId) return;
+    try {
+      console.log('[useRtcSession] Ending any open sessions before start...', { deviceId, reason });
+      const nowIso = new Date().toISOString();
 
-    if (pendingError) {
-      console.warn('[useRtcSession] Error finding stale pending sessions:', pendingError);
-    } else if (stalePending && stalePending.length > 0) {
-      console.log('[useRtcSession] Found', stalePending.length, 'stale PENDING sessions, cleaning up...');
-      const staleIds = stalePending.map((s: { id: string }) => s.id);
-      
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
+      const { error } = await (supabase as any)
         .from('rtc_sessions')
         .update({
           status: 'ended',
-          ended_at: new Date().toISOString(),
-          fail_reason: 'stale_pending_cleanup',
+          ended_at: nowIso,
+          fail_reason: reason,
         })
-        .in('id', staleIds);
-      
-      console.log('[useRtcSession] ✅ Cleaned up stale pending sessions:', staleIds);
+        .eq('device_id', deviceId)
+        .in('status', ['pending', 'active'])
+        .is('ended_at', null);
+
+      if (error) {
+        console.warn('[useRtcSession] Failed to end open sessions:', error);
+      }
+    } catch (e) {
+      console.warn('[useRtcSession] Exception ending open sessions:', e);
     }
-
-    // 2. CRITICAL: Clean up stale ACTIVE sessions (older than 60 seconds)
-    // These block new connections because findExistingSession returns them
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: staleActive, error: activeError } = await (supabase as any)
-      .from('rtc_sessions')
-      .select('id')
-      .eq('device_id', deviceId)
-      .eq('status', 'active')
-      .lt('created_at', sixtySecondsAgo);
-
-    if (activeError) {
-      console.warn('[useRtcSession] Error finding stale active sessions:', activeError);
-    } else if (staleActive && staleActive.length > 0) {
-      console.log('[useRtcSession] Found', staleActive.length, 'stale ACTIVE sessions, cleaning up...');
-      const staleIds = staleActive.map((s: { id: string }) => s.id);
-      
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any)
-        .from('rtc_sessions')
-        .update({
-          status: 'ended',
-          ended_at: new Date().toISOString(),
-          fail_reason: 'stale_active_cleanup',
-        })
-        .in('id', staleIds);
-      
-      console.log('[useRtcSession] ✅ Cleaned up stale ACTIVE sessions:', staleIds);
-    }
-  }, [deviceId]);
-
-  // Check for existing ACTIVE session within last 2 minutes (not pending - those may be stale)
-  const findExistingSession = useCallback(async (): Promise<string | null> => {
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-    
-    // Only look for ACTIVE sessions, not pending ones (pending may be stale)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
-      .from('rtc_sessions')
-      .select('id')
-      .eq('device_id', deviceId)
-      .eq('status', 'active') // Only active, not pending
-      .gte('created_at', twoMinutesAgo)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (error) {
-      console.error('[useRtcSession] Error checking existing sessions:', error);
-      return null;
-    }
-
-    if (data && data.length > 0) {
-      console.log('[useRtcSession] Found existing ACTIVE session:', data[0].id);
-      return data[0].id as string;
-    }
-
-    return null;
   }, [deviceId]);
 
   // Start a new RTC session (or reuse existing one)
@@ -770,23 +704,15 @@ export function useRtcSession({
     updateStatus('connecting');
 
     try {
-      // CRITICAL: First cleanup any stale pending sessions to prevent reconnection blocks
-      await cleanupStaleSessions();
-
-      // 1. First check if existingSessionId was provided from Dashboard
+      // 1) If Dashboard provided a sessionId, we join it as-is.
+      // 2) Otherwise, we ALWAYS start fresh: end any open sessions and create a new pending session.
       let activeSessionId: string | null = existingSessionId || null;
-      
+
       if (activeSessionId) {
         console.log('[useRtcSession] Using provided session from Dashboard:', activeSessionId);
       } else {
-        // 2. Check for existing ACTIVE session (not pending - those may be stale)
-        activeSessionId = await findExistingSession();
-      }
-      
-      if (activeSessionId) {
-        console.log('[useRtcSession] Reusing existing session:', activeSessionId);
-      } else {
-        // Create new rtc_sessions row
+        await endOpenSessionsForDevice('superseded_by_new_start');
+
         console.log('[useRtcSession] Creating new rtc_session...');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: sessionData, error: sessionError } = await (supabase as any)
@@ -845,7 +771,7 @@ export function useRtcSession({
       updateStatus('failed');
       return null;
     }
-  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, cleanupStaleSessions, findExistingSession, status, sessionId, existingSessionId]);
+  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, status, sessionId, existingSessionId, endOpenSessionsForDevice]);
 
   // Stop the current session
   const stopSession = useCallback(async () => {
