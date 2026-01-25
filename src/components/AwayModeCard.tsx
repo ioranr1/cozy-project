@@ -302,6 +302,7 @@ export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
     return null;
   };
 
+  // Loading state - render early but AFTER all hooks
   if (isLoading) {
     return (
       <div className={`bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6 ${className}`}>
@@ -312,6 +313,7 @@ export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
     );
   }
 
+  // Main render
   return (
     <div className={`bg-gradient-to-br ${
       isAway 
@@ -326,7 +328,7 @@ export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
       <div className="flex items-center gap-4 mb-4">
         <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-300 ${
           isAway 
-            ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30' 
+            ? 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/30'
             : connectionStatus === 'offline'
               ? 'bg-red-900/50'
               : connectionStatus === 'sleeping'
