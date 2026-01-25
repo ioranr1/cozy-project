@@ -71,7 +71,8 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchDevices = useCallback(async () => {
+  const fetchDevices = useCallback(async (opts?: { showLoading?: boolean }) => {
+    const showLoading = opts?.showLoading !== false;
     if (!profileId) {
       setDevices([]);
       setIsLoading(false);
@@ -79,7 +80,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     }
 
     try {
-      setIsLoading(true);
+      if (showLoading) setIsLoading(true);
       setError(null);
 
       // Fetch only active devices, sorted by last_seen_at descending
@@ -145,8 +146,36 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   }, [profileId]); // Removed selectedDeviceId dependency to prevent re-subscribe loops
 
   useEffect(() => {
-    fetchDevices();
+    fetchDevices({ showLoading: true });
   }, [fetchDevices]);
+
+  // Fallback: periodic refresh in case Realtime is unavailable or the tab slept.
+  // This prevents false "Not Linked" due to stale last_seen_at in the UI.
+  useEffect(() => {
+    if (!profileId) return;
+    const interval = setInterval(() => {
+      fetchDevices({ showLoading: false });
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [profileId, fetchDevices]);
+
+  // Refresh when returning to the tab/window (common case on mobile/when backgrounded)
+  useEffect(() => {
+    if (!profileId) return;
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchDevices({ showLoading: false });
+      }
+    };
+
+    document.addEventListener('visibilitychange', refreshOnFocus);
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
+  }, [profileId, fetchDevices]);
 
   // Subscribe to realtime updates for devices
   useEffect(() => {
@@ -216,7 +245,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
         },
         (payload) => {
           console.log('[useDevices] Realtime INSERT:', payload);
-          fetchDevices();
+          fetchDevices({ showLoading: false });
         }
       )
       .on(
@@ -229,7 +258,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
         },
         (payload) => {
           console.log('[useDevices] Realtime DELETE:', payload);
-          fetchDevices();
+          fetchDevices({ showLoading: false });
         }
       )
       .subscribe((status) => {
@@ -345,7 +374,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     isLoading,
     error,
     selectDevice,
-    refreshDevices: fetchDevices,
+    refreshDevices: () => fetchDevices({ showLoading: true }),
     renameDevice,
     deleteDevice,
     getDeviceStatus,
