@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-// Force clean rebuild - HMR fix
 interface UseLiveViewStateOptions {
   deviceId: string | null | undefined;
 }
@@ -18,16 +17,16 @@ interface UseLiveViewStateResult {
  * based on the latest ACKed command (START_LIVE_VIEW or STOP_LIVE_VIEW).
  * Supabase is the SOLE source of truth for live view state.
  */
-export function useLiveViewState(options: UseLiveViewStateOptions): UseLiveViewStateResult {
-  // Track mount state FIRST to avoid state updates after unmount
-  const isMountedRef = useRef<boolean>(true);
+export const useLiveViewState = (options: UseLiveViewStateOptions): UseLiveViewStateResult => {
+  const { deviceId } = options;
   
   const [liveViewActive, setLiveViewActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [lastAckedCommand, setLastAckedCommand] = useState<string | null>(null);
 
-  const { deviceId } = options;
-
+  // Track mount state to avoid state updates after unmount
+  const isMountedRef = useRef<boolean>(true);
+  
   useEffect(() => {
     isMountedRef.current = true;
     return () => {

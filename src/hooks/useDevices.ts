@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface Device {
@@ -40,57 +40,6 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
 
-  // Keep latest selection in a ref so realtime callbacks and fetchDevices can always read it
-  // without being forced into dependency loops.
-  const selectedDeviceIdRef = useRef<string | null>(selectedDeviceId);
-  useEffect(() => {
-    selectedDeviceIdRef.current = selectedDeviceId;
-  }, [selectedDeviceId]);
-
-  const isConnected = useCallback((d: Device, at: Date) => {
-    if (!d.last_seen_at) return false;
-    const lastSeen = new Date(d.last_seen_at);
-    const diffSeconds = (at.getTime() - lastSeen.getTime()) / 1000;
-    return diffSeconds <= CONNECTION_THRESHOLD_SECONDS;
-  }, []);
-
-  const sortByLastSeenDesc = useCallback((list: Device[]) => {
-    return [...list].sort((a, b) => {
-      const ta = a.last_seen_at ? new Date(a.last_seen_at).getTime() : Number.NEGATIVE_INFINITY;
-      const tb = b.last_seen_at ? new Date(b.last_seen_at).getTime() : Number.NEGATIVE_INFINITY;
-      return tb - ta;
-    });
-  }, []);
-
-  const reconcileSelectedCameraId = useCallback(
-    (allDevices: Device[], currentSelectedId: string | null, at: Date): string | null => {
-      const cameraDevices = allDevices.filter((d) => d.device_type === 'camera');
-      if (cameraDevices.length === 0) return null;
-
-      const currentSelectionValid = !!(currentSelectedId && cameraDevices.some((d) => d.id === currentSelectedId));
-      const selectedCamera = cameraDevices.find((d) => d.id === currentSelectedId) || null;
-      const selectedIsConnected = !!(selectedCamera && isConnected(selectedCamera, at));
-
-      const connectedCameras = sortByLastSeenDesc(cameraDevices.filter((d) => isConnected(d, at)));
-      const bestConnected = connectedCameras[0] || null;
-
-      // If there is any connected camera and our current selection is missing/offline,
-      // automatically switch to the connected one. This prevents the Dashboard from
-      // turning yellow after 120s when another device is actually heartbeating.
-      if (bestConnected && (!currentSelectionValid || !selectedIsConnected)) {
-        return bestConnected.id;
-      }
-
-      // If selection doesn't exist anymore, fallback to newest camera.
-      if (!currentSelectionValid) {
-        return sortByLastSeenDesc(cameraDevices)[0].id;
-      }
-
-      return currentSelectedId;
-    },
-    [isConnected, sortByLastSeenDesc]
-  );
-
   // Update "now" every 10 seconds to keep status fresh
   useEffect(() => {
     const interval = setInterval(() => {
@@ -123,15 +72,44 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
       }
 
       // Type assertion - we trust the database structure
-      const typedDevices = sortByLastSeenDesc((data || []) as Device[]);
+      const typedDevices = (data || []) as Device[];
       setDevices(typedDevices);
 
       // Auto-select a camera when needed.
-      const desiredId = reconcileSelectedCameraId(typedDevices, selectedDeviceIdRef.current, new Date());
-      if (desiredId && desiredId !== selectedDeviceIdRef.current) {
-        setSelectedDeviceId(desiredId);
-        localStorage.setItem(SELECTED_DEVICE_KEY, desiredId);
-        console.log('[useDevices] Reconciled selected camera:', desiredId);
+      const cameraDevices = typedDevices.filter(d => d.device_type === 'camera');
+      const currentSelectionValid = selectedDeviceId && cameraDevices.some(d => d.id === selectedDeviceId);
+
+      const connectedCamera = cameraDevices.find(d => {
+        if (!d.last_seen_at) return false;
+        const lastSeen = new Date(d.last_seen_at);
+        const diffSeconds = (new Date().getTime() - lastSeen.getTime()) / 1000;
+        return diffSeconds <= CONNECTION_THRESHOLD_SECONDS;
+      });
+
+      const selectedCamera = cameraDevices.find(d => d.id === selectedDeviceId) || null;
+      const selectedIsConnected = !!(
+        selectedCamera?.last_seen_at &&
+        (new Date().getTime() - new Date(selectedCamera.last_seen_at).getTime()) / 1000 <=
+          CONNECTION_THRESHOLD_SECONDS
+      );
+
+      // If we have a connected camera, and the current selection is missing or disconnected,
+      // switch selection to the connected one.
+      if (connectedCamera && (!currentSelectionValid || !selectedIsConnected)) {
+        if (selectedDeviceId !== connectedCamera.id) {
+          setSelectedDeviceId(connectedCamera.id);
+          localStorage.setItem(SELECTED_DEVICE_KEY, connectedCamera.id);
+          console.log('[useDevices] Auto-selected connected camera:', connectedCamera.device_name, connectedCamera.id);
+        }
+        return;
+      }
+      
+      if (!currentSelectionValid && cameraDevices.length > 0) {
+        // Select the camera with most recent last_seen_at
+        const newestCamera = cameraDevices[0];
+        setSelectedDeviceId(newestCamera.id);
+        localStorage.setItem(SELECTED_DEVICE_KEY, newestCamera.id);
+        console.log('[useDevices] Auto-selected newest camera:', newestCamera.device_name, newestCamera.id);
       }
     } catch (err) {
       console.error('[useDevices] Error fetching devices:', err);
@@ -139,7 +117,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     } finally {
       setIsLoading(false);
     }
-  }, [profileId, reconcileSelectedCameraId, sortByLastSeenDesc]);
+  }, [profileId]); // Removed selectedDeviceId dependency to prevent re-subscribe loops
 
   useEffect(() => {
     fetchDevices();
@@ -163,25 +141,10 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
         },
         (payload) => {
           console.log('[useDevices] Realtime UPDATE:', payload);
-          const at = new Date();
-
           // Update device in state directly for faster UI response
-          setDevices(prev => {
-            const updated = sortByLastSeenDesc(
-              prev.map(d => (d.id === payload.new.id ? ({ ...d, ...payload.new } as Device) : d))
-            );
-
-            // Reconcile selection on heartbeat updates too (critical when multiple camera rows exist)
-            const desiredId = reconcileSelectedCameraId(updated, selectedDeviceIdRef.current, at);
-            if (desiredId && desiredId !== selectedDeviceIdRef.current) {
-              selectedDeviceIdRef.current = desiredId; // keep ref in sync immediately
-              setSelectedDeviceId(desiredId);
-              localStorage.setItem(SELECTED_DEVICE_KEY, desiredId);
-              console.log('[useDevices] Auto-switched selection to connected camera:', desiredId);
-            }
-
-            return updated;
-          });
+          setDevices(prev => prev.map(d => 
+            d.id === payload.new.id ? { ...d, ...payload.new } as Device : d
+          ));
         }
       )
       .on(
@@ -218,7 +181,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
       console.log('[useDevices] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
-  }, [profileId, fetchDevices, reconcileSelectedCameraId, sortByLastSeenDesc]);
+  }, [profileId, fetchDevices]);
 
   const selectDevice = useCallback((deviceId: string) => {
     setSelectedDeviceId(deviceId);

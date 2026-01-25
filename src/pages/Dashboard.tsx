@@ -43,11 +43,7 @@ const Dashboard: React.FC = () => {
   const { flags: featureFlags, isLoading: isFlagsLoading } = useFeatureFlags();
 
   // Get profile ID for device loading
-  // IMPORTANT: must react to the async userProfile load (after login / session restore)
-  // otherwise useDevices() never fetches on desktop and UI can show a stale “offline/disabled” state.
   const profileId = useMemo(() => {
-    if (userProfile?.id) return userProfile.id;
-
     const stored = localStorage.getItem('userProfile');
     if (stored) {
       try {
@@ -57,7 +53,7 @@ const Dashboard: React.FC = () => {
       }
     }
     return undefined;
-  }, [userProfile?.id]);
+  }, []);
 
   // Load devices and get selected device
   const { selectedDevice, devices, isLoading: isDevicesLoading } = useDevices(profileId);
@@ -93,12 +89,6 @@ const Dashboard: React.FC = () => {
     onFailed: (commandType) => {
       // Reset viewStatus on failure/timeout
       if (commandType === 'START_LIVE_VIEW') {
-        // If START timed out/failed, close the pending rtc_session to prevent stale sessions
-        // from confusing the desktop host and blocking subsequent START attempts.
-        if (currentSessionId) {
-          void endRtcSession(currentSessionId);
-          setCurrentSessionId(null);
-        }
         setViewStatus('idle');
         // Refresh state from DB in case realtime missed the ACK
         refreshState();
@@ -122,15 +112,10 @@ const Dashboard: React.FC = () => {
 
   // Check laptop connection status - runs immediately on device change
   useEffect(() => {
-    let isMounted = true;
-    let consecutiveNotFoundCount = 0;
-    
     const checkLaptopStatus = async () => {
       if (!activeDeviceId) {
-        if (isMounted) {
-          setLaptopStatus('unknown');
-          setIsLaptopStatusLoading(false);
-        }
+        setLaptopStatus('unknown');
+        setIsLaptopStatusLoading(false);
         return;
       }
 
@@ -141,42 +126,25 @@ const Dashboard: React.FC = () => {
           .eq('id', activeDeviceId)
           .maybeSingle();
 
-        if (!isMounted) return;
-
         if (error || !data) {
-          consecutiveNotFoundCount++;
-          console.log('[Dashboard] Device not found, count:', consecutiveNotFoundCount);
-          
-          // If device not found 3 times in a row, clear the stale selection
-          if (consecutiveNotFoundCount >= 3) {
-            console.log('[Dashboard] Clearing stale selectedCameraId from localStorage');
-            localStorage.removeItem('selectedCameraId');
-          }
-          
           setLaptopStatus('unknown');
           setIsLaptopStatusLoading(false);
           return;
         }
 
-        // Reset counter when device is found
-        consecutiveNotFoundCount = 0;
-
         if (data.last_seen_at) {
           const lastSeen = new Date(data.last_seen_at);
           const now = new Date();
           const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
-          setLaptopStatus(diffSeconds <= 120 ? 'online' : 'offline');
+          // Connectivity is determined ONLY by last_seen_at freshness.
+          setLaptopStatus(diffSeconds <= 30 ? 'online' : 'offline');
         } else {
           setLaptopStatus('offline');
         }
       } catch {
-        if (isMounted) {
-          setLaptopStatus('unknown');
-        }
+        setLaptopStatus('unknown');
       } finally {
-        if (isMounted) {
-          setIsLaptopStatusLoading(false);
-        }
+        setIsLaptopStatusLoading(false);
       }
     };
 
@@ -188,30 +156,13 @@ const Dashboard: React.FC = () => {
     
     // Then poll every 10 seconds
     const interval = setInterval(checkLaptopStatus, 10000);
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, [activeDeviceId]);
 
   useEffect(() => {
     const stored = localStorage.getItem('userProfile');
     if (stored) {
       setUserProfile(JSON.parse(stored));
-      
-      // Silent auto-cleanup of old sessions on dashboard entry
-      const sessionToken = localStorage.getItem('aiguard_session_token');
-      if (sessionToken) {
-        supabase.functions.invoke('cleanup-sessions', {
-          headers: { 'x-session-token': sessionToken },
-        }).then(({ data }) => {
-          if (data?.cleanedSessions > 0 || data?.cleanedCommands > 0) {
-            console.log(`[Dashboard] Auto-cleanup: ${data.cleanedSessions} sessions, ${data.cleanedCommands} commands`);
-          }
-        }).catch(() => {
-          // Silent fail - cleanup is best-effort
-        });
-      }
     } else {
       navigate('/login');
     }

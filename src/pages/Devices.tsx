@@ -6,7 +6,6 @@ import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { useDevices, Device } from '@/hooks/useDevices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { supabase } from '@/integrations/supabase/client';
 import { 
   Laptop, 
   Smartphone, 
@@ -22,7 +21,7 @@ import {
   Monitor,
   ChevronDown,
   ChevronUp,
-  Archive,
+  Archive
 } from 'lucide-react';
 import {
   Dialog,
@@ -101,7 +100,6 @@ const Devices: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
 
   const handleRenameClick = (device: Device) => {
     setDeviceToRename(device);
@@ -212,9 +210,6 @@ const Devices: React.FC = () => {
                 <span className="text-white font-medium">
                   {device.device_name}
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-300 text-xs">
-                  {device.device_type}
-                </span>
                 {isSelected && (
                   <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs">
                     {language === 'he' ? 'נבחר' : 'Selected'}
@@ -231,21 +226,9 @@ const Devices: React.FC = () => {
                   {getStatusText(status)}
                 </span>
                 <span className="text-white/30 text-xs">•</span>
-                <span className="text-white/40 text-xs font-mono">
-                  {device.id.slice(0, 8)}...
+                <span className="text-white/40 text-xs">
+                  ID: {device.id.slice(0, 8)}...
                 </span>
-                {device.last_seen_at && (
-                  <>
-                    <span className="text-white/30 text-xs">•</span>
-                    <span className="text-white/40 text-xs">
-                      {new Date(device.last_seen_at).toLocaleTimeString(language === 'he' ? 'he-IL' : 'en-US', { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        second: '2-digit'
-                      })}
-                    </span>
-                  </>
-                )}
               </div>
             </div>
           </div>
@@ -297,27 +280,24 @@ const Devices: React.FC = () => {
 
       <div className="p-4 space-y-4">
         {/* Actions Row */}
-        <div className="flex justify-between items-center gap-2">
+        <div className="flex justify-between items-center">
           {/* PairingCodeDialog handles its own button and dialog */}
           <PairingCodeDialog />
           
-          <div className="flex gap-2">
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refreshDevices()}
-              disabled={isLoading}
-              className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
-            >
-              {isLoading ? (
-                <Loader2 className={cn("w-4 h-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
-              ) : (
-                <RefreshCw className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
-              )}
-              {language === 'he' ? 'רענן' : 'Refresh'}
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refreshDevices()}
+            disabled={isLoading}
+            className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+          >
+            {isLoading ? (
+              <Loader2 className={cn("w-4 h-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
+            ) : (
+              <RefreshCw className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+            )}
+            {language === 'he' ? 'רענן' : 'Refresh'}
+          </Button>
         </div>
 
         {/* Camera Devices Section */}

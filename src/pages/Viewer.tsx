@@ -49,42 +49,35 @@ const Viewer: React.FC = () => {
     }
   }, []);
 
-  // Profile ID for dynamic device selection
-  // Use state (instead of useMemo([])) so we don't get stuck with a stale value after login/session restore.
-  const [profileId, setProfileId] = useState<string | undefined>(undefined);
-  useEffect(() => {
+  // Get profile ID for dynamic device selection
+  const profileId = useMemo(() => {
     const stored = localStorage.getItem('userProfile');
-    if (!stored) {
-      setProfileId(undefined);
-      return;
+    if (stored) {
+      try {
+        return JSON.parse(stored).id;
+      } catch {
+        return undefined;
+      }
     }
-    try {
-      setProfileId(JSON.parse(stored)?.id);
-    } catch {
-      setProfileId(undefined);
-    }
+    return undefined;
   }, []);
 
   // Get selected device from useDevices hook
   const { selectedDevice } = useDevices(profileId);
 
-  // Treat the host as online only if it was seen recently.
-  // IMPORTANT: use the same threshold as useDevices/Dashboard (120s) to avoid false “offline”
-  // that would prematurely end sessions.
+  // Treat the host as online only if it is actively connected AND seen recently.
+  // This prevents navigating/auto-starting into a connection loop when the desktop app is offline.
   const isPrimaryDeviceOnline = useMemo(() => {
-    const lastSeenAt = selectedDevice?.last_seen_at ?? primaryDevice?.last_seen_at;
-    if (!lastSeenAt) return false;
-    const lastSeen = new Date(lastSeenAt);
+    if (!primaryDevice?.last_seen_at) return false;
+    const lastSeen = new Date(primaryDevice.last_seen_at);
     const diffSeconds = (Date.now() - lastSeen.getTime()) / 1000;
-    return diffSeconds <= 120;
-  }, [selectedDevice?.last_seen_at, primaryDevice?.last_seen_at]);
+    // Be consistent with Dashboard: connectivity is based only on last_seen_at freshness.
+    // Some environments/devices may keep is_active stale.
+    return diffSeconds <= 30;
+  }, [primaryDevice]);
   
   // Get sessionId from Dashboard navigation (if available)
   const dashboardSessionId = (location.state as LocationState)?.sessionId;
-
-  // Guards to prevent repeated auto-start loops
-  const dashboardAutoStartSessionRef = useRef<string | null>(null);
-  const liveStateAutoStartDoneRef = useRef<boolean>(false);
 
   // When coming from Dashboard we may have a sessionId in navigation state.
   // After Stop/Retry we MUST clear it, otherwise the auto-start effect will re-trigger and cause a loop.
@@ -315,7 +308,7 @@ const Viewer: React.FC = () => {
       setIsFromAlert(true);
     }
 
-    // Devices are fetched once profileId is available (see effect below)
+    fetchDevices();
   }, [navigate, isAlertSource]);
 
   // Handle alert deep link auto-start
@@ -547,16 +540,8 @@ const Viewer: React.FC = () => {
     }
     
     // Only start if we're idle and not already connecting
-    // AND only once per dashboardSessionId to prevent re-trigger loops on rerenders.
-    if (
-      !loading &&
-      viewerState === 'idle' &&
-      !isConnecting &&
-      !isConnected &&
-      dashboardAutoStartSessionRef.current !== dashboardSessionId
-    ) {
+    if (!loading && viewerState === 'idle' && !isConnecting && !isConnected) {
       console.log('[Viewer] Dashboard passed sessionId, auto-starting RTC...', dashboardSessionId);
-      dashboardAutoStartSessionRef.current = dashboardSessionId;
       handleStartViewing();
     }
   }, [dashboardSessionId, viewerId, viewerState, isConnecting, isConnected, handleStartViewing, loading, primaryDevice, isPrimaryDeviceOnline, language, clearDashboardSession, navigate]);
@@ -582,21 +567,9 @@ const Viewer: React.FC = () => {
       return;
     }
 
-    // Reset one-shot guard when DB says not active
-    if (!liveViewActive) {
-      liveStateAutoStartDoneRef.current = false;
-      return;
-    }
-
-    // Only auto-start once per "liveViewActive=true" window
-    if (liveStateAutoStartDoneRef.current) {
-      return;
-    }
-
     // Only auto-start if liveViewActive is true AND we're in idle state
-    if (viewerState === 'idle' && !isConnecting && !isConnected) {
+    if (liveViewActive && viewerState === 'idle' && !isConnecting && !isConnected) {
       console.log('[Viewer] Live view active (non-dashboard), starting RTC session...');
-      liveStateAutoStartDoneRef.current = true;
       handleStartViewing();
     }
     // NOTE: Removed auto-stop on !liveViewActive - this was causing loop issues
@@ -613,22 +586,12 @@ const Viewer: React.FC = () => {
     handleStartViewing,
   ]);
 
-  const fetchDevices = useCallback(async () => {
+  const fetchDevices = async () => {
     try {
-      // If profile is missing (e.g. just logged out / storage cleared), don't query.
-      if (!profileId) {
-        setDevices([]);
-        setPrimaryDevice(null);
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('devices')
         .select('id, device_name, device_type, is_active, last_seen_at')
-        .eq('profile_id', profileId)
-        .eq('is_active', true)
-        .order('last_seen_at', { ascending: false, nullsFirst: false });
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching devices:', error);
@@ -645,12 +608,7 @@ const Viewer: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [profileId]);
-
-  // Fetch devices once we know the profileId
-  useEffect(() => {
-    void fetchDevices();
-  }, [fetchDevices]);
+  };
 
   const handleRetry = async () => {
     console.log('[Viewer] Retry clicked - resetting state completely');
@@ -784,8 +742,7 @@ const Viewer: React.FC = () => {
       );
     }
 
-    const effectiveDevice = selectedDevice ?? primaryDevice;
-    const deviceStatus = effectiveDevice ? getDeviceStatus(effectiveDevice) : null;
+    const deviceStatus = primaryDevice ? getDeviceStatus(primaryDevice) : null;
 
     return (
       <div className="space-y-4">
@@ -797,7 +754,7 @@ const Viewer: React.FC = () => {
             </div>
             <div>
               <h3 className="text-sm font-medium text-white">
-                {effectiveDevice?.device_name || (language === 'he' ? 'מתחבר...' : 'Connecting...')}
+                {primaryDevice?.device_name || (language === 'he' ? 'מתחבר...' : 'Connecting...')}
               </h3>
               {deviceStatus && (
                 <Badge className={`${deviceStatus.color} border text-xs mt-0.5`}>
@@ -856,7 +813,7 @@ const Viewer: React.FC = () => {
               <div className="flex gap-3">
                 <Button 
                   onClick={handleStartViewing}
-                  disabled={isCommandLoading || !isPrimaryDeviceOnline || isConnecting || isConnected}
+                  disabled={isCommandLoading || !(deviceStatus?.isOnline) || isConnecting || isConnected}
                   className="bg-primary hover:bg-primary/90"
                 >
                   {(isCommandLoading || isConnecting) ? (
