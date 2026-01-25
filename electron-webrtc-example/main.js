@@ -431,10 +431,23 @@ function subscribeToRtcSessions() {
 }
 
 function handleNewRtcSession(session) {
+  // Prevent duplicate session starts
+  if (liveViewState.isActive && liveViewState.currentSessionId === session.id) {
+    console.log('[RTC] Session already active, skipping duplicate start:', session.id);
+    return;
+  }
+
+  // Also prevent starting a new session if already streaming
+  if (liveViewState.isActive && liveViewState.currentSessionId !== session.id) {
+    console.log('[RTC] Already streaming session', liveViewState.currentSessionId, '- ignoring new session:', session.id);
+    return;
+  }
+
   liveViewState.currentSessionId = session.id;
   liveViewState.isActive = true;
   updateTrayMenu();
 
+  console.log('[RTC] Starting live view for session:', session.id);
   // Tell renderer to start WebRTC
   mainWindow?.webContents.send('start-live-view', session.id);
 }
