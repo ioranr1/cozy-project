@@ -368,13 +368,17 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     };
   }, [devices, now]);
 
+  const refreshDevices = useCallback(async () => {
+    await fetchDevices({ showLoading: true });
+  }, [fetchDevices]);
+
   return {
     devices,
     selectedDevice,
     isLoading,
     error,
     selectDevice,
-    refreshDevices: () => fetchDevices({ showLoading: true }),
+    refreshDevices,
     renameDevice,
     deleteDevice,
     getDeviceStatus,
