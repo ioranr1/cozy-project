@@ -326,12 +326,24 @@ async function verifyPairingCode(code) {
 // =============================================================================
 
 function subscribeToCommands() {
-  if (!deviceId) return;
+  if (!deviceId) {
+    console.error('[Commands] ❌ Cannot subscribe - no deviceId!');
+    return;
+  }
 
-  console.log('[Commands] Attempting to subscribe for device:', deviceId);
+  // Close existing subscription if any
+  if (commandsSubscription) {
+    console.log('[Commands] Closing existing subscription before re-subscribing');
+    supabase.removeChannel(commandsSubscription);
+    commandsSubscription = null;
+  }
+
+  console.log('[Commands] ═══════════════════════════════════════════════════');
+  console.log('[Commands] Subscribing for device:', deviceId);
+  console.log('[Commands] ═══════════════════════════════════════════════════');
 
   commandsSubscription = supabase
-    .channel('commands-channel')
+    .channel(`commands-channel-${deviceId}`)
     .on(
       'postgres_changes',
       {
@@ -341,20 +353,23 @@ function subscribeToCommands() {
         filter: `device_id=eq.${deviceId}`
       },
       (payload) => {
-        console.log('[Commands] New command:', payload.new);
+        console.log('[Commands] ═══════════════════════════════════════════════════');
+        console.log('[Commands] 🔔 NEW COMMAND RECEIVED:', payload.new?.command);
+        console.log('[Commands] Command ID:', payload.new?.id);
+        console.log('[Commands] ═══════════════════════════════════════════════════');
         handleCommand(payload.new);
       }
     )
-    .subscribe((status) => {
-      console.log('[Commands] Subscription status:', status);
+    .subscribe((status, err) => {
+      console.log('[Commands] Subscription status:', status, err ? `Error: ${err}` : '');
       if (status === 'SUBSCRIBED') {
-        console.log('[Commands] ✅ Successfully subscribed to commands');
+        console.log('[Commands] ✅ Successfully subscribed to commands for device:', deviceId);
       } else if (status === 'CHANNEL_ERROR') {
-        console.error('[Commands] ❌ Channel error - subscription failed');
+        console.error('[Commands] ❌ Channel error - subscription failed. Error:', err);
       }
     });
 
-  console.log('[Commands] Subscription initiated');
+  console.log('[Commands] Subscription initiated, waiting for SUBSCRIBED status...');
 }
 
 async function handleCommand(command) {
@@ -415,10 +430,24 @@ async function handleCommand(command) {
 // =============================================================================
 
 function subscribeToRtcSessions() {
-  if (!deviceId) return;
+  if (!deviceId) {
+    console.error('[RTC] ❌ Cannot subscribe - no deviceId!');
+    return;
+  }
+
+  // Close existing subscription if any
+  if (rtcSessionsSubscription) {
+    console.log('[RTC] Closing existing subscription before re-subscribing');
+    supabase.removeChannel(rtcSessionsSubscription);
+    rtcSessionsSubscription = null;
+  }
+
+  console.log('[RTC] ═══════════════════════════════════════════════════');
+  console.log('[RTC] Subscribing to rtc_sessions for device:', deviceId);
+  console.log('[RTC] ═══════════════════════════════════════════════════');
 
   rtcSessionsSubscription = supabase
-    .channel('rtc-sessions-channel')
+    .channel(`rtc-sessions-channel-${deviceId}`)
     .on(
       'postgres_changes',
       {
@@ -428,15 +457,25 @@ function subscribeToRtcSessions() {
         filter: `device_id=eq.${deviceId}`
       },
       (payload) => {
-        console.log('[RTC] New session:', payload.new);
+        console.log('[RTC] ═══════════════════════════════════════════════════');
+        console.log('[RTC] 🔔 NEW RTC SESSION:', payload.new?.id);
+        console.log('[RTC] Status:', payload.new?.status);
+        console.log('[RTC] ═══════════════════════════════════════════════════');
         if (payload.new.status === 'pending') {
           handleNewRtcSession(payload.new);
         }
       }
     )
-    .subscribe();
+    .subscribe((status, err) => {
+      console.log('[RTC] Subscription status:', status, err ? `Error: ${err}` : '');
+      if (status === 'SUBSCRIBED') {
+        console.log('[RTC] ✅ Successfully subscribed to RTC sessions');
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('[RTC] ❌ Channel error:', err);
+      }
+    });
 
-  console.log('[RTC] Subscribed to RTC sessions');
+  console.log('[RTC] Subscription initiated...');
 }
 
 function handleNewRtcSession(session) {
