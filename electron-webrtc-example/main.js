@@ -722,6 +722,10 @@ function setupIpcHandlers() {
   // Login from renderer (after pairing)
   ipcMain.on('login-user', (event, data) => {
     console.log('[IPC] Login user received:', data);
+    
+    const oldDeviceId = deviceId;
+    const deviceChanged = data.device_id && data.device_id !== oldDeviceId;
+    
     if (data.device_id) {
       deviceId = data.device_id;
       store.set('deviceId', data.device_id);
@@ -734,11 +738,44 @@ function setupIpcHandlers() {
       store.set('sessionToken', data.session_token);
     }
     
+    // CRITICAL: If device ID changed, we must restart all subscriptions
+    // Otherwise they'll be listening to the old device ID!
+    if (deviceChanged) {
+      console.log('[IPC] Device ID changed from', oldDeviceId, 'to', deviceId, '- restarting subscriptions...');
+      
+      // Clear old subscriptions
+      if (commandsSubscription) {
+        supabase.removeChannel(commandsSubscription);
+        commandsSubscription = null;
+      }
+      if (rtcSessionsSubscription) {
+        supabase.removeChannel(rtcSessionsSubscription);
+        rtcSessionsSubscription = null;
+      }
+      if (deviceStatusSubscription) {
+        supabase.removeChannel(deviceStatusSubscription);
+        deviceStatusSubscription = null;
+      }
+      
+      // Clear old heartbeat
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+      }
+    }
+    
     // Start services if not already running
-    if (!heartbeatInterval) {
+    if (!heartbeatInterval && deviceId) {
+      console.log('[IPC] Starting heartbeat and subscriptions for device:', deviceId);
       startHeartbeat();
+    }
+    if (!commandsSubscription && deviceId) {
       subscribeToCommands();
+    }
+    if (!rtcSessionsSubscription && deviceId) {
       subscribeToRtcSessions();
+    }
+    if (!deviceStatusSubscription && deviceId) {
       subscribeToDeviceStatus();
     }
   });
