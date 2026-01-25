@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, forwardRef } from 'react';
 import { Home, HomeIcon, Loader2, Plug, Monitor, WifiOff, Moon, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -20,7 +20,8 @@ const logAwayModeEvent = (event: string, data?: Record<string, unknown>) => {
   // Future: Send to analytics service
 };
 
-export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
+// Use forwardRef to avoid React warnings when this component receives a ref
+export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ className }, ref) => {
   const { language } = useLanguage();
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('NORMAL');
   const [isLoading, setIsLoading] = useState(true);
@@ -421,4 +422,7 @@ export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
       )}
     </div>
   );
-};
+});
+
+// Display name for debugging
+AwayModeCard.displayName = 'AwayModeCard';
