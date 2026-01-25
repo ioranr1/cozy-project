@@ -665,6 +665,8 @@ export function useRtcSession({
       console.log('[useRtcSession] Ending any open sessions before start...', { deviceId, reason });
       const nowIso = new Date().toISOString();
 
+      // CRITICAL: Close ALL pending/active sessions regardless of ended_at state.
+      // Some sessions get stuck with status='active' but ended_at already set.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any)
         .from('rtc_sessions')
@@ -674,11 +676,12 @@ export function useRtcSession({
           fail_reason: reason,
         })
         .eq('device_id', deviceId)
-        .in('status', ['pending', 'active'])
-        .is('ended_at', null);
+        .in('status', ['pending', 'active']);
 
       if (error) {
         console.warn('[useRtcSession] Failed to end open sessions:', error);
+      } else {
+        console.log('[useRtcSession] Successfully closed all pending/active sessions');
       }
     } catch (e) {
       console.warn('[useRtcSession] Exception ending open sessions:', e);
