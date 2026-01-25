@@ -657,29 +657,28 @@ export function useRtcSession({
     return pc;
   }, [insertSignal, language, onError, onStreamReceived, updateStatus, cleanup]);
 
-  // Cleanup stale pending sessions (older than 30 seconds with no activity)
+  // Cleanup stale sessions (pending older than 30s OR active older than 60s with no activity)
   // This MUST run before starting a new session to prevent reconnection blocks
   const cleanupStaleSessions = useCallback(async (): Promise<void> => {
     const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
+    const sixtySecondsAgo = new Date(Date.now() - 60 * 1000).toISOString();
     
-    console.log('[useRtcSession] Cleaning up stale sessions older than:', thirtySecondsAgo);
+    console.log('[useRtcSession] Cleaning up stale sessions...');
     
+    // 1. Clean up stale PENDING sessions (older than 30 seconds)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: staleSessions, error } = await (supabase as any)
+    const { data: stalePending, error: pendingError } = await (supabase as any)
       .from('rtc_sessions')
       .select('id')
       .eq('device_id', deviceId)
       .eq('status', 'pending')
       .lt('created_at', thirtySecondsAgo);
 
-    if (error) {
-      console.warn('[useRtcSession] Error finding stale sessions:', error);
-      return;
-    }
-
-    if (staleSessions && staleSessions.length > 0) {
-      console.log('[useRtcSession] Found', staleSessions.length, 'stale pending sessions, cleaning up...');
-      const staleIds = staleSessions.map((s: { id: string }) => s.id);
+    if (pendingError) {
+      console.warn('[useRtcSession] Error finding stale pending sessions:', pendingError);
+    } else if (stalePending && stalePending.length > 0) {
+      console.log('[useRtcSession] Found', stalePending.length, 'stale PENDING sessions, cleaning up...');
+      const staleIds = stalePending.map((s: { id: string }) => s.id);
       
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
@@ -687,11 +686,40 @@ export function useRtcSession({
         .update({
           status: 'ended',
           ended_at: new Date().toISOString(),
-          fail_reason: 'stale_cleanup',
+          fail_reason: 'stale_pending_cleanup',
         })
         .in('id', staleIds);
       
-      console.log('[useRtcSession] ✅ Cleaned up stale sessions:', staleIds);
+      console.log('[useRtcSession] ✅ Cleaned up stale pending sessions:', staleIds);
+    }
+
+    // 2. CRITICAL: Clean up stale ACTIVE sessions (older than 60 seconds)
+    // These block new connections because findExistingSession returns them
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: staleActive, error: activeError } = await (supabase as any)
+      .from('rtc_sessions')
+      .select('id')
+      .eq('device_id', deviceId)
+      .eq('status', 'active')
+      .lt('created_at', sixtySecondsAgo);
+
+    if (activeError) {
+      console.warn('[useRtcSession] Error finding stale active sessions:', activeError);
+    } else if (staleActive && staleActive.length > 0) {
+      console.log('[useRtcSession] Found', staleActive.length, 'stale ACTIVE sessions, cleaning up...');
+      const staleIds = staleActive.map((s: { id: string }) => s.id);
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('rtc_sessions')
+        .update({
+          status: 'ended',
+          ended_at: new Date().toISOString(),
+          fail_reason: 'stale_active_cleanup',
+        })
+        .in('id', staleIds);
+      
+      console.log('[useRtcSession] ✅ Cleaned up stale ACTIVE sessions:', staleIds);
     }
   }, [deviceId]);
 
