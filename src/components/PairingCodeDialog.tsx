@@ -89,7 +89,12 @@ export const PairingCodeDialog: React.FC<PairingCodeDialogProps> = ({
           }
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('[PairingCodeDialog] Subscription status:', status, err || '');
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[PairingCodeDialog] Realtime subscription error:', err);
+        }
+      });
 
     return () => {
       console.log('[PairingCodeDialog] Cleaning up realtime subscription');
