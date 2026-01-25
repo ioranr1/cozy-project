@@ -43,7 +43,11 @@ const Dashboard: React.FC = () => {
   const { flags: featureFlags, isLoading: isFlagsLoading } = useFeatureFlags();
 
   // Get profile ID for device loading
+  // IMPORTANT: must react to the async userProfile load (after login / session restore)
+  // otherwise useDevices() never fetches on desktop and UI can show a stale “offline/disabled” state.
   const profileId = useMemo(() => {
+    if (userProfile?.id) return userProfile.id;
+
     const stored = localStorage.getItem('userProfile');
     if (stored) {
       try {
@@ -53,7 +57,7 @@ const Dashboard: React.FC = () => {
       }
     }
     return undefined;
-  }, []);
+  }, [userProfile?.id]);
 
   // Load devices and get selected device
   const { selectedDevice, devices, isLoading: isDevicesLoading } = useDevices(profileId);
