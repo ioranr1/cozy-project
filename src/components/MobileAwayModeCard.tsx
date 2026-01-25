@@ -170,6 +170,12 @@ export const MobileAwayModeCard: React.FC<MobileAwayModeCardProps> = ({ classNam
           source: 'MOBILE',
         });
         
+        // CRITICAL: Adopt the pending mode immediately after acknowledgment
+        // This prevents the toggle from flickering back to the old state
+        if (pendingMode) {
+          setDeviceMode(pendingMode);
+        }
+        
         setPendingMode(null);
       }
     },
