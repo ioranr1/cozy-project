@@ -63,11 +63,12 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   // Counter to force re-render when realtime updates arrive
   const [realtimeUpdateCounter, setRealtimeUpdateCounter] = useState(0);
 
-  // Update "now" every 10 seconds to keep status fresh
+  // Update "now" every 5 seconds to keep status fresh (detects offline devices faster)
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(new Date());
-    }, 10000);
+      console.log('[useDevices] Now updated for status recalculation');
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
