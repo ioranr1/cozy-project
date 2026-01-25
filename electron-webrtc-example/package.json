@@ -1,0 +1,19 @@
+{
+  "name": "security-camera-agent",
+  "version": "1.0.0",
+  "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --enable-logging"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
