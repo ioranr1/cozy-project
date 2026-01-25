@@ -81,6 +81,7 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
+        id: pairingCode.id,
         code: code,
         expires_at: expiresAt,
       }),
