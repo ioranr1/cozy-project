@@ -232,9 +232,8 @@ export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
         .from('device_status')
         .update({
           device_mode: newMode,
-          last_mode_changed_at: new Date().toISOString(),
-          last_mode_changed_by: 'DESKTOP',
-        } as any)
+          updated_at: new Date().toISOString(),
+        })
         .eq('device_id', deviceId);
 
       if (error) {
