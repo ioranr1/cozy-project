@@ -305,7 +305,7 @@ export const MobileAwayModeCard: React.FC<MobileAwayModeCardProps> = ({ classNam
   const isPending = pendingMode !== null || isCommandLoading;
   const showError = commandState.status === 'failed' || commandState.status === 'timeout';
 
-  // Get status label
+  // Get status label - must be defined before any conditional returns
   const getStatusLabel = () => {
     if (isPending) return t.statusPending;
     if (connectionStatus === 'offline') return t.statusOffline;
@@ -314,7 +314,7 @@ export const MobileAwayModeCard: React.FC<MobileAwayModeCardProps> = ({ classNam
     return t.statusNormal;
   };
 
-  // Get status color
+  // Get status color - must be defined before any conditional returns
   const getStatusColor = () => {
     if (isPending) return 'text-blue-400';
     if (connectionStatus === 'offline') return 'text-red-400';
@@ -323,6 +323,7 @@ export const MobileAwayModeCard: React.FC<MobileAwayModeCardProps> = ({ classNam
     return 'text-slate-500';
   };
 
+  // Loading state - AFTER all function definitions
   if (isLoading) {
     return (
       <div className={`bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 ${className}`}>
