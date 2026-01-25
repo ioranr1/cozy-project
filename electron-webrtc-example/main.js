@@ -325,25 +325,35 @@ async function verifyPairingCode(code) {
 // COMMANDS SUBSCRIPTION
 // =============================================================================
 
-function subscribeToCommands() {
+function subscribeToCommands(retryCount = 0) {
   if (!deviceId) {
     console.error('[Commands] ❌ Cannot subscribe - no deviceId!');
     return;
   }
 
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 2000;
+
   // Close existing subscription if any
   if (commandsSubscription) {
     console.log('[Commands] Closing existing subscription before re-subscribing');
-    supabase.removeChannel(commandsSubscription);
+    try {
+      supabase.removeChannel(commandsSubscription);
+    } catch (e) {
+      console.log('[Commands] Error removing channel:', e.message);
+    }
     commandsSubscription = null;
   }
 
   console.log('[Commands] ═══════════════════════════════════════════════════');
   console.log('[Commands] Subscribing for device:', deviceId);
+  console.log('[Commands] Attempt:', retryCount + 1, 'of', MAX_RETRIES + 1);
   console.log('[Commands] ═══════════════════════════════════════════════════');
 
+  const channelName = `commands-${deviceId}-${Date.now()}`;
+  
   commandsSubscription = supabase
-    .channel(`commands-channel-${deviceId}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
@@ -362,10 +372,21 @@ function subscribeToCommands() {
     )
     .subscribe((status, err) => {
       console.log('[Commands] Subscription status:', status, err ? `Error: ${err}` : '');
+      
       if (status === 'SUBSCRIBED') {
         console.log('[Commands] ✅ Successfully subscribed to commands for device:', deviceId);
-      } else if (status === 'CHANNEL_ERROR') {
-        console.error('[Commands] ❌ Channel error - subscription failed. Error:', err);
+      } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+        console.error('[Commands] ❌ Subscription failed:', status);
+        
+        if (retryCount < MAX_RETRIES) {
+          console.log(`[Commands] Retrying in ${RETRY_DELAY}ms...`);
+          setTimeout(() => {
+            subscribeToCommands(retryCount + 1);
+          }, RETRY_DELAY);
+        } else {
+          console.error('[Commands] ❌ Max retries reached. Using polling fallback.');
+          startCommandPolling();
+        }
       }
     });
 
@@ -426,28 +447,109 @@ async function handleCommand(command) {
 }
 
 // =============================================================================
+// POLLING FALLBACK (When Realtime fails)
+// =============================================================================
+
+let commandPollingInterval = null;
+let rtcPollingInterval = null;
+let lastProcessedCommandId = null;
+
+function startCommandPolling() {
+  if (commandPollingInterval) {
+    clearInterval(commandPollingInterval);
+  }
+  
+  console.log('[Commands] Starting polling fallback (every 3s)...');
+  
+  commandPollingInterval = setInterval(async () => {
+    if (!deviceId) return;
+    
+    try {
+      const { data: commands } = await supabase
+        .from('commands')
+        .select('*')
+        .eq('device_id', deviceId)
+        .eq('handled', false)
+        .order('created_at', { ascending: true })
+        .limit(5);
+      
+      if (commands && commands.length > 0) {
+        for (const cmd of commands) {
+          if (cmd.id !== lastProcessedCommandId) {
+            console.log('[Commands-Poll] 🔔 Found new command:', cmd.command);
+            lastProcessedCommandId = cmd.id;
+            handleCommand(cmd);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Commands-Poll] Error:', err.message);
+    }
+  }, 3000);
+}
+
+function startRtcPolling() {
+  if (rtcPollingInterval) {
+    clearInterval(rtcPollingInterval);
+  }
+  
+  console.log('[RTC] Starting polling fallback (every 3s)...');
+  
+  rtcPollingInterval = setInterval(async () => {
+    if (!deviceId || liveViewState.isActive) return;
+    
+    try {
+      const { data: sessions } = await supabase
+        .from('rtc_sessions')
+        .select('*')
+        .eq('device_id', deviceId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      
+      if (sessions && sessions.length > 0) {
+        console.log('[RTC-Poll] 🔔 Found pending session:', sessions[0].id);
+        handleNewRtcSession(sessions[0]);
+      }
+    } catch (err) {
+      console.error('[RTC-Poll] Error:', err.message);
+    }
+  }, 3000);
+}
+
+// =============================================================================
 // RTC SESSIONS SUBSCRIPTION
 // =============================================================================
 
-function subscribeToRtcSessions() {
+function subscribeToRtcSessions(retryCount = 0) {
   if (!deviceId) {
     console.error('[RTC] ❌ Cannot subscribe - no deviceId!');
     return;
   }
 
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 2000;
+
   // Close existing subscription if any
   if (rtcSessionsSubscription) {
     console.log('[RTC] Closing existing subscription before re-subscribing');
-    supabase.removeChannel(rtcSessionsSubscription);
+    try {
+      supabase.removeChannel(rtcSessionsSubscription);
+    } catch (e) {
+      console.log('[RTC] Error removing channel:', e.message);
+    }
     rtcSessionsSubscription = null;
   }
 
   console.log('[RTC] ═══════════════════════════════════════════════════');
   console.log('[RTC] Subscribing to rtc_sessions for device:', deviceId);
+  console.log('[RTC] Attempt:', retryCount + 1, 'of', MAX_RETRIES + 1);
   console.log('[RTC] ═══════════════════════════════════════════════════');
 
+  const channelName = `rtc-${deviceId}-${Date.now()}`;
+
   rtcSessionsSubscription = supabase
-    .channel(`rtc-sessions-channel-${deviceId}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
@@ -468,10 +570,21 @@ function subscribeToRtcSessions() {
     )
     .subscribe((status, err) => {
       console.log('[RTC] Subscription status:', status, err ? `Error: ${err}` : '');
+      
       if (status === 'SUBSCRIBED') {
         console.log('[RTC] ✅ Successfully subscribed to RTC sessions');
-      } else if (status === 'CHANNEL_ERROR') {
-        console.error('[RTC] ❌ Channel error:', err);
+      } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+        console.error('[RTC] ❌ Subscription failed:', status);
+        
+        if (retryCount < MAX_RETRIES) {
+          console.log(`[RTC] Retrying in ${RETRY_DELAY}ms...`);
+          setTimeout(() => {
+            subscribeToRtcSessions(retryCount + 1);
+          }, RETRY_DELAY);
+        } else {
+          console.error('[RTC] ❌ Max retries reached. Using polling fallback.');
+          startRtcPolling();
+        }
       }
     });
 
