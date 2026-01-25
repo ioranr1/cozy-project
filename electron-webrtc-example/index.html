@@ -754,7 +754,10 @@
           if (title) title.textContent = strings.userReturnedTitle || "Welcome Back";
           if (msg) msg.textContent = strings.userReturnedMessage || "You have returned. Would you like to disable Away Mode?";
           if (disableBtn) disableBtn.textContent = strings.disableButton || "Disable Away Mode";
-          if (keepBtn) keepBtn.querySelector("span")?.textContent = strings.keepButton || "Keep Away Mode";
+          if (keepBtn) {
+            const keepSpan = keepBtn.querySelector("span");
+            if (keepSpan) keepSpan.textContent = strings.keepButton || "Keep Away Mode";
+          }
         }
         
         userReturnedModal.style.display = "flex";
