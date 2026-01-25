@@ -7,7 +7,7 @@ import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
 import { supabase } from '@/integrations/supabase/client';
-import { getSelectedDeviceId } from '@/hooks/useDevices';
+import { DEVICE_ONLINE_THRESHOLD_SECONDS, getSelectedDeviceId } from '@/hooks/useDevices';
 import { Switch } from '@/components/ui/switch';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
@@ -112,6 +112,19 @@ const Dashboard: React.FC = () => {
 
   // Check laptop connection status - runs immediately on device change
   useEffect(() => {
+    const parseDbTimestamp = (value: string | null): Date | null => {
+      if (!value) return null;
+      let s = value.trim();
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(s)) {
+        s = s.replace(' ', 'T');
+      }
+      if (/([+-]\d{2})$/.test(s)) {
+        s = `${s}:00`;
+      }
+      const d = new Date(s);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+
     const checkLaptopStatus = async () => {
       if (!activeDeviceId) {
         setLaptopStatus('unknown');
@@ -132,14 +145,14 @@ const Dashboard: React.FC = () => {
           return;
         }
 
-        if (data.last_seen_at) {
-          const lastSeen = new Date(data.last_seen_at);
+        const lastSeen = parseDbTimestamp(data.last_seen_at);
+        if (!lastSeen) {
+          setLaptopStatus(data.last_seen_at ? 'unknown' : 'offline');
+        } else {
           const now = new Date();
           const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
           // Connectivity is determined ONLY by last_seen_at freshness.
-          setLaptopStatus(diffSeconds <= 30 ? 'online' : 'offline');
-        } else {
-          setLaptopStatus('offline');
+          setLaptopStatus(diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS ? 'online' : 'offline');
         }
       } catch {
         setLaptopStatus('unknown');

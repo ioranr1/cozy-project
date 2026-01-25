@@ -29,7 +29,28 @@ interface UseDevicesReturn {
 }
 
 const SELECTED_DEVICE_KEY = 'aiguard_selected_device_id';
-const CONNECTION_THRESHOLD_SECONDS = 120;
+export const DEVICE_ONLINE_THRESHOLD_SECONDS = 120;
+
+// Supabase/PostgREST can return timestamps in formats that Safari doesn't parse reliably
+// (e.g. "YYYY-MM-DD HH:mm:ss+00"). This normalizes to ISO 8601.
+const parseDbTimestamp = (value: string | null): Date | null => {
+  if (!value) return null;
+
+  let s = value.trim();
+  // Convert "YYYY-MM-DD HH:mm:ss" -> "YYYY-MM-DDTHH:mm:ss"
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(s)) {
+    s = s.replace(' ', 'T');
+  }
+  // Convert "+00" or "-05" -> "+00:00" / "-05:00" (Safari requirement)
+  if (/([+-]\d{2})$/.test(s)) {
+    s = `${s}:00`;
+  }
+
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const secondsSince = (lastSeen: Date, now: Date) => (now.getTime() - lastSeen.getTime()) / 1000;
 
 export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -82,17 +103,19 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
       const currentSelectionValid = selectedDeviceId && cameraDevices.some(d => d.id === selectedDeviceId);
 
       const connectedCamera = cameraDevices.find(d => {
-        if (!d.last_seen_at) return false;
-        const lastSeen = new Date(d.last_seen_at);
-        const diffSeconds = (new Date().getTime() - lastSeen.getTime()) / 1000;
-        return diffSeconds <= CONNECTION_THRESHOLD_SECONDS;
+        const lastSeen = parseDbTimestamp(d.last_seen_at);
+        if (!lastSeen) return false;
+        return secondsSince(lastSeen, new Date()) <= DEVICE_ONLINE_THRESHOLD_SECONDS;
       });
 
       const selectedCamera = cameraDevices.find(d => d.id === selectedDeviceId) || null;
       const selectedIsConnected = !!(
         selectedCamera?.last_seen_at &&
-        (new Date().getTime() - new Date(selectedCamera.last_seen_at).getTime()) / 1000 <=
-          CONNECTION_THRESHOLD_SECONDS
+        (() => {
+          const lastSeen = parseDbTimestamp(selectedCamera.last_seen_at);
+          if (!lastSeen) return false;
+          return secondsSince(lastSeen, new Date()) <= DEVICE_ONLINE_THRESHOLD_SECONDS;
+        })()
       );
 
       // If we have a connected camera, and the current selection is missing or disconnected,
@@ -158,16 +181,18 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
             // Check if we should auto-switch to a newly connected camera
             const currentSelectedId = localStorage.getItem(SELECTED_DEVICE_KEY);
             if (updatedDevice.device_type === 'camera' && updatedDevice.last_seen_at) {
-              const updatedLastSeen = new Date(updatedDevice.last_seen_at);
-              const diffSeconds = (new Date().getTime() - updatedLastSeen.getTime()) / 1000;
-              const isUpdatedOnline = diffSeconds <= CONNECTION_THRESHOLD_SECONDS;
+              const updatedLastSeen = parseDbTimestamp(updatedDevice.last_seen_at);
+              const isUpdatedOnline = !!(
+                updatedLastSeen && secondsSince(updatedLastSeen, new Date()) <= DEVICE_ONLINE_THRESHOLD_SECONDS
+              );
               
               // If the updated device is now online and it's NOT the currently selected one
               if (isUpdatedOnline && currentSelectedId !== updatedDevice.id) {
                 // Check if the currently selected device is offline
                 const currentSelected = newDevices.find(d => d.id === currentSelectedId);
-                const isCurrentOffline = !currentSelected?.last_seen_at || 
-                  (new Date().getTime() - new Date(currentSelected.last_seen_at).getTime()) / 1000 > CONNECTION_THRESHOLD_SECONDS;
+                const currentLastSeen = parseDbTimestamp(currentSelected?.last_seen_at ?? null);
+                const isCurrentOffline = !currentLastSeen ||
+                  secondsSince(currentLastSeen, new Date()) > DEVICE_ONLINE_THRESHOLD_SECONDS;
                 
                 if (isCurrentOffline) {
                   console.log('[useDevices] Auto-switching to connected camera:', updatedDevice.device_name, updatedDevice.id);
@@ -266,14 +291,13 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     }
   }, [selectedDeviceId, fetchDevices]);
 
-  // Status is determined ONLY by last_seen_at (within 30 seconds = online)
+  // Status is determined ONLY by last_seen_at
   const getDeviceStatus = useCallback((device: Device): 'online' | 'offline' | 'unknown' => {
-    if (!device.last_seen_at) return 'unknown';
+    const lastSeen = parseDbTimestamp(device.last_seen_at);
+    if (!lastSeen) return 'unknown';
 
-    const lastSeen = new Date(device.last_seen_at);
-    const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
-
-    if (diffSeconds <= CONNECTION_THRESHOLD_SECONDS) {
+    const diffSeconds = secondsSince(lastSeen, now);
+    if (diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS) {
       return 'online';
     }
     return 'offline';
@@ -289,10 +313,9 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     
     // Find connected devices (last_seen_at within threshold)
     const connectedCameras = cameraDevices.filter(d => {
-      if (!d.last_seen_at) return false;
-      const lastSeen = new Date(d.last_seen_at);
-      const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
-      return diffSeconds <= CONNECTION_THRESHOLD_SECONDS;
+      const lastSeen = parseDbTimestamp(d.last_seen_at);
+      if (!lastSeen) return false;
+      return secondsSince(lastSeen, now) <= DEVICE_ONLINE_THRESHOLD_SECONDS;
     });
     
     let primary: Device | null = null;
