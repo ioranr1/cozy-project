@@ -5,7 +5,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { DEVICE_ONLINE_THRESHOLD_SECONDS, parseDbTimestamp, useDevices } from '@/hooks/useDevices';
-
+import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 type DeviceMode = 'NORMAL' | 'AWAY';
 type ChangedBy = 'DESKTOP' | 'MOBILE' | 'SERVER';
 type DeviceConnectionStatus = 'online' | 'offline' | 'sleeping' | 'unknown';
@@ -88,7 +88,35 @@ export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
   }, []);
 
   const { selectedDevice } = useDevices(profileId);
-  const deviceId = selectedDevice?.id;
+  const deviceId = selectedDevice?.id || null;
+
+  // Remote command hook for sending SET_DEVICE_MODE to Electron
+  const { sendCommand, commandState, isLoading: isCommandLoading, resetState } = useRemoteCommand({
+    deviceId,
+    onAcknowledged: (cmdType) => {
+      if (cmdType === 'SET_DEVICE_MODE') {
+        console.log('[AwayModeCard] Command acknowledged');
+        logAwayModeEvent('mode_change_succeeded', {
+          to: deviceMode === 'NORMAL' ? 'AWAY' : 'NORMAL',
+          deviceId,
+          source: 'DESKTOP',
+        });
+        setIsUpdating(false);
+      }
+    },
+    onFailed: (cmdType, error) => {
+      if (cmdType === 'SET_DEVICE_MODE') {
+        console.log('[AwayModeCard] Command failed:', error);
+        logAwayModeEvent('mode_change_failed', {
+          error,
+          deviceId,
+        });
+        setLastError(error || t.updateError);
+        setIsUpdating(false);
+      }
+    },
+    timeoutMs: 15000,
+  });
 
   // Check device connection status
   const checkConnectionStatus = useCallback(async () => {
@@ -197,7 +225,7 @@ export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
     };
   }, [fetchStatus, checkConnectionStatus, deviceId]);
 
-  // Toggle away mode with analytics
+  // Toggle away mode - send command to Electron via commands table
   const handleToggle = async (checked: boolean) => {
     if (!deviceId) {
       toast.error(t.noDevice);
@@ -228,51 +256,17 @@ export const AwayModeCard: React.FC<AwayModeCardProps> = ({ className }) => {
       source: 'DESKTOP',
     });
     
-    try {
-      const { error } = await supabase
-        .from('device_status')
-        .update({
-          device_mode: newMode,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('device_id', deviceId);
+    console.log('[AwayModeCard] Sending SET_DEVICE_MODE command:', newMode);
 
-      if (error) {
-        console.error('[AwayModeCard] Error updating mode:', error);
-        toast.error(t.updateError);
-        setLastError(t.updateError);
-        
-        logAwayModeEvent('mode_change_failed', {
-          from: deviceMode,
-          to: newMode,
-          error: error.message,
-        });
-        return;
-      }
-
-      // Optimistic update (will be confirmed by realtime)
-      setDeviceMode(newMode);
-      
-      toast.success(checked ? t.activatedToast : t.deactivatedToast);
-      
-      logAwayModeEvent('mode_change_succeeded', {
-        from: deviceMode,
-        to: newMode,
-        deviceId,
-      });
-    } catch (err) {
-      console.error('[AwayModeCard] Unexpected error:', err);
-      toast.error(t.updateError);
-      setLastError(t.updateError);
-      
-      logAwayModeEvent('mode_change_failed', {
-        from: deviceMode,
-        to: newMode,
-        error: String(err),
-      });
-    } finally {
+    // CRITICAL: Send command to Electron via commands table so it activates powerSaveBlocker
+    const success = await sendCommand('SET_DEVICE_MODE', { mode: newMode });
+    
+    if (!success) {
+      console.log('[AwayModeCard] Command send failed immediately');
       setIsUpdating(false);
+      // Error already shown by useRemoteCommand
     }
+    // On success, the DB will be updated by Electron and we'll get the realtime update
   };
 
   const isAway = deviceMode === 'AWAY';

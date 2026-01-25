@@ -591,8 +591,19 @@ async function handleEnableAwayMode() {
     throw new Error(preflight.errors.join(', '));
   }
 
-  // Activate locally
+  // Activate locally (this starts powerSaveBlocker and turns off display)
   activateAwayModeLocal();
+
+  // Update database to confirm activation
+  await supabase
+    .from('device_status')
+    .update({ 
+      device_mode: 'AWAY',
+      updated_at: new Date().toISOString()
+    })
+    .eq('device_id', deviceId);
+
+  console.log('[AwayMode] Database updated to AWAY');
 
   // Notify renderer
   mainWindow?.webContents.send('away-mode-enabled');
@@ -601,6 +612,18 @@ async function handleEnableAwayMode() {
 async function handleDisableAwayMode() {
   console.log('[AwayMode] Disable requested');
   deactivateAwayModeLocal();
+  
+  // Update database to confirm deactivation
+  await supabase
+    .from('device_status')
+    .update({ 
+      device_mode: 'NORMAL',
+      updated_at: new Date().toISOString()
+    })
+    .eq('device_id', deviceId);
+
+  console.log('[AwayMode] Database updated to NORMAL');
+  
   mainWindow?.webContents.send('away-mode-disabled');
 }
 
