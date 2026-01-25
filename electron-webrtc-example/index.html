@@ -446,6 +446,14 @@
 
     <script>
       // ============================================================
+      // BUILD ID (debug)
+      // If you don't see this line in the Electron console, you're not
+      // running the updated index.html file.
+      // ============================================================
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-01-25-build-01";
+      console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
+
+      // ============================================================
       // CONFIG (SUPABASE_URL is already defined in renderer-webrtc.js)
       // ============================================================
 
