@@ -52,16 +52,27 @@ const Devices: React.FC = () => {
   const navigate = useNavigate();
   const [profileId, setProfileId] = useState<string | undefined>();
   const [showOldDevices, setShowOldDevices] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   
-  // Get profile from localStorage
+  // Get profile from localStorage on initial load
   useEffect(() => {
     const stored = localStorage.getItem('userProfile');
+    console.log('[Devices] Checking userProfile in localStorage:', stored ? 'found' : 'not found');
+    
     if (stored) {
-      const profile = JSON.parse(stored);
-      setProfileId(profile.id);
+      try {
+        const profile = JSON.parse(stored);
+        console.log('[Devices] Profile parsed, id:', profile.id);
+        setProfileId(profile.id);
+      } catch (e) {
+        console.error('[Devices] Failed to parse profile:', e);
+        navigate('/login');
+      }
     } else {
+      console.log('[Devices] No profile found, redirecting to login');
       navigate('/login');
     }
+    setIsCheckingSession(false);
   }, [navigate]);
 
   const { 
@@ -299,9 +310,12 @@ const Devices: React.FC = () => {
             </span>
           </h2>
 
-          {isLoading ? (
+          {isLoading || isCheckingSession ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <span className="text-white/60 ml-2">
+                {language === 'he' ? 'טוען...' : 'Loading...'}
+              </span>
             </div>
           ) : !hasCameras ? (
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-8 text-center">
