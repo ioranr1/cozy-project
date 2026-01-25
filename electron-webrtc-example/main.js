@@ -328,6 +328,8 @@ async function verifyPairingCode(code) {
 function subscribeToCommands() {
   if (!deviceId) return;
 
+  console.log('[Commands] Attempting to subscribe for device:', deviceId);
+
   commandsSubscription = supabase
     .channel('commands-channel')
     .on(
@@ -343,9 +345,16 @@ function subscribeToCommands() {
         handleCommand(payload.new);
       }
     )
-    .subscribe();
+    .subscribe((status) => {
+      console.log('[Commands] Subscription status:', status);
+      if (status === 'SUBSCRIBED') {
+        console.log('[Commands] ✅ Successfully subscribed to commands');
+      } else if (status === 'CHANNEL_ERROR') {
+        console.error('[Commands] ❌ Channel error - subscription failed');
+      }
+    });
 
-  console.log('[Commands] Subscribed to commands');
+  console.log('[Commands] Subscription initiated');
 }
 
 async function handleCommand(command) {
@@ -802,12 +811,17 @@ function setupIpcHandlers() {
       startHeartbeat();
     }
     if (!commandsSubscription && deviceId) {
+      console.log('[IPC] About to call subscribeToCommands() for device:', deviceId);
       subscribeToCommands();
+    } else {
+      console.log('[IPC] Skipping subscribeToCommands - commandsSubscription:', commandsSubscription ? 'exists' : 'null', 'deviceId:', deviceId);
     }
     if (!rtcSessionsSubscription && deviceId) {
+      console.log('[IPC] About to call subscribeToRtcSessions()');
       subscribeToRtcSessions();
     }
     if (!deviceStatusSubscription && deviceId) {
+      console.log('[IPC] About to call subscribeToDeviceStatus()');
       subscribeToDeviceStatus();
     }
   });
