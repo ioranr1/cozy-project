@@ -6,6 +6,7 @@ import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { useDevices, Device } from '@/hooks/useDevices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Laptop, 
   Smartphone, 
@@ -21,7 +22,8 @@ import {
   Monitor,
   ChevronDown,
   ChevronUp,
-  Archive
+  Archive,
+  Eraser
 } from 'lucide-react';
 import {
   Dialog,
@@ -100,6 +102,45 @@ const Devices: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Cleanup sessions state
+  const [isCleaning, setIsCleaning] = useState(false);
+
+  const handleCleanupSessions = async () => {
+    setIsCleaning(true);
+    try {
+      const sessionToken = localStorage.getItem(SESSION_TOKEN_KEY);
+      if (!sessionToken) {
+        toast.error(language === 'he' ? 'לא נמצא טוקן' : 'No session token found');
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('cleanup-sessions', {
+        headers: { 'x-session-token': sessionToken },
+      });
+
+      if (error) {
+        console.error('[Devices] Cleanup error:', error);
+        toast.error(language === 'he' ? 'שגיאה בניקוי' : 'Cleanup failed');
+        return;
+      }
+
+      const { cleanedSessions, cleanedCommands } = data || {};
+      toast.success(
+        language === 'he' 
+          ? `נוקו ${cleanedSessions || 0} sessions ו-${cleanedCommands || 0} פקודות`
+          : `Cleaned ${cleanedSessions || 0} sessions and ${cleanedCommands || 0} commands`
+      );
+      
+      // Refresh devices after cleanup
+      refreshDevices();
+    } catch (e) {
+      console.error('[Devices] Cleanup exception:', e);
+      toast.error(language === 'he' ? 'שגיאה בניקוי' : 'Cleanup failed');
+    } finally {
+      setIsCleaning(false);
+    }
+  };
 
   const handleRenameClick = (device: Device) => {
     setDeviceToRename(device);
@@ -280,24 +321,42 @@ const Devices: React.FC = () => {
 
       <div className="p-4 space-y-4">
         {/* Actions Row */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2">
           {/* PairingCodeDialog handles its own button and dialog */}
           <PairingCodeDialog />
           
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refreshDevices()}
-            disabled={isLoading}
-            className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
-          >
-            {isLoading ? (
-              <Loader2 className={cn("w-4 h-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
-            ) : (
-              <RefreshCw className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
-            )}
-            {language === 'he' ? 'רענן' : 'Refresh'}
-          </Button>
+          <div className="flex gap-2">
+            {/* Cleanup Sessions Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCleanupSessions}
+              disabled={isCleaning}
+              className="bg-amber-900/30 border-amber-600/50 text-amber-400 hover:bg-amber-900/50"
+            >
+              {isCleaning ? (
+                <Loader2 className={cn("w-4 h-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
+              ) : (
+                <Eraser className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+              )}
+              {language === 'he' ? 'נקה תקועים' : 'Clean Stuck'}
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refreshDevices()}
+              disabled={isLoading}
+              className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+            >
+              {isLoading ? (
+                <Loader2 className={cn("w-4 h-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
+              ) : (
+                <RefreshCw className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+              )}
+              {language === 'he' ? 'רענן' : 'Refresh'}
+            </Button>
+          </div>
         </div>
 
         {/* Camera Devices Section */}
