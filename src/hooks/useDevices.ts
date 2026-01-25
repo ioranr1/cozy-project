@@ -141,10 +141,38 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
         },
         (payload) => {
           console.log('[useDevices] Realtime UPDATE:', payload);
+          const updatedDevice = payload.new as Device;
+          
           // Update device in state directly for faster UI response
-          setDevices(prev => prev.map(d => 
-            d.id === payload.new.id ? { ...d, ...payload.new } as Device : d
-          ));
+          setDevices(prev => {
+            const newDevices = prev.map(d => 
+              d.id === updatedDevice.id ? { ...d, ...updatedDevice } as Device : d
+            );
+            
+            // Check if we should auto-switch to a newly connected camera
+            const currentSelectedId = localStorage.getItem(SELECTED_DEVICE_KEY);
+            if (updatedDevice.device_type === 'camera' && updatedDevice.last_seen_at) {
+              const updatedLastSeen = new Date(updatedDevice.last_seen_at);
+              const diffSeconds = (new Date().getTime() - updatedLastSeen.getTime()) / 1000;
+              const isUpdatedOnline = diffSeconds <= CONNECTION_THRESHOLD_SECONDS;
+              
+              // If the updated device is now online and it's NOT the currently selected one
+              if (isUpdatedOnline && currentSelectedId !== updatedDevice.id) {
+                // Check if the currently selected device is offline
+                const currentSelected = newDevices.find(d => d.id === currentSelectedId);
+                const isCurrentOffline = !currentSelected?.last_seen_at || 
+                  (new Date().getTime() - new Date(currentSelected.last_seen_at).getTime()) / 1000 > CONNECTION_THRESHOLD_SECONDS;
+                
+                if (isCurrentOffline) {
+                  console.log('[useDevices] Auto-switching to connected camera:', updatedDevice.device_name, updatedDevice.id);
+                  setSelectedDeviceId(updatedDevice.id);
+                  localStorage.setItem(SELECTED_DEVICE_KEY, updatedDevice.id);
+                }
+              }
+            }
+            
+            return newDevices;
+          });
         }
       )
       .on(
