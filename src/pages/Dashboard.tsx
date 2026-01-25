@@ -137,7 +137,8 @@ const Dashboard: React.FC = () => {
           const now = new Date();
           const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
           // Connectivity is determined ONLY by last_seen_at freshness.
-          setLaptopStatus(diffSeconds <= 30 ? 'online' : 'offline');
+          // Keep this threshold consistent with useDevices (120s) to avoid false “offline”.
+          setLaptopStatus(diffSeconds <= 120 ? 'online' : 'offline');
         } else {
           setLaptopStatus('offline');
         }
