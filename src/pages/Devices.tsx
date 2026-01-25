@@ -251,6 +251,9 @@ const Devices: React.FC = () => {
                 <span className="text-white font-medium">
                   {device.device_name}
                 </span>
+                <span className="px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-300 text-xs">
+                  {device.device_type}
+                </span>
                 {isSelected && (
                   <span className="px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs">
                     {language === 'he' ? 'נבחר' : 'Selected'}
@@ -267,9 +270,21 @@ const Devices: React.FC = () => {
                   {getStatusText(status)}
                 </span>
                 <span className="text-white/30 text-xs">•</span>
-                <span className="text-white/40 text-xs">
-                  ID: {device.id.slice(0, 8)}...
+                <span className="text-white/40 text-xs font-mono">
+                  {device.id.slice(0, 8)}...
                 </span>
+                {device.last_seen_at && (
+                  <>
+                    <span className="text-white/30 text-xs">•</span>
+                    <span className="text-white/40 text-xs">
+                      {new Date(device.last_seen_at).toLocaleTimeString(language === 'he' ? 'he-IL' : 'en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        second: '2-digit'
+                      })}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
