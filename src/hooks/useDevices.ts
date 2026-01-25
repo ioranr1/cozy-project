@@ -33,7 +33,7 @@ export const DEVICE_ONLINE_THRESHOLD_SECONDS = 120;
 
 // Supabase/PostgREST can return timestamps in formats that Safari doesn't parse reliably
 // (e.g. "YYYY-MM-DD HH:mm:ss+00"). This normalizes to ISO 8601.
-const parseDbTimestamp = (value: string | null): Date | null => {
+export const parseDbTimestamp = (value: string | null): Date | null => {
   if (!value) return null;
 
   let s = value.trim();
