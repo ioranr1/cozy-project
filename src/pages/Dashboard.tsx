@@ -282,6 +282,26 @@ const Dashboard: React.FC = () => {
 
       setViewStatus('starting');
 
+      // HARD GUARANTEE: never start on top of an old session.
+      // If the user did STOP→START quickly, a previous rtc_session can remain active/pending for a moment
+      // and cause the next Viewer connection to fail.
+      if (activeDeviceId) {
+        try {
+          await supabase
+            .from('rtc_sessions')
+            .update({
+              status: 'ended',
+              ended_at: new Date().toISOString(),
+              fail_reason: 'superseded_by_new_start',
+            })
+            .eq('device_id', activeDeviceId)
+            .in('status', ['pending', 'active'])
+            .is('ended_at', null);
+        } catch (e) {
+          console.warn('[LiveView] Failed to pre-end open rtc_sessions (continuing anyway):', e);
+        }
+      }
+
       // 1. FIRST: Create rtc_session (MUST happen before command)
       const sessionId = await createRtcSession();
       
