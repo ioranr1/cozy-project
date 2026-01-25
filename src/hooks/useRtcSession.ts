@@ -657,16 +657,55 @@ export function useRtcSession({
     return pc;
   }, [insertSignal, language, onError, onStreamReceived, updateStatus, cleanup]);
 
-  // Check for existing active/pending session within last 2 minutes
+  // Cleanup stale pending sessions (older than 30 seconds with no activity)
+  // This MUST run before starting a new session to prevent reconnection blocks
+  const cleanupStaleSessions = useCallback(async (): Promise<void> => {
+    const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
+    
+    console.log('[useRtcSession] Cleaning up stale sessions older than:', thirtySecondsAgo);
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: staleSessions, error } = await (supabase as any)
+      .from('rtc_sessions')
+      .select('id')
+      .eq('device_id', deviceId)
+      .eq('status', 'pending')
+      .lt('created_at', thirtySecondsAgo);
+
+    if (error) {
+      console.warn('[useRtcSession] Error finding stale sessions:', error);
+      return;
+    }
+
+    if (staleSessions && staleSessions.length > 0) {
+      console.log('[useRtcSession] Found', staleSessions.length, 'stale pending sessions, cleaning up...');
+      const staleIds = staleSessions.map((s: { id: string }) => s.id);
+      
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any)
+        .from('rtc_sessions')
+        .update({
+          status: 'ended',
+          ended_at: new Date().toISOString(),
+          fail_reason: 'stale_cleanup',
+        })
+        .in('id', staleIds);
+      
+      console.log('[useRtcSession] ✅ Cleaned up stale sessions:', staleIds);
+    }
+  }, [deviceId]);
+
+  // Check for existing ACTIVE session within last 2 minutes (not pending - those may be stale)
   const findExistingSession = useCallback(async (): Promise<string | null> => {
     const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     
+    // Only look for ACTIVE sessions, not pending ones (pending may be stale)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from('rtc_sessions')
       .select('id')
       .eq('device_id', deviceId)
-      .in('status', ['pending', 'active'])
+      .eq('status', 'active') // Only active, not pending
       .gte('created_at', twoMinutesAgo)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -677,7 +716,7 @@ export function useRtcSession({
     }
 
     if (data && data.length > 0) {
-      console.log('[useRtcSession] Found existing session:', data[0].id);
+      console.log('[useRtcSession] Found existing ACTIVE session:', data[0].id);
       return data[0].id as string;
     }
 
@@ -703,13 +742,16 @@ export function useRtcSession({
     updateStatus('connecting');
 
     try {
+      // CRITICAL: First cleanup any stale pending sessions to prevent reconnection blocks
+      await cleanupStaleSessions();
+
       // 1. First check if existingSessionId was provided from Dashboard
       let activeSessionId: string | null = existingSessionId || null;
       
       if (activeSessionId) {
         console.log('[useRtcSession] Using provided session from Dashboard:', activeSessionId);
       } else {
-        // 2. Check for existing session within last 2 minutes
+        // 2. Check for existing ACTIVE session (not pending - those may be stale)
         activeSessionId = await findExistingSession();
       }
       
@@ -775,7 +817,7 @@ export function useRtcSession({
       updateStatus('failed');
       return null;
     }
-  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, findExistingSession, status, sessionId, existingSessionId]);
+  }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, cleanupStaleSessions, findExistingSession, status, sessionId, existingSessionId]);
 
   // Stop the current session
   const stopSession = useCallback(async () => {
