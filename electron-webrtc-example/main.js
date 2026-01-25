@@ -863,20 +863,36 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', async () => {
-  app.isQuitting = true;
+app.on('before-quit', (event) => {
+  if (!app.isQuitting) {
+    event.preventDefault();
+    app.isQuitting = true;
+    
+    console.log('[App] Shutting down - marking device as inactive...');
 
-  // Cleanup
-  if (heartbeatInterval) {
-    clearInterval(heartbeatInterval);
-  }
+    // Cleanup
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+    }
 
-  // Mark device as inactive
-  if (deviceId) {
-    await supabase
-      .from('devices')
-      .update({ is_active: false })
-      .eq('id', deviceId);
+    // Mark device as inactive and WAIT for it to complete
+    if (deviceId) {
+      supabase
+        .from('devices')
+        .update({ is_active: false })
+        .eq('id', deviceId)
+        .then(() => {
+          console.log('[App] Device marked inactive, quitting...');
+          app.quit();
+        })
+        .catch((err) => {
+          console.error('[App] Failed to mark device inactive:', err);
+          app.quit();
+        });
+    } else {
+      app.quit();
+    }
+    return; // Don't quit yet, wait for the update
   }
 
   // Unsubscribe from channels
