@@ -39,6 +39,8 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => new Date());
+  // Counter to force re-render when realtime updates arrive
+  const [realtimeUpdateCounter, setRealtimeUpdateCounter] = useState(0);
 
   // Update "now" every 10 seconds to keep status fresh
   useEffect(() => {
@@ -142,6 +144,10 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
         (payload) => {
           console.log('[useDevices] Realtime UPDATE:', payload);
           const updatedDevice = payload.new as Device;
+          
+          // Force "now" to update so status recalculates immediately
+          setNow(new Date());
+          setRealtimeUpdateCounter(prev => prev + 1);
           
           // Update device in state directly for faster UI response
           setDevices(prev => {
@@ -323,7 +329,7 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
     primaryDevice,
     oldDevices,
     hasOldDevices,
-    refreshKey: now.getTime(),
+    refreshKey: now.getTime() + realtimeUpdateCounter,
   };
 };
 
