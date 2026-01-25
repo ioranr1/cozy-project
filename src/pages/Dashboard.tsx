@@ -89,6 +89,12 @@ const Dashboard: React.FC = () => {
     onFailed: (commandType) => {
       // Reset viewStatus on failure/timeout
       if (commandType === 'START_LIVE_VIEW') {
+        // If START timed out/failed, close the pending rtc_session to prevent stale sessions
+        // from confusing the desktop host and blocking subsequent START attempts.
+        if (currentSessionId) {
+          void endRtcSession(currentSessionId);
+          setCurrentSessionId(null);
+        }
         setViewStatus('idle');
         // Refresh state from DB in case realtime missed the ACK
         refreshState();

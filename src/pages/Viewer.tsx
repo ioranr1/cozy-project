@@ -65,16 +65,16 @@ const Viewer: React.FC = () => {
   // Get selected device from useDevices hook
   const { selectedDevice } = useDevices(profileId);
 
-  // Treat the host as online only if it is actively connected AND seen recently.
-  // This prevents navigating/auto-starting into a connection loop when the desktop app is offline.
+  // Treat the host as online only if it was seen recently.
+  // IMPORTANT: use the same threshold as useDevices/Dashboard (120s) to avoid false “offline”
+  // that would prematurely end sessions.
   const isPrimaryDeviceOnline = useMemo(() => {
-    if (!primaryDevice?.last_seen_at) return false;
-    const lastSeen = new Date(primaryDevice.last_seen_at);
+    const lastSeenAt = selectedDevice?.last_seen_at ?? primaryDevice?.last_seen_at;
+    if (!lastSeenAt) return false;
+    const lastSeen = new Date(lastSeenAt);
     const diffSeconds = (Date.now() - lastSeen.getTime()) / 1000;
-    // Be consistent with Dashboard: connectivity is based only on last_seen_at freshness.
-    // Some environments/devices may keep is_active stale.
-    return diffSeconds <= 30;
-  }, [primaryDevice]);
+    return diffSeconds <= 120;
+  }, [selectedDevice?.last_seen_at, primaryDevice?.last_seen_at]);
   
   // Get sessionId from Dashboard navigation (if available)
   const dashboardSessionId = (location.state as LocationState)?.sessionId;
