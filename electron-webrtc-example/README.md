@@ -1,126 +1,62 @@
-# Electron WebRTC Live View Implementation
+# AIGuard Electron Desktop Agent
 
-## Overview
+## 📁 Project Structure / מבנה הפרויקט
 
-This folder contains example code for implementing WebRTC live streaming in your Electron desktop app. The implementation follows the existing architecture where:
-
-1. **Mobile/Web** creates an `rtc_session` and sends `START_LIVE_VIEW` command
-2. **Electron main.js** subscribes to `rtc_sessions` and triggers renderer via IPC
-3. **Electron renderer** handles WebRTC: camera access, offer creation, signaling
-
-## Files Structure
-
-| File | Description | Action |
-|------|-------------|--------|
-| `renderer-webrtc.js` | WebRTC implementation for the renderer process | **Copy to your project** |
-| `preload-additions.js` | IPC bridge additions for preload.js | **Merge into your preload.js** |
-| `main-additions.js` | Command handling additions for main.js | **Merge into your main.js** |
-| `away-mode.js` | **Away Mode system behavior (main process)** | **Copy as new file** |
-| `away-mode-preload.js` | **Away Mode IPC bridge** | **Merge into your preload.js** |
-| `away-mode-renderer.js` | **Away Mode UI (renderer process)** | **Copy to your project** |
-| `AWAY-MODE-INTEGRATION.md` | Full Away Mode integration guide | **Read for reference** |
-
----
-
-## 🚀 Quick Start - What to Copy to Your Electron Project
-
-### Your Current Files:
 ```
-your-electron-project/
-├── main.js           ← Add code from main-additions.js + away-mode.js import
-├── preload.js        ← Add code from preload-additions.js + away-mode-preload.js
-├── index.html        ← Add script tags for renderer files
-├── renderer-webrtc.js ← Already exists (WebRTC)
-└── (new) away-mode.js ← Copy this file
+electron-webrtc-example/
+├── node_modules/        # Dependencies
+├── away/                # Away Mode module (SEPARATE!)
+│   ├── README.md        # Away Mode documentation
+│   ├── away-manager.js  # State & power management
+│   ├── away-ipc.js      # IPC bridge definitions
+│   └── away-strings.js  # i18n strings
+├── icon.ico             # Windows tray icon
+├── icon.png             # Cross-platform icon
+├── index.html           # UI + Away Mode handlers
+├── main.js              # Main process (core)
+├── preload.js           # IPC bridge
+├── renderer-webrtc.js   # WebRTC video logic
+├── package.json         # Dependencies config
+└── package-lock.json    # Lock file
 ```
 
 ---
 
-## Integration Steps
+## 🔧 Core Files / קבצים ראשיים
 
-### Step 1: Copy away-mode.js (NEW FILE)
+| File | Purpose | Lines |
+|------|---------|-------|
+| `main.js` | Electron main process, subscriptions, commands | ~900 |
+| `preload.js` | IPC bridge to renderer | ~190 |
+| `index.html` | Pairing UI + Away Mode modals | ~844 |
+| `renderer-webrtc.js` | WebRTC camera streaming | ~500 |
 
-Copy the `away-mode.js` file to your Electron project folder (same level as main.js).
+---
 
-### Step 2: Update main.js
+## 📦 Away Mode Module / מודול מצב מרוחק
 
-Add at the top of your main.js:
+**See `away/README.md` for full documentation.**
+
+Quick Integration:
 ```javascript
-// Import Away Mode module
-const awayMode = require('./away-mode');
-```
+// In main.js:
+const AwayManager = require('./away/away-manager');
+const awayManager = new AwayManager({ supabase });
+awayManager.setMainWindow(mainWindow);
+awayManager.setDeviceId(deviceId);
 
-Add after creating mainWindow:
-```javascript
-// Initialize Away Mode (after mainWindow is created)
-awayMode.initAwayMode(mainWindow, deviceId, 'he'); // 'he' for Hebrew, 'en' for English
-```
-
-Add the session subscription logic from `main-additions.js`:
-- `subscribeToRtcSessions(deviceId)` - Subscribe to pending sessions
-- `handleNewSession(session)` - Send IPC to renderer with sessionId
-- Update your command handler for `START_LIVE_VIEW` and `STOP_LIVE_VIEW`
-
-Add cleanup on app quit:
-```javascript
-app.on('before-quit', async () => {
-  await awayMode.cleanupAwayMode();
-});
-```
-
-### Step 3: Update preload.js
-
-Merge the IPC listeners from `preload-additions.js` AND `away-mode-preload.js`:
-
-```javascript
-const { contextBridge, ipcRenderer } = require('electron');
-
-contextBridge.exposeInMainWorld('electronAPI', {
-  // === Existing methods ===
-  minimizeToTray: () => ipcRenderer.invoke('minimize-to-tray'),
-  exitApp: () => ipcRenderer.invoke('exit-app'),
-  
-  // === WebRTC (from preload-additions.js) ===
-  onStartLiveView: (callback) => {
-    ipcRenderer.on('start-live-view', (event, sessionId) => callback(sessionId));
-  },
-  onStopLiveView: (callback) => {
-    ipcRenderer.on('stop-live-view', () => callback());
-  },
-  
-  // === Away Mode (from away-mode-preload.js) ===
-  onAwayModeEnabled: (callback) => {
-    ipcRenderer.on('away-mode-enabled', (event, data) => callback(data));
-  },
-  onAwayModeDisabled: (callback) => {
-    ipcRenderer.on('away-mode-disabled', (event, data) => callback(data));
-  },
-  onAwayModePreflightFailed: (callback) => {
-    ipcRenderer.on('away-mode-preflight-failed', (event, data) => callback(data));
-  },
-  onAwayModeUserReturned: (callback) => {
-    ipcRenderer.on('away-mode-user-returned', (event, data) => callback(data));
-  },
-  onCheckCamera: (callback) => {
-    ipcRenderer.on('away-mode-check-camera', () => callback());
-  },
-  awayModeDisableConfirmed: () => ipcRenderer.send('away-mode-disable-confirmed'),
-  awayModeKeep: () => ipcRenderer.send('away-mode-keep'),
-  awayModeCameraCheckResult: (result) => ipcRenderer.send('away-mode-camera-check-result', result),
-});
-```
-
-### Step 4: Update index.html
-
-Add the Away Mode renderer script:
-```html
-<script src="renderer-webrtc.js"></script>
-<script src="away-mode-renderer.js"></script>
+// Handle commands:
+case 'SET_DEVICE_MODE:AWAY':
+  await awayManager.enable();
+  break;
+case 'SET_DEVICE_MODE:NORMAL':
+  await awayManager.disable();
+  break;
 ```
 
 ---
 
-## Flow Diagram - WebRTC
+## 🚀 Flow Diagram - WebRTC
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -174,7 +110,9 @@ Add the Away Mode renderer script:
          │                       │                       │
 ```
 
-## Flow Diagram - Away Mode
+---
+
+## 🏠 Flow Diagram - Away Mode
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -188,22 +126,20 @@ Add the Away Mode renderer script:
          │                       │ 2. Realtime notify    │
          │                       │──────────────────────>│
          │                       │                       │
-         │                       │                       │ 3. Run preflight checks:
-         │                       │                       │    - Power connected?
-         │                       │                       │    - Camera available?
-         │                       │                       │
-         │                       │                       │ 4. If passed:
-         │                       │                       │    - preventSleep()
+         │                       │                       │ 3. AwayManager.enable():
+         │                       │                       │    - Check feature flag
+         │                       │                       │    - Run preflight checks
+         │                       │                       │    - powerSaveBlocker.start()
          │                       │                       │    - turnOffDisplay()
          │                       │                       │
-         │                       │ 5. UPDATE device_status│
+         │                       │ 4. UPDATE device_status│
          │                       │    device_mode: AWAY  │
          │                       │<──────────────────────│
          │                       │                       │
-         │                       │ 6. ACK command        │
+         │                       │ 5. ACK command        │
          │                       │<──────────────────────│
          │                       │                       │
-         │ 7. Realtime receives  │                       │
+         │ 6. Realtime receives  │                       │
          │    status update      │                       │
          │<──────────────────────│                       │
          │                       │                       │
@@ -211,7 +147,7 @@ Add the Away Mode renderer script:
 
 ---
 
-## Testing
+## 🧪 Testing
 
 ### WebRTC Live View:
 1. Start your Electron app
@@ -230,48 +166,40 @@ Add the Away Mode renderer script:
 2. Make sure laptop is plugged into power
 3. From mobile Dashboard, enable Away Mode
 4. Check Electron console for:
-   - `[AwayMode] Command received: SET_DEVICE_MODE:AWAY`
-   - `[AwayMode] Running preflight checks...`
-   - `[AwayMode] Preflight result: PASSED`
-   - `[AwayMode] Sleep prevention STARTED`
-   - `[AwayMode] Away mode ENABLED`
+   - `[AwayManager] Enable requested`
+   - `[AwayManager] ✓ System sleep prevention is ACTIVE`
+   - `[AwayManager] ✓ Away Mode enabled`
 
 ---
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
 ### WebRTC Issues:
 
-#### No offer sent
-- Check camera permissions in Electron
-- Verify `getUserMedia` succeeds
-- Check Supabase credentials
-
-#### Answer not received
-- Verify mobile app is on Viewer page
-- Check `rtc_signals` table in Supabase
-- Ensure Realtime is enabled on `rtc_signals` table
-
-#### Connection fails after answer
-- Check ICE candidates are being exchanged
-- Verify TURN credentials are being fetched
-- Check firewall/NAT settings
+| Problem | Solution |
+|---------|----------|
+| No offer sent | Check camera permissions in Electron |
+| Answer not received | Verify mobile app is on Viewer page |
+| Connection fails after answer | Check ICE/TURN credentials |
 
 ### Away Mode Issues:
 
-#### Preflight fails - "Not on power"
-- Plug laptop into charger
-- Check `powerMonitor.isOnBatteryPower()` in Electron DevTools
+| Problem | Solution |
+|---------|----------|
+| Preflight fails - "Camera" | Close other apps using camera |
+| Display doesn't turn off (Windows) | Add `nircmd.exe` to project root |
+| Display doesn't turn off (macOS) | Requires admin permissions for `pmset` |
+| Display doesn't turn off (Linux) | Requires X11 and `xset` installed |
 
-#### Preflight fails - "Camera not available"
-- Close other apps using camera
-- Check camera permissions
+---
 
-#### Display doesn't turn off
-- Windows: Install `nircmd.exe` and add to PATH
-- macOS: Requires admin permissions for `pmset`
-- Linux: Requires X11 and `xset` installed
+## 📝 Changelog
 
-#### User returned prompt doesn't show
-- Check `powerMonitor` events are working
-- Verify window focus events are firing
+### v2.0.0 (2026-01-25)
+- **NEW**: Separated Away Mode into `away/` folder module
+- **REMOVED**: Deleted redundant files (`away-mode.js`, `away-mode-preload.js`, etc.)
+- **CLEANED**: Single source of truth for all logic
+
+### v1.0.0
+- Initial WebRTC implementation
+- Basic Away Mode support
