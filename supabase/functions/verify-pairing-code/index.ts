@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     const profile = pairingCode.profiles;
     const profileId = pairingCode.profile_id;
 
-    // Create or update device
+    // Create or update device - prefer reusing existing device for this profile
     let finalDeviceId = device_id;
 
     if (device_id) {
@@ -75,28 +75,57 @@ Deno.serve(async (req) => {
         console.error("Device update error:", updateError);
       }
     } else {
-      // Create new device
-      const { data: newDevice, error: createError } = await supabaseAdmin
+      // Check if there's already a camera device for this profile
+      const { data: existingDevices } = await supabaseAdmin
         .from("devices")
-        .insert({
-          profile_id: profileId,
-          device_name: device_name || "Camera Computer",
-          device_type: "camera",
-          is_active: true,
-          last_seen_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+        .select("id, device_name, last_seen_at")
+        .eq("profile_id", profileId)
+        .eq("device_type", "camera")
+        .eq("is_active", true)
+        .order("last_seen_at", { ascending: false, nullsFirst: false })
+        .limit(1);
 
-      if (createError) {
-        console.error("Device create error:", createError);
-        return new Response(
-          JSON.stringify({ error: "Failed to create device" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+      if (existingDevices && existingDevices.length > 0) {
+        // Reuse existing device
+        finalDeviceId = existingDevices[0].id;
+        console.log(`Reusing existing device: ${finalDeviceId}`);
+        
+        const { error: updateError } = await supabaseAdmin
+          .from("devices")
+          .update({
+            device_name: device_name || existingDevices[0].device_name || "Camera Computer",
+            last_seen_at: new Date().toISOString(),
+          })
+          .eq("id", finalDeviceId);
+
+        if (updateError) {
+          console.error("Device update error:", updateError);
+        }
+      } else {
+        // Create new device only if none exists
+        const { data: newDevice, error: createError } = await supabaseAdmin
+          .from("devices")
+          .insert({
+            profile_id: profileId,
+            device_name: device_name || "Camera Computer",
+            device_type: "camera",
+            is_active: true,
+            last_seen_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error("Device create error:", createError);
+          return new Response(
+            JSON.stringify({ error: "Failed to create device" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        finalDeviceId = newDevice.id;
+        console.log(`Created new device: ${finalDeviceId}`);
       }
-
-      finalDeviceId = newDevice.id;
     }
 
     // Create session for the device
