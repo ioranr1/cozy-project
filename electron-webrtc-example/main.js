@@ -608,9 +608,18 @@ function activateAwayModeLocal() {
   console.log('[AwayMode] Activating locally');
   awayModeState.isActive = true;
 
-  // Prevent app suspension
-  awayModeState.powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
-  console.log('[AwayMode] Power save blocker started:', awayModeState.powerBlockerId);
+  // CRITICAL: Use 'prevent-display-sleep' to prevent system sleep!
+  // 'prevent-app-suspension' only keeps the app alive but allows system to sleep
+  // 'prevent-display-sleep' prevents system sleep entirely (needed for Away Mode)
+  awayModeState.powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+  console.log('[AwayMode] Power save blocker started (prevent-display-sleep):', awayModeState.powerBlockerId);
+
+  // Verify it's active
+  if (powerSaveBlocker.isStarted(awayModeState.powerBlockerId)) {
+    console.log('[AwayMode] ✓ System sleep prevention is ACTIVE');
+  } else {
+    console.error('[AwayMode] ✗ Failed to activate sleep prevention!');
+  }
 
   // Try to turn off display
   turnOffDisplay();
