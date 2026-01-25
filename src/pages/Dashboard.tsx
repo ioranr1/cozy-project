@@ -122,10 +122,15 @@ const Dashboard: React.FC = () => {
 
   // Check laptop connection status - runs immediately on device change
   useEffect(() => {
+    let isMounted = true;
+    let consecutiveNotFoundCount = 0;
+    
     const checkLaptopStatus = async () => {
       if (!activeDeviceId) {
-        setLaptopStatus('unknown');
-        setIsLaptopStatusLoading(false);
+        if (isMounted) {
+          setLaptopStatus('unknown');
+          setIsLaptopStatusLoading(false);
+        }
         return;
       }
 
@@ -136,26 +141,42 @@ const Dashboard: React.FC = () => {
           .eq('id', activeDeviceId)
           .maybeSingle();
 
+        if (!isMounted) return;
+
         if (error || !data) {
+          consecutiveNotFoundCount++;
+          console.log('[Dashboard] Device not found, count:', consecutiveNotFoundCount);
+          
+          // If device not found 3 times in a row, clear the stale selection
+          if (consecutiveNotFoundCount >= 3) {
+            console.log('[Dashboard] Clearing stale selectedCameraId from localStorage');
+            localStorage.removeItem('selectedCameraId');
+          }
+          
           setLaptopStatus('unknown');
           setIsLaptopStatusLoading(false);
           return;
         }
 
+        // Reset counter when device is found
+        consecutiveNotFoundCount = 0;
+
         if (data.last_seen_at) {
           const lastSeen = new Date(data.last_seen_at);
           const now = new Date();
           const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
-          // Connectivity is determined ONLY by last_seen_at freshness.
-          // Keep this threshold consistent with useDevices (120s) to avoid false “offline”.
           setLaptopStatus(diffSeconds <= 120 ? 'online' : 'offline');
         } else {
           setLaptopStatus('offline');
         }
       } catch {
-        setLaptopStatus('unknown');
+        if (isMounted) {
+          setLaptopStatus('unknown');
+        }
       } finally {
-        setIsLaptopStatusLoading(false);
+        if (isMounted) {
+          setIsLaptopStatusLoading(false);
+        }
       }
     };
 
@@ -167,7 +188,10 @@ const Dashboard: React.FC = () => {
     
     // Then poll every 10 seconds
     const interval = setInterval(checkLaptopStatus, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [activeDeviceId]);
 
   useEffect(() => {
