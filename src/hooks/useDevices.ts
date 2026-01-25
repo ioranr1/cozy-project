@@ -245,6 +245,15 @@ export const useDevices = (profileId: string | undefined): UseDevicesReturn => {
         },
         (payload) => {
           console.log('[useDevices] Realtime INSERT:', payload);
+          const newDevice = payload.new as Device;
+          
+          // Auto-select new camera device immediately
+          if (newDevice.device_type === 'camera') {
+            console.log('[useDevices] Auto-selecting new camera:', newDevice.device_name, newDevice.id);
+            setSelectedDeviceId(newDevice.id);
+            localStorage.setItem(SELECTED_DEVICE_KEY, newDevice.id);
+          }
+          
           fetchDevices({ showLoading: false });
         }
       )
