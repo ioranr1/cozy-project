@@ -20,6 +20,7 @@ import { useFeatureFlags } from '@/hooks/useFeatureFlags';
 import { AwayModeCard } from '@/components/AwayModeCard';
 import { MobileAwayModeCard } from '@/components/MobileAwayModeCard';
 import { SecurityModeComingSoon } from '@/components/SecurityModeComingSoon';
+import { OfflineBanner } from '@/components/OfflineBanner';
 
 interface UserProfile {
   id?: string;
@@ -421,12 +422,17 @@ const Dashboard: React.FC = () => {
         />
 
         <div className="p-4 space-y-4">
-          {/* Security Arm Toggle - Main Control */}
-          <SecurityArmToggle />
+          {/* OFFLINE WARNING BANNER - Shows when computer is not connected */}
+          {laptopStatus === 'offline' && !isLaptopStatusLoading && (
+            <OfflineBanner />
+          )}
 
-          {/* Away Mode Card - Only visible when feature flag is ON */}
+          {/* Security Arm Toggle - Main Control - DISABLED when offline */}
+          <SecurityArmToggle disabled={laptopStatus !== 'online'} />
+
+          {/* Away Mode Card - Only visible when feature flag is ON - DISABLED when offline */}
           {featureFlags.away_mode && (
-            <MobileAwayModeCard />
+            <MobileAwayModeCard disabled={laptopStatus !== 'online'} />
           )}
 
           {/* Security Mode Placeholder - Only visible when feature flag is ON */}

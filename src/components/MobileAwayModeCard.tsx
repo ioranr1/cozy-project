@@ -10,8 +10,9 @@ import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 type DeviceMode = 'NORMAL' | 'AWAY';
 type DeviceConnectionStatus = 'online' | 'offline' | 'sleeping' | 'unknown';
 
-interface MobileAwayModeCardProps {
+export interface MobileAwayModeCardProps {
   className?: string;
+  disabled?: boolean;
 }
 
 // Analytics/logging helper
@@ -21,7 +22,7 @@ const logAwayModeEvent = (event: string, data?: Record<string, unknown>) => {
 };
 
 // Use forwardRef to avoid React warnings when this component receives a ref
-export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardProps>(({ className }, ref) => {
+export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardProps>(({ className, disabled = false }, ref) => {
   const { language } = useLanguage();
   const [deviceMode, setDeviceMode] = useState<DeviceMode>('NORMAL');
   const [isLoading, setIsLoading] = useState(true);
@@ -279,6 +280,12 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
       return;
     }
 
+    // CRITICAL: Block toggle when explicitly disabled (parent knows computer is offline)
+    if (disabled) {
+      toast.error(t.errorDeviceOffline);
+      return;
+    }
+
     // CRITICAL: Block toggle when computer is not connected or sleeping
     // This prevents the LOOP bug where user activates AWAY while computer is sleeping,
     // causing repeated screen on/off cycles when user returns
@@ -393,7 +400,7 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
           <Switch
             checked={pendingMode ? pendingMode === 'AWAY' : isAway}
             onCheckedChange={handleToggle}
-            disabled={isPending || connectionStatus === 'offline' || connectionStatus === 'sleeping'}
+            disabled={disabled || isPending || connectionStatus === 'offline' || connectionStatus === 'sleeping'}
             className={isAway || pendingMode === 'AWAY' ? 'data-[state=checked]:bg-amber-500' : ''}
           />
           <span className={`text-xs ${getStatusColor()}`}>
