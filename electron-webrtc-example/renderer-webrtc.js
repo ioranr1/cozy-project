@@ -117,11 +117,27 @@ async function getCameraWithTimeout(timeoutMs) {
         } else {
           stream.getTracks().forEach(t => t.stop());
         }
-      } catch (minimalError) {
+      } catch (audioMinimalError) {
+        console.warn('[Desktop] ⚠️ Failed with audio+video minimal, trying VIDEO-ONLY...', audioMinimalError.message);
+        
+        // FINAL FALLBACK: Video only (no audio) if getUserMedia fails with audio
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+            console.log('[Desktop] ⚠️ Stream acquired without audio (video-only fallback)');
+            resolve(stream);
+          } else {
+            stream.getTracks().forEach(t => t.stop());
+          }
+        } catch (videoOnlyError) {
         if (!resolved) {
           resolved = true;
           clearTimeout(timeoutId);
-          reject(minimalError);
+            reject(videoOnlyError);
+        }
         }
       }
     }
@@ -262,8 +278,8 @@ async function startLiveView(sessionId) {
   // CRITICAL FIX: Ensure minimum 1 second gap between STOP and START
   if (lastStopTime) {
     const timeSinceStop = Date.now() - lastStopTime;
-    if (timeSinceStop < 1000) {
-      const waitTime = 1000 - timeSinceStop;
+    if (timeSinceStop < 1500) {
+      const waitTime = 1500 - timeSinceStop;
       console.log(`[Desktop] ⏳ Waiting ${waitTime}ms for camera to release...`);
       await new Promise(r => setTimeout(r, waitTime));
     }
@@ -281,7 +297,7 @@ async function startLiveView(sessionId) {
     });
     localStream = null;
     // Wait for hardware to release
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 800));
   }
   
   console.log('═══════════════════════════════════════════════════');
@@ -292,6 +308,20 @@ async function startLiveView(sessionId) {
   processedSignalIds.clear();
   
   try {
+    // 0. List available devices for better diagnostics
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoCameras = devices.filter(d => d.kind === 'videoinput');
+      const audioMics = devices.filter(d => d.kind === 'audioinput');
+      console.log('[Desktop] 📷 Available video devices:', videoCameras.length);
+      console.log('[Desktop] 🎤 Available audio devices:', audioMics.length);
+      videoCameras.forEach((cam, i) => {
+        console.log(`  [Desktop] Camera ${i + 1}: ${cam.label || 'Unknown'} (${cam.deviceId.substring(0, 12)}...)`);
+      });
+    } catch (enumErr) {
+      console.log('[Desktop] Could not enumerate devices:', enumErr.message);
+    }
+    
     // 1. Get camera access (with timeout and retry)
     console.log('[Desktop] Step 1/5: Getting camera access (30s timeout, 3 retries)...');
     localStream = await getCameraWithRetry(CAMERA_MAX_RETRIES);
