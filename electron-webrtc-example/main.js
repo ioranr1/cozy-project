@@ -662,15 +662,7 @@ function startNewSession(session) {
 }
 
 async function handleStartLiveView() {
-  // CRITICAL FIX: Always reset state before looking for new session
-  // This ensures START after STOP works properly
-  if (liveViewState.isActive) {
-    console.log('[RTC] handleStartLiveView: Resetting previous active state');
-    liveViewState.isActive = false;
-    liveViewState.currentSessionId = null;
-  }
-  
-  // Check for pending sessions
+  // Check for pending sessions FIRST (before any state changes)
   const { data: sessions } = await supabase
     .from('rtc_sessions')
     .select('*')
@@ -679,12 +671,29 @@ async function handleStartLiveView() {
     .order('created_at', { ascending: false })
     .limit(1);
 
-  if (sessions && sessions.length > 0) {
-    console.log('[RTC] handleStartLiveView: Found pending session:', sessions[0].id);
-    handleNewRtcSession(sessions[0]);
-  } else {
+  if (!sessions || sessions.length === 0) {
     console.log('[RTC] handleStartLiveView: No pending sessions found');
+    return;
   }
+
+  const pendingSession = sessions[0];
+  
+  // CRITICAL FIX: If RTC-Poll already started this SAME session, skip entirely
+  // This prevents duplicate offers when both Command and RTC channels fire
+  if (liveViewState.currentSessionId === pendingSession.id) {
+    console.log('[RTC] handleStartLiveView: ⚠️ Session already being handled by RTC-Poll, skipping:', pendingSession.id);
+    return;
+  }
+  
+  // Only reset if we have a DIFFERENT old session active
+  if (liveViewState.isActive && liveViewState.currentSessionId !== pendingSession.id) {
+    console.log('[RTC] handleStartLiveView: Resetting previous active state for new session');
+    liveViewState.isActive = false;
+    liveViewState.currentSessionId = null;
+  }
+
+  console.log('[RTC] handleStartLiveView: Starting session:', pendingSession.id);
+  handleNewRtcSession(pendingSession);
 }
 
 async function handleStopLiveView() {
