@@ -332,25 +332,60 @@ async function startLiveView(sessionId) {
     };
 
     peerConnection.onicecandidateerror = (event) => {
-      console.error('[Desktop] ❌ ICE candidate error:', event);
+      // Log more details about ICE errors
+      console.warn('[Desktop] ⚠️ ICE candidate error:', {
+        errorCode: event.errorCode,
+        errorText: event.errorText,
+        url: event.url,
+        address: event.address,
+        port: event.port,
+      });
     };
     
     // Connection state changes
     peerConnection.onconnectionstatechange = async () => {
-      console.log('[Desktop] Connection state:', peerConnection.connectionState);
+      console.log('═══════════════════════════════════════════════════');
+      console.log('[Desktop] 🔄 Connection state:', peerConnection.connectionState);
+      console.log('═══════════════════════════════════════════════════');
       
       if (peerConnection.connectionState === 'connected') {
         console.log('✅ ═══════════════════════════════════════════════════');
         console.log('✅ [Desktop] PEER CONNECTION ESTABLISHED');
         console.log('✅ ═══════════════════════════════════════════════════');
-      } else if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected') {
-        console.log('[Desktop] Connection failed/disconnected, stopping...');
+      } else if (peerConnection.connectionState === 'failed') {
+        console.error('❌ [Desktop] CONNECTION FAILED - ICE negotiation did not succeed');
+        console.error('[Desktop] This usually means TURN/STUN servers could not establish a connection');
         await stopLiveView();
+      } else if (peerConnection.connectionState === 'disconnected') {
+        console.warn('[Desktop] ⚠️ Connection disconnected, waiting for reconnect...');
+        // Give some time for reconnection before stopping
+        setTimeout(async () => {
+          if (peerConnection?.connectionState === 'disconnected') {
+            console.log('[Desktop] Still disconnected, stopping...');
+            await stopLiveView();
+          }
+        }, 5000);
       }
     };
     
     peerConnection.oniceconnectionstatechange = () => {
-      console.log('[Desktop] ICE connection state:', peerConnection.iceConnectionState);
+      console.log('[Desktop] 🧊 ICE connection state:', peerConnection.iceConnectionState);
+      
+      if (peerConnection.iceConnectionState === 'checking') {
+        console.log('[Desktop] 🔍 ICE checking connectivity...');
+      } else if (peerConnection.iceConnectionState === 'connected') {
+        console.log('[Desktop] ✅ ICE connected!');
+      } else if (peerConnection.iceConnectionState === 'completed') {
+        console.log('[Desktop] ✅ ICE completed - Best candidate pair found');
+      } else if (peerConnection.iceConnectionState === 'failed') {
+        console.error('[Desktop] ❌ ICE FAILED - No working candidate pairs');
+        console.error('[Desktop] Possible causes: Firewall blocking, NAT issues, or TURN server problems');
+      }
+    };
+    
+    // Log signaling state changes
+    peerConnection.onsignalingstatechange = () => {
+      console.log('[Desktop] 📡 Signaling state:', peerConnection.signalingState);
     };
     
     // 5. Create and send offer
