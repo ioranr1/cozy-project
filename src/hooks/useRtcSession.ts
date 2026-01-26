@@ -586,16 +586,34 @@ export function useRtcSession({
 
     // Handle ICE connection state changes
     pc.oniceconnectionstatechange = () => {
-      console.log('[useRtcSession] ICE connection state:', pc.iceConnectionState);
+      console.log('═══════════════════════════════════════════════════');
+      console.log('[Mobile] 🧊 ICE connection state:', pc.iceConnectionState);
+      console.log('═══════════════════════════════════════════════════');
       setIceConnectionState(pc.iceConnectionState);
+      
+      if (pc.iceConnectionState === 'checking') {
+        console.log('[Mobile] 🔍 ICE checking connectivity...');
+      } else if (pc.iceConnectionState === 'connected') {
+        console.log('[Mobile] ✅ ICE connected!');
+      } else if (pc.iceConnectionState === 'completed') {
+        console.log('[Mobile] ✅ ICE completed - Best candidate pair found');
+      } else if (pc.iceConnectionState === 'failed') {
+        console.error('[Mobile] ❌ ICE FAILED - No working candidate pairs');
+        console.error('[Mobile] Possible causes: Firewall blocking, NAT issues, or TURN server problems');
+      }
     };
 
     // Handle connection state changes
     pc.onconnectionstatechange = () => {
-      console.log('[useRtcSession] Connection state:', pc.connectionState);
+      console.log('═══════════════════════════════════════════════════');
+      console.log('[Mobile] 🔄 Connection state:', pc.connectionState);
+      console.log('═══════════════════════════════════════════════════');
       setConnectionState(pc.connectionState);
       
       if (pc.connectionState === 'connected') {
+        console.log('✅ ═══════════════════════════════════════════════════');
+        console.log('✅ [Mobile] PEER CONNECTION ESTABLISHED - VIDEO SHOULD APPEAR');
+        console.log('✅ ═══════════════════════════════════════════════════');
         // Clear timeout on successful connection
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
@@ -613,12 +631,24 @@ export function useRtcSession({
             if (error) console.error('[useRtcSession] Error updating session to active:', error);
           });
           
-      } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+      } else if (pc.connectionState === 'failed') {
+        console.error('❌ [Mobile] CONNECTION FAILED - ICE negotiation did not succeed');
+        const errorMsg = language === 'he' ? 'החיבור נכשל' : 'Connection failed';
+        setLastError(errorMsg);
+        onError(errorMsg);
+        cleanup('failed', 'connection_failed');
+      } else if (pc.connectionState === 'disconnected') {
+        console.warn('[Mobile] ⚠️ Connection disconnected');
         const errorMsg = language === 'he' ? 'החיבור נותק' : 'Connection lost';
         setLastError(errorMsg);
         onError(errorMsg);
-        cleanup('failed', 'connection_' + pc.connectionState);
+        cleanup('failed', 'connection_disconnected');
       }
+    };
+    
+    // Log signaling state changes
+    pc.onsignalingstatechange = () => {
+      console.log('[Mobile] 📡 Signaling state:', pc.signalingState);
     };
 
     // Handle incoming tracks (video stream from desktop)
