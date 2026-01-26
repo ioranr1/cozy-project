@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Download, Camera, Eye } from 'lucide-react';
 
-export const HowItWorksSection: React.FC = () => {
+export const HowItWorksSection = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>((props, ref) => {
   const { t, isRTL } = useLanguage();
 
   const steps = [
@@ -65,4 +65,6 @@ export const HowItWorksSection: React.FC = () => {
       </div>
     </section>
   );
-};
+});
+
+HowItWorksSection.displayName = 'HowItWorksSection';
