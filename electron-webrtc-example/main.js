@@ -20,6 +20,9 @@ const { exec } = require('child_process');
 const Store = require('electron-store');
 const { createClient } = require('@supabase/supabase-js');
 
+// CRITICAL FIX: Import AwayManager to replace old Away Mode implementation
+const AwayManager = require('./away/away-manager');
+
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
@@ -29,6 +32,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const store = new Store();
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Initialize AwayManager
+const awayManager = new AwayManager({ supabase });
 
 // =============================================================================
 // GLOBAL STATE
@@ -45,13 +51,6 @@ let currentLanguage = 'he';
 let commandsSubscription = null;
 let rtcSessionsSubscription = null;
 let deviceStatusSubscription = null;
-
-// Away Mode state
-let awayModeState = {
-  isActive: false,
-  powerBlockerId: null,
-  featureEnabled: false
-};
 
 // Live View state
 let liveViewState = {
@@ -130,6 +129,9 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
+  
+  // CRITICAL FIX: Set main window reference in AwayManager
+  awayManager.setMainWindow(mainWindow);
 
   // Intercept close to hide to tray
   mainWindow.on('close', (event) => {
@@ -149,9 +151,7 @@ function createWindow() {
 
   // Detect user return (for Away Mode)
   mainWindow.on('focus', () => {
-    if (awayModeState.isActive) {
-      handleUserReturned();
-    }
+    awayManager.handleUserReturned();
   });
 }
 
@@ -215,7 +215,8 @@ function updateTrayMenu() {
   if (!tray) return;
 
   const liveStatus = liveViewState.isActive ? t('trayStatusLive') : t('trayStatusIdle');
-  const modeStatus = awayModeState.isActive ? t('trayStatusAway') : t('trayStatusNormal');
+  const awayStatus = awayManager.getTrayStatus();
+  const modeStatus = awayStatus.statusText;
 
   const contextMenu = Menu.buildFromTemplate([
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
@@ -237,6 +238,13 @@ async function initDevice() {
   // Check for stored device ID
   deviceId = store.get('deviceId');
   profileId = store.get('profileId');
+  currentLanguage = store.get('language') || 'he';
+  
+  // Initialize AwayManager with device info
+  if (deviceId) {
+    awayManager.setDeviceId(deviceId);
+    awayManager.setLanguage(currentLanguage);
+  }
 
   if (deviceId && profileId) {
     console.log('[Device] Using stored device:', deviceId);
@@ -310,6 +318,10 @@ async function verifyPairingCode(code) {
       subscribeToCommands();
       subscribeToRtcSessions();
       subscribeToDeviceStatus();
+      
+      // Initialize AwayManager with device info
+      awayManager.setDeviceId(deviceId);
+      awayManager.setLanguage(currentLanguage);
 
       return { success: true, deviceId };
     }
@@ -409,11 +421,21 @@ async function handleCommand(command) {
         break;
 
       case 'SET_DEVICE_MODE:AWAY':
-        await handleEnableAwayMode();
+        console.log('[Commands] Processing AWAY mode command');
+        const result = await awayManager.enable();
+        if (!result.success) {
+          console.error('[Commands] ❌ AWAY mode enable failed:', result.error);
+          // Revert database state  
+          await supabase
+            .from('device_status')
+            .update({ device_mode: 'NORMAL' })
+            .eq('device_id', deviceId);
+        }
         break;
 
       case 'SET_DEVICE_MODE:NORMAL':
-        await handleDisableAwayMode();
+        console.log('[Commands] Processing NORMAL mode command');
+        await awayManager.disable();
         break;
 
       default:
@@ -1090,9 +1112,7 @@ app.on('before-quit', (event) => {
   }
 
   // Cleanup away mode
-  if (awayModeState.powerBlockerId !== null) {
-    powerSaveBlocker.stop(awayModeState.powerBlockerId);
-  }
+  awayManager.cleanup();
 });
 
 // Handle system resume (for Away Mode user return detection)
@@ -1100,14 +1120,10 @@ const { powerMonitor } = require('electron');
 
 powerMonitor.on('resume', () => {
   console.log('[Power] System resumed');
-  if (awayModeState.isActive) {
-    handleUserReturned();
-  }
+  awayManager.handleUserReturned();
 });
 
 powerMonitor.on('unlock-screen', () => {
   console.log('[Power] Screen unlocked');
-  if (awayModeState.isActive) {
-    handleUserReturned();
-  }
+  awayManager.handleUserReturned();
 });
