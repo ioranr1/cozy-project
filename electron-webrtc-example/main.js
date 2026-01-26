@@ -496,7 +496,10 @@ function startRtcPolling() {
   console.log('[RTC] Starting polling fallback (every 3s)...');
   
   rtcPollingInterval = setInterval(async () => {
-    if (!deviceId || liveViewState.isActive) return;
+    if (!deviceId) return;
+    
+    // CRITICAL FIX: Don't skip polling if active - let handleNewRtcSession decide
+    // This allows detecting new sessions even during active streaming
     
     try {
       const { data: sessions } = await supabase
@@ -508,8 +511,11 @@ function startRtcPolling() {
         .limit(1);
       
       if (sessions && sessions.length > 0) {
-        console.log('[RTC-Poll] 🔔 Found pending session:', sessions[0].id);
-        handleNewRtcSession(sessions[0]);
+        // Only log if it's a new session we haven't started
+        if (sessions[0].id !== liveViewState.currentSessionId) {
+          console.log('[RTC-Poll] 🔔 Found pending session:', sessions[0].id);
+          handleNewRtcSession(sessions[0]);
+        }
       }
     } catch (err) {
       console.error('[RTC-Poll] Error:', err.message);
@@ -592,18 +598,32 @@ function subscribeToRtcSessions(retryCount = 0) {
 }
 
 function handleNewRtcSession(session) {
-  // Prevent duplicate session starts
+  // Prevent duplicate start for the SAME session only
   if (liveViewState.isActive && liveViewState.currentSessionId === session.id) {
     console.log('[RTC] Session already active, skipping duplicate start:', session.id);
     return;
   }
 
-  // Also prevent starting a new session if already streaming
+  // CRITICAL FIX: If we have a different session active, clean it up first
+  // This allows START-STOP-START to work properly
   if (liveViewState.isActive && liveViewState.currentSessionId !== session.id) {
-    console.log('[RTC] Already streaming session', liveViewState.currentSessionId, '- ignoring new session:', session.id);
+    console.log('[RTC] New session requested while old session active. Cleaning up old session:', liveViewState.currentSessionId);
+    // Stop the old session first
+    mainWindow?.webContents.send('stop-live-view');
+    // Reset state
+    liveViewState.isActive = false;
+    liveViewState.currentSessionId = null;
+    // Small delay to let cleanup happen
+    setTimeout(() => {
+      startNewSession(session);
+    }, 500);
     return;
   }
 
+  startNewSession(session);
+}
+
+function startNewSession(session) {
   liveViewState.currentSessionId = session.id;
   liveViewState.isActive = true;
   updateTrayMenu();
@@ -614,6 +634,14 @@ function handleNewRtcSession(session) {
 }
 
 async function handleStartLiveView() {
+  // CRITICAL FIX: Always reset state before looking for new session
+  // This ensures START after STOP works properly
+  if (liveViewState.isActive) {
+    console.log('[RTC] handleStartLiveView: Resetting previous active state');
+    liveViewState.isActive = false;
+    liveViewState.currentSessionId = null;
+  }
+  
   // Check for pending sessions
   const { data: sessions } = await supabase
     .from('rtc_sessions')
@@ -624,7 +652,10 @@ async function handleStartLiveView() {
     .limit(1);
 
   if (sessions && sessions.length > 0) {
+    console.log('[RTC] handleStartLiveView: Found pending session:', sessions[0].id);
     handleNewRtcSession(sessions[0]);
+  } else {
+    console.log('[RTC] handleStartLiveView: No pending sessions found');
   }
 }
 
