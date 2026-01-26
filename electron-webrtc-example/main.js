@@ -620,9 +620,9 @@ function subscribeToRtcSessions(retryCount = 0) {
 }
 
 function handleNewRtcSession(session) {
-  // Prevent duplicate start for the SAME session only
-  if (liveViewState.isActive && liveViewState.currentSessionId === session.id) {
-    console.log('[RTC] Session already active, skipping duplicate start:', session.id);
+  // CRITICAL FIX: Prevent duplicate start for the SAME session
+  if (liveViewState.currentSessionId === session.id) {
+    console.log('[RTC] ⚠️ Session already handled, skipping:', session.id);
     return;
   }
 
@@ -646,6 +646,12 @@ function handleNewRtcSession(session) {
 }
 
 function startNewSession(session) {
+  // CRITICAL: Double-check we're not already handling this session
+  if (liveViewState.currentSessionId === session.id) {
+    console.log('[RTC] ⚠️ startNewSession called for already-active session, skipping');
+    return;
+  }
+  
   liveViewState.currentSessionId = session.id;
   liveViewState.isActive = true;
   updateTrayMenu();

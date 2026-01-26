@@ -68,13 +68,14 @@ const Viewer: React.FC = () => {
 
   // Treat the host as online only if it is actively connected AND seen recently.
   // This prevents navigating/auto-starting into a connection loop when the desktop app is offline.
+  // CRITICAL: Use 120s threshold consistent with Dashboard
+  // Using 30s caused false "host_offline" errors during normal heartbeat gaps
   const isPrimaryDeviceOnline = useMemo(() => {
     if (!primaryDevice?.last_seen_at) return false;
     const lastSeen = new Date(primaryDevice.last_seen_at);
     const diffSeconds = (Date.now() - lastSeen.getTime()) / 1000;
-    // Be consistent with Dashboard: connectivity is based only on last_seen_at freshness.
-    // Some environments/devices may keep is_active stale.
-    return diffSeconds <= 30;
+    // Be consistent with Dashboard: 120s threshold for connectivity
+    return diffSeconds <= 120;
   }, [primaryDevice]);
   
   // Get sessionId from Dashboard navigation (if available)
