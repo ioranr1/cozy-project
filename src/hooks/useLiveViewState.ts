@@ -101,7 +101,8 @@ export const useLiveViewState = (options: UseLiveViewStateOptions): UseLiveViewS
   }, [fetchLatestAckedCommand]);
 
   // Poll fallback (in case Realtime doesn't fire on some mobile browsers)
-  // Only poll when on viewer-related pages to avoid unnecessary DB calls
+  // Use viewer pages: faster polling (5s)
+  // Other pages (e.g., Dashboard): slower polling (15s)
   useEffect(() => {
     if (!deviceId) return;
 
@@ -111,19 +112,39 @@ export const useLiveViewState = (options: UseLiveViewStateOptions): UseLiveViewS
       return path.includes('/viewer') || path.includes('/live');
     };
 
-    // Only set up polling on viewer pages
-    if (!isViewerPage()) {
-      console.log('[useLiveViewState] Not on viewer page, skipping polling');
-      return;
-    }
+    const intervalMs = isViewerPage() ? 5000 : 15000;
+    console.log('[useLiveViewState] Polling enabled:', {
+      deviceId,
+      intervalMs,
+      page: window.location.pathname,
+    });
 
     const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && isViewerPage()) {
+      if (document.visibilityState === 'visible') {
         fetchLatestAckedCommand();
       }
-    }, 5000); // Increased to 5 seconds to reduce load
+    }, intervalMs);
 
     return () => window.clearInterval(interval);
+  }, [deviceId, fetchLatestAckedCommand]);
+
+  // Refresh when returning to the tab/window (common case on mobile/when backgrounded)
+  useEffect(() => {
+    if (!deviceId) return;
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[useLiveViewState] Refreshing on focus/visibility');
+        fetchLatestAckedCommand();
+      }
+    };
+
+    document.addEventListener('visibilitychange', refreshOnFocus);
+    window.addEventListener('focus', refreshOnFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+      window.removeEventListener('focus', refreshOnFocus);
+    };
   }, [deviceId, fetchLatestAckedCommand]);
 
   // Subscribe to realtime changes on the commands table
