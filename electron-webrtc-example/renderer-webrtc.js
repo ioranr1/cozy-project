@@ -21,6 +21,10 @@ let localStream = null;
 let currentSessionId = null;
 let pollingInterval = null;
 let processedSignalIds = new Set();
+// When mobile ICE candidates arrive before we set the remote description (answer),
+// addIceCandidate will fail with: "The remote description was null".
+// Queue them and apply right after setRemoteDescription.
+let pendingIceCandidates = [];
 let isCleaningUp = false; // Prevent START during cleanup
 let lastStopTime = null;   // Track when we stopped to prevent immediate restart
 let isStartingSession = false; // CRITICAL: Prevent duplicate START calls
@@ -306,6 +310,7 @@ async function startLiveView(sessionId) {
   
   currentSessionId = sessionId;
   processedSignalIds.clear();
+  pendingIceCandidates = [];
   
   try {
     // 0. List available devices for better diagnostics
@@ -525,12 +530,35 @@ async function processSignal(signal) {
       };
       await peerConnection.setRemoteDescription(answerDesc);
       console.log('✅ [Desktop] Remote description set - Handshake complete!');
+
+      // Apply any ICE candidates that arrived early
+      if (pendingIceCandidates.length > 0) {
+        console.log(`[Desktop] 🧊 Applying ${pendingIceCandidates.length} queued ICE candidates...`);
+        const queued = pendingIceCandidates;
+        pendingIceCandidates = [];
+
+        for (const payload of queued) {
+          try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(payload));
+            console.log('✅ [Desktop] Queued ICE candidate added');
+          } catch (e) {
+            console.warn('⚠️ [Desktop] Failed to add queued ICE candidate:', e);
+          }
+        }
+      }
     } catch (error) {
       console.error('❌ [Desktop] Failed to set remote description:', error);
     }
   } else if (signal.type === 'ice') {
     console.log('[Desktop] 🧊 Received ICE candidate from mobile');
     try {
+      // If answer not set yet, queue candidates (they can arrive before answer)
+      if (!peerConnection.remoteDescription) {
+        pendingIceCandidates.push(signal.payload);
+        console.log('[Desktop] ⏳ Remote description not set yet - queued ICE candidate');
+        return;
+      }
+
       const candidate = new RTCIceCandidate(signal.payload);
       await peerConnection.addIceCandidate(candidate);
       console.log('✅ [Desktop] ICE candidate added');
@@ -545,6 +573,7 @@ async function stopLiveView() {
   isCleaningUp = true;
   isStartingSession = false; // CRITICAL: Also reset starting flag
   lastStopTime = Date.now();
+  pendingIceCandidates = [];
   
   console.log('═══════════════════════════════════════════════════');
   console.log('[Desktop] STOP LIVE VIEW');
