@@ -95,7 +95,9 @@ class AwayManager {
    * @returns {Promise<{ success: boolean, error?: string }>}
    */
   async enable() {
-    console.log('[AwayManager] Enable requested');
+    console.log('═══════════════════════════════════════════════════');
+    console.log('[AwayManager] 🏠 AWAY MODE - ENABLE REQUESTED');
+    console.log('═══════════════════════════════════════════════════');
     
     if (!this.deviceId) {
       console.error('[AwayManager] Enable failed: No device ID');
@@ -147,7 +149,9 @@ class AwayManager {
    * @returns {Promise<{ success: boolean, error?: string }>}
    */
   async disable() {
-    console.log('[AwayManager] Disable requested');
+    console.log('═══════════════════════════════════════════════════');
+    console.log('[AwayManager] 🏠 AWAY MODE - DISABLE REQUESTED');
+    console.log('═══════════════════════════════════════════════════');
     
     try {
       this._deactivateLocal();
