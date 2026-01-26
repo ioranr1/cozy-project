@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import React, { ReactNode, forwardRef } from 'react';
 import { useCapabilities, CapabilityKey, Capabilities } from '@/hooks/useCapabilities';
 import { DesktopAppRequiredCard } from '@/components/DesktopAppRequiredCard';
 
@@ -46,16 +46,19 @@ interface FeatureGateProps {
  *   <RecordingPanel />
  * </FeatureGate>
  */
-export function FeatureGate({
-  requires,
-  mode = 'lock',
-  title,
-  description,
-  ctaText,
-  ctaAction,
-  children,
-  className,
-}: FeatureGateProps) {
+export const FeatureGate = forwardRef<HTMLDivElement, FeatureGateProps>(function FeatureGate(
+  {
+    requires,
+    mode = 'lock',
+    title,
+    description,
+    ctaText,
+    ctaAction,
+    children,
+    className,
+  },
+  ref
+) {
   const capabilities = useCapabilities();
 
   // Check if all required capabilities are met
@@ -66,7 +69,12 @@ export function FeatureGate({
 
   // If all requirements met, render children
   if (allRequirementsMet) {
-    return <>{children}</>;
+    // "contents" keeps layout identical while providing a real DOM node for refs.
+    return (
+      <div ref={ref} className="contents">
+        {children}
+      </div>
+    );
   }
 
   // Requirements not met
@@ -76,15 +84,19 @@ export function FeatureGate({
 
   // mode === 'lock' - show the locked card
   return (
-    <DesktopAppRequiredCard
-      title={title}
-      description={description}
-      ctaText={ctaText}
-      ctaAction={ctaAction}
-      className={className}
-    />
+    <div ref={ref} className="contents">
+      <DesktopAppRequiredCard
+        title={title}
+        description={description}
+        ctaText={ctaText}
+        ctaAction={ctaAction}
+        className={className}
+      />
+    </div>
   );
-}
+});
+
+FeatureGate.displayName = 'FeatureGate';
 
 /**
  * Hook to check capabilities directly without rendering a gate.
