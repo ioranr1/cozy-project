@@ -718,6 +718,9 @@ export function useRtcSession({
     }
   }, [deviceId]);
 
+  // Flag to track if a session is currently being started (prevents race conditions)
+  const isStartingRef = useRef(false);
+
   // Start a new RTC session (or reuse existing one)
   const startSession = useCallback(async (): Promise<string | null> => {
     if (!deviceId || !viewerId) {
@@ -727,11 +730,21 @@ export function useRtcSession({
       return null;
     }
 
-    // Prevent duplicate calls if already connecting/connected
-    if (status === 'connecting' || status === 'connected') {
-      console.log('[useRtcSession] Already connecting/connected, ignoring start request');
+    // Prevent duplicate calls with a ref-based lock (survives across renders)
+    if (isStartingRef.current) {
+      console.log('[useRtcSession] Already starting a session, ignoring duplicate call');
       return sessionId;
     }
+
+    // CRITICAL FIX: If status is 'connecting' or 'connected' AND we have a valid sessionId,
+    // return the existing session. Otherwise, proceed to create a new one.
+    if ((status === 'connecting' || status === 'connected') && sessionId) {
+      console.log('[useRtcSession] Already connecting/connected with valid session, returning:', sessionId);
+      return sessionId;
+    }
+    
+    // Set lock before any async operations
+    isStartingRef.current = true;
 
     console.log('[useRtcSession] 🚀 Starting session for device:', deviceId, 'viewer:', viewerId);
     updateStatus('connecting');
@@ -792,6 +805,8 @@ export function useRtcSession({
         cleanup('failed', 'timeout');
       }, timeoutMs);
 
+      // Release the lock before returning
+      isStartingRef.current = false;
       return activeSessionId;
 
     } catch (err) {
@@ -802,6 +817,8 @@ export function useRtcSession({
       setLastError(error);
       onError(error);
       updateStatus('failed');
+      // Release the lock on error too
+      isStartingRef.current = false;
       return null;
     }
   }, [deviceId, viewerId, language, onError, updateStatus, initPeerConnection, subscribeToSignals, timeoutMs, cleanup, status, sessionId, existingSessionId, endOpenSessionsForDevice]);
@@ -809,6 +826,8 @@ export function useRtcSession({
   // Stop the current session
   const stopSession = useCallback(async () => {
     console.log('[useRtcSession] Stopping session');
+    // CRITICAL: Release the starting lock so a new START can proceed
+    isStartingRef.current = false;
     await cleanup('ended');
     setSessionId(null);
     // Reset ALL state including status to allow fresh start
