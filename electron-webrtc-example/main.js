@@ -718,186 +718,27 @@ function subscribeToDeviceStatus() {
 }
 
 function handleDeviceStatusUpdate(status) {
-  // Sync local state with database
-  if (status.device_mode === 'AWAY' && !awayModeState.isActive) {
-    activateAwayModeLocal();
-  } else if (status.device_mode === 'NORMAL' && awayModeState.isActive) {
-    deactivateAwayModeLocal();
-  }
+  // CRITICAL FIX: Use AwayManager for device status sync
+  console.log('[DeviceStatus] Syncing with AwayManager:', status.device_mode);
+  awayManager.syncWithDatabaseStatus(status);
 }
 
 // =============================================================================
-// AWAY MODE
+// AWAY MODE (Delegated to AwayManager)
 // =============================================================================
-
-async function checkAwayModeFeatureFlag() {
-  try {
-    const { data, error } = await supabase
-      .from('feature_flags')
-      .select('enabled')
-      .eq('name', 'away_mode')
-      .single();
-
-    if (error) {
-      console.error('[AwayMode] Feature flag check error:', error);
-      return false;
-    }
-
-    awayModeState.featureEnabled = data?.enabled || false;
-    return awayModeState.featureEnabled;
-  } catch (err) {
-    console.error('[AwayMode] Feature flag check failed:', err);
-    return false;
-  }
-}
-
-async function runPreflightChecks() {
-  const results = {
-    power: true,
-    camera: false,
-    errors: []
-  };
-
-  // Check power (basic - just check if on battery on laptops)
-  // This is platform-specific and simplified here
-  // In production, use proper APIs
-
-  // Check camera - ask renderer to verify
-  return new Promise((resolve) => {
-    mainWindow?.webContents.send('away-mode-check-camera');
-
-    const timeout = setTimeout(() => {
-      results.errors.push(t('cameraRequired'));
-      resolve(results);
-    }, 5000);
-
-    ipcMain.once('away-mode-camera-check-result', (event, hasCamera) => {
-      clearTimeout(timeout);
-      results.camera = hasCamera;
-      if (!hasCamera) {
-        results.errors.push(t('cameraRequired'));
-      }
-      resolve(results);
-    });
-  });
-}
-
-async function handleEnableAwayMode() {
-  console.log('[AwayMode] Enable requested');
-
-  // Check feature flag
-  const featureEnabled = await checkAwayModeFeatureFlag();
-  if (!featureEnabled) {
-    throw new Error('Away Mode feature is not enabled');
-  }
-
-  // Run preflight checks
-  const preflight = await runPreflightChecks();
-
-  if (!preflight.camera) {
-    // Revert database state
-    await supabase
-      .from('device_status')
-      .update({ device_mode: 'NORMAL' })
-      .eq('device_id', deviceId);
-
-    mainWindow?.webContents.send('away-mode-preflight-failed', preflight.errors);
-    throw new Error(preflight.errors.join(', '));
-  }
-
-  // Activate locally (this starts powerSaveBlocker and turns off display)
-  activateAwayModeLocal();
-
-  // Update database to confirm activation
-  await supabase
-    .from('device_status')
-    .update({ 
-      device_mode: 'AWAY',
-      updated_at: new Date().toISOString()
-    })
-    .eq('device_id', deviceId);
-
-  console.log('[AwayMode] Database updated to AWAY');
-
-  // Notify renderer
-  mainWindow?.webContents.send('away-mode-enabled');
-}
-
-async function handleDisableAwayMode() {
-  console.log('[AwayMode] Disable requested');
-  deactivateAwayModeLocal();
-  
-  // Update database to confirm deactivation
-  await supabase
-    .from('device_status')
-    .update({ 
-      device_mode: 'NORMAL',
-      updated_at: new Date().toISOString()
-    })
-    .eq('device_id', deviceId);
-
-  console.log('[AwayMode] Database updated to NORMAL');
-  
-  mainWindow?.webContents.send('away-mode-disabled');
-}
-
-function activateAwayModeLocal() {
-  console.log('[AwayMode] Activating locally');
-  awayModeState.isActive = true;
-
-  // CRITICAL: Use 'prevent-display-sleep' to prevent system sleep!
-  // 'prevent-app-suspension' only keeps the app alive but allows system to sleep
-  // 'prevent-display-sleep' prevents system sleep entirely (needed for Away Mode)
-  awayModeState.powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-  console.log('[AwayMode] Power save blocker started (prevent-display-sleep):', awayModeState.powerBlockerId);
-
-  // Verify it's active
-  if (powerSaveBlocker.isStarted(awayModeState.powerBlockerId)) {
-    console.log('[AwayMode] ✓ System sleep prevention is ACTIVE');
-  } else {
-    console.error('[AwayMode] ✗ Failed to activate sleep prevention!');
-  }
-
-  // Try to turn off display
-  turnOffDisplay();
-
-  updateTrayMenu();
-}
-
-function deactivateAwayModeLocal() {
-  console.log('[AwayMode] Deactivating locally');
-  awayModeState.isActive = false;
-
-  // Release power save blocker
-  if (awayModeState.powerBlockerId !== null) {
-    powerSaveBlocker.stop(awayModeState.powerBlockerId);
-    awayModeState.powerBlockerId = null;
-    console.log('[AwayMode] Power save blocker stopped');
-  }
-
-  updateTrayMenu();
-}
-
-function turnOffDisplay() {
-  const platform = process.platform;
-
-  try {
-    if (platform === 'darwin') {
-      exec('pmset displaysleepnow');
-    } else if (platform === 'win32') {
-      // Requires nircmd.exe in project folder
-      const nircmdPath = path.join(__dirname, 'nircmd.exe');
-      exec(`"${nircmdPath}" monitor off`);
-    } else if (platform === 'linux') {
-      exec('xset dpms force off');
-    }
-  } catch (err) {
-    console.error('[AwayMode] Failed to turn off display:', err);
-  }
-}
-
-function handleUserReturned() {
-  console.log('[AwayMode] User returned detected');
+// All Away Mode logic is now handled by the AwayManager class in ./away/away-manager.js
+// This includes:
+// - Feature flag checking
+// - Preflight camera checks
+// - Power save blocker management (prevent-app-suspension)
+// - Display off commands (pmset/nircmd/xset)
+// - User return detection
+//
+// The AwayManager is initialized at the top of this file and configured when:
+// 1. Device ID is set (after pairing)
+// 2. Main window is created
+// 3. Language is set
+//
   mainWindow?.webContents.send('away-mode-user-returned', STRINGS[currentLanguage]);
 }
 
@@ -940,29 +781,11 @@ function setupIpcHandlers() {
     updateTrayMenu();
   });
 
-  // Away Mode
-  ipcMain.on('away-mode-disable-confirmed', async () => {
-    console.log('[IPC] User confirmed disable away mode');
-    try {
-      await supabase
-        .from('device_status')
-        .update({ device_mode: 'NORMAL' })
-        .eq('device_id', deviceId);
-
-      deactivateAwayModeLocal();
-      mainWindow?.webContents.send('away-mode-disabled');
-    } catch (err) {
-      console.error('[AwayMode] Failed to disable:', err);
-    }
-  });
-
-  ipcMain.on('away-mode-keep-confirmed', () => {
-    console.log('[IPC] User chose to keep away mode');
-    // Just hide the prompt, stay in away mode
-  });
-
+  // Away Mode - AwayManager handles its own IPC handlers
+  // Additional IPC handler for legacy camera check
   ipcMain.on('away-mode-camera-check-result', (event, hasCamera) => {
-    // Handled in runPreflightChecks
+    console.log('[IPC] Camera check result:', hasCamera);
+    // Handled by AwayManager's internal IPC
   });
 
   // Login from renderer (after pairing)
