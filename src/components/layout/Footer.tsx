@@ -7,7 +7,7 @@ export const Footer = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>
   const { t, isRTL } = useLanguage();
 
   return (
-    <footer className="bg-slate-800 border-t border-slate-700 py-12">
+    <footer ref={ref} {...props} className="bg-slate-800 border-t border-slate-700 py-12">
       <div className="container mx-auto px-4">
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           {/* Logo */}
