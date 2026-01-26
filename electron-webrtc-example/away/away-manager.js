@@ -98,39 +98,46 @@ class AwayManager {
     console.log('[AwayManager] Enable requested');
     
     if (!this.deviceId) {
+      console.error('[AwayManager] Enable failed: No device ID');
       return { success: false, error: 'No device ID' };
     }
     
     try {
-      // Check feature flag
+      // Check feature flag first
       const featureEnabled = await this._checkFeatureFlag();
       if (!featureEnabled) {
+        console.error('[AwayManager] Enable failed: Feature not enabled');
         return { success: false, error: 'Away Mode feature is not enabled' };
       }
       
-      // Run preflight checks
+      // Run preflight checks BEFORE any state changes
       const preflight = await this._runPreflightChecks();
+      console.log('[AwayManager] Preflight results:', preflight);
       
       if (!preflight.camera) {
-        // Revert database state
-        await this._updateDatabaseMode('NORMAL');
-        
+        // Preflight failed - just notify, do NOT update database
+        // The command handler will handle the status update
+        console.log('[AwayManager] Preflight failed - camera not available');
         this.awayModeIPC?.sendPreflightFailed(preflight.errors);
         return { success: false, error: preflight.errors.join(', ') };
       }
       
-      // Activate locally
-      this._activateLocal();
-      
-      // Update database
+      // All checks passed - now activate
+      // First update database to ensure consistency
+      console.log('[AwayManager] Updating database to AWAY...');
       await this._updateDatabaseMode('AWAY');
       
-      console.log('[AwayManager] ✓ Away Mode enabled');
+      // Then activate locally
+      this._activateLocal();
+      
+      console.log('[AwayManager] ✓ Away Mode enabled successfully');
       this.awayModeIPC?.sendEnabled();
       
       return { success: true };
     } catch (error) {
-      console.error('[AwayManager] Enable failed:', error);
+      console.error('[AwayManager] Enable failed with error:', error);
+      // If we fail, ensure we're in a clean state
+      this._deactivateLocal();
       return { success: false, error: error.message };
     }
   }
