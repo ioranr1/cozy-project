@@ -29,7 +29,8 @@ class AwayManager {
     this.state = {
       isActive: false,
       powerBlockerId: null,
-      featureEnabled: false
+      featureEnabled: false,
+      displayOffLoopId: null // Interval ID for periodic display-off
     };
     
     this.language = 'en';
@@ -199,6 +200,9 @@ class AwayManager {
    * Cleanup on app quit
    */
   cleanup() {
+    // Stop display-off loop
+    this._stopDisplayOffLoop();
+    
     if (this.state.powerBlockerId !== null) {
       powerSaveBlocker.stop(this.state.powerBlockerId);
       this.state.powerBlockerId = null;
@@ -277,25 +281,57 @@ class AwayManager {
     console.log('[AwayManager] Activating locally');
     this.state.isActive = true;
     
-    // Use 'prevent-app-suspension' to keep the process alive
-    // while we immediately turn off the display
+    // Use 'prevent-app-suspension' to keep the Electron process alive
+    // This does NOT prevent the display from sleeping - it only keeps the app running
     this.state.powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
     console.log('[AwayManager] Power save blocker started (prevent-app-suspension):', this.state.powerBlockerId);
     
     // Verify it's active
     if (powerSaveBlocker.isStarted(this.state.powerBlockerId)) {
-      console.log('[AwayManager] ✓ App suspension prevention is ACTIVE (display managed by OS)');
+      console.log('[AwayManager] ✓ App suspension prevention is ACTIVE');
     } else {
       console.error('[AwayManager] ✗ Failed to activate app suspension prevention!');
     }
     
     // Immediately turn off the display
     this._turnOffDisplay();
+    
+    // Start periodic display-off loop (every 30 seconds) to re-turn off display
+    // if user wakes it accidentally. This ensures display stays off in Away Mode.
+    this._startDisplayOffLoop();
+  }
+  
+  _startDisplayOffLoop() {
+    // Clear any existing loop
+    if (this.state.displayOffLoopId) {
+      clearInterval(this.state.displayOffLoopId);
+    }
+    
+    // Check every 30 seconds - if in Away Mode and display might be on, turn it off
+    this.state.displayOffLoopId = setInterval(() => {
+      if (this.state.isActive) {
+        console.log('[AwayManager] 🔄 Periodic display-off check (Away Mode active)');
+        this._turnOffDisplay();
+      }
+    }, 30000); // 30 seconds
+    
+    console.log('[AwayManager] Display-off loop started (30s interval)');
+  }
+  
+  _stopDisplayOffLoop() {
+    if (this.state.displayOffLoopId) {
+      clearInterval(this.state.displayOffLoopId);
+      this.state.displayOffLoopId = null;
+      console.log('[AwayManager] Display-off loop stopped');
+    }
   }
   
   _deactivateLocal() {
     console.log('[AwayManager] Deactivating locally');
     this.state.isActive = false;
+    
+    // Stop the display-off loop first
+    this._stopDisplayOffLoop();
     
     // Release power save blocker
     if (this.state.powerBlockerId !== null) {
