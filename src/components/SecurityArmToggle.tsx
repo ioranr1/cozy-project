@@ -13,11 +13,12 @@ interface DeviceStatus {
   updated_at: string;
 }
 
-interface SecurityArmToggleProps {
+export interface SecurityArmToggleProps {
   className?: string;
+  disabled?: boolean;
 }
 
-export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className }) => {
+export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className, disabled = false }) => {
   const { language, isRTL } = useLanguage();
   const [isArmed, setIsArmed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,6 +114,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className 
 
   // Toggle armed status
   const handleToggle = async (checked: boolean) => {
+    if (disabled) {
+      toast.error(language === 'he' ? 'המחשב לא מחובר' : 'Computer offline');
+      return;
+    }
+
     if (!deviceId) {
       toast.error(language === 'he' ? 'לא נבחר מכשיר' : 'No device selected');
       return;
@@ -204,14 +210,16 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className 
             <Switch
               checked={isArmed}
               onCheckedChange={handleToggle}
-              disabled={isUpdating}
+              disabled={isUpdating || disabled}
               className={isArmed ? 'data-[state=checked]:bg-red-500' : ''}
             />
           )}
-          <span className={`text-xs ${isArmed ? 'text-red-400' : 'text-slate-500'}`}>
-            {isArmed 
-              ? (language === 'he' ? 'מזוין' : 'Armed')
-              : (language === 'he' ? 'כבוי' : 'Off')}
+          <span className={`text-xs ${disabled ? 'text-slate-500' : isArmed ? 'text-red-400' : 'text-slate-500'}`}>
+            {disabled 
+              ? (language === 'he' ? 'לא זמין' : 'Unavailable')
+              : isArmed 
+                ? (language === 'he' ? 'מזוין' : 'Armed')
+                : (language === 'he' ? 'כבוי' : 'Off')}
           </span>
         </div>
       </div>
