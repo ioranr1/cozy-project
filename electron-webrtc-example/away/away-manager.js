@@ -279,9 +279,6 @@ class AwayManager {
     } else {
       console.error('[AwayManager] ✗ Failed to activate app suspension prevention!');
     }
-    
-    // Try to turn off display
-    this._turnOffDisplay();
   }
   
   _deactivateLocal() {
