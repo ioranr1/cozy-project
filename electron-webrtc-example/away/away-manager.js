@@ -266,15 +266,18 @@ class AwayManager {
     console.log('[AwayManager] Activating locally');
     this.state.isActive = true;
     
-    // CRITICAL: Use 'prevent-display-sleep' to prevent system sleep!
-    this.state.powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-    console.log('[AwayManager] Power save blocker started:', this.state.powerBlockerId);
+    // Use 'prevent-app-suspension' to keep the process alive
+    // while allowing the OS to manage display power settings naturally.
+    // This means the screen will turn off after system idle timeout,
+    // wake on mouse movement, and turn off again naturally.
+    this.state.powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+    console.log('[AwayManager] Power save blocker started (prevent-app-suspension):', this.state.powerBlockerId);
     
     // Verify it's active
     if (powerSaveBlocker.isStarted(this.state.powerBlockerId)) {
-      console.log('[AwayManager] ✓ System sleep prevention is ACTIVE');
+      console.log('[AwayManager] ✓ App suspension prevention is ACTIVE (display managed by OS)');
     } else {
-      console.error('[AwayManager] ✗ Failed to activate sleep prevention!');
+      console.error('[AwayManager] ✗ Failed to activate app suspension prevention!');
     }
     
     // Try to turn off display
