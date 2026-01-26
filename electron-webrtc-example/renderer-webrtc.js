@@ -21,6 +21,8 @@ let localStream = null;
 let currentSessionId = null;
 let pollingInterval = null;
 let processedSignalIds = new Set();
+let isCleaningUp = false; // Prevent START during cleanup
+let lastStopTime = null;   // Track when we stopped to prevent immediate restart
 
 // Default ICE servers (STUN only - fallback)
 const DEFAULT_ICE_SERVERS = [
@@ -234,6 +236,38 @@ async function fetchTurnCredentials() {
 // ============================================================
 
 async function startLiveView(sessionId) {
+  // CRITICAL FIX: Wait for cleanup to finish before starting new session
+  if (isCleaningUp) {
+    console.log('[Desktop] ⚠️ Still cleaning up previous session, waiting...');
+    await new Promise(r => setTimeout(r, 500));
+    if (isCleaningUp) {
+      console.error('[Desktop] ❌ Cannot start: cleanup still in progress');
+      return;
+    }
+  }
+  
+  // CRITICAL FIX: Ensure minimum 1 second gap between STOP and START
+  if (lastStopTime) {
+    const timeSinceStop = Date.now() - lastStopTime;
+    if (timeSinceStop < 1000) {
+      const waitTime = 1000 - timeSinceStop;
+      console.log(`[Desktop] ⏳ Waiting ${waitTime}ms for camera to release...`);
+      await new Promise(r => setTimeout(r, waitTime));
+    }
+  }
+  
+  // CRITICAL FIX: Force cleanup of any lingering stream
+  if (localStream) {
+    console.log('[Desktop] ⚠️ Found lingering stream, cleaning up before restart...');
+    localStream.getTracks().forEach(track => {
+      track.stop();
+      console.log('[Desktop] Emergency cleanup - stopped:', track.kind);
+    });
+    localStream = null;
+    // Wait for hardware to release
+    await new Promise(r => setTimeout(r, 500));
+  }
+  
   console.log('═══════════════════════════════════════════════════');
   console.log('[Desktop] START LIVE VIEW - Session:', sessionId);
   console.log('═══════════════════════════════════════════════════');
@@ -421,6 +455,10 @@ async function processSignal(signal) {
 }
 
 async function stopLiveView() {
+  // Mark as cleaning up to prevent immediate restart
+  isCleaningUp = true;
+  lastStopTime = Date.now();
+  
   console.log('═══════════════════════════════════════════════════');
   console.log('[Desktop] STOP LIVE VIEW');
   console.log('═══════════════════════════════════════════════════');
@@ -437,6 +475,11 @@ async function stopLiveView() {
       track.stop();
       console.log('[Desktop] Track stopped:', track.kind);
     });
+    
+    // CRITICAL FIX: Wait for tracks to fully release hardware
+    // This prevents "device in use" errors on immediate restart
+    await new Promise(r => setTimeout(r, 300));
+    
     localStream = null;
   }
   
@@ -462,6 +505,11 @@ async function stopLiveView() {
   
   currentSessionId = null;
   processedSignalIds.clear();
+  
+  // CRITICAL FIX: Add extra delay to ensure complete hardware release
+  await new Promise(r => setTimeout(r, 200));
+  
+  isCleaningUp = false;
   console.log('[Desktop] ✅ Cleanup complete');
 }
 
