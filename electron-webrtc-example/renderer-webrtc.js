@@ -23,6 +23,7 @@ let pollingInterval = null;
 let processedSignalIds = new Set();
 let isCleaningUp = false; // Prevent START during cleanup
 let lastStopTime = null;   // Track when we stopped to prevent immediate restart
+let isStartingSession = false; // CRITICAL: Prevent duplicate START calls
 
 // Default ICE servers (STUN only - fallback)
 const DEFAULT_ICE_SERVERS = [
@@ -236,6 +237,18 @@ async function fetchTurnCredentials() {
 // ============================================================
 
 async function startLiveView(sessionId) {
+  // CRITICAL FIX: Prevent duplicate starts for the SAME session
+  if (isStartingSession) {
+    console.log('[Desktop] ⚠️ Already starting a session, ignoring duplicate call');
+    return;
+  }
+  
+  // CRITICAL FIX: If already streaming THIS session, skip
+  if (currentSessionId === sessionId && peerConnection) {
+    console.log('[Desktop] ⚠️ Already streaming this session:', sessionId);
+    return;
+  }
+  
   // CRITICAL FIX: Wait for cleanup to finish before starting new session
   if (isCleaningUp) {
     console.log('[Desktop] ⚠️ Still cleaning up previous session, waiting...');
@@ -255,6 +268,9 @@ async function startLiveView(sessionId) {
       await new Promise(r => setTimeout(r, waitTime));
     }
   }
+  
+  // Set flag to prevent duplicate starts
+  isStartingSession = true;
   
   // CRITICAL FIX: Force cleanup of any lingering stream
   if (localStream) {
@@ -428,8 +444,13 @@ async function startLiveView(sessionId) {
     // Start polling for answer and ICE candidates
     startPollingForSignals(sessionId);
     
+    // CRITICAL: Reset the starting flag - session is now active
+    isStartingSession = false;
+    console.log('[Desktop] ✅ Session startup complete, now polling for signals');
+    
   } catch (error) {
     console.error('❌ [Desktop] startLiveView FAILED:', error);
+    isStartingSession = false; // Reset flag on error too
     await stopLiveView();
   }
 }
@@ -492,6 +513,7 @@ async function processSignal(signal) {
 async function stopLiveView() {
   // Mark as cleaning up to prevent immediate restart
   isCleaningUp = true;
+  isStartingSession = false; // CRITICAL: Also reset starting flag
   lastStopTime = Date.now();
   
   console.log('═══════════════════════════════════════════════════');
