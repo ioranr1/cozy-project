@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { Shield, ArrowLeft, ArrowRight, Video, Laptop, RefreshCw, AlertCircle, Loader2, X, Eye, EyeOff, Volume2, VolumeX, Bell } from 'lucide-react';
+import { ConnectionIndicator } from '@/components/ConnectionIndicator';
 import { useLiveViewState } from '@/hooks/useLiveViewState';
 import { useRtcSession, RtcSessionStatus } from '@/hooks/useRtcSession';
 import { LiveViewDebugPanel } from '@/components/LiveViewDebugPanel';
@@ -787,6 +788,16 @@ const Viewer: React.FC = () => {
 
         {/* Live View Container */}
         <div className="bg-slate-900/80 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden aspect-video relative">
+          {/* Connection Indicator - Always visible in top-right corner when streaming/connecting */}
+          {(viewerState === 'connecting' || viewerState === 'connected') && (
+            <div className="absolute top-3 right-3 z-10">
+              <ConnectionIndicator 
+                iceConnectionState={rtcDebugInfo?.iceConnectionState || null}
+                connectionState={rtcDebugInfo?.connectionState || null}
+              />
+            </div>
+          )}
+
           {/* Video Element - Always present but hidden when not connected */}
           <video
             ref={videoRef}
