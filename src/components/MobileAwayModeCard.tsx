@@ -69,8 +69,8 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
       ? 'המחשב לא מחובר - פתח את האפליקציה במחשב' 
       : 'Computer offline - open the app on your computer',
     errorDeviceSleeping: language === 'he' 
-      ? 'המחשב במצב שינה - הער אותו ונסה שוב' 
-      : 'Computer sleeping - wake it and try again',
+      ? 'המחשב במצב שינה - הער אותו במחשב ואז הפעל מצב Away' 
+      : 'Computer is sleeping - wake it up on the computer, then activate Away Mode',
     errorTimeout: language === 'he' 
       ? 'לא התקבלה תשובה - ודא שהמחשב מחובר' 
       : 'No response - ensure computer is connected',
@@ -279,14 +279,17 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
       return;
     }
 
-    // Check connection status before attempting
+    // CRITICAL: Block toggle when computer is not connected or sleeping
+    // This prevents the LOOP bug where user activates AWAY while computer is sleeping,
+    // causing repeated screen on/off cycles when user returns
     if (connectionStatus === 'offline') {
       toast.error(t.errorDeviceOffline);
       return;
     }
 
     if (connectionStatus === 'sleeping') {
-      toast.warning(t.errorDeviceSleeping);
+      toast.error(t.errorDeviceSleeping);
+      return; // BLOCK - do not allow AWAY activation when sleeping!
     }
 
     const newMode: DeviceMode = checked ? 'AWAY' : 'NORMAL';
@@ -390,7 +393,7 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
           <Switch
             checked={pendingMode ? pendingMode === 'AWAY' : isAway}
             onCheckedChange={handleToggle}
-            disabled={isPending || connectionStatus === 'offline'}
+            disabled={isPending || connectionStatus === 'offline' || connectionStatus === 'sleeping'}
             className={isAway || pendingMode === 'AWAY' ? 'data-[state=checked]:bg-amber-500' : ''}
           />
           <span className={`text-xs ${getStatusColor()}`}>
