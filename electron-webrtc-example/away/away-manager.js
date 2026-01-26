@@ -274,9 +274,7 @@ class AwayManager {
     this.state.isActive = true;
     
     // Use 'prevent-app-suspension' to keep the process alive
-    // while allowing the OS to manage display power settings naturally.
-    // This means the screen will turn off after system idle timeout,
-    // wake on mouse movement, and turn off again naturally.
+    // while we immediately turn off the display
     this.state.powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
     console.log('[AwayManager] Power save blocker started (prevent-app-suspension):', this.state.powerBlockerId);
     
@@ -286,6 +284,9 @@ class AwayManager {
     } else {
       console.error('[AwayManager] ✗ Failed to activate app suspension prevention!');
     }
+    
+    // Immediately turn off the display
+    this._turnOffDisplay();
   }
   
   _deactivateLocal() {
