@@ -27,7 +27,7 @@ export const HowItWorksSection = forwardRef<HTMLElement, React.HTMLAttributes<HT
   ];
 
   return (
-    <section id="how-it-works" className="py-24 bg-gradient-to-b from-cyan-50 to-white">
+    <section ref={ref} {...props} id="how-it-works" className="py-24 bg-gradient-to-b from-cyan-50 to-white">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-5xl font-bold text-slate-800 mb-4">
