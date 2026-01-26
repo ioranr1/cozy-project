@@ -307,78 +307,74 @@ class AwayManager {
   
   _turnOffDisplay() {
     const platform = process.platform;
-   console.log('[AwayManager] 🖥️ Attempting to turn off display - Platform:', platform);
+    console.log('[AwayManager] 🖥️ Attempting to turn off display - Platform:', platform);
     
     try {
       if (platform === 'darwin') {
-       exec('pmset displaysleepnow', (err, stdout, stderr) => {
-         if (err) {
-           console.error('[AwayManager] ❌ macOS display off FAILED:', err.message);
-           console.error('[AwayManager] stderr:', stderr);
-           // Retry after 1 second
-           setTimeout(() => {
-             console.log('[AwayManager] Retrying macOS display off...');
-             exec('pmset displaysleepnow', (err2) => {
-               if (err2) console.error('[AwayManager] ❌ Retry FAILED:', err2.message);
-               else console.log('[AwayManager] ✅ Retry SUCCESS - display off');
-             });
-           }, 1000);
-         } else {
-           console.log('[AwayManager] ✅ macOS display off command executed');
-           console.log('[AwayManager] stdout:', stdout);
-         }
+        exec('pmset displaysleepnow', (err, stdout, stderr) => {
+          if (err) {
+            console.error('[AwayManager] ❌ macOS display off FAILED:', err.message);
+            console.error('[AwayManager] stderr:', stderr);
+            // Retry after 1 second
+            setTimeout(() => {
+              console.log('[AwayManager] Retrying macOS display off...');
+              exec('pmset displaysleepnow', (err2) => {
+                if (err2) console.error('[AwayManager] ❌ Retry FAILED:', err2.message);
+                else console.log('[AwayManager] ✅ Retry SUCCESS - display off');
+              });
+            }, 1000);
+          } else {
+            console.log('[AwayManager] ✅ macOS display off command executed');
+            console.log('[AwayManager] stdout:', stdout);
+          }
         });
       } else if (platform === 'win32') {
-        // Requires nircmd.exe in project folder (optional)
-        const nircmdPath = path.join(__dirname, '..', 'nircmd.exe');
-        const fs = require('fs');
+        // Use PowerShell to turn off monitor - works without nircmd!
+        console.log('[AwayManager] 🖥️ Using PowerShell to turn off display...');
         
-       console.log('[AwayManager] Looking for nircmd.exe at:', nircmdPath);
-       
-        if (fs.existsSync(nircmdPath)) {
-         console.log('[AwayManager] ✓ Found nircmd.exe, executing...');
-         exec(`"${nircmdPath}" monitor off`, (err, stdout, stderr) => {
-           if (err) {
-             console.error('[AwayManager] ❌ Windows display off FAILED:', err.message);
-             console.error('[AwayManager] stderr:', stderr);
-             // Retry after 1 second
-             setTimeout(() => {
-               console.log('[AwayManager] Retrying Windows display off...');
-               exec(`"${nircmdPath}" monitor off`, (err2) => {
-                 if (err2) console.error('[AwayManager] ❌ Retry FAILED:', err2.message);
-                 else console.log('[AwayManager] ✅ Retry SUCCESS - display off');
-               });
-             }, 1000);
-           } else {
-             console.log('[AwayManager] ✅ Windows display off command executed (nircmd)');
-             console.log('[AwayManager] stdout:', stdout);
-           }
-          });
-        } else {
-         console.log('[AwayManager] ⚠️ nircmd.exe NOT FOUND at:', nircmdPath);
-         console.log('[AwayManager] 📝 To enable immediate display off on Windows:');
-         console.log('[AwayManager] 1. Download nircmd.exe from https://www.nirsoft.net/utils/nircmd.html');
-         console.log('[AwayManager] 2. Place it in:', path.join(__dirname, '..'));
-         console.log('[AwayManager] 3. Restart the Electron app');
-         console.log('[AwayManager] ⏱️ For now, display will turn off based on Windows Power Settings');
-        }
+        // PowerShell command that sends SC_MONITORPOWER message to turn off display
+        // SC_MONITORPOWER = 0xF170, WM_SYSCOMMAND = 0x112, HWND_BROADCAST = 0xFFFF
+        // lParam: 2 = turn off, 1 = low power, -1 = on
+        const psCommand = `powershell -Command "Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class Monitor{[DllImport(\\\"user32.dll\\\")]public static extern int SendMessage(int hWnd,int hMsg,int wParam,int lParam);}';[Monitor]::SendMessage(0xFFFF,0x112,0xF170,2)"`;
+        
+        exec(psCommand, (err, stdout, stderr) => {
+          if (err) {
+            console.error('[AwayManager] ❌ Windows PowerShell display off FAILED:', err.message);
+            console.error('[AwayManager] stderr:', stderr);
+            
+            // Fallback: Try nircmd if available
+            const nircmdPath = path.join(__dirname, '..', 'nircmd.exe');
+            const fs = require('fs');
+            if (fs.existsSync(nircmdPath)) {
+              console.log('[AwayManager] Trying nircmd fallback...');
+              exec(`"${nircmdPath}" monitor off`, (err2) => {
+                if (err2) console.error('[AwayManager] ❌ nircmd FAILED:', err2.message);
+                else console.log('[AwayManager] ✅ nircmd SUCCESS - display off');
+              });
+            } else {
+              console.log('[AwayManager] ⚠️ No fallback available. Display will turn off based on Windows Power Settings.');
+            }
+          } else {
+            console.log('[AwayManager] ✅ Windows display off command executed (PowerShell)');
+          }
+        });
       } else if (platform === 'linux') {
-       exec('xset dpms force off', (err, stdout, stderr) => {
-         if (err) {
-           console.error('[AwayManager] ❌ Linux display off FAILED:', err.message);
-           console.error('[AwayManager] stderr:', stderr);
-           // Retry after 1 second
-           setTimeout(() => {
-             console.log('[AwayManager] Retrying Linux display off...');
-             exec('xset dpms force off', (err2) => {
-               if (err2) console.error('[AwayManager] ❌ Retry FAILED:', err2.message);
-               else console.log('[AwayManager] ✅ Retry SUCCESS - display off');
-             });
-           }, 1000);
-         } else {
-           console.log('[AwayManager] ✅ Linux display off command executed');
-           console.log('[AwayManager] stdout:', stdout);
-         }
+        exec('xset dpms force off', (err, stdout, stderr) => {
+          if (err) {
+            console.error('[AwayManager] ❌ Linux display off FAILED:', err.message);
+            console.error('[AwayManager] stderr:', stderr);
+            // Retry after 1 second
+            setTimeout(() => {
+              console.log('[AwayManager] Retrying Linux display off...');
+              exec('xset dpms force off', (err2) => {
+                if (err2) console.error('[AwayManager] ❌ Retry FAILED:', err2.message);
+                else console.log('[AwayManager] ✅ Retry SUCCESS - display off');
+              });
+            }, 1000);
+          } else {
+            console.log('[AwayManager] ✅ Linux display off command executed');
+            console.log('[AwayManager] stdout:', stdout);
+          }
         });
       }
     } catch (err) {
