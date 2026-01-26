@@ -738,9 +738,6 @@ function handleDeviceStatusUpdate(status) {
 // 1. Device ID is set (after pairing)
 // 2. Main window is created
 // 3. Language is set
-//
-  mainWindow?.webContents.send('away-mode-user-returned', STRINGS[currentLanguage]);
-}
 
 // =============================================================================
 // IPC HANDLERS
