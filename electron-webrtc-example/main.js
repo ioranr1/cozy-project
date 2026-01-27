@@ -299,27 +299,33 @@ async function maybeEnableAutoAway(reason) {
 
   autoAwayAttempts += 1;
 
-  console.log('[AutoAway] Checking auto_away_enabled...', {
+  console.log('[AutoAway] Checking auto_away_enabled via RPC...', {
     reason,
     attempt: autoAwayAttempts,
     profileId,
     deviceId,
   });
 
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('auto_away_enabled')
-    .eq('id', profileId)
-    .single();
+  // Use SECURITY DEFINER RPC to avoid RLS issues with the profiles table
+  const { data, error } = await supabase.rpc('get_profile_auto_away', {
+    _profile_id: profileId,
+  });
 
   if (error) {
-    console.error('[AutoAway] Error fetching profile:', error);
-    // Retry (could be temporary network / RLS)
+    console.error('[AutoAway] RPC error:', error);
     scheduleAutoAwayCheck(`${reason}-retry-fetch`, 2000);
     return;
   }
 
-  if (profile?.auto_away_enabled !== true) {
+  // The RPC returns a single row with { profile_exists, auto_away_enabled }
+  const row = Array.isArray(data) ? data[0] : data;
+
+  if (!row || !row.profile_exists) {
+    console.log('[AutoAway] Profile not found for id:', profileId);
+    return;
+  }
+
+  if (row.auto_away_enabled !== true) {
     console.log('[AutoAway] Disabled in profile (auto_away_enabled=false).');
     return;
   }
@@ -329,8 +335,6 @@ async function maybeEnableAutoAway(reason) {
 
   if (!result.success) {
     console.error('[AutoAway] awayManager.enable failed:', result.error);
-    // Common race: renderer IPC not ready yet -> preflight timeout.
-    // Retry a couple of times to allow the renderer to fully initialize.
     scheduleAutoAwayCheck(`${reason}-retry-enable`, 2000);
     return;
   }
@@ -966,33 +970,37 @@ function setupIpcHandlers() {
     // =========================================================================
     if (profileId) {
       try {
-        console.log('[IPC] Checking auto_away_enabled for profile:', profileId);
+        console.log('[IPC] Checking auto_away_enabled via RPC for profile:', profileId);
         
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('auto_away_enabled')
-          .eq('id', profileId)
-          .single();
+        // Use SECURITY DEFINER RPC to avoid RLS issues with the profiles table
+        const { data, error } = await supabase.rpc('get_profile_auto_away', {
+          _profile_id: profileId,
+        });
         
         if (error) {
-          console.error('[IPC] Error fetching profile for auto-away:', error);
-        } else if (profile?.auto_away_enabled === true) {
-          console.log('[IPC] ═══════════════════════════════════════════════════');
-          console.log('[IPC] 🤖 AUTO-AWAY: Profile has auto_away_enabled=true');
-          console.log('[IPC] 🤖 Enabling Away Mode with skipDisplayOff=true');
-          console.log('[IPC] ═══════════════════════════════════════════════════');
-          
-          // Enable Away Mode WITHOUT turning off display
-          // This is the key difference from manual mode
-          const result = await awayManager.enable({ skipDisplayOff: true });
-          
-          if (result.success) {
-            console.log('[IPC] ✅ Auto-Away enabled successfully (display follows OS settings)');
-          } else {
-            console.log('[IPC] ⚠️ Auto-Away could not be enabled:', result.error);
-          }
+          console.error('[IPC] RPC error for auto-away:', error);
         } else {
-          console.log('[IPC] Auto-Away not enabled for this profile (auto_away_enabled=false or not set)');
+          // The RPC returns a single row with { profile_exists, auto_away_enabled }
+          const row = Array.isArray(data) ? data[0] : data;
+          
+          if (row && row.profile_exists && row.auto_away_enabled === true) {
+            console.log('[IPC] ═══════════════════════════════════════════════════');
+            console.log('[IPC] 🤖 AUTO-AWAY: Profile has auto_away_enabled=true');
+            console.log('[IPC] 🤖 Enabling Away Mode with skipDisplayOff=true');
+            console.log('[IPC] ═══════════════════════════════════════════════════');
+            
+            // Enable Away Mode WITHOUT turning off display
+            // This is the key difference from manual mode
+            const result = await awayManager.enable({ skipDisplayOff: true });
+            
+            if (result.success) {
+              console.log('[IPC] ✅ Auto-Away enabled successfully (display follows OS settings)');
+            } else {
+              console.log('[IPC] ⚠️ Auto-Away could not be enabled:', result.error);
+            }
+          } else {
+            console.log('[IPC] Auto-Away not enabled for this profile (auto_away_enabled=false, not set, or profile not found)');
+          }
         }
       } catch (err) {
         console.error('[IPC] Auto-Away check failed:', err);

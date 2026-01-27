@@ -542,6 +542,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_profile_auto_away: {
+        Args: { _profile_id: string }
+        Returns: {
+          auto_away_enabled: boolean
+          profile_exists: boolean
+        }[]
+      }
       profile_exists: { Args: { _profile_id: string }; Returns: boolean }
       validate_access_token: {
         Args: { p_token: string }
