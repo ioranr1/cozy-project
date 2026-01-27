@@ -427,18 +427,7 @@
         </div>
       </div>
 
-      <!-- User Returned Modal -->
-      <div id="user-returned-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: none; justify-content: center; align-items: center;">
-        <div style="background: rgba(30, 41, 59, 0.95); border-radius: 16px; padding: 32px; max-width: 360px; text-align: center; border: 1px solid rgba(71, 85, 105, 0.5);">
-          <div style="font-size: 48px; margin-bottom: 16px;">👋</div>
-          <h2 id="user-returned-title" style="color: #f1f5f9; margin-bottom: 12px;">Welcome Back</h2>
-          <p id="user-returned-message" style="color: #94a3b8; margin-bottom: 24px; line-height: 1.5;">You have returned. Would you like to disable Away Mode?</p>
-          <div style="display: flex; flex-direction: column; gap: 12px;">
-            <button id="disable-away-btn" class="submit-btn" style="margin: 0;">Disable Away Mode</button>
-            <button id="keep-away-btn" class="paste-btn" style="margin: 0;">Keep Away Mode</button>
-          </div>
-        </div>
-      </div>
+      <!-- User Returned Modal removed - Away Mode is controlled manually from Dashboard -->
     </div>
 
     <!-- BUILD ID (debug)
@@ -759,39 +748,10 @@
       // AWAY MODE UI HANDLERS
       // ============================================================
       const awayModeIndicator = document.getElementById("away-mode-indicator");
-      const userReturnedModal = document.getElementById("user-returned-modal");
 
       function setAwayModeIndicator(active) {
         if (awayModeIndicator) {
           awayModeIndicator.style.display = active ? "block" : "none";
-        }
-      }
-
-      function showUserReturnedModal(strings) {
-        if (!userReturnedModal) return;
-        
-        // Update text based on language
-        const title = document.getElementById("user-returned-title");
-        const msg = document.getElementById("user-returned-message");
-        const disableBtn = document.getElementById("disable-away-btn");
-        const keepBtn = document.getElementById("keep-away-btn");
-        
-        if (strings) {
-          if (title) title.textContent = strings.userReturnedTitle || "Welcome Back";
-          if (msg) msg.textContent = strings.userReturnedMessage || "You have returned. Would you like to disable Away Mode?";
-          if (disableBtn) disableBtn.textContent = strings.disableButton || "Disable Away Mode";
-          if (keepBtn) {
-            const keepSpan = keepBtn.querySelector("span");
-            if (keepSpan) keepSpan.textContent = strings.keepButton || "Keep Away Mode";
-          }
-        }
-        
-        userReturnedModal.style.display = "flex";
-      }
-
-      function hideUserReturnedModal() {
-        if (userReturnedModal) {
-          userReturnedModal.style.display = "none";
         }
       }
 
@@ -805,7 +765,6 @@
         window.electronAPI.onAwayModeDisabled?.(() => {
           console.log("[UI] Away Mode disabled");
           setAwayModeIndicator(false);
-          hideUserReturnedModal();
         });
 
         window.electronAPI.onAwayModePreflightFailed?.((errors) => {
@@ -814,10 +773,7 @@
           // Could show error toast here
         });
 
-        window.electronAPI.onAwayModeUserReturned?.((strings) => {
-          console.log("[UI] User returned detected");
-          showUserReturnedModal(strings);
-        });
+        // User returned modal removed - Away Mode controlled from Dashboard
 
         window.electronAPI.onAwayModeCheckCamera?.(async () => {
           console.log("[UI] Camera check requested");
@@ -832,16 +788,7 @@
         });
       }
 
-      // User Returned Modal buttons
-      document.getElementById("disable-away-btn")?.addEventListener("click", () => {
-        hideUserReturnedModal();
-        window.electronAPI?.awayModeDisableConfirmed?.();
-      });
-
-      document.getElementById("keep-away-btn")?.addEventListener("click", () => {
-        hideUserReturnedModal();
-        window.electronAPI?.awayModeKeepConfirmed?.();
-      });
+      // User Returned Modal removed - Away Mode controlled manually from Dashboard
 
       // ============================================================
       // INIT
