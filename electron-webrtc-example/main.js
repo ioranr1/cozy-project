@@ -1112,3 +1112,17 @@ powerMonitor.on('unlock-screen', () => {
   console.log('[Power] Screen unlocked');
   awayManager.handleUserReturned();
 });
+
+// CRITICAL FIX: When Away Mode is active and the user simply starts using the PC again
+// (screen wakes without unlock/resume and the app window is hidden to tray), the
+// 30-second display-off loop must be stopped. Electron provides activity hooks.
+powerMonitor.on('user-did-become-active', () => {
+  console.log('[Power] User became active');
+  awayManager.handleUserReturned();
+});
+
+// Not used for behavior (OS power settings should handle screen sleep when user stops),
+// but useful for diagnostics.
+powerMonitor.on('user-did-resign-active', () => {
+  console.log('[Power] User resigned active');
+});
