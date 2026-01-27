@@ -181,11 +181,17 @@ class AwayManager {
   
   /**
    * Handle user return (focus/resume/unlock)
+   * CRITICAL: Stop the display-off loop so the screen stays on while user is working
    */
   handleUserReturned() {
     if (!this.state.isActive) return;
     
-    console.log('[AwayManager] User returned detected');
+    console.log('[AwayManager] 👤 User returned detected - STOPPING display-off loop');
+    
+    // CRITICAL FIX: Stop the 30-second display-off loop immediately
+    // This prevents the screen from turning off while the user is working
+    this._stopDisplayOffLoop();
+    
     const strings = getAwayStrings(this.language);
     this.awayModeIPC?.sendUserReturned(strings);
   }
@@ -230,8 +236,12 @@ class AwayManager {
     });
     
     ipcMain.on(AWAY_IPC_CHANNELS.KEEP_CONFIRMED, () => {
-      console.log('[AwayManager] User chose to keep Away Mode');
-      // Just hide the modal, stay in away mode
+      console.log('[AwayManager] User chose to keep Away Mode - RESTARTING display-off loop');
+      // User wants to stay in Away Mode - restart the display-off loop
+      // This will turn off the display again and keep it off
+      this._startDisplayOffLoop();
+      // Also immediately turn off the display
+      this._turnOffDisplay();
     });
     
     // Camera check result is handled in _runPreflightChecks via ipcMain.once
