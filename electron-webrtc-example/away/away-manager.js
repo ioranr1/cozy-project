@@ -32,6 +32,15 @@ class AwayManager {
       featureEnabled: false,
       displayOffLoopId: null, // Interval ID for periodic display-off
 
+      // Manual Away Mode enforces a forced display-off + 30s reinforcement loop.
+      // Auto-Away MUST NEVER force the display off.
+      enforceDisplayOff: false,
+
+      // Short-interval safety watcher to stop enforcement quickly on real user activity.
+      // (Some systems don't reliably fire focus/unlock/resume events.)
+      userActivityWatchId: null,
+      activatedAtMs: null,
+
       // When true, we consider the user "present" and we must NOT force display off
       // again unless the user explicitly confirms "Keep Away Mode".
       userReturnedNotified: false
@@ -190,6 +199,17 @@ class AwayManager {
   handleUserReturned() {
     if (!this.state.isActive) return;
 
+    // If Auto-Away is active (no display enforcement), do nothing.
+    // But if some leftover loop exists (shouldn't), stop it quietly.
+    if (!this.state.enforceDisplayOff) {
+      if (this.state.displayOffLoopId || this.state.userActivityWatchId) {
+        console.log('[AwayManager] 👤 User returned detected while enforceDisplayOff=false -> stopping any leftover loops');
+        this._stopDisplayOffLoop();
+        this._stopUserActivityWatch();
+      }
+      return;
+    }
+
     // Avoid spamming multiple prompts / repeated loop stops.
     if (this.state.userReturnedNotified) return;
     
@@ -200,6 +220,7 @@ class AwayManager {
     // CRITICAL FIX: Stop the 30-second display-off loop immediately
     // This prevents the screen from turning off while the user is working
     this._stopDisplayOffLoop();
+    this._stopUserActivityWatch();
     
     const strings = getAwayStrings(this.language);
     this.awayModeIPC?.sendUserReturned(strings);
@@ -211,8 +232,11 @@ class AwayManager {
    */
   syncWithDatabaseStatus(status) {
     if (status.device_mode === 'AWAY' && !this.state.isActive) {
-      console.log('[AwayManager] Syncing: DB says AWAY, activating locally');
-      this._activateLocal();
+      // IMPORTANT: On cold start/resync we default to NON-enforcing behavior to avoid
+      // surprise screen blackouts. Manual enforcement is only enabled by an explicit
+      // manual enable() call or the user pressing "Keep Away Mode".
+      console.log('[AwayManager] Syncing: DB says AWAY, activating locally (safe: skipDisplayOff=true)');
+      this._activateLocal({ skipDisplayOff: true });
     } else if (status.device_mode === 'NORMAL' && this.state.isActive) {
       console.log('[AwayManager] Syncing: DB says NORMAL, deactivating locally');
       this._deactivateLocal();
@@ -225,6 +249,7 @@ class AwayManager {
   cleanup() {
     // Stop display-off loop
     this._stopDisplayOffLoop();
+    this._stopUserActivityWatch();
     
     if (this.state.powerBlockerId !== null) {
       powerSaveBlocker.stop(this.state.powerBlockerId);
@@ -232,7 +257,9 @@ class AwayManager {
       console.log('[AwayManager] Power save blocker stopped');
     }
     this.state.isActive = false;
+    this.state.enforceDisplayOff = false;
     this.state.userReturnedNotified = false;
+    this.state.activatedAtMs = null;
   }
   
   // =========================================================================
@@ -251,9 +278,14 @@ class AwayManager {
       // User explicitly wants the screen to be forced off again.
       this.state.userReturnedNotified = false;
 
+      // Ensure manual enforcement is ON.
+      this.state.enforceDisplayOff = true;
+      this.state.activatedAtMs = Date.now();
+
       // User wants to stay in Away Mode - restart the display-off loop
       // This will turn off the display again and keep it off
       this._startDisplayOffLoop();
+      this._startUserActivityWatch();
       // Also immediately turn off the display
       this._turnOffDisplay();
     });
@@ -321,8 +353,18 @@ class AwayManager {
     console.log('[AwayManager] skipDisplayOff:', skipDisplayOff);
     this.state.isActive = true;
 
+    this.state.activatedAtMs = Date.now();
+
     // Reset "user returned" latch on each activation.
     this.state.userReturnedNotified = false;
+
+    // Auto-Away MUST NOT force the screen off.
+    // Also: if we were previously in manual enforcement, stop any existing loop/watch.
+    this.state.enforceDisplayOff = !skipDisplayOff;
+    if (skipDisplayOff) {
+      this._stopDisplayOffLoop();
+      this._stopUserActivityWatch();
+    }
     
     // Use 'prevent-app-suspension' to keep the Electron process alive
     // This does NOT prevent the display from sleeping - it only keeps the app running
@@ -345,6 +387,7 @@ class AwayManager {
       // Start periodic display-off loop (every 30 seconds) to re-turn off display
       // if user wakes it accidentally. This ensures display stays off in Away Mode.
       this._startDisplayOffLoop();
+      this._startUserActivityWatch();
     } else {
       // AUTO-AWAY MODE: Do NOT turn off display, let OS power settings manage it
       console.log('[AwayManager] ℹ️ Auto-Away: Display will follow OS power settings');
@@ -352,6 +395,9 @@ class AwayManager {
   }
   
   _startDisplayOffLoop() {
+    if (!this.state.enforceDisplayOff) {
+      return;
+    }
     // Clear any existing loop
     if (this.state.displayOffLoopId) {
       clearInterval(this.state.displayOffLoopId);
@@ -364,6 +410,10 @@ class AwayManager {
       if (this.state.isActive) {
         // If we already detected user return, never force display off.
         if (this.state.userReturnedNotified) {
+          return;
+        }
+
+        if (!this.state.enforceDisplayOff) {
           return;
         }
 
@@ -401,15 +451,60 @@ class AwayManager {
       console.log('[AwayManager] Display-off loop stopped');
     }
   }
+
+  _startUserActivityWatch() {
+    if (!this.state.enforceDisplayOff) return;
+    if (this.state.userActivityWatchId) return;
+
+    // Polling fallback: stop enforcement quickly when user becomes active.
+    // This prevents "screen turns off every 30s" after the user returned.
+    this.state.userActivityWatchId = setInterval(() => {
+      if (!this.state.isActive) return;
+      if (!this.state.enforceDisplayOff) return;
+      if (this.state.userReturnedNotified) return;
+
+      // Small grace window to avoid false positives right at activation.
+      const sinceActivate = this.state.activatedAtMs ? Date.now() - this.state.activatedAtMs : 0;
+      if (sinceActivate < 8000) return;
+
+      let idleSeconds = null;
+      try {
+        idleSeconds = typeof powerMonitor?.getSystemIdleTime === 'function'
+          ? powerMonitor.getSystemIdleTime()
+          : null;
+      } catch (e) {
+        idleSeconds = null;
+      }
+
+      // If user interacted recently, treat as return immediately.
+      if (typeof idleSeconds === 'number' && idleSeconds <= 3) {
+        console.log('[AwayManager] 👤 User activity detected (watch). idleTime=', idleSeconds, 's');
+        this.handleUserReturned();
+      }
+    }, 1000);
+
+    console.log('[AwayManager] User-activity watch started (1s interval)');
+  }
+
+  _stopUserActivityWatch() {
+    if (this.state.userActivityWatchId) {
+      clearInterval(this.state.userActivityWatchId);
+      this.state.userActivityWatchId = null;
+      console.log('[AwayManager] User-activity watch stopped');
+    }
+  }
   
   _deactivateLocal() {
     console.log('[AwayManager] Deactivating locally');
     this.state.isActive = false;
 
     this.state.userReturnedNotified = false;
+    this.state.enforceDisplayOff = false;
+    this.state.activatedAtMs = null;
     
     // Stop the display-off loop first
     this._stopDisplayOffLoop();
+    this._stopUserActivityWatch();
     
     // Release power save blocker
     if (this.state.powerBlockerId !== null) {
