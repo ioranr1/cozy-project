@@ -93,11 +93,16 @@ class AwayManager {
   
   /**
    * Enable Away Mode
+   * @param {Object} options - Optional configuration
+   * @param {boolean} options.skipDisplayOff - If true, don't turn off display (used for Auto-Away on startup)
    * @returns {Promise<{ success: boolean, error?: string }>}
    */
-  async enable() {
+  async enable(options = {}) {
+    const { skipDisplayOff = false } = options;
+    
     console.log('═══════════════════════════════════════════════════');
     console.log('[AwayManager] 🏠 AWAY MODE - ENABLE REQUESTED');
+    console.log('[AwayManager] Options:', { skipDisplayOff });
     console.log('═══════════════════════════════════════════════════');
     
     if (!this.deviceId) {
@@ -130,10 +135,13 @@ class AwayManager {
       console.log('[AwayManager] Updating database to AWAY...');
       await this._updateDatabaseMode('AWAY');
       
-      // Then activate locally
-      this._activateLocal();
+      // Then activate locally - pass skipDisplayOff option
+      this._activateLocal({ skipDisplayOff });
       
       console.log('[AwayManager] ✓ Away Mode enabled successfully');
+      if (skipDisplayOff) {
+        console.log('[AwayManager] ℹ️ Display off SKIPPED (Auto-Away mode)');
+      }
       this.awayModeIPC?.sendEnabled();
       
       return { success: true };
@@ -277,8 +285,16 @@ class AwayManager {
     });
   }
   
-  _activateLocal() {
+  /**
+   * Activate Away Mode locally
+   * @param {Object} options - Optional configuration
+   * @param {boolean} options.skipDisplayOff - If true, don't turn off display (Auto-Away mode)
+   */
+  _activateLocal(options = {}) {
+    const { skipDisplayOff = false } = options;
+    
     console.log('[AwayManager] Activating locally');
+    console.log('[AwayManager] skipDisplayOff:', skipDisplayOff);
     this.state.isActive = true;
     
     // Use 'prevent-app-suspension' to keep the Electron process alive
@@ -293,12 +309,19 @@ class AwayManager {
       console.error('[AwayManager] ✗ Failed to activate app suspension prevention!');
     }
     
-    // Immediately turn off the display
-    this._turnOffDisplay();
-    
-    // Start periodic display-off loop (every 30 seconds) to re-turn off display
-    // if user wakes it accidentally. This ensures display stays off in Away Mode.
-    this._startDisplayOffLoop();
+    // CRITICAL: Only turn off display and start loop for MANUAL mode
+    // Auto-Away (skipDisplayOff=true) lets the OS manage display power
+    if (!skipDisplayOff) {
+      // MANUAL MODE: Immediately turn off the display
+      this._turnOffDisplay();
+      
+      // Start periodic display-off loop (every 30 seconds) to re-turn off display
+      // if user wakes it accidentally. This ensures display stays off in Away Mode.
+      this._startDisplayOffLoop();
+    } else {
+      // AUTO-AWAY MODE: Do NOT turn off display, let OS power settings manage it
+      console.log('[AwayManager] ℹ️ Auto-Away: Display will follow OS power settings');
+    }
   }
   
   _startDisplayOffLoop() {

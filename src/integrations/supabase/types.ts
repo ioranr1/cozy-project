@@ -394,6 +394,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          auto_away_enabled: boolean
           country_code: string
           created_at: string
           email: string
@@ -406,6 +407,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          auto_away_enabled?: boolean
           country_code?: string
           created_at?: string
           email: string
@@ -418,6 +420,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          auto_away_enabled?: boolean
           country_code?: string
           created_at?: string
           email?: string
