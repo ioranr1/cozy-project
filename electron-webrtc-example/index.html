@@ -697,12 +697,23 @@
           const data = await verifyPairingCode(code);
 
           // IMPORTANT: keep snake_case for IPC sync
+          console.log('[UI] Pairing verified. electronAPI.loginUser available:', !!window.electronAPI?.loginUser);
+
           if (window.electronAPI?.loginUser) {
+            console.log('[UI] Sending login-user IPC to main...', {
+              profile_id: data.profile_id,
+              device_id: data.device_id,
+              has_session_token: !!data.session_token,
+            });
             window.electronAPI.loginUser({
               profile_id: data.profile_id,
               session_token: data.session_token,
               device_id: data.device_id,
             });
+          } else {
+            console.warn(
+              '[UI] WARNING: electronAPI.loginUser is missing. Main process will NOT receive profile_id/device_id, so Auto-Away cannot run.'
+            );
           }
 
           showSuccessScreen();
