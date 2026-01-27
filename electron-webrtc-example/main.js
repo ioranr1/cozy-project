@@ -268,7 +268,15 @@ async function initDevice() {
 // =============================================================================
 
 function scheduleAutoAwayCheck(reason, delayMs = 1500) {
-  if (!profileId || !deviceId) return;
+  if (!profileId || !deviceId) {
+    console.log('[AutoAway] Not scheduled - missing ids.', {
+      reason,
+      deviceId,
+      profileId,
+      autoAwayAttempts,
+    });
+    return;
+  }
   if (autoAwayAttempts >= MAX_AUTO_AWAY_ATTEMPTS) {
     console.log('[AutoAway] Max attempts reached - skipping. Reason:', reason);
     return;
@@ -283,7 +291,10 @@ function scheduleAutoAwayCheck(reason, delayMs = 1500) {
 }
 
 async function maybeEnableAutoAway(reason) {
-  if (!profileId || !deviceId) return;
+  if (!profileId || !deviceId) {
+    console.log('[AutoAway] Aborting enable - missing ids.', { reason, deviceId, profileId });
+    return;
+  }
   if (autoAwayAttempts >= MAX_AUTO_AWAY_ATTEMPTS) return;
 
   autoAwayAttempts += 1;
