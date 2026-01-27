@@ -14,7 +14,7 @@
  * await awayManager.enable(deviceId, mainWindow, language);
  */
 
-const { powerSaveBlocker, ipcMain } = require('electron');
+const { powerSaveBlocker, ipcMain, powerMonitor } = require('electron');
 const { exec } = require('child_process');
 const path = require('path');
 const { getAwayString, getAwayStrings } = require('./away-strings');
@@ -30,7 +30,11 @@ class AwayManager {
       isActive: false,
       powerBlockerId: null,
       featureEnabled: false,
-      displayOffLoopId: null // Interval ID for periodic display-off
+      displayOffLoopId: null, // Interval ID for periodic display-off
+
+      // When true, we consider the user "present" and we must NOT force display off
+      // again unless the user explicitly confirms "Keep Away Mode".
+      userReturnedNotified: false
     };
     
     this.language = 'en';
@@ -185,8 +189,13 @@ class AwayManager {
    */
   handleUserReturned() {
     if (!this.state.isActive) return;
+
+    // Avoid spamming multiple prompts / repeated loop stops.
+    if (this.state.userReturnedNotified) return;
     
     console.log('[AwayManager] 👤 User returned detected - STOPPING display-off loop');
+
+    this.state.userReturnedNotified = true;
     
     // CRITICAL FIX: Stop the 30-second display-off loop immediately
     // This prevents the screen from turning off while the user is working
@@ -223,6 +232,7 @@ class AwayManager {
       console.log('[AwayManager] Power save blocker stopped');
     }
     this.state.isActive = false;
+    this.state.userReturnedNotified = false;
   }
   
   // =========================================================================
@@ -237,6 +247,10 @@ class AwayManager {
     
     ipcMain.on(AWAY_IPC_CHANNELS.KEEP_CONFIRMED, () => {
       console.log('[AwayManager] User chose to keep Away Mode - RESTARTING display-off loop');
+
+      // User explicitly wants the screen to be forced off again.
+      this.state.userReturnedNotified = false;
+
       // User wants to stay in Away Mode - restart the display-off loop
       // This will turn off the display again and keep it off
       this._startDisplayOffLoop();
@@ -306,6 +320,9 @@ class AwayManager {
     console.log('[AwayManager] Activating locally');
     console.log('[AwayManager] skipDisplayOff:', skipDisplayOff);
     this.state.isActive = true;
+
+    // Reset "user returned" latch on each activation.
+    this.state.userReturnedNotified = false;
     
     // Use 'prevent-app-suspension' to keep the Electron process alive
     // This does NOT prevent the display from sleeping - it only keeps the app running
@@ -340,10 +357,36 @@ class AwayManager {
       clearInterval(this.state.displayOffLoopId);
     }
     
-    // Check every 30 seconds - if in Away Mode and display might be on, turn it off
+    // Check every 30 seconds - if in Away Mode and display might be on, turn it off.
+    // CRITICAL SAFETY: If we detect recent user activity (idle time is low), we treat
+    // it as "user returned" and STOP the loop instead of turning the screen off.
     this.state.displayOffLoopId = setInterval(() => {
       if (this.state.isActive) {
-        console.log('[AwayManager] 🔄 Periodic display-off check (Away Mode active)');
+        // If we already detected user return, never force display off.
+        if (this.state.userReturnedNotified) {
+          return;
+        }
+
+        // Detect real user activity even when Electron window is hidden/minimized.
+        // This is more reliable than focus/unlock/resume events on some systems.
+        let idleSeconds = null;
+        try {
+          idleSeconds = typeof powerMonitor?.getSystemIdleTime === 'function'
+            ? powerMonitor.getSystemIdleTime()
+            : null;
+        } catch (e) {
+          idleSeconds = null;
+        }
+
+        // If user has interacted recently, assume they've returned and stop forcing display off.
+        // Threshold chosen to be safely below the 30s interval.
+        if (typeof idleSeconds === 'number' && idleSeconds <= 8) {
+          console.log('[AwayManager] 👤 Detected recent user activity via idleTime=', idleSeconds, 's -> treating as User Returned');
+          this.handleUserReturned();
+          return;
+        }
+
+        console.log('[AwayManager] 🔄 Periodic display-off check (Away Mode active). idleTime=', idleSeconds);
         this._turnOffDisplay();
       }
     }, 30000); // 30 seconds
@@ -362,6 +405,8 @@ class AwayManager {
   _deactivateLocal() {
     console.log('[AwayManager] Deactivating locally');
     this.state.isActive = false;
+
+    this.state.userReturnedNotified = false;
     
     // Stop the display-off loop first
     this._stopDisplayOffLoop();
