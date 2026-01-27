@@ -545,31 +545,6 @@ const Dashboard: React.FC = () => {
               </Button>
             </div>
 
-            {/* Debug: Session ID Display */}
-            <div className="mt-2 p-2 bg-slate-800/80 border border-slate-600/50 rounded-lg text-center">
-              <span className="text-xs font-mono text-cyan-400">
-                sessionId: {currentSessionId || 'none'}
-              </span>
-            </div>
-
-            {/* View Stream Link - Always visible with status indicator */}
-            <Link 
-              to="/viewer" 
-              state={{ sessionId: currentSessionId }}
-              className="block mt-3"
-            >
-              <Button 
-                className={`w-full ${liveViewActive ? 'bg-green-600 hover:bg-green-700' : 'bg-slate-600 hover:bg-slate-500'}`}
-              >
-                <div className="relative">
-                  <Monitor className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                  <div className={`absolute -top-1 ${isRTL ? '-left-1' : '-right-1'} w-2.5 h-2.5 rounded-full border-2 border-slate-900 ${
-                    liveViewActive ? 'bg-green-400 animate-pulse' : 'bg-red-500'
-                  }`} />
-                </div>
-                {language === 'he' ? 'צפייה' : 'Watch'}
-              </Button>
-            </Link>
           </div>
 
           {/* Recent Events Card */}
