@@ -42,7 +42,7 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
       ? 'השאר את המכסה פתוח' 
       : 'Keep the lid open',
     // Status labels
-    statusNormal: language === 'he' ? 'רגיל' : 'Normal',
+    statusNormal: language === 'he' ? 'כבוי' : 'Off',
     statusAwayActive: language === 'he' ? 'Away פעיל' : 'Away Active',
     statusOffline: language === 'he' ? 'לא מחובר' : 'Offline',
     statusSleeping: language === 'he' ? 'במצב שינה' : 'Sleeping',
