@@ -801,7 +801,7 @@ function setupIpcHandlers() {
   });
 
   // Login from renderer (after pairing)
-  ipcMain.on('login-user', (event, data) => {
+  ipcMain.on('login-user', async (event, data) => {
     console.log('[IPC] Login user received:', data);
     
     const oldDeviceId = deviceId;
@@ -818,6 +818,10 @@ function setupIpcHandlers() {
     if (data.session_token) {
       store.set('sessionToken', data.session_token);
     }
+    
+    // Update AwayManager with new device info
+    awayManager.setDeviceId(deviceId);
+    awayManager.setLanguage(currentLanguage);
     
     // CRITICAL: If device ID changed, we must restart all subscriptions
     // Otherwise they'll be listening to the old device ID!
@@ -863,6 +867,48 @@ function setupIpcHandlers() {
     if (!deviceStatusSubscription && deviceId) {
       console.log('[IPC] About to call subscribeToDeviceStatus()');
       subscribeToDeviceStatus();
+    }
+    
+    // =========================================================================
+    // AUTO-AWAY MODE (NEW - Separate path, does NOT affect manual mode)
+    // =========================================================================
+    // Check if user has auto_away_enabled in their profile
+    // If yes, enable Away Mode automatically WITHOUT turning off display
+    // This is COMPLETELY SEPARATE from the manual SET_DEVICE_MODE:AWAY command
+    // =========================================================================
+    if (profileId) {
+      try {
+        console.log('[IPC] Checking auto_away_enabled for profile:', profileId);
+        
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('auto_away_enabled')
+          .eq('id', profileId)
+          .single();
+        
+        if (error) {
+          console.error('[IPC] Error fetching profile for auto-away:', error);
+        } else if (profile?.auto_away_enabled === true) {
+          console.log('[IPC] ═══════════════════════════════════════════════════');
+          console.log('[IPC] 🤖 AUTO-AWAY: Profile has auto_away_enabled=true');
+          console.log('[IPC] 🤖 Enabling Away Mode with skipDisplayOff=true');
+          console.log('[IPC] ═══════════════════════════════════════════════════');
+          
+          // Enable Away Mode WITHOUT turning off display
+          // This is the key difference from manual mode
+          const result = await awayManager.enable({ skipDisplayOff: true });
+          
+          if (result.success) {
+            console.log('[IPC] ✅ Auto-Away enabled successfully (display follows OS settings)');
+          } else {
+            console.log('[IPC] ⚠️ Auto-Away could not be enabled:', result.error);
+          }
+        } else {
+          console.log('[IPC] Auto-Away not enabled for this profile (auto_away_enabled=false or not set)');
+        }
+      } catch (err) {
+        console.error('[IPC] Auto-Away check failed:', err);
+      }
     }
   });
 
