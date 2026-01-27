@@ -887,7 +887,10 @@ function setupIpcHandlers() {
 
   // Login from renderer (after pairing)
   ipcMain.on('login-user', async (event, data) => {
-    console.log('[IPC] Login user received:', data);
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('[IPC] 📥 LOGIN-USER RECEIVED FROM RENDERER');
+    console.log('[IPC] Data:', JSON.stringify(data, null, 2));
+    console.log('═══════════════════════════════════════════════════════════════');
     
     const oldDeviceId = deviceId;
     const deviceChanged = data.device_id && data.device_id !== oldDeviceId;
@@ -1008,8 +1011,16 @@ function setupIpcHandlers() {
 // APP LIFECYCLE
 // =============================================================================
 
+// BUILD ID - Verify this matches your local file!
+console.log('═══════════════════════════════════════════════════════════════');
+console.log('[Main] BUILD ID: main-js-2026-01-27-autoaway-fix-v1');
+console.log('[Main] Starting Electron app...');
+console.log('═══════════════════════════════════════════════════════════════');
+
 app.whenReady().then(async () => {
+  console.log('[Main] app.whenReady() - Setting up IPC handlers...');
   setupIpcHandlers();
+  console.log('[Main] IPC handlers registered. Creating window...');
   createWindow();
   initTray();
   await initDevice();
