@@ -61,6 +61,10 @@ let liveViewState = {
 // Heartbeat interval
 let heartbeatInterval = null;
 
+// Auto-Away guard (prevents infinite retries)
+let autoAwayAttempts = 0;
+const MAX_AUTO_AWAY_ATTEMPTS = 3;
+
 // =============================================================================
 // I18N STRINGS
 // =============================================================================
@@ -249,11 +253,78 @@ async function initDevice() {
   if (deviceId && profileId) {
     console.log('[Device] Using stored device:', deviceId);
     startHeartbeat();
+
+    // AUTO-AWAY on startup (uses profile.auto_away_enabled)
+    scheduleAutoAwayCheck('startup-stored-session');
     return;
   }
 
   // Device will be registered after pairing
   console.log('[Device] No stored device, waiting for pairing...');
+}
+
+// =============================================================================
+// AUTO-AWAY (on startup / after pairing)
+// =============================================================================
+
+function scheduleAutoAwayCheck(reason, delayMs = 1500) {
+  if (!profileId || !deviceId) return;
+  if (autoAwayAttempts >= MAX_AUTO_AWAY_ATTEMPTS) {
+    console.log('[AutoAway] Max attempts reached - skipping. Reason:', reason);
+    return;
+  }
+
+  console.log(`[AutoAway] Scheduling auto-away check in ${delayMs}ms. Reason: ${reason}`);
+  setTimeout(() => {
+    maybeEnableAutoAway(reason).catch((e) => {
+      console.error('[AutoAway] Unexpected error:', e);
+    });
+  }, delayMs);
+}
+
+async function maybeEnableAutoAway(reason) {
+  if (!profileId || !deviceId) return;
+  if (autoAwayAttempts >= MAX_AUTO_AWAY_ATTEMPTS) return;
+
+  autoAwayAttempts += 1;
+
+  console.log('[AutoAway] Checking auto_away_enabled...', {
+    reason,
+    attempt: autoAwayAttempts,
+    profileId,
+    deviceId,
+  });
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('auto_away_enabled')
+    .eq('id', profileId)
+    .single();
+
+  if (error) {
+    console.error('[AutoAway] Error fetching profile:', error);
+    // Retry (could be temporary network / RLS)
+    scheduleAutoAwayCheck(`${reason}-retry-fetch`, 2000);
+    return;
+  }
+
+  if (profile?.auto_away_enabled !== true) {
+    console.log('[AutoAway] Disabled in profile (auto_away_enabled=false).');
+    return;
+  }
+
+  console.log('[AutoAway] Enabled in profile -> enabling Away Mode (skipDisplayOff=true)');
+  const result = await awayManager.enable({ skipDisplayOff: true });
+
+  if (!result.success) {
+    console.error('[AutoAway] awayManager.enable failed:', result.error);
+    // Common race: renderer IPC not ready yet -> preflight timeout.
+    // Retry a couple of times to allow the renderer to fully initialize.
+    scheduleAutoAwayCheck(`${reason}-retry-enable`, 2000);
+    return;
+  }
+
+  console.log('[AutoAway] ✅ Away Mode enabled successfully (Auto-Away)');
 }
 
 function startHeartbeat() {
@@ -322,6 +393,9 @@ async function verifyPairingCode(code) {
       // Initialize AwayManager with device info
       awayManager.setDeviceId(deviceId);
       awayManager.setLanguage(currentLanguage);
+
+      // AUTO-AWAY immediately after pairing
+      scheduleAutoAwayCheck('pairing-success');
 
       return { success: true, deviceId };
     }
