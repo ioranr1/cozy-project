@@ -195,6 +195,7 @@ class AwayManager {
   /**
    * Handle user return (focus/resume/unlock)
    * CRITICAL: Stop the display-off loop so the screen stays on while user is working
+   * NOTE: User Returned modal removed - Away Mode is controlled from Dashboard only
    */
   handleUserReturned() {
     if (!this.state.isActive) return;
@@ -210,10 +211,11 @@ class AwayManager {
       return;
     }
 
-    // Avoid spamming multiple prompts / repeated loop stops.
+    // Avoid repeated loop stops.
     if (this.state.userReturnedNotified) return;
     
     console.log('[AwayManager] 👤 User returned detected - STOPPING display-off loop');
+    console.log('[AwayManager] ℹ️ Away Mode remains active (control from Dashboard)');
 
     this.state.userReturnedNotified = true;
     
@@ -222,8 +224,7 @@ class AwayManager {
     this._stopDisplayOffLoop();
     this._stopUserActivityWatch();
     
-    const strings = getAwayStrings(this.language);
-    this.awayModeIPC?.sendUserReturned(strings);
+    // NOTE: No modal shown - user disables Away Mode manually from Dashboard
   }
   
   /**
@@ -267,26 +268,22 @@ class AwayManager {
   // =========================================================================
   
   _setupIpcHandlers() {
+    // NOTE: User Returned modal removed - these handlers kept for backward compatibility
+    // but the modal no longer appears. Away Mode is controlled from Dashboard.
+    
     ipcMain.on(AWAY_IPC_CHANNELS.DISABLE_CONFIRMED, async () => {
-      console.log('[AwayManager] User confirmed disable');
+      console.log('[AwayManager] User confirmed disable (legacy IPC)');
       await this.disable();
     });
     
     ipcMain.on(AWAY_IPC_CHANNELS.KEEP_CONFIRMED, () => {
-      console.log('[AwayManager] User chose to keep Away Mode - RESTARTING display-off loop');
-
-      // User explicitly wants the screen to be forced off again.
+      console.log('[AwayManager] User chose to keep Away Mode (legacy IPC)');
+      // If somehow triggered, restart enforcement
       this.state.userReturnedNotified = false;
-
-      // Ensure manual enforcement is ON.
       this.state.enforceDisplayOff = true;
       this.state.activatedAtMs = Date.now();
-
-      // User wants to stay in Away Mode - restart the display-off loop
-      // This will turn off the display again and keep it off
       this._startDisplayOffLoop();
       this._startUserActivityWatch();
-      // Also immediately turn off the display
       this._turnOffDisplay();
     });
     
