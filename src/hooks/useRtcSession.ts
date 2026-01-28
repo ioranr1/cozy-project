@@ -745,6 +745,14 @@ export function useRtcSession({
     
     // Set lock before any async operations
     isStartingRef.current = true;
+    
+    // CRITICAL FIX: Reset processing flags for fresh start
+    // This ensures a new START after STOP doesn't skip offers due to stale flags
+    isProcessingOfferRef.current = false;
+    processedSignalsRef.current.clear();
+    iceCandidateQueueRef.current = [];
+    remoteDescriptionSetRef.current = false;
+    lastPolledIdRef.current = 0;
 
     console.log('[useRtcSession] 🚀 Starting session for device:', deviceId, 'viewer:', viewerId);
     updateStatus('connecting');
