@@ -294,7 +294,9 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
     }
 
     if (connectionStatus === 'sleeping') {
-      toast.warning(t.errorDeviceSleeping);
+      toast.error(t.errorDeviceSleeping);
+      setLastError(t.errorDeviceSleeping);
+      return; // BLOCK - do not allow AWAY activation when sleeping!
     }
 
     setIsUpdating(true);
