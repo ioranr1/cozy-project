@@ -1082,7 +1082,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-01-27-autoaway-fix-v1');
+console.log('[Main] BUILD ID: main-js-2026-01-28-away-resume-fix-v1');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
@@ -1180,8 +1180,19 @@ powerMonitor.on('resume', async () => {
     startHeartbeat();
   }
 
-  // CRITICAL: Handle Away Mode user return
-  awayManager.handleUserReturned();
+  // CRITICAL FIX: Re-enable Away Mode if it was active before sleep
+  // This ensures the computer doesn't go back to sleep immediately
+  console.log('[PowerMonitor] 🏠 Checking if Away Mode needs to be restored...');
+  const resumeResult = await awayManager.handleResume();
+  
+  if (resumeResult.wasRestored) {
+    console.log('[PowerMonitor] ✅ Away Mode was restored after wake');
+  } else {
+    console.log('[PowerMonitor] ℹ️ Away Mode was not active before sleep, not restoring');
+    // Only call handleUserReturned if Away Mode was NOT restored
+    // (If restored, we want to stay in Away Mode)
+    awayManager.handleUserReturned();
+  }
 
   // CRITICAL FIX: Recover missed commands sent while sleeping
   if (deviceId) {

@@ -47,7 +47,11 @@ class AwayManager {
 
       // When true, we consider the user "present" and we must NOT force display off
       // again unless the user explicitly confirms "Keep Away Mode".
-      userReturnedNotified: false
+      userReturnedNotified: false,
+      
+      // CRITICAL: Track state before sleep to restore on wake
+      wasActiveBeforeSleep: false,
+      wasEnforceDisplayOffBeforeSleep: false
     };
     
     this.language = 'en';
@@ -260,8 +264,17 @@ class AwayManager {
     this._stopDisplayOffLoop();
     this._stopUserActivityWatch();
     
+    // CRITICAL: Remember if Away Mode was active before sleep
+    // This allows us to re-enable it on resume
+    this.state.wasActiveBeforeSleep = this.state.isActive;
+    this.state.wasEnforceDisplayOffBeforeSleep = this.state.enforceDisplayOff;
+    console.log('[AwayManager] 💤 Saving state before sleep:', {
+      wasActive: this.state.wasActiveBeforeSleep,
+      wasEnforceDisplayOff: this.state.wasEnforceDisplayOffBeforeSleep
+    });
+    
     // CRITICAL: Release power blocker to allow clean sleep
-    // This will be re-acquired on resume if Away Mode is still enabled
+    // This will be re-acquired on resume if Away Mode was enabled
     if (this.state.powerBlockerId !== null) {
       try {
         powerSaveBlocker.stop(this.state.powerBlockerId);
@@ -284,6 +297,52 @@ class AwayManager {
     this.state.activatedAtMs = null;
     
     console.log('[AwayManager] 💤 Suspend cleanup complete - ready for sleep');
+  }
+  
+  /**
+   * Handle system resume (wake from sleep)
+   * Called from main.js powerMonitor.on('resume')
+   * Re-enables Away Mode if it was active before sleep
+   * @returns {Promise<{ success: boolean, wasRestored: boolean, error?: string }>}
+   */
+  async handleResume() {
+    console.log('[AwayManager] 💡 handleResume called - system woke up');
+    console.log('[AwayManager] 💡 State before sleep:', {
+      wasActive: this.state.wasActiveBeforeSleep,
+      wasEnforceDisplayOff: this.state.wasEnforceDisplayOffBeforeSleep
+    });
+    
+    // If Away Mode was NOT active before sleep, nothing to restore
+    if (!this.state.wasActiveBeforeSleep) {
+      console.log('[AwayManager] 💡 Away Mode was not active before sleep - nothing to restore');
+      return { success: true, wasRestored: false };
+    }
+    
+    // CRITICAL: Re-enable Away Mode to prevent system from sleeping again
+    console.log('[AwayManager] 💡 Re-enabling Away Mode after wake...');
+    
+    try {
+      // Re-activate locally - use the saved display enforcement setting
+      // For Auto-Away (skipDisplayOff=true): won't turn off display
+      // For Manual Away (skipDisplayOff=false): will turn off display once
+      const skipDisplayOff = !this.state.wasEnforceDisplayOffBeforeSleep;
+      this._activateLocal({ skipDisplayOff });
+      
+      // Update database to ensure consistency
+      await this._updateDatabaseMode('AWAY');
+      
+      console.log('[AwayManager] ✅ Away Mode restored after wake (skipDisplayOff:', skipDisplayOff, ')');
+      this.awayModeIPC?.sendEnabled();
+      
+      // Clear the saved state
+      this.state.wasActiveBeforeSleep = false;
+      this.state.wasEnforceDisplayOffBeforeSleep = false;
+      
+      return { success: true, wasRestored: true };
+    } catch (error) {
+      console.error('[AwayManager] ❌ Failed to restore Away Mode after wake:', error);
+      return { success: false, wasRestored: false, error: error.message };
+    }
   }
   
   /**
