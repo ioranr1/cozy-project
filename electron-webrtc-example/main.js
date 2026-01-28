@@ -1051,7 +1051,7 @@ app.whenReady().then(async () => {
 // POWER MONITOR - Resume from sleep
 // =============================================================================
 
-powerMonitor.on('resume', () => {
+powerMonitor.on('resume', async () => {
   console.log('[PowerMonitor] 💡 System resumed from sleep - sending immediate heartbeat');
   sendHeartbeat();
   
@@ -1060,89 +1060,52 @@ powerMonitor.on('resume', () => {
     console.log('[PowerMonitor] Restarting heartbeat interval');
     startHeartbeat();
   }
+
+  // CRITICAL: Handle Away Mode user return
+  awayManager.handleUserReturned();
+
+  // CRITICAL FIX: Recover missed commands sent while sleeping
+  if (deviceId) {
+    console.log('[PowerMonitor] 🔍 Checking for missed commands...');
+    try {
+      const { data: missedCommands, error } = await supabase
+        .from('commands')
+        .select('*')
+        .eq('device_id', deviceId)
+        .eq('handled', false)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('[PowerMonitor] Failed to fetch missed commands:', error);
+      } else if (missedCommands && missedCommands.length > 0) {
+        console.log(`[PowerMonitor] 📬 Found ${missedCommands.length} missed commands, processing...`);
+        for (const cmd of missedCommands) {
+          console.log(`[PowerMonitor] Processing missed command: ${cmd.command}`);
+          if (mainWindow && mainWindow.webContents) {
+            mainWindow.webContents.send('process-command', cmd);
+          }
+        }
+      } else {
+        console.log('[PowerMonitor] ✅ No missed commands');
+      }
+    } catch (err) {
+      console.error('[PowerMonitor] Error recovering commands:', err);
+    }
+  }
 });
 
 powerMonitor.on('unlock-screen', () => {
   console.log('[PowerMonitor] 🔓 Screen unlocked - sending heartbeat');
   sendHeartbeat();
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
-
-app.on('before-quit', (event) => {
-  if (!app.isQuitting) {
-    event.preventDefault();
-    app.isQuitting = true;
-    
-    console.log('[App] Shutting down - marking device as inactive...');
-
-    // Cleanup
-    if (heartbeatInterval) {
-      clearInterval(heartbeatInterval);
-    }
-
-    // Mark device as inactive and WAIT for it to complete
-    if (deviceId) {
-      supabase
-        .from('devices')
-        .update({ is_active: false })
-        .eq('id', deviceId)
-        .then(() => {
-          console.log('[App] Device marked inactive, quitting...');
-          app.quit();
-        })
-        .catch((err) => {
-          console.error('[App] Failed to mark device inactive:', err);
-          app.quit();
-        });
-    } else {
-      app.quit();
-    }
-    return; // Don't quit yet, wait for the update
-  }
-
-  // Unsubscribe from channels
-  if (commandsSubscription) {
-    supabase.removeChannel(commandsSubscription);
-  }
-  if (rtcSessionsSubscription) {
-    supabase.removeChannel(rtcSessionsSubscription);
-  }
-  if (deviceStatusSubscription) {
-    supabase.removeChannel(deviceStatusSubscription);
-  }
-
-  // Cleanup away mode
-  awayManager.cleanup();
-});
-
-// Handle system resume (for Away Mode user return detection)
-const { powerMonitor } = require('electron');
-
-powerMonitor.on('resume', () => {
-  console.log('[Power] System resumed');
   awayManager.handleUserReturned();
 });
 
-powerMonitor.on('unlock-screen', () => {
-  console.log('[Power] Screen unlocked');
-  awayManager.handleUserReturned();
-});
-
-// CRITICAL FIX: When Away Mode is active and the user simply starts using the PC again
-// (screen wakes without unlock/resume and the app window is hidden to tray), the
-// 30-second display-off loop must be stopped. Electron provides activity hooks.
 powerMonitor.on('user-did-become-active', () => {
-  console.log('[Power] User became active');
+  console.log('[PowerMonitor] 👤 User became active');
   awayManager.handleUserReturned();
 });
 
-// Not used for behavior (OS power settings should handle screen sleep when user stops),
-// but useful for diagnostics.
+// Diagnostic only - OS handles screen sleep
 powerMonitor.on('user-did-resign-active', () => {
-  console.log('[Power] User resigned active');
+  console.log('[PowerMonitor] User resigned active');
 });
