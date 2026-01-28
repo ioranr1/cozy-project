@@ -111,7 +111,7 @@ const Dashboard: React.FC = () => {
     }
   }, [liveViewActive, commandState.commandType, commandState.error, resetState]);
 
-  // Check laptop connection status - runs immediately on device change
+  // Check laptop connection status - REALTIME with fallback polling
   useEffect(() => {
     const parseDbTimestamp = (value: string | null): Date | null => {
       if (!value) return null;
@@ -124,6 +124,29 @@ const Dashboard: React.FC = () => {
       }
       const d = new Date(s);
       return Number.isNaN(d.getTime()) ? null : d;
+    };
+
+    const updateLaptopStatus = (data: { last_seen_at: string | null; is_active: boolean } | null) => {
+      if (!data) {
+        setLaptopStatus('unknown');
+        return;
+      }
+      
+      // If is_active is false, device is offline immediately
+      if (!data.is_active) {
+        console.log('[Dashboard] Device is_active=false, setting offline');
+        setLaptopStatus('offline');
+        return;
+      }
+      
+      const lastSeen = parseDbTimestamp(data.last_seen_at);
+      if (!lastSeen) {
+        setLaptopStatus(data.last_seen_at ? 'unknown' : 'offline');
+      } else {
+        const now = new Date();
+        const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
+        setLaptopStatus(diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS ? 'online' : 'offline');
+      }
     };
 
     const checkLaptopStatus = async () => {
@@ -146,15 +169,7 @@ const Dashboard: React.FC = () => {
           return;
         }
 
-        const lastSeen = parseDbTimestamp(data.last_seen_at);
-        if (!lastSeen) {
-          setLaptopStatus(data.last_seen_at ? 'unknown' : 'offline');
-        } else {
-          const now = new Date();
-          const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
-          // Connectivity is determined ONLY by last_seen_at freshness.
-          setLaptopStatus(diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS ? 'online' : 'offline');
-        }
+        updateLaptopStatus(data);
       } catch {
         setLaptopStatus('unknown');
       } finally {
@@ -162,15 +177,48 @@ const Dashboard: React.FC = () => {
       }
     };
 
+    if (!activeDeviceId) {
+      setLaptopStatus('unknown');
+      setIsLaptopStatusLoading(false);
+      return;
+    }
+
     // Reset loading state when device changes
     setIsLaptopStatusLoading(true);
     
     // Check immediately
     checkLaptopStatus();
-    
-    // Then poll every 10 seconds
-    const interval = setInterval(checkLaptopStatus, 10000);
-    return () => clearInterval(interval);
+
+    // Subscribe to REALTIME updates for immediate status changes
+    console.log('[Dashboard] Setting up Realtime subscription for device:', activeDeviceId);
+    const channel = supabase
+      .channel(`dashboard-device-${activeDeviceId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'devices',
+          filter: `id=eq.${activeDeviceId}`,
+        },
+        (payload) => {
+          console.log('[Dashboard] Realtime device UPDATE:', payload);
+          const updated = payload.new as { last_seen_at: string | null; is_active: boolean };
+          updateLaptopStatus(updated);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Dashboard] Device subscription status:', status);
+      });
+
+    // Fallback: poll every 30 seconds in case Realtime is unavailable
+    const interval = setInterval(checkLaptopStatus, 30000);
+
+    return () => {
+      console.log('[Dashboard] Cleaning up device subscription');
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
   }, [activeDeviceId]);
 
   useEffect(() => {
