@@ -528,7 +528,34 @@ async function handleCommand(command) {
 
       case 'SET_DEVICE_MODE:NORMAL':
         console.log('[Commands] Processing NORMAL mode command');
-        await awayManager.disable();
+        // IMPORTANT: disable() returns { success, error } and may fail silently if not checked.
+        // If we don't check it, the mobile UI can show a green "ack" even though AWAY wasn't actually disabled.
+        const normalResult = await awayManager.disable();
+
+        if (normalResult && normalResult.success === false) {
+          console.error('[Commands] ❌ NORMAL mode disable failed:', normalResult.error);
+          // Throw so the command is marked as failed with a meaningful message.
+          throw new Error(normalResult.error || 'Away Mode disable failed');
+        }
+
+        // SSOT HARDENING: Ensure DB reflects NORMAL even if AwayManager had no deviceId
+        // or its internal DB update did not run for any reason.
+        if (!deviceId) {
+          throw new Error('Missing deviceId while disabling Away Mode');
+        }
+
+        const { error: normalDbError } = await supabase
+          .from('device_status')
+          .update({
+            device_mode: 'NORMAL',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('device_id', deviceId);
+
+        if (normalDbError) {
+          console.error('[Commands] ❌ Failed to update device_status to NORMAL:', normalDbError);
+          throw new Error(normalDbError.message || 'Failed to update device status');
+        }
         break;
 
       default:
