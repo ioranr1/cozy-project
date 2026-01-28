@@ -119,6 +119,39 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
     timeoutMs: 15000,
   });
 
+  // Check device connection status - updates locally, Realtime handles live sync
+  const updateConnectionStatus = useCallback((data: { last_seen_at: string | null; is_active: boolean } | null) => {
+    if (!data) {
+      setConnectionStatus('unknown');
+      return;
+    }
+
+    // If is_active is false, device is offline immediately
+    if (!data.is_active) {
+      console.log('[AwayModeCard] Device is_active=false, setting offline');
+      setConnectionStatus('offline');
+      return;
+    }
+
+    const lastSeen = parseDbTimestamp(data.last_seen_at);
+    if (!lastSeen) {
+      setConnectionStatus('offline');
+      return;
+    }
+
+    const now = new Date();
+    const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
+
+    if (diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS) {
+      setConnectionStatus('online');
+    } else if (diffSeconds <= 300) {
+      // Beyond online threshold but still recent: might be sleeping / throttled.
+      setConnectionStatus('sleeping');
+    } else {
+      setConnectionStatus('offline');
+    }
+  }, []);
+
   // Check device connection status
   const checkConnectionStatus = useCallback(async () => {
     if (!deviceId) {
@@ -138,27 +171,11 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
         return;
       }
 
-      const lastSeen = parseDbTimestamp(data.last_seen_at);
-      if (!lastSeen) {
-        setConnectionStatus('offline');
-        return;
-      }
-
-      const now = new Date();
-      const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
-
-      if (diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS) {
-        setConnectionStatus('online');
-      } else if (diffSeconds <= 300) {
-        // Beyond online threshold but still recent: might be sleeping / throttled.
-        setConnectionStatus('sleeping');
-      } else {
-        setConnectionStatus('offline');
-      }
+      updateConnectionStatus(data);
     } catch {
       setConnectionStatus('unknown');
     }
-  }, [deviceId]);
+  }, [deviceId, updateConnectionStatus]);
 
   // Fetch initial status
   const fetchStatus = useCallback(async () => {
@@ -197,15 +214,12 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
     fetchStatus();
     checkConnectionStatus();
 
-    // Poll connection status every 10 seconds
-    const connectionInterval = setInterval(checkConnectionStatus, 10000);
-
-    // Realtime subscription for status changes - CRITICAL for instant sync
-    const channelName = `device_status_away_mode_${deviceId}`;
-    console.log('[AwayModeCard] Setting up Realtime subscription:', channelName);
+    // Realtime subscription for device_status changes - CRITICAL for instant Away Mode sync
+    const statusChannelName = `device_status_away_mode_${deviceId}`;
+    console.log('[AwayModeCard] Setting up Realtime subscription for device_status:', statusChannelName);
     
-    const channel = supabase
-      .channel(channelName)
+    const statusChannel = supabase
+      .channel(statusChannelName)
       .on(
         'postgres_changes',
         {
@@ -215,7 +229,7 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
           filter: `device_id=eq.${deviceId}`
         },
         (payload) => {
-          console.log('[AwayModeCard] 🔔 Realtime update received:', payload.new);
+          console.log('[AwayModeCard] 🔔 Realtime device_status update:', payload.new);
           const newStatus = payload.new as any;
           const newMode = newStatus.device_mode || 'NORMAL';
           console.log('[AwayModeCard] Setting deviceMode from Realtime:', newMode);
@@ -224,14 +238,42 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
         }
       )
       .subscribe((status) => {
-        console.log('[AwayModeCard] Subscription status:', status);
+        console.log('[AwayModeCard] device_status subscription status:', status);
       });
+
+    // Realtime subscription for devices table - CRITICAL for immediate offline detection
+    const devicesChannelName = `away_mode_devices_${deviceId}`;
+    console.log('[AwayModeCard] Setting up Realtime subscription for devices:', devicesChannelName);
+    
+    const devicesChannel = supabase
+      .channel(devicesChannelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'devices',
+          filter: `id=eq.${deviceId}`
+        },
+        (payload) => {
+          console.log('[AwayModeCard] 🔔 Realtime devices update:', payload.new);
+          const updated = payload.new as { last_seen_at: string | null; is_active: boolean };
+          updateConnectionStatus(updated);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[AwayModeCard] devices subscription status:', status);
+      });
+
+    // Fallback: poll connection status every 30 seconds (reduced from 10s)
+    const connectionInterval = setInterval(checkConnectionStatus, 30000);
 
     return () => {
       clearInterval(connectionInterval);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(statusChannel);
+      supabase.removeChannel(devicesChannel);
     };
-  }, [fetchStatus, checkConnectionStatus, deviceId]);
+  }, [fetchStatus, checkConnectionStatus, updateConnectionStatus, deviceId]);
 
   // Toggle away mode - send command to Electron via commands table
   const handleToggle = async (checked: boolean) => {

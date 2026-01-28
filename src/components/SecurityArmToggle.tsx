@@ -88,9 +88,12 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
 
     fetchStatus();
 
-    // Realtime subscription for status changes
+    // Realtime subscription for status changes - unique channel name per device
+    const channelName = `security_arm_status_${deviceId}`;
+    console.log('[SecurityArmToggle] Setting up Realtime subscription:', channelName);
+    
     const channel = supabase
-      .channel('device_status_changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -100,14 +103,17 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           filter: `device_id=eq.${deviceId}`
         },
         (payload) => {
-          console.log('[SecurityArmToggle] Realtime update:', payload.new);
+          console.log('[SecurityArmToggle] 🔔 Realtime update:', payload.new);
           const newStatus = payload.new as DeviceStatus;
           setIsArmed(newStatus.is_armed);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[SecurityArmToggle] Subscription status:', status);
+      });
 
     return () => {
+      console.log('[SecurityArmToggle] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, [fetchStatus, deviceId]);

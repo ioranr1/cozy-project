@@ -97,7 +97,38 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
   const { selectedDevice } = useDevices(profileId);
   const deviceId = selectedDevice?.id || null;
 
-  // Check device connection status
+  // Check device connection status - updates locally, Realtime handles live sync
+  const updateConnectionStatus = useCallback((data: { last_seen_at: string | null; is_active: boolean } | null) => {
+    if (!data) {
+      setConnectionStatus('unknown');
+      return;
+    }
+
+    // If is_active is false, device is offline immediately
+    if (!data.is_active) {
+      console.log('[MobileAwayMode] Device is_active=false, setting offline');
+      setConnectionStatus('offline');
+      return;
+    }
+
+    const lastSeen = parseDbTimestamp(data.last_seen_at);
+    if (!lastSeen) {
+      setConnectionStatus('offline');
+      return;
+    }
+
+    const now = new Date();
+    const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
+
+    if (diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS) {
+      setConnectionStatus('online');
+    } else if (diffSeconds <= 300) {
+      setConnectionStatus('sleeping');
+    } else {
+      setConnectionStatus('offline');
+    }
+  }, []);
+
   const checkConnectionStatus = useCallback(async () => {
     if (!deviceId) {
       setConnectionStatus('unknown');
@@ -116,26 +147,11 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
         return;
       }
 
-      const lastSeen = parseDbTimestamp(data.last_seen_at);
-      if (!lastSeen) {
-        setConnectionStatus('offline');
-        return;
-      }
-
-      const now = new Date();
-      const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
-
-      if (diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS) {
-        setConnectionStatus('online');
-      } else if (diffSeconds <= 300) {
-        setConnectionStatus('sleeping');
-      } else {
-        setConnectionStatus('offline');
-      }
+      updateConnectionStatus(data);
     } catch {
       setConnectionStatus('unknown');
     }
-  }, [deviceId]);
+  }, [deviceId, updateConnectionStatus]);
 
   // Parse error message to provide better guidance
   const parseErrorMessage = useCallback((error: string | null): string => {
@@ -238,15 +254,12 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     fetchStatus();
     checkConnectionStatus();
 
-    // Poll connection status every 10 seconds
-    const connectionInterval = setInterval(checkConnectionStatus, 10000);
-
-    // Realtime subscription for status changes - CRITICAL for instant sync
-    const channelName = `mobile_away_mode_status_${deviceId}`;
-    console.log('[MobileAwayMode] Setting up Realtime subscription:', channelName);
+    // Realtime subscription for device_status changes - CRITICAL for instant Away Mode sync
+    const statusChannelName = `mobile_away_mode_status_${deviceId}`;
+    console.log('[MobileAwayMode] Setting up Realtime subscription for device_status:', statusChannelName);
     
-    const channel = supabase
-      .channel(channelName)
+    const statusChannel = supabase
+      .channel(statusChannelName)
       .on(
         'postgres_changes',
         {
@@ -256,7 +269,7 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
           filter: `device_id=eq.${deviceId}`
         },
         (payload) => {
-          console.log('[MobileAwayMode] 🔔 Realtime update received:', payload.new);
+          console.log('[MobileAwayMode] 🔔 Realtime device_status update:', payload.new);
           const newStatus = payload.new as any;
           const newMode = newStatus.device_mode || 'NORMAL';
           
@@ -271,14 +284,42 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
         }
       )
       .subscribe((status) => {
-        console.log('[MobileAwayMode] Subscription status:', status);
+        console.log('[MobileAwayMode] device_status subscription status:', status);
       });
+
+    // Realtime subscription for devices table - CRITICAL for immediate offline detection
+    const devicesChannelName = `mobile_away_mode_devices_${deviceId}`;
+    console.log('[MobileAwayMode] Setting up Realtime subscription for devices:', devicesChannelName);
+    
+    const devicesChannel = supabase
+      .channel(devicesChannelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'devices',
+          filter: `id=eq.${deviceId}`
+        },
+        (payload) => {
+          console.log('[MobileAwayMode] 🔔 Realtime devices update:', payload.new);
+          const updated = payload.new as { last_seen_at: string | null; is_active: boolean };
+          updateConnectionStatus(updated);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[MobileAwayMode] devices subscription status:', status);
+      });
+
+    // Fallback: poll connection status every 30 seconds (reduced from 10s)
+    const connectionInterval = setInterval(checkConnectionStatus, 30000);
 
     return () => {
       clearInterval(connectionInterval);
-      supabase.removeChannel(channel);
+      supabase.removeChannel(statusChannel);
+      supabase.removeChannel(devicesChannel);
     };
-  }, [fetchStatus, checkConnectionStatus, deviceId, pendingMode, resetState]);
+  }, [fetchStatus, checkConnectionStatus, updateConnectionStatus, deviceId, pendingMode, resetState]);
 
   // Handle toggle - send remote command with analytics
   const handleToggle = async (checked: boolean) => {
