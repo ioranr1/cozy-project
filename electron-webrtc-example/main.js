@@ -1112,45 +1112,70 @@ app.whenReady().then(async () => {
 // POWER MONITOR - Suspend/Resume handling
 // =============================================================================
 
-// CRITICAL: Mark device offline BEFORE system sleeps
-// This allows mobile dashboard to know immediately via Realtime
+// CRITICAL FIX: When Away Mode is active, the powerSaveBlocker SHOULD prevent
+// this event from being called at all. If it IS called, it means either:
+// 1. User closed the lid (forced sleep bypasses blocker on some systems)
+// 2. Critical battery or other forced sleep event
+//
+// In these cases, we do NOT disable Away Mode - we only pause temporarily
+// and restore on resume. The powerSaveBlocker remains the source of truth.
 powerMonitor.on('suspend', async () => {
-  console.log('[PowerMonitor] 💤 System going to sleep - updating DB immediately...');
+  const isAwayActive = awayManager.isActive();
+  
+  console.log('[PowerMonitor] 💤 Suspend event detected');
+  console.log('[PowerMonitor] Away Mode active:', isAwayActive);
   
   if (!deviceId) {
-    console.log('[PowerMonitor] No deviceId, skipping suspend cleanup');
+    console.log('[PowerMonitor] No deviceId, skipping suspend handling');
     return;
   }
 
-  try {
-    // CRITICAL: Update device_status to NORMAL before sleep
-    // This ensures mobile dashboard shows correct state
-    const statusPromise = supabase
-      .from('device_status')
-      .update({ 
-        device_mode: 'NORMAL', 
-        updated_at: new Date().toISOString() 
-      })
-      .eq('device_id', deviceId);
+  // CRITICAL: If Away Mode is active, this suspend should NOT have happened
+  // Log this as a potential issue - the powerSaveBlocker should prevent sleep
+  if (isAwayActive) {
+    console.log('[PowerMonitor] ⚠️ UNEXPECTED SUSPEND while Away Mode is active!');
+    console.log('[PowerMonitor] ⚠️ powerSaveBlocker should have prevented this.');
+    console.log('[PowerMonitor] ⚠️ Possible causes: lid closed, critical battery, or system override.');
     
+    // DO NOT update device_mode to NORMAL - Away Mode is still logically active
+    // Just mark device as temporarily inactive
+    try {
+      await supabase
+        .from('devices')
+        .update({ 
+          is_active: false,
+          last_seen_at: new Date().toISOString()
+        })
+        .eq('id', deviceId);
+      
+      console.log('[PowerMonitor] Device marked as temporarily inactive (Away Mode preserved)');
+    } catch (err) {
+      console.error('[PowerMonitor] Failed to update device:', err.message);
+    }
+    
+    // Stop heartbeat interval (will restart on resume)
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+      console.log('[PowerMonitor] Heartbeat interval paused');
+    }
+    
+    // IMPORTANT: Do NOT call awayManager.handleSuspend() here!
+    // That would release the powerSaveBlocker, which we want to keep active.
+    // The manager's internal state remains "active" so resume can restore properly.
+    return;
+  }
+
+  // If Away Mode is NOT active, proceed with normal sleep handling
+  try {
     // Mark device as inactive
-    const devicePromise = supabase
+    await supabase
       .from('devices')
       .update({ 
         is_active: false,
         last_seen_at: new Date().toISOString()
       })
       .eq('id', deviceId);
-
-    // Execute both updates in parallel with timeout
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('Suspend DB update timeout')), 2000)
-    );
-
-    await Promise.race([
-      Promise.all([statusPromise, devicePromise]),
-      timeoutPromise
-    ]);
 
     console.log('[PowerMonitor] ✅ Device marked as offline before sleep');
     
@@ -1161,12 +1186,8 @@ powerMonitor.on('suspend', async () => {
       console.log('[PowerMonitor] Heartbeat interval stopped');
     }
 
-    // Disable power blocker (allow sleep to proceed)
-    awayManager.handleSuspend();
-
   } catch (err) {
     console.error('[PowerMonitor] ⚠️ Failed to update DB before sleep:', err.message);
-    // Don't block suspend - just log the error
   }
 });
 
