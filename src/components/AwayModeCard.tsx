@@ -200,9 +200,12 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
     // Poll connection status every 10 seconds
     const connectionInterval = setInterval(checkConnectionStatus, 10000);
 
-    // Realtime subscription for status changes
+    // Realtime subscription for status changes - CRITICAL for instant sync
+    const channelName = `device_status_away_mode_${deviceId}`;
+    console.log('[AwayModeCard] Setting up Realtime subscription:', channelName);
+    
     const channel = supabase
-      .channel('device_status_away_mode_desktop')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -212,13 +215,17 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
           filter: `device_id=eq.${deviceId}`
         },
         (payload) => {
-          console.log('[AwayModeCard] Realtime update:', payload.new);
+          console.log('[AwayModeCard] 🔔 Realtime update received:', payload.new);
           const newStatus = payload.new as any;
-          setDeviceMode(newStatus.device_mode || 'NORMAL');
+          const newMode = newStatus.device_mode || 'NORMAL';
+          console.log('[AwayModeCard] Setting deviceMode from Realtime:', newMode);
+          setDeviceMode(newMode);
           setLastError(null); // Clear error on successful update
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[AwayModeCard] Subscription status:', status);
+      });
 
     return () => {
       clearInterval(connectionInterval);

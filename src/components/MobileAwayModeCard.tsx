@@ -241,9 +241,12 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     // Poll connection status every 10 seconds
     const connectionInterval = setInterval(checkConnectionStatus, 10000);
 
-    // Realtime subscription for status changes
+    // Realtime subscription for status changes - CRITICAL for instant sync
+    const channelName = `mobile_away_mode_status_${deviceId}`;
+    console.log('[MobileAwayMode] Setting up Realtime subscription:', channelName);
+    
     const channel = supabase
-      .channel('mobile_away_mode_status')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -253,19 +256,23 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
           filter: `device_id=eq.${deviceId}`
         },
         (payload) => {
-          console.log('[MobileAwayMode] Realtime update:', payload.new);
+          console.log('[MobileAwayMode] 🔔 Realtime update received:', payload.new);
           const newStatus = payload.new as any;
           const newMode = newStatus.device_mode || 'NORMAL';
           
+          console.log('[MobileAwayMode] Setting deviceMode from Realtime:', newMode);
           setDeviceMode(newMode);
           
           if (pendingMode && newMode === pendingMode) {
+            console.log('[MobileAwayMode] Pending mode matched, clearing pending state');
             setPendingMode(null);
             resetState();
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[MobileAwayMode] Subscription status:', status);
+      });
 
     return () => {
       clearInterval(connectionInterval);
