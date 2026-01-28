@@ -99,6 +99,10 @@ const Viewer: React.FC = () => {
   const [isFromAlert, setIsFromAlert] = useState(false);
   const [alertAutoStartDone, setAlertAutoStartDone] = useState(false);
   
+  // CRITICAL: Prevent duplicate handleStartViewing calls
+  // This flag is set when START is initiated and cleared only after cleanup/stop
+  const startInitiatedRef = useRef<boolean>(false);
+  
   // Live View state
   const [viewerState, setViewerState] = useState<ViewerState>('idle');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -194,6 +198,8 @@ const Viewer: React.FC = () => {
     console.error('❌ ═══════════════════════════════════════════════════');
     setErrorMessage(error);
     setViewerState('error');
+    // CRITICAL: Release start lock on error so user can retry
+    startInitiatedRef.current = false;
   }, []);
 
   // Track if user manually stopped (to show "ended" instead of "error")
@@ -211,6 +217,9 @@ const Viewer: React.FC = () => {
       console.log('🟢 [VIEWER] State: CONNECTED - Stream should be visible!');
       setViewerState('connected');
     } else if (status === 'failed') {
+      // CRITICAL: Release start lock on failure so user can retry
+      startInitiatedRef.current = false;
+      
       // Show "ended" if manual stop, otherwise show error
       if (manualStopRef.current) {
         console.log('✅ [VIEWER] State: ENDED (manual stop)');
@@ -221,6 +230,9 @@ const Viewer: React.FC = () => {
         setViewerState('error');
       }
     } else if (status === 'ended' || status === 'idle') {
+      // CRITICAL: Release start lock on end so user can start again
+      startInitiatedRef.current = false;
+      
       // If manual stop, show ended state
       if (manualStopRef.current) {
         console.log('✅ [VIEWER] State: ENDED (manual stop)');
@@ -414,6 +426,12 @@ const Viewer: React.FC = () => {
   // If dashboardSessionId exists, the Dashboard already created the session AND sent the command
   // We only need to initialize the RTC peer connection
   const handleStartViewing = useCallback(async () => {
+    // CRITICAL: Use ref-based lock to prevent duplicate START calls across effect cycles
+    if (startInitiatedRef.current) {
+      console.log('[Viewer] Start blocked - already initiated (startInitiatedRef=true)');
+      return;
+    }
+    
     // Prevent duplicate calls - check all blocking states
     if (!viewerId || isConnecting || isConnected || viewerState === 'connecting') {
       console.log('[Viewer] Start blocked - already in progress or connected');
@@ -433,6 +451,10 @@ const Viewer: React.FC = () => {
       return;
     }
 
+    // Set the lock BEFORE any async operations
+    startInitiatedRef.current = true;
+    console.log('[Viewer] Start initiated - setting lock');
+
     // Reset stop flag for new session
     stopSentRef.current = false;
 
@@ -447,6 +469,7 @@ const Viewer: React.FC = () => {
       if (!activeSessionId) {
         setViewerState('error');
         setErrorMessage(language === 'he' ? 'נכשל בהתחברות' : 'Failed to connect');
+        startInitiatedRef.current = false; // Release lock on failure
       }
       // Command was already sent by Dashboard - don't send again
       return;
@@ -456,6 +479,7 @@ const Viewer: React.FC = () => {
     console.log('[Viewer] Manual start - creating session and sending command');
     const activeSessionId = await startSession();
     if (!activeSessionId) {
+      startInitiatedRef.current = false; // Release lock on failure
       return; // Error already handled in hook
     }
 
@@ -466,6 +490,7 @@ const Viewer: React.FC = () => {
       await stopSession();
       setViewerState('error');
       setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
+      startInitiatedRef.current = false; // Release lock on failure
     }
   }, [
     viewerId,
@@ -487,6 +512,9 @@ const Viewer: React.FC = () => {
 
     // Mark as manual stop to prevent error state
     manualStopRef.current = true;
+    
+    // CRITICAL: Release the start lock so next START can proceed
+    startInitiatedRef.current = false;
 
     // 1. Clear local video immediately
     cleanupStream();
@@ -556,7 +584,8 @@ const Viewer: React.FC = () => {
     }
     
     // Only start if we're idle and not already connecting
-    if (!loading && viewerState === 'idle' && !isConnecting && !isConnected) {
+    // CRITICAL: Also check startInitiatedRef to prevent duplicate START calls
+    if (!loading && viewerState === 'idle' && !isConnecting && !isConnected && !startInitiatedRef.current) {
       console.log('[Viewer] Dashboard passed sessionId, auto-starting RTC...', dashboardSessionId);
       handleStartViewing();
     }
@@ -584,7 +613,8 @@ const Viewer: React.FC = () => {
     }
 
     // Only auto-start if liveViewActive is true AND we're in idle state
-    if (liveViewActive && viewerState === 'idle' && !isConnecting && !isConnected) {
+    // CRITICAL: Also check startInitiatedRef to prevent duplicate START calls
+    if (liveViewActive && viewerState === 'idle' && !isConnecting && !isConnected && !startInitiatedRef.current) {
       console.log('[Viewer] Live view active (non-dashboard), starting RTC session...');
       handleStartViewing();
     }
