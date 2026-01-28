@@ -24,6 +24,10 @@ class AwayManager {
   constructor({ supabase }) {
     this.supabase = supabase;
     this.awayModeIPC = null;
+
+    // BUILD STAMP (debug)
+    this.__buildId = 'away-manager-2026-01-28-pb-debug-01';
+    console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // State
     this.state = {
@@ -381,7 +385,12 @@ class AwayManager {
       console.log('[AwayManager] Power save blocker started (prevent-app-suspension):', this.state.powerBlockerId);
       
       // Send status to UI for debugging visibility
-      this.awayModeIPC?.sendPowerBlockerStatus('STARTED', this.state.powerBlockerId);
+      if (this.awayModeIPC) {
+        console.log('[AwayManager] -> UI power blocker status: STARTED', this.state.powerBlockerId);
+        this.awayModeIPC.sendPowerBlockerStatus('STARTED', this.state.powerBlockerId);
+      } else {
+        console.warn('[AwayManager] awayModeIPC is NULL - cannot send power blocker status to UI');
+      }
       
       // Verify it's active
       if (powerSaveBlocker.isStarted(this.state.powerBlockerId)) {
@@ -528,10 +537,20 @@ class AwayManager {
       console.log('[AwayManager] Power save blocker stopped, ID was:', stoppedId);
       
       // Send status to UI for debugging visibility
-      this.awayModeIPC?.sendPowerBlockerStatus('STOPPED', stoppedId);
+      if (this.awayModeIPC) {
+        console.log('[AwayManager] -> UI power blocker status: STOPPED', stoppedId);
+        this.awayModeIPC.sendPowerBlockerStatus('STOPPED', stoppedId);
+      } else {
+        console.warn('[AwayManager] awayModeIPC is NULL - cannot send power blocker status to UI');
+      }
     } else {
       console.log('[AwayManager] Power save blocker was already null (not running)');
-      this.awayModeIPC?.sendPowerBlockerStatus('ALREADY_NULL', null);
+      if (this.awayModeIPC) {
+        console.log('[AwayManager] -> UI power blocker status: ALREADY_NULL');
+        this.awayModeIPC.sendPowerBlockerStatus('ALREADY_NULL', null);
+      } else {
+        console.warn('[AwayManager] awayModeIPC is NULL - cannot send power blocker status to UI');
+      }
     }
   }
   
