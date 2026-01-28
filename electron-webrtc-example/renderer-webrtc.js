@@ -269,13 +269,22 @@ async function startLiveView(sessionId) {
     return;
   }
   
-  // CRITICAL FIX: Wait for cleanup to finish before starting new session
+  // CRITICAL FIX: Wait for cleanup to finish before starting new session (with retry)
   if (isCleaningUp) {
     console.log('[Desktop] ⚠️ Still cleaning up previous session, waiting...');
-    await new Promise(r => setTimeout(r, 500));
+    // Wait up to 3 seconds total (6 attempts x 500ms)
+    let retries = 6;
+    while (isCleaningUp && retries > 0) {
+      await new Promise(r => setTimeout(r, 500));
+      retries--;
+      if (isCleaningUp) {
+        console.log(`[Desktop] ⏳ Cleanup still in progress, retries left: ${retries}`);
+      }
+    }
     if (isCleaningUp) {
-      console.error('[Desktop] ❌ Cannot start: cleanup still in progress');
-      return;
+      console.error('[Desktop] ❌ Cannot start: cleanup still in progress after 3s, forcing reset');
+      // Force reset the cleanup flag as a last resort
+      isCleaningUp = false;
     }
   }
   
