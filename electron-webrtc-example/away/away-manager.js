@@ -392,23 +392,16 @@ class AwayManager {
     
     // Display behavior differs between modes
     if (!skipDisplayOff) {
-      // MANUAL MODE: Force display off + reinforcement loop
-      console.log('[AwayManager] 📴 Manual Away: Forcing display off with reinforcement loop');
-      
-      // Immediately turn off the display
+      // MANUAL MODE: Turn off display ONCE immediately
+      // After that, OS power settings control display behavior
+      console.log('[AwayManager] 📴 Manual Away: Turning display off ONCE');
       this._turnOffDisplay();
-      
-      // Start periodic display-off loop (every 30 seconds) to re-turn off display
-      // if user wakes it accidentally. This ensures display stays off in Away Mode.
-      this._startDisplayOffLoop();
-      this._startUserActivityWatch();
+      // NO reinforcement loop - if user wakes screen and leaves, OS handles it
     } else {
       // AUTO-AWAY MODE: 
       // - Do NOT turn off display (let OS power settings manage it)
       // - powerSaveBlocker IS active (prevents full system sleep)
-      // - Just mark isActive=true so we're ready to receive commands
-      console.log('[AwayManager] ℹ️ Auto-Away: Display follows OS power settings (no forced off)');
-      console.log('[AwayManager] ℹ️ Auto-Away: System sleep PREVENTED - ready for video at any time');
+      console.log('[AwayManager] ℹ️ Auto-Away: Display follows OS power settings');
     }
   }
   
