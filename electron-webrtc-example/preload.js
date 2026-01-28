@@ -77,6 +77,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifySessionEnded: (sessionId) => {
     ipcRenderer.send('webrtc-session-ended', sessionId);
   },
+  
+  /**
+   * Notify main process that cleanup has started
+   * This prevents main from starting new sessions during cleanup
+   */
+  notifyCleanupStarted: () => {
+    ipcRenderer.send('webrtc-cleanup-started');
+  },
+  
+  /**
+   * Notify main process that cleanup is complete and ready for new session
+   */
+  notifyCleanupComplete: () => {
+    ipcRenderer.send('webrtc-cleanup-complete');
+  },
 
   // -------------------------------------------------------------------------
   // Away Mode
@@ -198,6 +213,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 });
 
 // BUILD STAMP (debug)
-const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-01-28-pb-debug-01';
+const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-01-28-cleanup-sync-01';
 console.log('[Preload] electronAPI exposed to renderer');
 console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);
