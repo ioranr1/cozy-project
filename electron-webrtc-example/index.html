@@ -434,7 +434,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-01-25-build-01");
+      console.log("[UI] index.html build: electron-index-2026-01-28-pb-debug-01");
     </script>
 
     <!-- WebRTC logic (start/stop via IPC) -->
@@ -446,7 +446,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-01-25-build-01";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-01-28-pb-debug-01";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
 
       // ============================================================
@@ -788,7 +788,9 @@
         });
 
         // DEBUG: Power blocker status - will show in DevTools console
-        window.electronAPI.onPowerBlockerStatus?.((data) => {
+        if (typeof window.electronAPI.onPowerBlockerStatus === 'function') {
+          console.log('[UI] PowerBlocker listener registered');
+          window.electronAPI.onPowerBlockerStatus((data) => {
           console.log(`[UI] 🔋 POWER BLOCKER: ${data.status} (id: ${data.id})`);
           if (data.status === 'STOPPED') {
             console.log('[UI] ✅ Power save blocker STOPPED - system CAN now sleep');
@@ -797,7 +799,10 @@
           } else if (data.status === 'ALREADY_NULL') {
             console.log('[UI] ℹ️ Power save blocker was already stopped');
           }
-        });
+          });
+        } else {
+          console.warn('[UI] ⚠️ onPowerBlockerStatus is MISSING on window.electronAPI (preload.js not updated / not loaded)');
+        }
       }
 
       // User Returned Modal removed - Away Mode controlled manually from Dashboard

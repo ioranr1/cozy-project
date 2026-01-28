@@ -8,6 +8,16 @@
 
 const { ipcRenderer } = require('electron');
 
+// BUILD STAMP (debug)
+const __AWAY_IPC_BUILD_ID__ = 'away-ipc-2026-01-28-pb-debug-01';
+try {
+  // Will show in the renderer DevTools console when this module is required from a renderer context.
+  // If you don't see this anywhere, it may still be useful as a string to confirm file versions.
+  console.log?.(`[AwayIPC] build: ${__AWAY_IPC_BUILD_ID__}`);
+} catch (_) {
+  // noop
+}
+
 // ============================================================
 // IPC CHANNEL NAMES (constants for consistency)
 // ============================================================
