@@ -2,6 +2,8 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
+ * VERSION: 2.0.1 (2026-01-28)
+ * 
  * Full main.js with WebRTC Live View + Away Mode integration.
  * Copy this file to your Electron project.
  * 

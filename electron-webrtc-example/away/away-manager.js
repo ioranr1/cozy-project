@@ -2,6 +2,8 @@
  * Away Mode Manager
  * =================
  * 
+ * VERSION: 2.0.1 (2026-01-28)
+ * 
  * Handles all Away Mode logic for the Electron main process:
  * - Power save blocker management
  * - Display control (platform-specific)
