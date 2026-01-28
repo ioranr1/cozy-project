@@ -889,20 +889,33 @@ const Viewer: React.FC = () => {
             </div>
           )}
 
-          {/* Connecting State */}
+          {/* Connecting State - WITH CANCEL BUTTON */}
           {viewerState === 'connecting' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90">
               <Loader2 className="w-16 h-16 text-primary animate-spin mb-6" />
               <h3 className="text-lg font-medium text-white mb-2">
                 {language === 'he' ? 'מתחבר לשידור...' : 'Connecting to stream...'}
               </h3>
-              <p className="text-white/60 text-sm">
+              <p className="text-white/60 text-sm mb-6">
                 {language === 'he' ? 'אנא המתן' : 'Please wait'}
               </p>
+              {/* CRITICAL: Cancel button - ALWAYS available during connecting */}
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  console.log('[Viewer] Cancel clicked during connecting');
+                  handleStopViewing(true);
+                  navigate('/dashboard');
+                }}
+                className="border-slate-600 text-white hover:bg-slate-700"
+              >
+                <X className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'ביטול וחזרה' : 'Cancel & Go Back'}
+              </Button>
             </div>
           )}
 
-          {/* Error State */}
+          {/* Error State - WITH BACK TO DASHBOARD BUTTON */}
           {viewerState === 'error' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90">
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-red-600/20 to-red-800/20 border border-red-500/30 flex items-center justify-center mb-6">
@@ -914,10 +927,19 @@ const Viewer: React.FC = () => {
               <p className="text-white/60 text-sm text-center max-w-xs mb-6">
                 {errorMessage || (language === 'he' ? 'לא ניתן להתחבר לשידור' : 'Could not connect to stream')}
               </p>
-              <Button onClick={handleRetry} className="bg-primary hover:bg-primary/90">
-                <RefreshCw className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                {language === 'he' ? 'נסה שוב' : 'Try Again'}
-              </Button>
+              {/* TWO BUTTONS: Retry AND Back to Dashboard */}
+              <div className="flex gap-3">
+                <Button onClick={handleRetry} className="bg-primary hover:bg-primary/90">
+                  <RefreshCw className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                  {language === 'he' ? 'נסה שוב' : 'Try Again'}
+                </Button>
+                <Link to="/dashboard">
+                  <Button variant="outline" className="border-slate-600 text-white hover:bg-slate-700">
+                    <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    {language === 'he' ? 'דשבורד' : 'Dashboard'}
+                  </Button>
+                </Link>
+              </div>
             </div>
           )}
 
@@ -988,12 +1010,22 @@ const Viewer: React.FC = () => {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <Link
-                to="/dashboard"
-                className="inline-flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+              {/* CRITICAL: Large, visible back button - ALWAYS works */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  console.log('[Viewer] Header back button clicked');
+                  // Stop any active session before navigating
+                  if (viewerState === 'connecting' || viewerState === 'connected') {
+                    handleStopViewing(true);
+                  }
+                  navigate('/dashboard');
+                }}
+                className="text-white hover:bg-slate-700 p-2"
               >
-                <ArrowIcon className="w-4 h-4" />
-              </Link>
+                <ArrowIcon className="w-5 h-5" />
+              </Button>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center">
                   <Shield className="w-5 h-5 text-white" />
