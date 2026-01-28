@@ -249,6 +249,44 @@ class AwayManager {
   }
   
   /**
+   * Handle system suspend (sleep)
+   * Called from main.js powerMonitor.on('suspend')
+   * Releases power blocker to allow the system to sleep properly
+   */
+  handleSuspend() {
+    console.log('[AwayManager] 💤 handleSuspend called - system going to sleep');
+    
+    // Stop display-off loop (no point keeping it running while asleep)
+    this._stopDisplayOffLoop();
+    this._stopUserActivityWatch();
+    
+    // CRITICAL: Release power blocker to allow clean sleep
+    // This will be re-acquired on resume if Away Mode is still enabled
+    if (this.state.powerBlockerId !== null) {
+      try {
+        powerSaveBlocker.stop(this.state.powerBlockerId);
+        console.log('[AwayManager] ✅ Power blocker released for sleep:', this.state.powerBlockerId);
+        
+        // Send status to UI
+        if (this.awayModeIPC) {
+          this.awayModeIPC.sendPowerBlockerStatus('STOPPED', this.state.powerBlockerId);
+        }
+      } catch (err) {
+        console.error('[AwayManager] Failed to stop power blocker:', err);
+      }
+      this.state.powerBlockerId = null;
+    }
+    
+    // Mark as inactive locally (DB already updated by main.js)
+    this.state.isActive = false;
+    this.state.enforceDisplayOff = false;
+    this.state.userReturnedNotified = false;
+    this.state.activatedAtMs = null;
+    
+    console.log('[AwayManager] 💤 Suspend cleanup complete - ready for sleep');
+  }
+  
+  /**
    * Cleanup on app quit
    */
   cleanup() {

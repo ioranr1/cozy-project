@@ -1051,8 +1051,66 @@ app.whenReady().then(async () => {
 });
 
 // =============================================================================
-// POWER MONITOR - Resume from sleep
+// POWER MONITOR - Suspend/Resume handling
 // =============================================================================
+
+// CRITICAL: Mark device offline BEFORE system sleeps
+// This allows mobile dashboard to know immediately via Realtime
+powerMonitor.on('suspend', async () => {
+  console.log('[PowerMonitor] 💤 System going to sleep - updating DB immediately...');
+  
+  if (!deviceId) {
+    console.log('[PowerMonitor] No deviceId, skipping suspend cleanup');
+    return;
+  }
+
+  try {
+    // CRITICAL: Update device_status to NORMAL before sleep
+    // This ensures mobile dashboard shows correct state
+    const statusPromise = supabase
+      .from('device_status')
+      .update({ 
+        device_mode: 'NORMAL', 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('device_id', deviceId);
+    
+    // Mark device as inactive
+    const devicePromise = supabase
+      .from('devices')
+      .update({ 
+        is_active: false,
+        last_seen_at: new Date().toISOString()
+      })
+      .eq('id', deviceId);
+
+    // Execute both updates in parallel with timeout
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Suspend DB update timeout')), 2000)
+    );
+
+    await Promise.race([
+      Promise.all([statusPromise, devicePromise]),
+      timeoutPromise
+    ]);
+
+    console.log('[PowerMonitor] ✅ Device marked as offline before sleep');
+    
+    // Stop heartbeat interval (will restart on resume)
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+      console.log('[PowerMonitor] Heartbeat interval stopped');
+    }
+
+    // Disable power blocker (allow sleep to proceed)
+    awayManager.handleSuspend();
+
+  } catch (err) {
+    console.error('[PowerMonitor] ⚠️ Failed to update DB before sleep:', err.message);
+    // Don't block suspend - just log the error
+  }
+});
 
 powerMonitor.on('resume', async () => {
   console.log('[PowerMonitor] 💡 System resumed from sleep - sending immediate heartbeat');
