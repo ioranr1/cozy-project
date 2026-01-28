@@ -254,33 +254,51 @@ class AwayManager {
   
   /**
    * Handle system suspend (sleep)
-   * Called from main.js powerMonitor.on('suspend')
-   * Releases power blocker to allow the system to sleep properly
+   * 
+   * CRITICAL CHANGE: This method should NOT be called when Away Mode is active!
+   * The powerSaveBlocker should prevent suspend from happening in the first place.
+   * 
+   * This method is only for when Away Mode is NOT active and the system naturally
+   * goes to sleep. In that case, we just clean up any lingering state.
+   * 
+   * If suspend happens despite Away Mode being active (forced sleep, lid close, etc.),
+   * main.js handles it specially WITHOUT calling this method.
    */
   handleSuspend() {
-    console.log('[AwayManager] 💤 handleSuspend called - system going to sleep');
+    console.log('[AwayManager] 💤 handleSuspend called');
+    console.log('[AwayManager] Current state.isActive:', this.state.isActive);
     
-    // Stop display-off loop (no point keeping it running while asleep)
+    // If Away Mode is active, this should NOT have been called!
+    // The powerSaveBlocker should prevent suspend.
+    if (this.state.isActive) {
+      console.log('[AwayManager] ⚠️ WARNING: handleSuspend called while Away Mode is active!');
+      console.log('[AwayManager] ⚠️ This indicates a bug or forced sleep event.');
+      console.log('[AwayManager] ⚠️ NOT releasing powerSaveBlocker - preserving Away Mode state.');
+      
+      // Save state for resume but do NOT release the blocker
+      this.state.wasActiveBeforeSleep = true;
+      this.state.wasEnforceDisplayOffBeforeSleep = this.state.enforceDisplayOff;
+      
+      // Stop display-off loops (they're useless while sleeping)
+      this._stopDisplayOffLoop();
+      this._stopUserActivityWatch();
+      
+      return;
+    }
+    
+    // Away Mode is NOT active - clean up any lingering state
+    console.log('[AwayManager] 💤 Normal suspend (Away Mode not active)');
+    
+    // Stop any lingering display-off loops
     this._stopDisplayOffLoop();
     this._stopUserActivityWatch();
     
-    // CRITICAL: Remember if Away Mode was active before sleep
-    // This allows us to re-enable it on resume
-    this.state.wasActiveBeforeSleep = this.state.isActive;
-    this.state.wasEnforceDisplayOffBeforeSleep = this.state.enforceDisplayOff;
-    console.log('[AwayManager] 💤 Saving state before sleep:', {
-      wasActive: this.state.wasActiveBeforeSleep,
-      wasEnforceDisplayOff: this.state.wasEnforceDisplayOffBeforeSleep
-    });
-    
-    // CRITICAL: Release power blocker to allow clean sleep
-    // This will be re-acquired on resume if Away Mode was enabled
+    // Clean up power blocker if somehow still active
     if (this.state.powerBlockerId !== null) {
       try {
         powerSaveBlocker.stop(this.state.powerBlockerId);
-        console.log('[AwayManager] ✅ Power blocker released for sleep:', this.state.powerBlockerId);
+        console.log('[AwayManager] ✅ Cleaned up lingering power blocker:', this.state.powerBlockerId);
         
-        // Send status to UI
         if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
           this.awayModeIPC.sendPowerBlockerStatus('STOPPED', this.state.powerBlockerId);
         }
@@ -290,13 +308,15 @@ class AwayManager {
       this.state.powerBlockerId = null;
     }
     
-    // Mark as inactive locally (DB already updated by main.js)
+    // Reset state
+    this.state.wasActiveBeforeSleep = false;
+    this.state.wasEnforceDisplayOffBeforeSleep = false;
     this.state.isActive = false;
     this.state.enforceDisplayOff = false;
     this.state.userReturnedNotified = false;
     this.state.activatedAtMs = null;
     
-    console.log('[AwayManager] 💤 Suspend cleanup complete - ready for sleep');
+    console.log('[AwayManager] 💤 Suspend cleanup complete');
   }
   
   /**
