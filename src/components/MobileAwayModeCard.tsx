@@ -313,9 +313,13 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
 
     // Fallback: poll connection status every 30 seconds (reduced from 10s)
     const connectionInterval = setInterval(checkConnectionStatus, 30000);
+    
+    // CRITICAL FIX: Also poll device_status as fallback if Realtime fails
+    const statusInterval = setInterval(fetchStatus, 15000);
 
     return () => {
       clearInterval(connectionInterval);
+      clearInterval(statusInterval);
       supabase.removeChannel(statusChannel);
       supabase.removeChannel(devicesChannel);
     };
