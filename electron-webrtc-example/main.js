@@ -1109,3 +1109,69 @@ powerMonitor.on('user-did-become-active', () => {
 powerMonitor.on('user-did-resign-active', () => {
   console.log('[PowerMonitor] User resigned active');
 });
+
+// =============================================================================
+// APP LIFECYCLE - Window and Quit handlers
+// =============================================================================
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('before-quit', async (event) => {
+  if (!app.isQuitting) {
+    event.preventDefault();
+    app.isQuitting = true;
+    
+    console.log('[App] Shutting down - marking device as inactive and resetting Away Mode...');
+
+    // Cleanup intervals
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+
+    // Cleanup Away Mode
+    awayManager.cleanup();
+
+    // CRITICAL: Reset device_mode to NORMAL when Electron closes
+    // This prevents the mobile app from showing AWAY as active when the computer is off
+    if (deviceId) {
+      try {
+        // Update device_status to NORMAL
+        await supabase
+          .from('device_status')
+          .update({ device_mode: 'NORMAL', updated_at: new Date().toISOString() })
+          .eq('device_id', deviceId);
+        
+        console.log('[App] Device mode reset to NORMAL');
+        
+        // Mark device as inactive
+        await supabase
+          .from('devices')
+          .update({ is_active: false })
+          .eq('id', deviceId);
+        
+        console.log('[App] Device marked inactive, quitting...');
+      } catch (err) {
+        console.error('[App] Failed to cleanup device state:', err);
+      }
+    }
+
+    // Unsubscribe from channels
+    if (commandsSubscription) {
+      supabase.removeChannel(commandsSubscription);
+    }
+    if (rtcSessionsSubscription) {
+      supabase.removeChannel(rtcSessionsSubscription);
+    }
+    if (deviceStatusSubscription) {
+      supabase.removeChannel(deviceStatusSubscription);
+    }
+
+    app.quit();
+    return;
+  }
+});
