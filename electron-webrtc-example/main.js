@@ -511,14 +511,17 @@ async function handleCommand(command) {
 
       case 'SET_DEVICE_MODE:AWAY':
         console.log('[Commands] Processing AWAY mode command');
-        const result = await awayManager.enable();
-        if (!result.success) {
-          console.error('[Commands] ❌ AWAY mode enable failed:', result.error);
+        const awayResult = await awayManager.enable();
+        if (!awayResult.success) {
+          console.error('[Commands] ❌ AWAY mode enable failed:', awayResult.error);
           // Revert database state  
           await supabase
             .from('device_status')
             .update({ device_mode: 'NORMAL' })
             .eq('device_id', deviceId);
+          // CRITICAL FIX: Throw error so command is marked as 'failed' with error message
+          // This allows the mobile UI to show the actual error to the user
+          throw new Error(awayResult.error || 'Away Mode preflight failed');
         }
         break;
 
