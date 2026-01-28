@@ -380,6 +380,9 @@ class AwayManager {
       this.state.powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
       console.log('[AwayManager] Power save blocker started (prevent-app-suspension):', this.state.powerBlockerId);
       
+      // Send status to UI for debugging visibility
+      this.awayModeIPC?.sendPowerBlockerStatus('STARTED', this.state.powerBlockerId);
+      
       // Verify it's active
       if (powerSaveBlocker.isStarted(this.state.powerBlockerId)) {
         console.log('[AwayManager] ✓ App suspension prevention is ACTIVE - system will NOT sleep');
@@ -519,9 +522,16 @@ class AwayManager {
     
     // Release power save blocker
     if (this.state.powerBlockerId !== null) {
+      const stoppedId = this.state.powerBlockerId;
       powerSaveBlocker.stop(this.state.powerBlockerId);
       this.state.powerBlockerId = null;
-      console.log('[AwayManager] Power save blocker stopped');
+      console.log('[AwayManager] Power save blocker stopped, ID was:', stoppedId);
+      
+      // Send status to UI for debugging visibility
+      this.awayModeIPC?.sendPowerBlockerStatus('STOPPED', stoppedId);
+    } else {
+      console.log('[AwayManager] Power save blocker was already null (not running)');
+      this.awayModeIPC?.sendPowerBlockerStatus('ALREADY_NULL', null);
     }
   }
   

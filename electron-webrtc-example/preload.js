@@ -153,6 +153,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   awayModeKeepConfirmed: () => {
     ipcRenderer.send('away-mode-keep-confirmed');
   },
+  
+  /**
+   * Listen for power blocker status updates (for debugging)
+   * @param {function({status: string, id: number|null})} callback
+   */
+  onPowerBlockerStatus: (callback) => {
+    ipcRenderer.on('away-mode-power-blocker-status', (event, data) => {
+      callback(data);
+    });
+  },
 
   // -------------------------------------------------------------------------
   // Language
