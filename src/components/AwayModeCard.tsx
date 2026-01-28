@@ -270,14 +270,18 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
     // On success, the DB will be updated by Electron and we'll get the realtime update
   };
 
-  const isAway = deviceMode === 'AWAY';
+  // CRITICAL FIX: Away mode is only valid when device is online
+  // If device is offline/sleeping, show the unavailability status instead
+  const isDeviceReachable = connectionStatus === 'online';
+  const isAway = deviceMode === 'AWAY' && isDeviceReachable;
 
   // Get status label based on current state
   const getStatusLabel = () => {
     if (isUpdating) return t.updating;
     if (connectionStatus === 'offline') return t.statusOffline;
     if (connectionStatus === 'sleeping') return t.statusSleeping;
-    if (isAway) return t.statusAwayActive;
+    // Only show "Away Active" if device is actually reachable
+    if (deviceMode === 'AWAY' && isDeviceReachable) return t.statusAwayActive;
     return t.statusNormal;
   };
 

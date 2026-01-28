@@ -319,7 +319,10 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     }
   };
 
-  const isAway = deviceMode === 'AWAY';
+  // CRITICAL FIX: Away mode is only valid when device is online
+  // If device is offline/sleeping, we show the stored mode but indicate unavailability
+  const isDeviceReachable = connectionStatus === 'online';
+  const isAway = deviceMode === 'AWAY' && isDeviceReachable;
   const isPending = pendingMode !== null || isCommandLoading;
   const showError = commandState.status === 'failed' || commandState.status === 'timeout';
 
@@ -328,7 +331,8 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     if (isPending) return t.statusPending;
     if (connectionStatus === 'offline') return t.statusOffline;
     if (connectionStatus === 'sleeping') return t.statusSleeping;
-    if (isAway) return t.statusAwayActive;
+    // Only show "Away Active" if device is actually reachable
+    if (deviceMode === 'AWAY' && isDeviceReachable) return t.statusAwayActive;
     return t.statusNormal;
   };
 
