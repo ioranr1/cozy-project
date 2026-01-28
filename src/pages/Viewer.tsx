@@ -420,6 +420,19 @@ const Viewer: React.FC = () => {
       return;
     }
 
+    // CRITICAL: Block start if computer is offline (last_seen_at > 120s threshold)
+    // This prevents connection loops when the desktop app is sleeping/closed
+    if (!isPrimaryDeviceOnline) {
+      console.log('[Viewer] Start blocked - computer is offline');
+      setErrorMessage(
+        language === 'he' 
+          ? 'המחשב לא מחובר. פתח את האפליקציה במחשב ונסה שוב.' 
+          : 'Computer is offline. Open the desktop app and try again.'
+      );
+      setViewerState('error');
+      return;
+    }
+
     // Reset stop flag for new session
     stopSentRef.current = false;
 
@@ -459,6 +472,7 @@ const Viewer: React.FC = () => {
     isConnecting,
     isConnected,
     viewerState,
+    isPrimaryDeviceOnline,
     dashboardSessionId,
     startSession,
     sendCommand,
