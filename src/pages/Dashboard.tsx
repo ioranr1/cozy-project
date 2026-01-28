@@ -80,6 +80,17 @@ const Dashboard: React.FC = () => {
     }
   }, [liveViewActive, isLiveViewLoading]);
 
+  // CRITICAL: Aggressive refresh on mount/navigation (e.g., returning from Viewer)
+  // This ensures we get the latest command state after a STOP was sent
+  useEffect(() => {
+    console.log('[Dashboard] Mount detected, refreshing live view state');
+    // Small delay to allow DB to catch up with STOP command
+    const timer = setTimeout(() => {
+      refreshState();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [refreshState]);
+
   // Remote command hook
   const { sendCommand, commandState, isLoading, resetState } = useRemoteCommand({
     deviceId: activeDeviceId,

@@ -322,6 +322,13 @@ const Viewer: React.FC = () => {
       setIsFromAlert(true);
     }
 
+    // CRITICAL: Reset refs on fresh mount to ensure STOP can be sent
+    // This fixes the bug where stopSentRef stays true from previous session
+    stopSentRef.current = false;
+    startInitiatedRef.current = false;
+    manualStopRef.current = false;
+    console.log('[Viewer] Reset refs on mount');
+
     fetchDevices();
   }, [navigate, isAlertSource]);
 
@@ -526,7 +533,11 @@ const Viewer: React.FC = () => {
     // Note: This is for LIVE VIEW only - do NOT send motion detection commands
     if (sendStopCommand && !stopSentRef.current) {
       stopSentRef.current = true;
-      await sendCommand('STOP_LIVE_VIEW');
+      console.log('[Viewer] Sending STOP_LIVE_VIEW command...');
+      const result = await sendCommand('STOP_LIVE_VIEW');
+      console.log('[Viewer] STOP_LIVE_VIEW command result:', result);
+    } else {
+      console.log('[Viewer] Skipping STOP command - already sent or not requested');
     }
 
     // 4. Reset viewer state to "ended" (not idle - shows user that stream ended)
@@ -902,9 +913,10 @@ const Viewer: React.FC = () => {
               {/* CRITICAL: Cancel button - ALWAYS available during connecting */}
               <Button 
                 variant="outline" 
-                onClick={() => {
+                onClick={async () => {
                   console.log('[Viewer] Cancel clicked during connecting');
-                  handleStopViewing(true);
+                  // CRITICAL: Wait for STOP command to be sent BEFORE navigating
+                  await handleStopViewing(true);
                   navigate('/dashboard');
                 }}
                 className="border-slate-600 text-white hover:bg-slate-700"
@@ -1014,11 +1026,11 @@ const Viewer: React.FC = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
+                onClick={async () => {
                   console.log('[Viewer] Header back button clicked');
-                  // Stop any active session before navigating
+                  // CRITICAL: Wait for STOP command to be sent BEFORE navigating
                   if (viewerState === 'connecting' || viewerState === 'connected') {
-                    handleStopViewing(true);
+                    await handleStopViewing(true);
                   }
                   navigate('/dashboard');
                 }}
