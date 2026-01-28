@@ -268,7 +268,7 @@ class AwayManager {
         console.log('[AwayManager] ✅ Power blocker released for sleep:', this.state.powerBlockerId);
         
         // Send status to UI
-        if (this.awayModeIPC) {
+        if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
           this.awayModeIPC.sendPowerBlockerStatus('STOPPED', this.state.powerBlockerId);
         }
       } catch (err) {
@@ -423,11 +423,11 @@ class AwayManager {
       console.log('[AwayManager] Power save blocker started (prevent-app-suspension):', this.state.powerBlockerId);
       
       // Send status to UI for debugging visibility
-      if (this.awayModeIPC) {
+      if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
         console.log('[AwayManager] -> UI power blocker status: STARTED', this.state.powerBlockerId);
         this.awayModeIPC.sendPowerBlockerStatus('STARTED', this.state.powerBlockerId);
       } else {
-        console.warn('[AwayManager] awayModeIPC is NULL - cannot send power blocker status to UI');
+        console.warn('[AwayManager] awayModeIPC not ready - cannot send power blocker status to UI');
       }
       
       // Verify it's active
@@ -570,24 +570,28 @@ class AwayManager {
     // Release power save blocker
     if (this.state.powerBlockerId !== null) {
       const stoppedId = this.state.powerBlockerId;
-      powerSaveBlocker.stop(this.state.powerBlockerId);
+      try {
+        powerSaveBlocker.stop(this.state.powerBlockerId);
+      } catch (err) {
+        console.error('[AwayManager] Failed to stop power blocker:', err);
+      }
       this.state.powerBlockerId = null;
       console.log('[AwayManager] Power save blocker stopped, ID was:', stoppedId);
       
       // Send status to UI for debugging visibility
-      if (this.awayModeIPC) {
+      if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
         console.log('[AwayManager] -> UI power blocker status: STOPPED', stoppedId);
         this.awayModeIPC.sendPowerBlockerStatus('STOPPED', stoppedId);
       } else {
-        console.warn('[AwayManager] awayModeIPC is NULL - cannot send power blocker status to UI');
+        console.warn('[AwayManager] awayModeIPC not ready - cannot send power blocker status to UI');
       }
     } else {
       console.log('[AwayManager] Power save blocker was already null (not running)');
-      if (this.awayModeIPC) {
+      if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
         console.log('[AwayManager] -> UI power blocker status: ALREADY_NULL');
         this.awayModeIPC.sendPowerBlockerStatus('ALREADY_NULL', null);
       } else {
-        console.warn('[AwayManager] awayModeIPC is NULL - cannot send power blocker status to UI');
+        console.warn('[AwayManager] awayModeIPC not ready - cannot send power blocker status to UI');
       }
     }
   }
