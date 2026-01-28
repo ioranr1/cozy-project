@@ -55,7 +55,8 @@ let deviceStatusSubscription = null;
 // Live View state
 let liveViewState = {
   isActive: false,
-  currentSessionId: null
+  currentSessionId: null,
+  isCleaningUp: false  // CRITICAL: Track renderer cleanup state
 };
 
 // Heartbeat interval
@@ -737,11 +738,28 @@ function handleNewRtcSession(session) {
   startNewSession(session);
 }
 
-function startNewSession(session) {
+async function startNewSession(session) {
   // CRITICAL: Double-check we're not already handling this session
   if (liveViewState.currentSessionId === session.id) {
     console.log('[RTC] ⚠️ startNewSession called for already-active session, skipping');
     return;
+  }
+  
+  // CRITICAL FIX: Wait for cleanup to complete before starting new session
+  if (liveViewState.isCleaningUp) {
+    console.log('[RTC] ⏳ Renderer still cleaning up, waiting...');
+    let retries = 10; // 10 x 300ms = 3 seconds max
+    while (liveViewState.isCleaningUp && retries > 0) {
+      await new Promise(r => setTimeout(r, 300));
+      retries--;
+      if (liveViewState.isCleaningUp) {
+        console.log(`[RTC] ⏳ Cleanup still in progress, retries left: ${retries}`);
+      }
+    }
+    if (liveViewState.isCleaningUp) {
+      console.log('[RTC] ⚠️ Cleanup timeout - forcing reset and proceeding');
+      liveViewState.isCleaningUp = false;
+    }
   }
   
   liveViewState.currentSessionId = session.id;
@@ -789,6 +807,8 @@ async function handleStartLiveView() {
 }
 
 async function handleStopLiveView() {
+  // CRITICAL: Mark cleanup immediately to prevent race conditions
+  liveViewState.isCleaningUp = true;
   liveViewState.isActive = false;
   liveViewState.currentSessionId = null;
   updateTrayMenu();
@@ -883,6 +903,17 @@ function setupIpcHandlers() {
     liveViewState.isActive = false;
     liveViewState.currentSessionId = null;
     updateTrayMenu();
+  });
+  
+  // CRITICAL: Cleanup coordination signals from renderer
+  ipcMain.on('webrtc-cleanup-started', () => {
+    console.log('[IPC] 🔄 Renderer cleanup started');
+    liveViewState.isCleaningUp = true;
+  });
+  
+  ipcMain.on('webrtc-cleanup-complete', () => {
+    console.log('[IPC] ✅ Renderer cleanup complete');
+    liveViewState.isCleaningUp = false;
   });
 
   // Away Mode - AwayManager handles its own IPC handlers

@@ -1,12 +1,13 @@
 /**
  * Electron Renderer WebRTC Implementation
  * ========================================
+ * BUILD: renderer-webrtc-2026-01-28-cleanup-sync-01
  * 
  * This file should be loaded in your Electron renderer process (e.g., index.html or a hidden window).
  * It listens for IPC messages from main.js to start/stop live view sessions.
  * 
  * Prerequisites:
- * 1. preload.js must expose: onStartLiveView, onStopLiveView
+ * 1. preload.js must expose: onStartLiveView, onStopLiveView, notifyCleanupStarted, notifyCleanupComplete
  * 2. main.js must send IPC: 'start-live-view' with { sessionId }, 'stop-live-view'
  * 3. Supabase client must be available (or use fetch directly)
  */
@@ -588,6 +589,12 @@ async function stopLiveView() {
   console.log('[Desktop] STOP LIVE VIEW');
   console.log('═══════════════════════════════════════════════════');
   
+  // CRITICAL: Notify main process that cleanup started
+  // This prevents main from sending new start-live-view during cleanup
+  if (typeof window !== 'undefined' && window.electronAPI?.notifyCleanupStarted) {
+    window.electronAPI.notifyCleanupStarted();
+  }
+  
   // Stop polling
   if (pollingInterval) {
     clearInterval(pollingInterval);
@@ -636,6 +643,12 @@ async function stopLiveView() {
   
   isCleaningUp = false;
   console.log('[Desktop] ✅ Cleanup complete');
+  
+  // CRITICAL: Notify main process that cleanup is complete
+  // Now main can safely send new start-live-view commands
+  if (typeof window !== 'undefined' && window.electronAPI?.notifyCleanupComplete) {
+    window.electronAPI.notifyCleanupComplete();
+  }
 }
 
 // ============================================================
