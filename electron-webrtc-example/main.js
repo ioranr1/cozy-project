@@ -14,7 +14,7 @@
  *   macOS: uses built-in pmset
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
@@ -1045,6 +1045,26 @@ app.whenReady().then(async () => {
       createWindow();
     }
   });
+});
+
+// =============================================================================
+// POWER MONITOR - Resume from sleep
+// =============================================================================
+
+powerMonitor.on('resume', () => {
+  console.log('[PowerMonitor] 💡 System resumed from sleep - sending immediate heartbeat');
+  sendHeartbeat();
+  
+  // Restart heartbeat interval if it was cleared
+  if (!heartbeatInterval && deviceId) {
+    console.log('[PowerMonitor] Restarting heartbeat interval');
+    startHeartbeat();
+  }
+});
+
+powerMonitor.on('unlock-screen', () => {
+  console.log('[PowerMonitor] 🔓 Screen unlocked - sending heartbeat');
+  sendHeartbeat();
 });
 
 app.on('window-all-closed', () => {
