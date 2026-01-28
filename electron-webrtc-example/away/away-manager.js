@@ -363,21 +363,21 @@ class AwayManager {
       this._stopUserActivityWatch();
     }
     
-    // Use 'prevent-app-suspension' to keep the Electron process alive
-    // This does NOT prevent the display from sleeping - it only keeps the app running
-    this.state.powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
-    console.log('[AwayManager] Power save blocker started (prevent-app-suspension):', this.state.powerBlockerId);
-    
-    // Verify it's active
-    if (powerSaveBlocker.isStarted(this.state.powerBlockerId)) {
-      console.log('[AwayManager] ✓ App suspension prevention is ACTIVE');
-    } else {
-      console.error('[AwayManager] ✗ Failed to activate app suspension prevention!');
-    }
-    
-    // CRITICAL: Only turn off display and start loop for MANUAL mode
-    // Auto-Away (skipDisplayOff=true) lets the OS manage display power
+    // CRITICAL FIX: Only start powerSaveBlocker for MANUAL Away Mode!
+    // Auto-Away (skipDisplayOff=true) should NOT prevent system sleep - 
+    // it just means "be ready to receive commands" while respecting OS power settings.
     if (!skipDisplayOff) {
+      // MANUAL MODE: Use 'prevent-app-suspension' to keep the Electron process alive
+      this.state.powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+      console.log('[AwayManager] Power save blocker started (prevent-app-suspension):', this.state.powerBlockerId);
+      
+      // Verify it's active
+      if (powerSaveBlocker.isStarted(this.state.powerBlockerId)) {
+        console.log('[AwayManager] ✓ App suspension prevention is ACTIVE');
+      } else {
+        console.error('[AwayManager] ✗ Failed to activate app suspension prevention!');
+      }
+      
       // MANUAL MODE: Immediately turn off the display
       this._turnOffDisplay();
       
@@ -386,8 +386,12 @@ class AwayManager {
       this._startDisplayOffLoop();
       this._startUserActivityWatch();
     } else {
-      // AUTO-AWAY MODE: Do NOT turn off display, let OS power settings manage it
-      console.log('[AwayManager] ℹ️ Auto-Away: Display will follow OS power settings');
+      // AUTO-AWAY MODE: 
+      // - Do NOT turn off display (let OS power settings manage it)
+      // - Do NOT start powerSaveBlocker (let computer sleep normally!)
+      // - Just mark isActive=true so we're ready to receive commands when awake
+      console.log('[AwayManager] ℹ️ Auto-Away: Display AND sleep follow OS power settings');
+      console.log('[AwayManager] ℹ️ Auto-Away: NO powerSaveBlocker - computer can sleep normally');
     }
   }
   
