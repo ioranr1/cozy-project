@@ -786,6 +786,18 @@
             window.electronAPI.sendCameraCheckResult(false);
           }
         });
+
+        // DEBUG: Power blocker status - will show in DevTools console
+        window.electronAPI.onPowerBlockerStatus?.((data) => {
+          console.log(`[UI] 🔋 POWER BLOCKER: ${data.status} (id: ${data.id})`);
+          if (data.status === 'STOPPED') {
+            console.log('[UI] ✅ Power save blocker STOPPED - system CAN now sleep');
+          } else if (data.status === 'STARTED') {
+            console.log('[UI] ⚡ Power save blocker ACTIVE - system will NOT sleep');
+          } else if (data.status === 'ALREADY_NULL') {
+            console.log('[UI] ℹ️ Power save blocker was already stopped');
+          }
+        });
       }
 
       // User Returned Modal removed - Away Mode controlled manually from Dashboard

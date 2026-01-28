@@ -19,6 +19,7 @@ const AWAY_IPC_CHANNELS = {
   PREFLIGHT_FAILED: 'away-mode-preflight-failed',
   USER_RETURNED: 'away-mode-user-returned',
   CHECK_CAMERA: 'away-mode-check-camera',
+  POWER_BLOCKER_STATUS: 'away-mode-power-blocker-status', // NEW: For debugging
   
   // Renderer → Main
   DISABLE_CONFIRMED: 'away-mode-disable-confirmed',
@@ -162,6 +163,10 @@ class AwayModeIPC {
   
   sendCheckCamera() {
     this.mainWindow?.webContents.send(AWAY_IPC_CHANNELS.CHECK_CAMERA);
+  }
+  
+  sendPowerBlockerStatus(status, id) {
+    this.mainWindow?.webContents.send(AWAY_IPC_CHANNELS.POWER_BLOCKER_STATUS, { status, id });
   }
 }
 
