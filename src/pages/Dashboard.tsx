@@ -681,7 +681,7 @@ const Dashboard: React.FC = () => {
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs ${liveViewActive ? 'text-blue-400' : 'text-slate-500'}`}>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${liveViewActive ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-600/50 text-slate-300'}`}>
                       {language === 'he' 
                         ? (liveViewActive ? 'פעיל' : 'כבוי')
                         : (liveViewActive ? 'Active' : 'Off')}
