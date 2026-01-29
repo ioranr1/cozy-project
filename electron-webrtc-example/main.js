@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.0.3 (2026-01-29)
+ * VERSION: 2.0.4 (2026-01-29)
  * 
  * Full main.js with WebRTC Live View + Away Mode integration.
  * Copy this file to your Electron project.
@@ -1086,7 +1086,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-01-29-v2.0.3-store-v7-fix');
+console.log('[Main] BUILD ID: main-js-2026-01-29-v2.0.4-no-initStore');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
