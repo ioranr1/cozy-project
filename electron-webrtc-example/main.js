@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.0.1 (2026-01-28)
+ * VERSION: 2.0.2 (2026-01-29)
  * 
  * Full main.js with WebRTC Live View + Away Mode integration.
  * Copy this file to your Electron project.
@@ -19,7 +19,6 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
-const Store = require('electron-store');
 const { createClient } = require('@supabase/supabase-js');
 
 // CRITICAL FIX: Import AwayManager to replace old Away Mode implementation
@@ -32,7 +31,28 @@ const AwayManager = require('./away/away-manager');
 const SUPABASE_URL = 'https://zoripeohnedivxkvrpbi.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpvcmlwZW9obmVkaXZ4a3ZycGJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0ODMyMDIsImV4cCI6MjA4NDA1OTIwMn0.I24w1VjEWUNf2jCBnPo4-ypu3aq5rATJldbLgSSt9mo';
 
-const store = new Store();
+// NOTE: electron-store v8+ is ESM. In CommonJS main.js we must load it via dynamic import.
+// This is a point-fix for ERR_REQUIRE_ESM and does not change any app flows.
+let store = null;
+
+async function initStore() {
+  if (store) return store;
+
+  let StoreCtor;
+  try {
+    // Support older CommonJS versions if present
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const req = require('electron-store');
+    StoreCtor = req?.default ?? req;
+  } catch (err) {
+    // ESM path (electron-store v8+)
+    const mod = await import('electron-store');
+    StoreCtor = mod?.default ?? mod;
+  }
+
+  store = new StoreCtor();
+  return store;
+}
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // Initialize AwayManager
@@ -1084,11 +1104,12 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-01-28-away-resume-fix-v1');
+console.log('[Main] BUILD ID: main-js-2026-01-29-electron-store-esm-fix-v2');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
 app.whenReady().then(async () => {
+  await initStore();
   console.log('[Main] app.whenReady() - Setting up IPC handlers...');
   setupIpcHandlers();
   console.log('[Main] IPC handlers registered. Creating window...');
