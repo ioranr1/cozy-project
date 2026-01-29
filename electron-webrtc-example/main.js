@@ -1091,7 +1091,6 @@ console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
 app.whenReady().then(async () => {
-  await initStore();
   console.log('[Main] app.whenReady() - Setting up IPC handlers...');
   setupIpcHandlers();
   console.log('[Main] IPC handlers registered. Creating window...');
