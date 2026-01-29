@@ -814,7 +814,7 @@ const Viewer: React.FC = () => {
                 {primaryDevice?.device_name || (language === 'he' ? 'מתחבר...' : 'Connecting...')}
               </h3>
               {deviceStatus && (
-                <Badge className={`${deviceStatus.color} border text-xs mt-0.5`}>
+                <Badge variant="outline" className={`${deviceStatus.color} text-xs mt-0.5`}>
                   {deviceStatus.label}
                 </Badge>
               )}
