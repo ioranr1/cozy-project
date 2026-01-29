@@ -946,7 +946,7 @@ const Viewer: React.FC = () => {
                   {language === 'he' ? 'נסה שוב' : 'Try Again'}
                 </Button>
                 <Link to="/dashboard">
-                  <Button variant="outline" className="border-slate-600 text-white hover:bg-slate-700">
+                  <Button variant="outline" className="border-slate-600 bg-slate-800 text-white hover:bg-slate-700">
                     <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
                     {language === 'he' ? 'דשבורד' : 'Dashboard'}
                   </Button>
