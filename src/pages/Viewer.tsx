@@ -919,7 +919,7 @@ const Viewer: React.FC = () => {
                   await handleStopViewing(true);
                   navigate('/dashboard');
                 }}
-                className="border-slate-600 text-white hover:bg-slate-700"
+                className="border-slate-600 bg-slate-800 text-white hover:bg-slate-700"
               >
                 <X className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
                 {language === 'he' ? 'ביטול וחזרה' : 'Cancel & Go Back'}
