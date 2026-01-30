@@ -1,0 +1,519 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.90.1";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-device-token, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
+};
+
+// AI Gateway URL
+const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// Severity mapping based on labels
+const SEVERITY_MAP: Record<string, string> = {
+  person: 'high',
+  gunshot: 'critical',
+  scream: 'critical',
+  glass_breaking: 'high',
+  alarm: 'high',
+  siren: 'high',
+  baby_crying: 'medium',
+  animal: 'low',
+  vehicle: 'low',
+  dog_barking: 'low',
+};
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const WHATSAPP_ACCESS_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN');
+    const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID');
+
+    if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY is not configured');
+      return new Response(JSON.stringify({ error: 'AI service not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Parse request body
+    const body = await req.json();
+    const {
+      device_id,
+      event_type,
+      labels,
+      snapshot, // base64 encoded image for motion events
+      timestamp,
+      metadata = {},
+    } = body;
+
+    console.log(`[events-report] Received ${event_type} event for device ${device_id}`);
+    console.log(`[events-report] Labels:`, labels);
+
+    // Validate required fields
+    if (!device_id || !event_type || !labels) {
+      return new Response(JSON.stringify({ error: 'Missing required fields: device_id, event_type, labels' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate device token from header
+    const deviceToken = req.headers.get('x-device-token');
+    if (!deviceToken) {
+      return new Response(JSON.stringify({ error: 'Missing device authentication' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Create Supabase client with service role for full access
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Verify device token
+    const { data: device, error: deviceError } = await supabase
+      .from('devices')
+      .select('id, profile_id, device_auth_token')
+      .eq('id', device_id)
+      .single();
+
+    if (deviceError || !device) {
+      console.error('[events-report] Device not found:', deviceError);
+      return new Response(JSON.stringify({ error: 'Device not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (device.device_auth_token !== deviceToken) {
+      console.error('[events-report] Invalid device token');
+      return new Response(JSON.stringify({ error: 'Invalid device authentication' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Determine severity from labels
+    let severity = 'low';
+    for (const labelObj of labels) {
+      const label = labelObj.label || labelObj;
+      if (SEVERITY_MAP[label] && getSeverityRank(SEVERITY_MAP[label]) > getSeverityRank(severity)) {
+        severity = SEVERITY_MAP[label];
+      }
+    }
+
+    // Upload snapshot if provided (motion events)
+    let snapshotUrl: string | null = null;
+    if (snapshot && event_type === 'motion') {
+      try {
+        // Decode base64 and upload to storage
+        const base64Data = snapshot.replace(/^data:image\/\w+;base64,/, '');
+        const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+        
+        const fileName = `${device_id}/${Date.now()}.jpg`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('event-snapshots')
+          .upload(fileName, binaryData, {
+            contentType: 'image/jpeg',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error('[events-report] Snapshot upload error:', uploadError);
+        } else {
+          // Get signed URL (valid for 7 days)
+          const { data: signedUrl } = await supabase.storage
+            .from('event-snapshots')
+            .createSignedUrl(fileName, 60 * 60 * 24 * 7);
+          
+          snapshotUrl = signedUrl?.signedUrl || null;
+          console.log('[events-report] Snapshot uploaded:', fileName);
+        }
+      } catch (uploadErr) {
+        console.error('[events-report] Snapshot processing error:', uploadErr);
+      }
+    }
+
+    // Create initial event record
+    const { data: eventRecord, error: insertError } = await supabase
+      .from('monitoring_events')
+      .insert({
+        device_id,
+        event_type,
+        labels,
+        snapshot_url: snapshotUrl,
+        severity,
+        metadata: {
+          ...metadata,
+          original_timestamp: timestamp,
+        },
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('[events-report] Failed to create event:', insertError);
+      return new Response(JSON.stringify({ error: 'Failed to create event record' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('[events-report] Event created:', eventRecord.id);
+
+    // Run AI validation
+    let aiIsReal = false;
+    let aiSummary = '';
+    let aiConfidence = 0;
+
+    try {
+      const aiResult = await validateWithAI({
+        eventType: event_type,
+        labels,
+        snapshotUrl,
+        snapshot, // Pass base64 for vision
+        apiKey: LOVABLE_API_KEY,
+      });
+
+      aiIsReal = aiResult.isReal;
+      aiSummary = aiResult.summary;
+      aiConfidence = aiResult.confidence;
+
+      console.log(`[events-report] AI validation: isReal=${aiIsReal}, confidence=${aiConfidence}`);
+
+      // Update event with AI results
+      await supabase
+        .from('monitoring_events')
+        .update({
+          ai_validated: true,
+          ai_is_real: aiIsReal,
+          ai_summary: aiSummary,
+          ai_confidence: aiConfidence,
+          ai_validated_at: new Date().toISOString(),
+          severity: aiIsReal ? severity : 'low', // Downgrade false positives
+        })
+        .eq('id', eventRecord.id);
+
+    } catch (aiError) {
+      console.error('[events-report] AI validation error:', aiError);
+      // Continue without AI validation - treat as real for safety
+      aiIsReal = true;
+      aiSummary = 'AI validation unavailable - treating as real event';
+    }
+
+    // If event is real, send notifications
+    if (aiIsReal) {
+      console.log('[events-report] Event validated as REAL - sending notifications');
+
+      // Get profile for WhatsApp notification
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('phone_number, country_code, full_name, preferred_language')
+        .eq('id', device.profile_id)
+        .single();
+
+      const notificationTypes: string[] = [];
+      
+      // Send WhatsApp notification
+      if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
+        try {
+          await sendWhatsAppNotification({
+            phoneNumber: `${profile.country_code}${profile.phone_number}`.replace(/\+/g, ''),
+            eventType: event_type,
+            labels,
+            severity,
+            aiSummary,
+            accessToken: WHATSAPP_ACCESS_TOKEN,
+            phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
+            language: profile.preferred_language || 'he',
+          });
+          notificationTypes.push('whatsapp');
+          console.log('[events-report] WhatsApp notification sent');
+        } catch (waError) {
+          console.error('[events-report] WhatsApp notification failed:', waError);
+        }
+      }
+
+      // Update notification status
+      if (notificationTypes.length > 0) {
+        await supabase
+          .from('monitoring_events')
+          .update({
+            notification_sent: true,
+            notification_sent_at: new Date().toISOString(),
+            notification_type: notificationTypes.join(','),
+          })
+          .eq('id', eventRecord.id);
+      }
+    } else {
+      console.log('[events-report] Event validated as FALSE POSITIVE - no notification');
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      event_id: eventRecord.id,
+      ai_validated: true,
+      ai_is_real: aiIsReal,
+      ai_summary: aiSummary,
+      ai_confidence: aiConfidence,
+      severity,
+      notification_sent: aiIsReal,
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('[events-report] Unexpected error:', error);
+    return new Response(JSON.stringify({ 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+function getSeverityRank(severity: string): number {
+  const ranks: Record<string, number> = {
+    low: 1,
+    medium: 2,
+    high: 3,
+    critical: 4,
+  };
+  return ranks[severity] || 0;
+}
+
+interface AIValidationParams {
+  eventType: string;
+  labels: Array<{ label: string; confidence: number }>;
+  snapshotUrl: string | null;
+  snapshot: string | null;
+  apiKey: string;
+}
+
+interface AIValidationResult {
+  isReal: boolean;
+  summary: string;
+  confidence: number;
+}
+
+async function validateWithAI(params: AIValidationParams): Promise<AIValidationResult> {
+  const { eventType, labels, snapshot, apiKey } = params;
+
+  // Build prompt based on event type
+  let messages: Array<{ role: string; content: any }>;
+  
+  if (eventType === 'motion' && snapshot) {
+    // Vision-based validation for motion events
+    messages = [
+      {
+        role: 'system',
+        content: `You are a security AI assistant analyzing camera snapshots for a home security system.
+Your job is to determine if detected objects/people represent a real security concern.
+
+Rules:
+- A person near doors/windows = HIGH concern
+- A person inside the home = CRITICAL concern
+- Animals or pets = LOW concern (unless specified as alert-worthy)
+- Vehicles in driveways = LOW concern
+- Shadows, reflections, or camera artifacts = FALSE POSITIVE
+
+Respond in JSON format:
+{
+  "is_real": boolean,
+  "confidence": number (0-1),
+  "summary": "Brief explanation in Hebrew"
+}`
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `Detected labels: ${JSON.stringify(labels)}. Analyze this security camera snapshot and determine if this is a real security event or false positive.`
+          },
+          {
+            type: 'image_url',
+            image_url: {
+              url: snapshot // base64 data URL
+            }
+          }
+        ]
+      }
+    ];
+  } else {
+    // Text-based validation for sound events
+    const labelsText = labels.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
+    
+    messages = [
+      {
+        role: 'system',
+        content: `You are a security AI assistant analyzing audio detection events for a home security system.
+Your job is to determine if detected sounds represent a real security concern.
+
+Sound classifications:
+- glass_breaking, gunshot, scream = CRITICAL (likely real threat)
+- alarm, siren = HIGH (investigate immediately)
+- baby_crying = MEDIUM (may need attention)
+- dog_barking = LOW (usually normal)
+
+Consider:
+- High confidence scores (>0.8) are more reliable
+- Multiple detections of same sound = more reliable
+- Context matters (time of day, typical household sounds)
+
+Respond in JSON format:
+{
+  "is_real": boolean,
+  "confidence": number (0-1),
+  "summary": "Brief explanation in Hebrew"
+}`
+      },
+      {
+        role: 'user',
+        content: `Audio event detected. Classified sounds: ${labelsText}. Is this a real security concern or a false positive?`
+      }
+    ];
+  }
+
+  // Call Lovable AI Gateway
+  const response = await fetch(AI_GATEWAY_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash', // Fast + multimodal
+      messages,
+      temperature: 0.3, // Lower for more consistent results
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[AI Validation] API error:', response.status, errorText);
+    throw new Error(`AI API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || '';
+  
+  console.log('[AI Validation] Raw response:', content);
+
+  // Parse JSON response
+  try {
+    // Extract JSON from response (may be wrapped in markdown)
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        isReal: parsed.is_real === true,
+        summary: parsed.summary || 'No summary provided',
+        confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+      };
+    }
+  } catch (parseError) {
+    console.error('[AI Validation] Parse error:', parseError);
+  }
+
+  // Fallback: treat as real for safety
+  return {
+    isReal: true,
+    summary: 'לא ניתן לפענח תגובת AI - מטופל כאירוע אמיתי',
+    confidence: 0.5,
+  };
+}
+
+interface WhatsAppParams {
+  phoneNumber: string;
+  eventType: string;
+  labels: Array<{ label: string; confidence: number }>;
+  severity: string;
+  aiSummary: string;
+  accessToken: string;
+  phoneNumberId: string;
+  language: string;
+}
+
+async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
+  const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language } = params;
+
+  // Build message in Hebrew or English
+  const isHebrew = language === 'he';
+  
+  const severityLabels: Record<string, Record<string, string>> = {
+    critical: { he: '🚨 קריטי', en: '🚨 CRITICAL' },
+    high: { he: '⚠️ גבוה', en: '⚠️ HIGH' },
+    medium: { he: '📢 בינוני', en: '📢 MEDIUM' },
+    low: { he: 'ℹ️ נמוך', en: 'ℹ️ LOW' },
+  };
+
+  const eventTypeLabels: Record<string, Record<string, string>> = {
+    motion: { he: 'תנועה', en: 'Motion' },
+    sound: { he: 'קול', en: 'Sound' },
+  };
+
+  const topLabel = labels[0]?.label || 'unknown';
+  const topConfidence = labels[0]?.confidence || 0;
+
+  const severityText = severityLabels[severity]?.[isHebrew ? 'he' : 'en'] || severity;
+  const eventTypeText = eventTypeLabels[eventType]?.[isHebrew ? 'he' : 'en'] || eventType;
+
+  const message = isHebrew
+    ? `${severityText} - התראת אבטחה
+
+סוג: ${eventTypeText}
+זוהה: ${topLabel} (${(topConfidence * 100).toFixed(0)}%)
+
+${aiSummary}
+
+צפה בשידור חי באפליקציה.`
+    : `${severityText} - Security Alert
+
+Type: ${eventTypeText}
+Detected: ${topLabel} (${(topConfidence * 100).toFixed(0)}%)
+
+${aiSummary}
+
+View live stream in the app.`;
+
+  // Send via WhatsApp API
+  const response = await fetch(
+    `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: phoneNumber,
+        type: 'text',
+        text: { body: message },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`WhatsApp API error: ${response.status} - ${errorText}`);
+  }
+
+  console.log('[WhatsApp] Message sent to:', phoneNumber);
+}

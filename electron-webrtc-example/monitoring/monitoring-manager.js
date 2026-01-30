@@ -1,13 +1,17 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.1.0 (2026-01-30)
+ * VERSION: 0.2.0 (2026-01-30)
  * 
  * Manages monitoring state, configuration, and event handling.
  * Coordinates between detectors (renderer) and database (Supabase).
+ * Sends events to edge function for AI validation and notifications.
  */
 
 const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config');
+
+// Edge function endpoint for event reporting
+const EVENTS_REPORT_ENDPOINT = 'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/events-report';
 
 class MonitoringManager {
   constructor({ supabase }) {
@@ -15,6 +19,7 @@ class MonitoringManager {
     this.mainWindow = null;
     this.deviceId = null;
     this.profileId = null;
+    this.deviceAuthToken = null; // For authenticating with edge functions
     
     // State
     this.isActive = false;
@@ -33,7 +38,11 @@ class MonitoringManager {
     // Notification cooldown
     this.lastNotificationTime = 0;
     
-    console.log('[MonitoringManager] Initialized');
+    // Pending events queue (for batch processing)
+    this.pendingEvents = [];
+    this.eventQueueTimer = null;
+    
+    console.log('[MonitoringManager] Initialized (v0.2.0)');
   }
 
   // ===========================================================================
@@ -53,6 +62,11 @@ class MonitoringManager {
   setProfileId(id) {
     this.profileId = id;
     console.log('[MonitoringManager] Profile ID set:', id);
+  }
+
+  setDeviceAuthToken(token) {
+    this.deviceAuthToken = token;
+    console.log('[MonitoringManager] Device auth token set');
   }
 
   setDetectorReady(sensorType, ready) {
@@ -79,9 +93,9 @@ class MonitoringManager {
         .from('monitoring_config')
         .select('*')
         .eq('device_id', this.deviceId)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows
+      if (error) {
         throw error;
       }
 
@@ -213,6 +227,13 @@ class MonitoringManager {
 
     this.isActive = false;
 
+    // Clear any pending events
+    if (this.eventQueueTimer) {
+      clearTimeout(this.eventQueueTimer);
+      this.eventQueueTimer = null;
+    }
+    this.pendingEvents = [];
+
     // Update device_status in DB
     if (this.deviceId) {
       await this.supabase
@@ -236,9 +257,16 @@ class MonitoringManager {
 
   /**
    * Handle event detected by renderer
+   * @param {Object} eventData - Event from detector
+   * @param {string} eventData.sensor_type - 'motion' or 'sound'
+   * @param {string} eventData.label - Detected label
+   * @param {number} eventData.confidence - Confidence score
+   * @param {number} eventData.timestamp - Detection timestamp
+   * @param {Object} eventData.metadata - Additional metadata
+   * @param {string} [eventData.snapshot] - Base64 encoded image (for motion)
    */
   async handleEvent(eventData) {
-    const { sensor_type, label, confidence, timestamp, metadata } = eventData;
+    const { sensor_type, label, confidence, timestamp, metadata, snapshot } = eventData;
 
     console.log(`[MonitoringManager] Event: ${sensor_type}/${label} (${(confidence * 100).toFixed(1)}%)`);
 
@@ -268,63 +296,67 @@ class MonitoringManager {
     // Update debounce tracking
     this.lastEventTime[sensor_type][label] = timestamp;
 
-    // Store event in database
-    await this.storeEvent({
+    // Send event to edge function for AI validation and notifications
+    await this.reportEventToServer({
       sensor_type,
       label,
       confidence,
+      timestamp,
       metadata,
-    });
-
-    // Send notification (with cooldown)
-    await this.sendNotification({
-      sensor_type,
-      label,
-      confidence,
+      snapshot,
     });
   }
 
-  async storeEvent({ sensor_type, label, confidence, metadata }) {
-    if (!this.deviceId) {
-      console.warn('[MonitoringManager] No device ID, skipping event storage');
-      return;
+  /**
+   * Report event to edge function for AI validation and notifications
+   */
+  async reportEventToServer(eventData) {
+    if (!this.deviceId || !this.deviceAuthToken) {
+      console.warn('[MonitoringManager] Missing device ID or auth token, skipping server report');
+      return null;
     }
+
+    const { sensor_type, label, confidence, timestamp, metadata, snapshot } = eventData;
 
     try {
-      const { error } = await this.supabase
-        .from('monitoring_events')
-        .insert({
+      console.log(`[MonitoringManager] Reporting event to server...`);
+
+      const response = await fetch(EVENTS_REPORT_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-device-token': this.deviceAuthToken,
+        },
+        body: JSON.stringify({
           device_id: this.deviceId,
-          sensor_type,
-          label,
-          confidence,
+          event_type: sensor_type,
+          labels: [{ label, confidence }],
+          snapshot: snapshot || null,
+          timestamp,
           metadata: metadata || {},
-          ai_validation: null,
-        });
+        }),
+      });
 
-      if (error) {
-        console.error('[MonitoringManager] Failed to store event:', error);
-      } else {
-        console.log('[MonitoringManager] Event stored');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[MonitoringManager] Server error: ${response.status} - ${errorText}`);
+        return null;
       }
+
+      const result = await response.json();
+      
+      console.log(`[MonitoringManager] Server response:`, {
+        event_id: result.event_id,
+        ai_is_real: result.ai_is_real,
+        ai_confidence: result.ai_confidence,
+        notification_sent: result.notification_sent,
+      });
+
+      return result;
     } catch (error) {
-      console.error('[MonitoringManager] Event storage error:', error);
+      console.error('[MonitoringManager] Failed to report event:', error);
+      return null;
     }
-  }
-
-  async sendNotification({ sensor_type, label, confidence }) {
-    const now = Date.now();
-    const cooldown = this.config?.notification_cooldown_ms || 60000;
-    
-    if (now - this.lastNotificationTime < cooldown) {
-      console.log(`[MonitoringManager] Notification cooldown active`);
-      return;
-    }
-
-    this.lastNotificationTime = now;
-
-    // TODO: Implement push notification via edge function
-    console.log(`[MonitoringManager] Would send notification: ${sensor_type}/${label}`);
   }
 
   // ===========================================================================
