@@ -1,0 +1,3 @@
+# ML Models Directory
+# Models are downloaded on first run or bundled with the app
+# Do not commit model files to git (they are large binaries)
