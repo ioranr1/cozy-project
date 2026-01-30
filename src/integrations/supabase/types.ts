@@ -320,6 +320,113 @@ export type Database = {
           },
         ]
       }
+      monitoring_config: {
+        Row: {
+          config: Json
+          created_at: string
+          device_id: string
+          id: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          device_id: string
+          id?: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          device_id?: string
+          id?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_config_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: true
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monitoring_config_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monitoring_events: {
+        Row: {
+          ai_confidence: number | null
+          ai_is_real: boolean | null
+          ai_summary: string | null
+          ai_validated: boolean | null
+          ai_validated_at: string | null
+          created_at: string
+          device_id: string
+          event_type: string
+          id: string
+          labels: Json
+          metadata: Json | null
+          notification_sent: boolean
+          notification_sent_at: string | null
+          notification_type: string | null
+          severity: string | null
+          snapshot_url: string | null
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_is_real?: boolean | null
+          ai_summary?: string | null
+          ai_validated?: boolean | null
+          ai_validated_at?: string | null
+          created_at?: string
+          device_id: string
+          event_type: string
+          id?: string
+          labels?: Json
+          metadata?: Json | null
+          notification_sent?: boolean
+          notification_sent_at?: string | null
+          notification_type?: string | null
+          severity?: string | null
+          snapshot_url?: string | null
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_is_real?: boolean | null
+          ai_summary?: string | null
+          ai_validated?: boolean | null
+          ai_validated_at?: string | null
+          created_at?: string
+          device_id?: string
+          event_type?: string
+          id?: string
+          labels?: Json
+          metadata?: Json | null
+          notification_sent?: boolean
+          notification_sent_at?: string | null
+          notification_type?: string | null
+          severity?: string | null
+          snapshot_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monitoring_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       otp_codes: {
         Row: {
           attempts: number | null
