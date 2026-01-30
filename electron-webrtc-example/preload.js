@@ -209,10 +209,100 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('show-success-screen', () => {
       callback();
     });
+  },
+
+  // -------------------------------------------------------------------------
+  // Monitoring
+  // -------------------------------------------------------------------------
+  
+  /**
+   * Listen for start monitoring command
+   * @param {function(config: object)} callback
+   */
+  onStartMonitoring: (callback) => {
+    ipcRenderer.on('start-monitoring', (event, config) => {
+      callback(config);
+    });
+  },
+  
+  /**
+   * Listen for stop monitoring command
+   * @param {function()} callback
+   */
+  onStopMonitoring: (callback) => {
+    ipcRenderer.on('stop-monitoring', () => {
+      callback();
+    });
+  },
+  
+  /**
+   * Listen for config update while monitoring
+   * @param {function(config: object)} callback
+   */
+  onUpdateMonitoringConfig: (callback) => {
+    ipcRenderer.on('update-monitoring-config', (event, config) => {
+      callback(config);
+    });
+  },
+  
+  /**
+   * Send monitoring event to main process
+   * @param {object} event - Detection event from sensor
+   */
+  sendMonitoringEvent: (event) => {
+    ipcRenderer.send('monitoring-event', event);
+  },
+  
+  /**
+   * Notify main that monitoring started
+   * @param {{motion: boolean, sound: boolean}} status
+   */
+  notifyMonitoringStarted: (status) => {
+    ipcRenderer.send('monitoring-started', status);
+  },
+  
+  /**
+   * Notify main that monitoring stopped
+   */
+  notifyMonitoringStopped: () => {
+    ipcRenderer.send('monitoring-stopped');
+  },
+  
+  /**
+   * Notify main of monitoring error
+   * @param {string} error
+   */
+  notifyMonitoringError: (error) => {
+    ipcRenderer.send('monitoring-error', error);
+  },
+  
+  /**
+   * Notify main of monitoring status
+   * @param {object} status
+   */
+  notifyMonitoringStatus: (status) => {
+    ipcRenderer.send('monitoring-status', status);
+  },
+  
+  /**
+   * Notify main that a detector is ready
+   * @param {string} type - 'motion' or 'sound'
+   */
+  notifyDetectorReady: (type) => {
+    ipcRenderer.send('detector-ready', type);
+  },
+  
+  /**
+   * Notify main of detector error
+   * @param {string} type - 'motion' or 'sound'
+   * @param {string} error
+   */
+  notifyDetectorError: (type, error) => {
+    ipcRenderer.send('detector-error', type, error);
   }
 });
 
 // BUILD STAMP (debug)
-const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-01-28-cleanup-sync-01';
+const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-01-30-monitoring-01';
 console.log('[Preload] electronAPI exposed to renderer');
 console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);

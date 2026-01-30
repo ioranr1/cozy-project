@@ -190,77 +190,98 @@ class MonitoringManager {
   async enable() {
     if (this.isActive) {
       console.log('[MonitoringManager] Already active');
-      return true;
+      return { success: true };
     }
 
     console.log('[MonitoringManager] Enable requested');
 
-    // Load config if not loaded
-    if (!this.config) {
-      await this.loadConfig();
+    try {
+      // Load config if not loaded
+      if (!this.config) {
+        await this.loadConfig();
+      }
+
+      // Send start command to renderer
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('start-monitoring', this.config);
+      } else {
+        console.error('[MonitoringManager] No main window available');
+        return { success: false, error: 'Main window not available' };
+      }
+
+      this.isActive = true;
+
+      // Update device_status in DB
+      if (this.deviceId) {
+        const { error } = await this.supabase
+          .from('device_status')
+          .update({
+            security_enabled: true,
+            motion_enabled: this.config.sensors.motion.enabled,
+            sound_enabled: this.config.sensors.sound.enabled,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('device_id', this.deviceId);
+
+        if (error) {
+          console.error('[MonitoringManager] Failed to update device_status:', error);
+        }
+      }
+
+      console.log('[MonitoringManager] ✓ Monitoring enabled');
+      return { success: true };
+    } catch (error) {
+      console.error('[MonitoringManager] Enable failed:', error);
+      return { success: false, error: error.message || 'Enable failed' };
     }
-
-    // Send start command to renderer
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('monitoring-start', this.config);
-    }
-
-    this.isActive = true;
-
-    // Update device_status in DB
-    if (this.deviceId) {
-      await this.supabase
-        .from('device_status')
-        .update({
-          security_enabled: true,
-          motion_enabled: this.config.sensors.motion.enabled,
-          sound_enabled: this.config.sensors.sound.enabled,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('device_id', this.deviceId);
-    }
-
-    console.log('[MonitoringManager] ✓ Monitoring enabled');
-    return true;
   }
 
   async disable() {
     if (!this.isActive) {
       console.log('[MonitoringManager] Already inactive');
-      return true;
+      return { success: true };
     }
 
     console.log('[MonitoringManager] Disable requested');
 
-    // Send stop command to renderer
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('monitoring-stop');
+    try {
+      // Send stop command to renderer
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('stop-monitoring');
+      }
+
+      this.isActive = false;
+
+      // Clear any pending events
+      if (this.eventQueueTimer) {
+        clearTimeout(this.eventQueueTimer);
+        this.eventQueueTimer = null;
+      }
+      this.pendingEvents = [];
+
+      // Update device_status in DB
+      if (this.deviceId) {
+        const { error } = await this.supabase
+          .from('device_status')
+          .update({
+            security_enabled: false,
+            motion_enabled: false,
+            sound_enabled: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('device_id', this.deviceId);
+
+        if (error) {
+          console.error('[MonitoringManager] Failed to update device_status:', error);
+        }
+      }
+
+      console.log('[MonitoringManager] ✓ Monitoring disabled');
+      return { success: true };
+    } catch (error) {
+      console.error('[MonitoringManager] Disable failed:', error);
+      return { success: false, error: error.message || 'Disable failed' };
     }
-
-    this.isActive = false;
-
-    // Clear any pending events
-    if (this.eventQueueTimer) {
-      clearTimeout(this.eventQueueTimer);
-      this.eventQueueTimer = null;
-    }
-    this.pendingEvents = [];
-
-    // Update device_status in DB
-    if (this.deviceId) {
-      await this.supabase
-        .from('device_status')
-        .update({
-          security_enabled: false,
-          motion_enabled: false,
-          sound_enabled: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('device_id', this.deviceId);
-    }
-
-    console.log('[MonitoringManager] ✓ Monitoring disabled');
-    return true;
   }
 
   // ===========================================================================

@@ -2,13 +2,14 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.0.4 (2026-01-29)
+ * VERSION: 2.1.0 (2026-01-30)
  * 
- * Full main.js with WebRTC Live View + Away Mode integration.
+ * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
  * 
  * Required dependencies:
  *   npm install electron electron-store@7.0.3 @supabase/supabase-js
+ *   npm install @mediapipe/tasks-vision @tensorflow/tfjs
  * 
  * IMPORTANT: Use electron-store v7.0.3 (NOT v8+) to avoid ESM issues!
  * 
@@ -27,6 +28,10 @@ const { createClient } = require('@supabase/supabase-js');
 // CRITICAL FIX: Import AwayManager to replace old Away Mode implementation
 const AwayManager = require('./away/away-manager');
 
+// NEW: Import Monitoring system
+const MonitoringManager = require('./monitoring/monitoring-manager');
+const LocalClipRecorder = require('./monitoring/local-clip-recorder');
+
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
@@ -40,16 +45,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Initialize AwayManager
 const awayManager = new AwayManager({ supabase });
 
-// =============================================================================
-// GLOBAL STATE
-// =============================================================================
+// Initialize MonitoringManager
+const monitoringManager = new MonitoringManager({ supabase });
 
-let mainWindow = null;
-let tray = null;
-let trayAvailable = false;
-let deviceId = null;
-let profileId = null;
-let currentLanguage = 'he';
+// Initialize LocalClipRecorder (will be set up after window is ready)
+let clipRecorder = null;
 
 // Subscriptions
 let commandsSubscription = null;
@@ -560,6 +560,26 @@ async function handleCommand(command) {
           console.error('[Commands] ❌ Failed to update device_status to NORMAL:', normalDbError);
           throw new Error(normalDbError.message || 'Failed to update device status');
         }
+        break;
+
+      case 'SET_MONITORING:ON':
+        console.log('[Commands] Processing SET_MONITORING:ON command');
+        const monitoringResult = await monitoringManager.enable();
+        if (!monitoringResult.success) {
+          console.error('[Commands] ❌ Monitoring enable failed:', monitoringResult.error);
+          throw new Error(monitoringResult.error || 'Monitoring enable failed');
+        }
+        console.log('[Commands] ✅ Monitoring enabled');
+        break;
+
+      case 'SET_MONITORING:OFF':
+        console.log('[Commands] Processing SET_MONITORING:OFF command');
+        const stopResult = await monitoringManager.disable();
+        if (!stopResult.success) {
+          console.error('[Commands] ❌ Monitoring disable failed:', stopResult.error);
+          throw new Error(stopResult.error || 'Monitoring disable failed');
+        }
+        console.log('[Commands] ✅ Monitoring disabled');
         break;
 
       default:
@@ -1074,9 +1094,51 @@ function setupIpcHandlers() {
   });
 
   // Language
-  ipcMain.handle('set-language', (event, lang) => {
+  ipcMain.handle('set-language', (lang) => {
     currentLanguage = lang;
     updateTrayMenu();
+  });
+
+  // -------------------------------------------------------------------------
+  // Monitoring IPC handlers
+  // -------------------------------------------------------------------------
+  
+  // Monitoring event from renderer (detection)
+  ipcMain.on('monitoring-event', async (event, eventData) => {
+    console.log('[IPC] Monitoring event received:', eventData.sensor_type, eventData.label);
+    await monitoringManager.handleEvent(eventData);
+  });
+
+  // Detector ready notification
+  ipcMain.on('detector-ready', (event, type) => {
+    console.log('[IPC] Detector ready:', type);
+    monitoringManager.setDetectorReady(type, true);
+  });
+
+  // Detector error notification
+  ipcMain.on('detector-error', (event, type, error) => {
+    console.error('[IPC] Detector error:', type, error);
+    monitoringManager.setDetectorReady(type, false);
+  });
+
+  // Monitoring started notification
+  ipcMain.on('monitoring-started', (event, status) => {
+    console.log('[IPC] Monitoring started:', status);
+  });
+
+  // Monitoring stopped notification
+  ipcMain.on('monitoring-stopped', (event) => {
+    console.log('[IPC] Monitoring stopped');
+  });
+
+  // Monitoring error notification
+  ipcMain.on('monitoring-error', (event, error) => {
+    console.error('[IPC] Monitoring error:', error);
+  });
+
+  // Monitoring status update
+  ipcMain.on('monitoring-status', (event, status) => {
+    console.log('[IPC] Monitoring status:', status);
   });
 }
 
@@ -1086,7 +1148,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-01-29-v2.0.4-no-initStore');
+console.log('[Main] BUILD ID: main-js-2026-01-30-v2.1.0-monitoring');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
@@ -1097,6 +1159,20 @@ app.whenReady().then(async () => {
   createWindow();
   initTray();
   await initDevice();
+
+  // Initialize MonitoringManager with device info
+  if (deviceId) {
+    monitoringManager.setDeviceId(deviceId);
+    monitoringManager.setProfileId(profileId);
+    monitoringManager.setMainWindow(mainWindow);
+    
+    // Initialize LocalClipRecorder
+    clipRecorder = new LocalClipRecorder({
+      clipsDir: path.join(app.getPath('userData'), 'clips'),
+      defaultDurationSeconds: 10,
+    });
+    monitoringManager.setClipRecorder(clipRecorder);
+  }
 
   // If we have a stored device, start subscriptions
   if (deviceId) {
