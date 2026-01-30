@@ -160,7 +160,9 @@ export type Database = {
           is_armed: boolean
           last_command: string | null
           last_command_at: string | null
+          motion_enabled: boolean
           security_enabled: boolean
+          sound_enabled: boolean
           updated_at: string
         }
         Insert: {
@@ -171,7 +173,9 @@ export type Database = {
           is_armed?: boolean
           last_command?: string | null
           last_command_at?: string | null
+          motion_enabled?: boolean
           security_enabled?: boolean
+          sound_enabled?: boolean
           updated_at?: string
         }
         Update: {
@@ -182,7 +186,9 @@ export type Database = {
           is_armed?: boolean
           last_command?: string | null
           last_command_at?: string | null
+          motion_enabled?: boolean
           security_enabled?: boolean
+          sound_enabled?: boolean
           updated_at?: string
         }
         Relationships: [
