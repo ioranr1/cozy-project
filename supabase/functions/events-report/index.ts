@@ -235,6 +235,7 @@ serve(async (req) => {
             accessToken: WHATSAPP_ACCESS_TOKEN,
             phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
             language: profile.preferred_language || 'he',
+            eventId: eventRecord.id,
           });
           notificationTypes.push('whatsapp');
           console.log('[events-report] WhatsApp notification sent');
@@ -448,10 +449,14 @@ interface WhatsAppParams {
   accessToken: string;
   phoneNumberId: string;
   language: string;
+  eventId: string;
 }
 
 async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
-  const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language } = params;
+  const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language, eventId } = params;
+
+  // Event view URL
+  const eventUrl = `https://cozy-project.lovable.app/event/${eventId}`;
 
   // Build message in Hebrew or English
   const isHebrew = language === 'he';
@@ -482,7 +487,9 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
 
 ${aiSummary}
 
-צפה בשידור חי באפליקציה.`
+🔗 צפה באירוע: ${eventUrl}
+
+או לחץ "צפייה חיה" באפליקציה.`
     : `${severityText} - Security Alert
 
 Type: ${eventTypeText}
@@ -490,7 +497,9 @@ Detected: ${topLabel} (${(topConfidence * 100).toFixed(0)}%)
 
 ${aiSummary}
 
-View live stream in the app.`;
+🔗 View event: ${eventUrl}
+
+Or tap "Live View" in the app.`;
 
   // Send via WhatsApp API
   const response = await fetch(

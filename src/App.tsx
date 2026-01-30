@@ -12,6 +12,7 @@ import Devices from "./pages/Devices";
 import Camera from "./pages/Camera";
 import Viewer from "./pages/Viewer";
 import EventDetails from "./pages/EventDetails";
+import Events from "./pages/Events";
 import LiveView from "./pages/LiveView";
 import NotFound from "./pages/NotFound";
 
@@ -32,7 +33,8 @@ const App = () => (
             <Route path="/devices" element={<Devices />} />
             <Route path="/camera" element={<Camera />} />
             <Route path="/viewer" element={<Viewer />} />
-            <Route path="/events/:eventId" element={<EventDetails />} />
+            <Route path="/events" element={<Events />} />
+            <Route path="/event/:eventId" element={<EventDetails />} />
             <Route path="/live/:sessionId" element={<LiveView />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,11 +1,12 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.2.0 (2026-01-30)
+ * VERSION: 0.3.0 (2026-01-30)
  * 
  * Manages monitoring state, configuration, and event handling.
  * Coordinates between detectors (renderer) and database (Supabase).
  * Sends events to edge function for AI validation and notifications.
+ * Triggers local clip recording for validated events.
  */
 
 const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config');
@@ -29,6 +30,9 @@ class MonitoringManager {
       sound: false,
     };
     
+    // Local clip recorder reference (set by main.js)
+    this.clipRecorder = null;
+    
     // Debounce tracking
     this.lastEventTime = {
       motion: {},
@@ -42,7 +46,7 @@ class MonitoringManager {
     this.pendingEvents = [];
     this.eventQueueTimer = null;
     
-    console.log('[MonitoringManager] Initialized (v0.2.0)');
+    console.log('[MonitoringManager] Initialized (v0.3.0)');
   }
 
   // ===========================================================================
@@ -72,6 +76,14 @@ class MonitoringManager {
   setDetectorReady(sensorType, ready) {
     this.detectorStatus[sensorType] = ready;
     console.log(`[MonitoringManager] Detector ${sensorType} ready:`, ready);
+  }
+
+  /**
+   * Set the local clip recorder instance
+   */
+  setClipRecorder(recorder) {
+    this.clipRecorder = recorder;
+    console.log('[MonitoringManager] Clip recorder set');
   }
 
   // ===========================================================================
@@ -351,6 +363,23 @@ class MonitoringManager {
         ai_confidence: result.ai_confidence,
         notification_sent: result.notification_sent,
       });
+
+      // If event is validated as real, trigger local clip recording
+      if (result.ai_is_real && this.clipRecorder) {
+        console.log('[MonitoringManager] Triggering local clip recording...');
+        const clipResult = await this.clipRecorder.startRecording(result.event_id);
+        
+        if (clipResult) {
+          // Update server with clip metadata
+          await this.supabase
+            .from('monitoring_events')
+            .update({
+              has_local_clip: true,
+              local_clip_duration_seconds: this.clipRecorder.config?.clip_duration_seconds || 10,
+            })
+            .eq('id', result.event_id);
+        }
+      }
 
       return result;
     } catch (error) {

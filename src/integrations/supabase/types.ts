@@ -372,8 +372,11 @@ export type Database = {
           created_at: string
           device_id: string
           event_type: string
+          has_local_clip: boolean
           id: string
           labels: Json
+          local_clip_duration_seconds: number | null
+          local_clip_filename: string | null
           metadata: Json | null
           notification_sent: boolean
           notification_sent_at: string | null
@@ -390,8 +393,11 @@ export type Database = {
           created_at?: string
           device_id: string
           event_type: string
+          has_local_clip?: boolean
           id?: string
           labels?: Json
+          local_clip_duration_seconds?: number | null
+          local_clip_filename?: string | null
           metadata?: Json | null
           notification_sent?: boolean
           notification_sent_at?: string | null
@@ -408,8 +414,11 @@ export type Database = {
           created_at?: string
           device_id?: string
           event_type?: string
+          has_local_clip?: boolean
           id?: string
           labels?: Json
+          local_clip_duration_seconds?: number | null
+          local_clip_filename?: string | null
           metadata?: Json | null
           notification_sent?: boolean
           notification_sent_at?: string | null
