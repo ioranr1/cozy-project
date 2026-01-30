@@ -1,56 +1,79 @@
 /**
  * Sound Detector - TensorFlow.js + YAMNet Integration
  * ====================================================
- * VERSION: 0.1.0 (2026-01-30)
+ * VERSION: 0.2.0 (2026-01-30)
  * 
  * Runs in Electron RENDERER process.
  * Uses TensorFlow.js with YAMNet for audio classification.
  * 
+ * Dependencies: 
+ *   npm install @tensorflow/tfjs @tensorflow-models/yamnet
+ * 
  * IMPORTANT: This file runs in the renderer, not main process!
  */
 
-// Placeholder - Full implementation requires @tensorflow/tfjs and yamnet model
+const tf = require('@tensorflow/tfjs');
 
-// YAMNet class IDs for sounds we care about
+// YAMNet class indices for sounds we care about
 // Reference: https://github.com/tensorflow/models/blob/master/research/audioset/yamnet/yamnet_class_map.csv
-const YAMNET_CLASS_MAP = {
-  // Glass
-  441: 'glass_breaking', // Shatter
-  442: 'glass_breaking', // Splinter
+const YAMNET_TARGET_CLASSES = {
+  // Glass breaking / shattering
+  441: { label: 'glass_breaking', name: 'Shatter' },
+  442: { label: 'glass_breaking', name: 'Splinter' },
+  443: { label: 'glass_breaking', name: 'Crash' },
   
-  // Baby
-  22: 'baby_crying', // Crying, sobbing
+  // Baby / infant
+  22: { label: 'baby_crying', name: 'Crying, sobbing' },
+  23: { label: 'baby_crying', name: 'Baby cry, infant cry' },
+  24: { label: 'baby_crying', name: 'Whimper' },
   
   // Dog
-  67: 'dog_barking', // Bark
+  67: { label: 'dog_barking', name: 'Bark' },
+  68: { label: 'dog_barking', name: 'Yip' },
+  69: { label: 'dog_barking', name: 'Howl' },
+  70: { label: 'dog_barking', name: 'Growling' },
   
-  // Alarms
-  389: 'alarm', // Smoke detector
-  390: 'alarm', // Fire alarm
-  391: 'alarm', // Buzzer
-  392: 'alarm', // Alarm clock
+  // Alarm sounds
+  389: { label: 'alarm', name: 'Smoke detector, smoke alarm' },
+  390: { label: 'alarm', name: 'Fire alarm' },
+  391: { label: 'alarm', name: 'Foghorn' },
+  392: { label: 'alarm', name: 'Buzzer' },
+  394: { label: 'alarm', name: 'Alarm clock' },
   
-  // Gunshot
-  427: 'gunshot', // Gunshot, gunfire
-  428: 'gunshot', // Machine gun
-  429: 'gunshot', // Artillery fire
+  // Gunshot / explosion
+  427: { label: 'gunshot', name: 'Gunshot, gunfire' },
+  428: { label: 'gunshot', name: 'Machine gun' },
+  429: { label: 'gunshot', name: 'Fusillade' },
+  430: { label: 'gunshot', name: 'Artillery fire' },
+  426: { label: 'explosion', name: 'Explosion' },
   
-  // Scream
-  20: 'scream', // Screaming
+  // Scream / shout
+  20: { label: 'scream', name: 'Screaming' },
+  21: { label: 'scream', name: 'Wail, moan' },
+  19: { label: 'scream', name: 'Shout' },
   
-  // Door
-  321: 'door_knock', // Knock
+  // Door / knock
+  321: { label: 'door_knock', name: 'Knock' },
+  322: { label: 'door_knock', name: 'Tap' },
+  323: { label: 'door_sound', name: 'Door' },
+  324: { label: 'door_sound', name: 'Doorbell' },
   
   // Siren
-  396: 'siren', // Siren
-  397: 'siren', // Civil defense siren
+  396: { label: 'siren', name: 'Siren' },
+  397: { label: 'siren', name: 'Civil defense siren' },
+  398: { label: 'siren', name: 'Ambulance (siren)' },
+  399: { label: 'siren', name: 'Fire engine, fire truck (siren)' },
+  400: { label: 'siren', name: 'Police car (siren)' },
 };
+
+// All target class indices for quick lookup
+const TARGET_CLASS_INDICES = new Set(Object.keys(YAMNET_TARGET_CLASSES).map(Number));
 
 class SoundDetector {
   constructor(options = {}) {
     this.options = {
-      sampleRate: options.sampleRate || 16000,
-      frameLengthMs: options.frameLengthMs || 960,
+      sampleRate: 16000, // YAMNet expects 16kHz
+      frameLength: 0.975, // ~1 second per inference
       confidenceThreshold: options.confidenceThreshold || 0.5,
       ...options,
     };
@@ -58,37 +81,65 @@ class SoundDetector {
     this.model = null;
     this.audioContext = null;
     this.mediaStream = null;
-    this.analyser = null;
+    this.processor = null;
+    this.source = null;
     this.isRunning = false;
+    this.isInitialized = false;
     this.onDetection = options.onDetection || (() => {});
     
-    // Target labels we care about
-    this.targetLabels = new Set([
+    // Target labels from config
+    this.targetLabels = new Set(options.targets || [
       'glass_breaking',
       'baby_crying',
       'dog_barking',
       'alarm',
       'gunshot',
       'scream',
-      'door_knock',
       'siren',
     ]);
     
-    console.log('[SoundDetector] Initialized with options:', this.options);
+    // Audio buffer for accumulating samples
+    this.audioBuffer = [];
+    this.samplesNeeded = Math.floor(this.options.sampleRate * this.options.frameLength);
+    
+    // Debounce tracking per label
+    this.lastDetectionTime = {};
+    this.debounceMs = options.debounce_ms || 2000;
+    
+    console.log('[SoundDetector] Created with options:', this.options);
   }
 
   /**
-   * Initialize the YAMNet model
+   * Initialize TensorFlow.js and load YAMNet model
    */
   async initialize() {
-    console.log('[SoundDetector] Initializing...');
+    if (this.isInitialized) {
+      console.log('[SoundDetector] Already initialized');
+      return true;
+    }
+
+    console.log('[SoundDetector] Initializing TensorFlow.js + YAMNet...');
     
     try {
-      // TODO: Import and initialize TensorFlow.js + YAMNet
-      // await tf.ready();
-      // this.model = await tf.loadGraphModel('path/to/yamnet/model.json');
+      // Ensure TensorFlow.js is ready
+      await tf.ready();
+      console.log('[SoundDetector] TensorFlow.js backend:', tf.getBackend());
+      
+      // Load YAMNet model from TensorFlow Hub
+      // YAMNet expects 16kHz mono audio
+      this.model = await tf.loadGraphModel(
+        'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1',
+        { fromTFHub: true }
+      );
+      
+      // Warm up the model with a dummy input
+      const dummyInput = tf.zeros([15600]); // ~0.975s at 16kHz
+      const warmupResult = this.model.predict(dummyInput);
+      warmupResult.dispose();
+      dummyInput.dispose();
 
-      console.log('[SoundDetector] ✓ Initialized (placeholder)');
+      this.isInitialized = true;
+      console.log('[SoundDetector] ✓ YAMNet model loaded successfully');
       
       // Notify main process
       if (window.electronAPI?.notifyDetectorReady) {
@@ -111,12 +162,17 @@ class SoundDetector {
    * Start listening to microphone
    */
   async start() {
-    if (this.isRunning) {
-      console.log('[SoundDetector] Already running');
-      return;
+    if (!this.isInitialized) {
+      console.error('[SoundDetector] Not initialized. Call initialize() first.');
+      return false;
     }
 
-    console.log('[SoundDetector] Starting...');
+    if (this.isRunning) {
+      console.log('[SoundDetector] Already running');
+      return true;
+    }
+
+    console.log('[SoundDetector] Starting audio capture...');
 
     try {
       // Get microphone access
@@ -126,31 +182,164 @@ class SoundDetector {
           channelCount: 1,
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true,
         }
       });
 
-      // Create audio context
+      // Create audio context at target sample rate
       this.audioContext = new AudioContext({
         sampleRate: this.options.sampleRate,
       });
 
-      // Create analyser node
-      this.analyser = this.audioContext.createAnalyser();
-      this.analyser.fftSize = 2048;
+      // Create source from microphone
+      this.source = this.audioContext.createMediaStreamSource(this.mediaStream);
 
-      // Connect microphone to analyser
-      const source = this.audioContext.createMediaStreamSource(this.mediaStream);
-      source.connect(this.analyser);
+      // Create script processor for audio data access
+      // Note: ScriptProcessorNode is deprecated but still works
+      // Alternative: AudioWorklet (more complex setup)
+      this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+
+      this.processor.onaudioprocess = (event) => {
+        if (!this.isRunning) return;
+        
+        const inputData = event.inputBuffer.getChannelData(0);
+        this.processAudioChunk(new Float32Array(inputData));
+      };
+
+      // Connect the audio graph
+      this.source.connect(this.processor);
+      this.processor.connect(this.audioContext.destination);
 
       this.isRunning = true;
-      console.log('[SoundDetector] ✓ Started');
-
-      // Start detection loop
-      this.detectionLoop();
-
+      this.audioBuffer = [];
+      console.log('[SoundDetector] ✓ Audio capture started');
+      
+      return true;
     } catch (error) {
       console.error('[SoundDetector] Failed to start:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Process incoming audio chunk
+   */
+  processAudioChunk(chunk) {
+    // Accumulate samples
+    this.audioBuffer.push(...chunk);
+    
+    // When we have enough samples, run inference
+    if (this.audioBuffer.length >= this.samplesNeeded) {
+      const samples = new Float32Array(this.audioBuffer.slice(0, this.samplesNeeded));
+      this.audioBuffer = this.audioBuffer.slice(this.samplesNeeded);
+      
+      // Run inference asynchronously
+      this.runInference(samples);
+    }
+  }
+
+  /**
+   * Run YAMNet inference on audio samples
+   */
+  async runInference(samples) {
+    try {
+      // Create input tensor
+      const inputTensor = tf.tensor1d(samples);
+      
+      // Run model
+      const output = this.model.predict(inputTensor);
+      
+      // YAMNet returns [scores, embeddings, log_mel_spectrogram]
+      // We only need scores (shape: [frames, 521])
+      const scores = Array.isArray(output) ? output[0] : output;
+      const scoresData = await scores.data();
+      
+      // Get number of frames and classes
+      const numClasses = 521;
+      const numFrames = scoresData.length / numClasses;
+      
+      // Average scores across frames
+      const avgScores = new Float32Array(numClasses);
+      for (let c = 0; c < numClasses; c++) {
+        let sum = 0;
+        for (let f = 0; f < numFrames; f++) {
+          sum += scoresData[f * numClasses + c];
+        }
+        avgScores[c] = sum / numFrames;
+      }
+      
+      // Find detections above threshold
+      this.processScores(avgScores);
+      
+      // Cleanup tensors
+      inputTensor.dispose();
+      if (Array.isArray(output)) {
+        output.forEach(t => t.dispose());
+      } else {
+        output.dispose();
+      }
+    } catch (error) {
+      console.error('[SoundDetector] Inference error:', error);
+    }
+  }
+
+  /**
+   * Process YAMNet scores and emit detections
+   */
+  processScores(scores) {
+    const now = Date.now();
+    const detections = [];
+    
+    // Check each target class
+    for (const [indexStr, classInfo] of Object.entries(YAMNET_TARGET_CLASSES)) {
+      const index = parseInt(indexStr);
+      const score = scores[index];
+      
+      if (score < this.options.confidenceThreshold) continue;
+      
+      // Check if this label is in our targets
+      if (!this.targetLabels.has(classInfo.label)) continue;
+      
+      detections.push({
+        label: classInfo.label,
+        name: classInfo.name,
+        confidence: score,
+        classIndex: index,
+      });
+    }
+    
+    // Sort by confidence and take top detections
+    detections.sort((a, b) => b.confidence - a.confidence);
+    
+    // Emit top detections (with debounce)
+    for (const detection of detections.slice(0, 3)) {
+      // Check debounce
+      const lastTime = this.lastDetectionTime[detection.label] || 0;
+      if (now - lastTime < this.debounceMs) continue;
+      
+      // Update debounce tracking
+      this.lastDetectionTime[detection.label] = now;
+      
+      const eventData = {
+        sensor_type: 'sound',
+        label: detection.label,
+        confidence: detection.confidence,
+        timestamp: now,
+        metadata: {
+          yamnet_class: detection.name,
+          yamnet_index: detection.classIndex,
+        },
+      };
+
+      console.log(`[SoundDetector] Detected: ${detection.name} → ${detection.label} (${(detection.confidence * 100).toFixed(1)}%)`);
+
+      // Send to main process
+      if (window.electronAPI?.sendMonitoringEvent) {
+        window.electronAPI.sendMonitoringEvent(eventData);
+      }
+
+      // Call callback
+      this.onDetection(eventData);
     }
   }
 
@@ -162,6 +351,17 @@ class SoundDetector {
     
     this.isRunning = false;
 
+    // Disconnect audio graph
+    if (this.processor) {
+      this.processor.disconnect();
+      this.processor = null;
+    }
+
+    if (this.source) {
+      this.source.disconnect();
+      this.source = null;
+    }
+
     // Stop media stream
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach(track => track.stop());
@@ -169,95 +369,47 @@ class SoundDetector {
     }
 
     // Close audio context
-    if (this.audioContext) {
+    if (this.audioContext && this.audioContext.state !== 'closed') {
       this.audioContext.close();
       this.audioContext = null;
     }
 
-    this.analyser = null;
+    this.audioBuffer = [];
+    this.lastDetectionTime = {};
+    
     console.log('[SoundDetector] ✓ Stopped');
   }
 
   /**
-   * Main detection loop
-   */
-  async detectionLoop() {
-    if (!this.isRunning || !this.analyser) {
-      return;
-    }
-
-    try {
-      // Get audio data
-      const dataArray = new Float32Array(this.analyser.frequencyBinCount);
-      this.analyser.getFloatTimeDomainData(dataArray);
-
-      // TODO: Run YAMNet inference
-      // const input = tf.tensor(dataArray).reshape([1, -1]);
-      // const predictions = this.model.predict(input);
-      // const scores = await predictions.data();
-      // 
-      // // Find top predictions
-      // const topK = this.getTopK(scores, 5);
-      // for (const { index, score } of topK) {
-      //   const label = YAMNET_CLASS_MAP[index];
-      //   if (label && this.targetLabels.has(label) && score >= this.options.confidenceThreshold) {
-      //     this.handleDetection({ label, confidence: score });
-      //   }
-      // }
-
-    } catch (error) {
-      console.error('[SoundDetector] Detection error:', error);
-    }
-
-    // Schedule next analysis (approximately every 500ms)
-    if (this.isRunning) {
-      setTimeout(() => this.detectionLoop(), 500);
-    }
-  }
-
-  /**
-   * Get top K predictions
-   */
-  getTopK(scores, k) {
-    const indexed = Array.from(scores).map((score, index) => ({ index, score }));
-    indexed.sort((a, b) => b.score - a.score);
-    return indexed.slice(0, k);
-  }
-
-  /**
-   * Handle a detection event
-   */
-  handleDetection({ label, confidence }) {
-    const event = {
-      sensor_type: 'sound',
-      label,
-      confidence,
-      timestamp: Date.now(),
-      metadata: {},
-    };
-
-    console.log('[SoundDetector] Detection:', event);
-
-    // Send to main process
-    if (window.electronAPI?.sendMonitoringEvent) {
-      window.electronAPI.sendMonitoringEvent(event);
-    }
-
-    // Call callback
-    this.onDetection(event);
-  }
-
-  /**
-   * Update configuration
+   * Update configuration dynamically
    */
   updateConfig(config) {
     if (config.targets) {
       this.targetLabels = new Set(config.targets);
+      console.log('[SoundDetector] Updated targets:', Array.from(this.targetLabels));
     }
-    if (config.confidence_threshold) {
+    if (config.confidence_threshold !== undefined) {
       this.options.confidenceThreshold = config.confidence_threshold;
+      console.log('[SoundDetector] Updated threshold:', this.options.confidenceThreshold);
     }
-    console.log('[SoundDetector] Config updated');
+    if (config.debounce_ms !== undefined) {
+      this.debounceMs = config.debounce_ms;
+      console.log('[SoundDetector] Updated debounce:', this.debounceMs);
+    }
+  }
+
+  /**
+   * Get current status
+   */
+  getStatus() {
+    return {
+      isInitialized: this.isInitialized,
+      isRunning: this.isRunning,
+      hasAudio: !!this.mediaStream,
+      targets: Array.from(this.targetLabels),
+      threshold: this.options.confidenceThreshold,
+      bufferSize: this.audioBuffer.length,
+    };
   }
 
   /**
@@ -265,12 +417,15 @@ class SoundDetector {
    */
   dispose() {
     this.stop();
-    // TODO: this.model?.dispose();
+    
+    if (this.model) {
+      this.model.dispose();
+      this.model = null;
+    }
+    
+    this.isInitialized = false;
     console.log('[SoundDetector] Disposed');
   }
 }
 
-// Export for use in renderer
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = SoundDetector;
-}
+module.exports = SoundDetector;
