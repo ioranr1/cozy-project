@@ -5,8 +5,32 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Shield, ArrowLeft, Video, AlertTriangle, Clock, Calendar, Laptop } from 'lucide-react';
+import { Shield, ArrowLeft, Video, AlertTriangle, Clock, Calendar, Laptop, CheckCircle, XCircle, Film } from 'lucide-react';
 import { toast } from 'sonner';
+import type { Json } from '@/integrations/supabase/types';
+
+interface LabelItem {
+  label: string;
+  confidence: number;
+}
+
+interface EventData {
+  id: string;
+  device_id: string;
+  event_type: string;
+  labels: Json;
+  snapshot_url: string | null;
+  ai_validated: boolean | null;
+  ai_is_real: boolean | null;
+  ai_summary: string | null;
+  ai_confidence: number | null;
+  severity: string;
+  has_local_clip: boolean;
+  local_clip_duration_seconds: number | null;
+  notification_sent: boolean;
+  created_at: string;
+  metadata: Json;
+}
 
 interface Device {
   id: string;
@@ -14,17 +38,6 @@ interface Device {
   device_type: string;
   is_active: boolean;
   last_seen_at: string | null;
-  created_at: string;
-}
-
-// For now, events are fetched via raw query since table may not be in types yet
-interface EventData {
-  id: string;
-  device_id: string;
-  image_url: string | null;
-  ai_summary: string | null;
-  severity: 'low' | 'medium' | 'high' | null;
-  created_at: string;
 }
 
 const EventDetails: React.FC = () => {
@@ -41,28 +54,39 @@ const EventDetails: React.FC = () => {
       if (!eventId) return;
 
       try {
-        // Try to fetch event using RPC or direct query
-        // Since events table might not be in types, we use a raw approach
-        const { data, error } = await supabase
-          .rpc('validate_access_token', { p_token: 'dummy' }) // This won't work, placeholder
-          .limit(0);
-        
-        // For now, show a placeholder - events table needs types regeneration
-        // In production, this would fetch the actual event
-        console.log('Event ID:', eventId);
-        
-        // Mock event for UI testing until types are updated
-        setEvent({
-          id: eventId,
-          device_id: '',
-          image_url: null,
-          ai_summary: language === 'he' 
-            ? 'זוהתה תנועה באזור המבוא. המערכת זיהתה אדם שנכנס לשטח המנוטר.'
-            : 'Motion detected in the entrance area. The system detected a person entering the monitored area.',
-          severity: 'medium',
-          created_at: new Date().toISOString(),
-        });
-        
+        // Fetch event from monitoring_events table
+        const { data: eventData, error: eventError } = await supabase
+          .from('monitoring_events')
+          .select('*')
+          .eq('id', eventId)
+          .maybeSingle();
+
+        if (eventError) {
+          console.error('Error fetching event:', eventError);
+          toast.error(language === 'he' ? 'שגיאה בטעינת האירוע' : 'Error loading event');
+          setLoading(false);
+          return;
+        }
+
+        if (!eventData) {
+          console.log('Event not found:', eventId);
+          setLoading(false);
+          return;
+        }
+
+        setEvent(eventData);
+
+        // Fetch device info
+        const { data: deviceData } = await supabase
+          .from('devices')
+          .select('id, device_name, device_type, is_active, last_seen_at')
+          .eq('id', eventData.device_id)
+          .maybeSingle();
+
+        if (deviceData) {
+          setDevice(deviceData);
+        }
+
         setLoading(false);
       } catch (error) {
         console.error('Error fetching event:', error);
@@ -72,73 +96,33 @@ const EventDetails: React.FC = () => {
     };
 
     fetchEventData();
-  }, [eventId, navigate, language]);
+  }, [eventId, language]);
 
   const handleViewLive = async () => {
     if (!device) {
-      toast.error(language === 'he' ? 'נא לבחור מכשיר' : 'Please select a device');
+      toast.error(language === 'he' ? 'מכשיר לא נמצא' : 'Device not found');
       return;
     }
 
-    setStartingLive(true);
+    // Check if device is online
+    const lastSeen = device.last_seen_at ? new Date(device.last_seen_at).getTime() : 0;
+    const isOnline = Date.now() - lastSeen < 120000; // 2 minutes
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error(language === 'he' ? 'נא להתחבר מחדש' : 'Please log in again');
-        navigate('/login');
-        return;
-      }
-
-      const response = await fetch(
-        'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/live-start',
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            device_id: device.id,
-            event_id: event?.id,
-            ttl_seconds: 60,
-          }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 409) {
-          toast.error(language === 'he' ? 'יש כבר שידור פעיל למכשיר זה' : 'There is already an active session for this device');
-        } else {
-          toast.error(data.error || (language === 'he' ? 'שגיאה בהפעלת השידור' : 'Error starting live view'));
-        }
-        return;
-      }
-
-      navigate(`/live/${data.session_id}`, {
-        state: {
-          sessionId: data.session_id,
-          channel: data.channel,
-          expiresAt: data.expires_at,
-          ttlSeconds: data.ttl_seconds,
-          iceServers: data.ice_servers,
-          deviceName: device.device_name,
-        },
-      });
-    } catch (error) {
-      console.error('Error starting live:', error);
-      toast.error(language === 'he' ? 'שגיאת רשת' : 'Network error');
-    } finally {
-      setStartingLive(false);
+    if (!isOnline) {
+      toast.error(language === 'he' ? 'המכשיר לא מחובר כרגע' : 'Device is currently offline');
+      return;
     }
+
+    // Navigate to viewer with device pre-selected
+    navigate('/viewer', { state: { deviceId: device.id } });
   };
 
-  const getSeverityColor = (severity: string | null) => {
+  const getSeverityColor = (severity: string) => {
     switch (severity) {
+      case 'critical':
+        return 'bg-red-600/20 text-red-400 border-red-500/30';
       case 'high':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
+        return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
       case 'medium':
         return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
       case 'low':
@@ -148,13 +132,34 @@ const EventDetails: React.FC = () => {
     }
   };
 
-  const getSeverityLabel = (severity: string | null) => {
+  const getSeverityLabel = (severity: string) => {
     const labels: Record<string, { en: string; he: string }> = {
+      critical: { en: 'Critical', he: 'קריטי' },
       high: { en: 'High', he: 'גבוהה' },
       medium: { en: 'Medium', he: 'בינונית' },
       low: { en: 'Low', he: 'נמוכה' },
     };
-    return severity ? labels[severity]?.[language] || severity : (language === 'he' ? 'לא ידוע' : 'Unknown');
+    return labels[severity]?.[language] || severity;
+  };
+
+  const getEventTypeLabel = (type: string) => {
+    const labels: Record<string, { en: string; he: string }> = {
+      motion: { en: 'Motion', he: 'תנועה' },
+      sound: { en: 'Sound', he: 'קול' },
+    };
+    return labels[type]?.[language] || type;
+  };
+
+  const parseLabels = (labels: Json): LabelItem[] => {
+    if (Array.isArray(labels)) {
+      return labels as unknown as LabelItem[];
+    }
+    return [];
+  };
+
+  const formatLabels = (labels: Json) => {
+    const parsed = parseLabels(labels);
+    return parsed.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
   };
 
   if (loading) {
@@ -212,24 +217,61 @@ const EventDetails: React.FC = () => {
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl border border-slate-700/50 overflow-hidden">
           {/* Snapshot */}
           <div className="aspect-video bg-slate-900 relative">
-            {event.image_url ? (
+            {event.snapshot_url ? (
               <img
-                src={event.image_url}
+                src={event.snapshot_url}
                 alt="Event snapshot"
                 className="w-full h-full object-cover"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center">
+              <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                 <AlertTriangle className="w-16 h-16 text-slate-600" />
+                <span className="text-slate-500 text-sm">
+                  {event.event_type === 'sound' 
+                    ? (language === 'he' ? 'אירוע קול - אין תמונה' : 'Sound event - no image')
+                    : (language === 'he' ? 'אין תמונה זמינה' : 'No image available')}
+                </span>
               </div>
             )}
             
-            {/* Severity Badge Overlay */}
-            <div className={`absolute top-4 ${isRTL ? 'left-4' : 'right-4'}`}>
+            {/* Badges Overlay */}
+            <div className={`absolute top-4 ${isRTL ? 'left-4' : 'right-4'} flex flex-col gap-2`}>
               <Badge className={`${getSeverityColor(event.severity)} border`}>
                 {getSeverityLabel(event.severity)}
               </Badge>
+              <Badge variant="outline" className="bg-slate-900/80 text-white border-slate-600">
+                {getEventTypeLabel(event.event_type)}
+              </Badge>
             </div>
+
+            {/* AI Validation Badge */}
+            {event.ai_validated && (
+              <div className={`absolute bottom-4 ${isRTL ? 'left-4' : 'right-4'}`}>
+                {event.ai_is_real ? (
+                  <Badge className="bg-red-500/90 text-white border-0 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" />
+                    {language === 'he' ? 'אירוע אמיתי' : 'Real Event'}
+                  </Badge>
+                ) : (
+                  <Badge className="bg-slate-500/90 text-white border-0 flex items-center gap-1">
+                    <XCircle className="w-3 h-3" />
+                    {language === 'he' ? 'שווא' : 'False Positive'}
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Local Clip Indicator */}
+            {event.has_local_clip && (
+              <div className={`absolute bottom-4 ${isRTL ? 'right-4' : 'left-4'}`}>
+                <Badge className="bg-blue-500/90 text-white border-0 flex items-center gap-1">
+                  <Film className="w-3 h-3" />
+                  {event.local_clip_duration_seconds 
+                    ? `${event.local_clip_duration_seconds}s`
+                    : (language === 'he' ? 'קליפ מקומי' : 'Local Clip')}
+                </Badge>
+              </div>
+            )}
           </div>
 
           {/* Event Info */}
@@ -240,6 +282,9 @@ const EventDetails: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Laptop className="w-4 h-4" />
                   <span>{device.device_name}</span>
+                  {device.is_active && (
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  )}
                 </div>
               )}
               <div className="flex items-center gap-2">
@@ -252,33 +297,81 @@ const EventDetails: React.FC = () => {
               </div>
             </div>
 
-            {/* AI Summary */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-white mb-2">
-                {language === 'he' ? 'סיכום AI' : 'AI Summary'}
-              </h2>
-              <p className="text-white/80 leading-relaxed">
-                {event.ai_summary || (language === 'he' ? 'אין סיכום זמין' : 'No summary available')}
+            {/* Detected Labels */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-white/60 mb-2">
+                {language === 'he' ? 'זוהה' : 'Detected'}
+              </h3>
+              <p className="text-white font-medium">
+                {formatLabels(event.labels)}
               </p>
             </div>
 
-            {/* Note about events table */}
-            <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-              <p className="text-blue-400 text-sm">
-                {language === 'he' 
-                  ? 'הערה: דף זה יציג אירועים אמיתיים לאחר שהטבלאות יעודכנו'
-                  : 'Note: This page will show real events after database types are regenerated'}
-              </p>
-            </div>
+            {/* AI Summary */}
+            {event.ai_summary && (
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-white mb-2">
+                  {language === 'he' ? 'סיכום AI' : 'AI Summary'}
+                </h2>
+                <div className="p-4 bg-slate-700/30 rounded-lg border border-slate-600/30">
+                  <p className="text-white/80 leading-relaxed">
+                    {event.ai_summary}
+                  </p>
+                  {event.ai_confidence && (
+                    <p className="text-xs text-white/40 mt-2">
+                      {language === 'he' ? 'ביטחון AI:' : 'AI Confidence:'} {(event.ai_confidence * 100).toFixed(0)}%
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Notification Status */}
+            {event.notification_sent && (
+              <div className="mb-6 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-400" />
+                <span className="text-green-400 text-sm">
+                  {language === 'he' ? 'התראה נשלחה' : 'Notification sent'}
+                </span>
+              </div>
+            )}
+
+            {/* Local Clip Note */}
+            {event.has_local_clip && (
+              <div className="mb-6 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <div className="flex items-center gap-2 text-blue-400 text-sm">
+                  <Film className="w-4 h-4" />
+                  <span>
+                    {language === 'he' 
+                      ? 'קליפ וידאו שמור מקומית במחשב. צפייה בקליפים תהיה זמינה בגרסה הבאה.'
+                      : 'Video clip saved locally on the computer. Clip viewing will be available in a future version.'}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
-                onClick={() => navigate('/viewer')}
+                onClick={handleViewLive}
+                disabled={startingLive || !device}
                 className="flex-1 bg-primary hover:bg-primary/90 text-white"
               >
-                <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                {language === 'he' ? 'בחר מכשיר לשידור חי' : 'Select Device for Live View'}
+                {startingLive ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white" />
+                ) : (
+                  <>
+                    <Video className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    {language === 'he' ? 'צפייה חיה' : 'Live View'}
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/events')}
+                className="flex-1 border-slate-600 text-white hover:bg-slate-700"
+              >
+                {language === 'he' ? 'כל האירועים' : 'All Events'}
               </Button>
             </div>
           </div>
