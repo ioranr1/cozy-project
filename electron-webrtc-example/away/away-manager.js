@@ -141,19 +141,11 @@ class AwayManager {
         return { success: false, error: 'Away Mode feature is not enabled' };
       }
       
-      // Run preflight checks BEFORE any state changes
-      const preflight = await this._runPreflightChecks();
-      console.log('[AwayManager] Preflight results:', preflight);
+      // IMPORTANT: Away Mode does NOT require camera access!
+      // Camera is only needed for Live View, not for Away Mode.
+      // Removed camera preflight check that was blocking Away Mode activation.
+      console.log('[AwayManager] ✓ Feature flag enabled, proceeding to activate');
       
-      if (!preflight.camera) {
-        // Preflight failed - just notify, do NOT update database
-        // The command handler will handle the status update
-        console.log('[AwayManager] Preflight failed - camera not available');
-        this.awayModeIPC?.sendPreflightFailed(preflight.errors);
-        return { success: false, error: preflight.errors.join(', ') };
-      }
-      
-      // All checks passed - now activate
       // First update database to ensure consistency
       console.log('[AwayManager] Updating database to AWAY...');
       await this._updateDatabaseMode('AWAY');
@@ -434,31 +426,26 @@ class AwayManager {
     }
   }
   
+  /**
+   * Run preflight checks for Away Mode
+   * NOTE: Camera check REMOVED - Away Mode does NOT require camera access.
+   * Camera is only needed when starting Live View, not for Away Mode itself.
+   * This was causing Away Mode to fail when camera was busy or unavailable,
+   * and was also unnecessarily activating the camera LED.
+   */
   async _runPreflightChecks() {
-    const results = {
+    console.log('[AwayManager] Running preflight checks (camera check DISABLED)');
+    
+    // Away Mode only needs:
+    // 1. Power management capability (always available on desktop)
+    // 2. Feature flag (checked separately)
+    // Camera is NOT required for Away Mode!
+    
+    return {
       power: true,
-      camera: false,
+      success: true,
       errors: []
     };
-    
-    // Check camera - ask renderer to verify
-    return new Promise((resolve) => {
-      this.awayModeIPC?.sendCheckCamera();
-      
-      const timeout = setTimeout(() => {
-        results.errors.push(getAwayString('cameraRequired', this.language));
-        resolve(results);
-      }, 5000);
-      
-      ipcMain.once(AWAY_IPC_CHANNELS.CAMERA_CHECK_RESULT, (event, hasCamera) => {
-        clearTimeout(timeout);
-        results.camera = hasCamera;
-        if (!hasCamera) {
-          results.errors.push(getAwayString('cameraRequired', this.language));
-        }
-        resolve(results);
-      });
-    });
   }
   
   /**
