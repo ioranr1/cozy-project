@@ -299,6 +299,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   notifyDetectorError: (type, error) => {
     ipcRenderer.send('detector-error', type, error);
+  },
+
+  // -------------------------------------------------------------------------
+  // Clip Recording
+  // -------------------------------------------------------------------------
+  
+  /**
+   * Get the clips storage path from main process
+   * @returns {Promise<string>}
+   */
+  getClipsPath: () => ipcRenderer.invoke('get-clips-path'),
+  
+  /**
+   * Save a clip to disk via main process
+   * @param {{filename: string, base64Data: string, eventId: string, durationSeconds: number}} data
+   * @returns {Promise<{success: boolean, filepath?: string, error?: string}>}
+   */
+  saveClip: (data) => ipcRenderer.invoke('save-clip', data),
+  
+  /**
+   * Notify main that a clip was recorded
+   * @param {object} clipInfo
+   */
+  notifyClipRecorded: (clipInfo) => {
+    ipcRenderer.send('clip-recorded', clipInfo);
   }
 });
 
