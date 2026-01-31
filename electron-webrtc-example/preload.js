@@ -69,6 +69,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyOfferSent: (sessionId) => {
     ipcRenderer.send('webrtc-offer-sent', sessionId);
   },
+
+  /**
+   * Notify main process that WebRTC start failed (camera/mic/permission issues)
+   * @param {string} sessionId
+   * @param {string} message
+   */
+  notifyStartFailed: (sessionId, message) => {
+    ipcRenderer.send('webrtc-start-failed', { sessionId, message });
+  },
   
   /**
    * Notify main process that WebRTC session has ended

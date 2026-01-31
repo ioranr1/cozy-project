@@ -496,6 +496,16 @@ async function startLiveView(sessionId) {
   } catch (error) {
     console.error('❌ [Desktop] startLiveView FAILED:', error);
     isStartingSession = false; // Reset flag on error too
+
+    // CRITICAL: Tell main process so it can mark the START command as failed in DB.
+    try {
+      if (typeof window !== 'undefined' && window.electronAPI?.notifyStartFailed) {
+        window.electronAPI.notifyStartFailed(sessionId, error?.message || String(error));
+      }
+    } catch (e) {
+      console.warn('[Desktop] notifyStartFailed failed:', e);
+    }
+
     await stopLiveView();
   }
 }
@@ -630,6 +640,11 @@ async function stopLiveView() {
         ended_at: new Date().toISOString(),
       });
       console.log('[Desktop] Session marked as ended');
+
+      // Notify main process (used for tray + state bookkeeping)
+      if (typeof window !== 'undefined' && window.electronAPI?.notifySessionEnded) {
+        window.electronAPI.notifySessionEnded(currentSessionId);
+      }
     } catch (error) {
       console.error('[Desktop] Failed to update session:', error);
     }

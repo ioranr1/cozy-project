@@ -24,6 +24,7 @@ const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
 const { createClient } = require('@supabase/supabase-js');
+const { EventEmitter } = require('events');
 
 // CRITICAL FIX: Import AwayManager to replace old Away Mode implementation
 const AwayManager = require('./away/away-manager');
@@ -62,6 +63,9 @@ let liveViewState = {
   currentSessionId: null,
   isCleaningUp: false  // CRITICAL: Track renderer cleanup state
 };
+
+// IPC events from renderer (used to correctly ACK/FAIL DB commands)
+const rtcIpcEvents = new EventEmitter();
 
 // Heartbeat interval
 let heartbeatInterval = null;
@@ -855,6 +859,40 @@ async function handleStartLiveView() {
 
   console.log('[RTC] handleStartLiveView: Starting session:', pendingSession.id);
   handleNewRtcSession(pendingSession);
+
+  // CRITICAL: Do NOT acknowledge START until renderer actually sent an offer.
+  // If camera/mic fails, renderer will report via IPC and we must mark command as failed.
+  await waitForLiveViewStartAck(pendingSession.id);
+}
+
+function waitForLiveViewStartAck(sessionId, { timeoutMs = 15000 } = {}) {
+  return new Promise((resolve, reject) => {
+    const onOfferSent = (sid) => {
+      if (sid !== sessionId) return;
+      cleanup();
+      resolve(true);
+    };
+
+    const onStartFailed = (payload) => {
+      if (!payload || payload.sessionId !== sessionId) return;
+      cleanup();
+      reject(new Error(payload.message || 'WebRTC start failed'));
+    };
+
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('WebRTC start timed out (offer not sent)'));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeout);
+      rtcIpcEvents.off('offer-sent', onOfferSent);
+      rtcIpcEvents.off('start-failed', onStartFailed);
+    };
+
+    rtcIpcEvents.on('offer-sent', onOfferSent);
+    rtcIpcEvents.on('start-failed', onStartFailed);
+  });
 }
 
 async function handleStopLiveView() {
@@ -947,6 +985,15 @@ function setupIpcHandlers() {
     liveViewState.isActive = true;
     liveViewState.currentSessionId = sessionId;
     updateTrayMenu();
+    rtcIpcEvents.emit('offer-sent', sessionId);
+  });
+
+  ipcMain.on('webrtc-start-failed', (event, payload) => {
+    console.error('[IPC] ❌ WebRTC start failed:', payload);
+    // Ensure state doesn't get stuck on "active" if renderer failed.
+    liveViewState.isActive = false;
+    updateTrayMenu();
+    rtcIpcEvents.emit('start-failed', payload);
   });
 
   ipcMain.on('webrtc-session-ended', (event, sessionId) => {
