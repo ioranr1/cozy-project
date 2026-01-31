@@ -1,7 +1,7 @@
 /**
  * Electron Renderer WebRTC Implementation
  * ========================================
- * BUILD: renderer-webrtc-2026-01-31-v2.2.2-camera-fix
+ * BUILD: renderer-webrtc-2026-01-31-v2.2.3-stun-fix
  * 
  * This file should be loaded in your Electron renderer process (e.g., index.html or a hidden window).
  * It listens for IPC messages from main.js to start/stop live view sessions.
@@ -404,6 +404,29 @@ async function startLiveView(sessionId) {
   currentSessionId = sessionId;
   processedSignalIds.clear();
   pendingIceCandidates = [];
+  
+  // CRITICAL FIX: Clean up any stale signals from previous sessions for this session ID
+  // This prevents ICE candidate confusion after START-STOP-START cycles
+  try {
+    console.log('[Desktop] 🧹 Cleaning stale signals for session:', sessionId);
+    const deleteResponse = await fetch(
+      `${SUPABASE_URL}/rest/v1/rtc_signals?session_id=eq.${sessionId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+    if (deleteResponse.ok) {
+      console.log('[Desktop] ✅ Stale signals cleaned');
+    } else {
+      console.warn('[Desktop] ⚠️ Could not clean stale signals:', await deleteResponse.text());
+    }
+  } catch (cleanErr) {
+    console.warn('[Desktop] ⚠️ Stale signal cleanup error:', cleanErr);
+  }
   
   try {
     // 0. List available devices for better diagnostics
