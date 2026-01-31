@@ -499,10 +499,17 @@ export function useRtcSession({
 
         const rows = data as RtcSignal[] | null;
         const newestId = rows?.[0]?.id ?? null;
-        console.log('[LiveView] polling signals', { 
-          count: rows?.length || 0, 
+        
+        // More detailed logging for debugging
+        const desktopSignals = rows?.filter(s => s.from_role === 'desktop') || [];
+        const offerFound = desktopSignals.some(s => s.type === 'offer');
+        console.log('[LiveView] 🔄 Polling signals:', { 
+          totalCount: rows?.length || 0,
+          desktopSignals: desktopSignals.length,
+          offerFound,
+          processedCount: processedSignalsRef.current.size,
           newestId,
-          lastPolledId: lastPolledIdRef.current 
+          lastPolledId: lastPolledIdRef.current,
         });
 
         // Process any new signals we haven't seen
@@ -764,6 +771,22 @@ export function useRtcSession({
 
       if (activeSessionId) {
         console.log('[useRtcSession] Using provided session from Dashboard:', activeSessionId);
+        
+        // CRITICAL FIX: Even when using Dashboard session, close OTHER stuck sessions
+        // to prevent the desktop agent from getting confused about which session to handle
+        console.log('[useRtcSession] Closing other stuck sessions (not the Dashboard one)...');
+        const nowIso = new Date().toISOString();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from('rtc_sessions')
+          .update({
+            status: 'ended',
+            ended_at: nowIso,
+            fail_reason: 'superseded_by_dashboard_session',
+          })
+          .eq('device_id', deviceId)
+          .in('status', ['pending', 'active'])
+          .neq('id', activeSessionId); // Don't close the Dashboard session itself!
       } else {
         await endOpenSessionsForDevice('superseded_by_new_start');
 
