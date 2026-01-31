@@ -76,6 +76,36 @@ let autoAwayAttempts = 0;
 const MAX_AUTO_AWAY_ATTEMPTS = 3;
 
 // =============================================================================
+// PROCESS SIGNAL HANDLERS (CMD window close safety)
+// =============================================================================
+
+// Handle SIGINT/SIGTERM for when CMD is closed or Ctrl+C is pressed
+const handleProcessExit = async (signal) => {
+  console.log(`[App] Received ${signal} - attempting emergency hardware cleanup...`);
+  
+  try {
+    // Try to release camera hardware
+    if (mainWindow && !mainWindow.isDestroyed?.()) {
+      mainWindow.webContents?.send('stop-live-view');
+      // Give renderer a brief moment to process
+      await new Promise(r => setTimeout(r, 500));
+    }
+  } catch (e) {
+    console.warn('[App] Emergency cleanup failed:', e?.message);
+  }
+  
+  process.exit(0);
+};
+
+process.on('SIGINT', () => handleProcessExit('SIGINT'));
+process.on('SIGTERM', () => handleProcessExit('SIGTERM'));
+
+// Windows-specific: handle console window close
+if (process.platform === 'win32') {
+  process.on('SIGHUP', () => handleProcessExit('SIGHUP'));
+}
+
+// =============================================================================
 // WebRTC HARDWARE CLEANUP (Quit safety)
 // =============================================================================
 
