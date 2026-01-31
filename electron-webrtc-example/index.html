@@ -434,7 +434,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-01-28-pb-debug-01");
+      console.log("[UI] index.html build: electron-index-2026-01-31-v2.1.0");
     </script>
 
     <!-- WebRTC logic (start/stop via IPC) -->
@@ -446,7 +446,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-01-28-pb-debug-01";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-01-31-v2.1.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
 
       // ============================================================
@@ -775,16 +775,15 @@
 
         // User returned modal removed - Away Mode controlled from Dashboard
 
+        // Camera check listener - DISABLED in v2.1.0
+        // Away Mode does NOT require camera access. This listener is kept
+        // for backward compatibility but will always return false without
+        // actually accessing the camera hardware.
         window.electronAPI.onAwayModeCheckCamera?.(async () => {
-          console.log("[UI] Camera check requested");
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-            stream.getTracks().forEach(t => t.stop());
-            window.electronAPI.sendCameraCheckResult(true);
-          } catch (err) {
-            console.error("[UI] Camera check failed:", err);
-            window.electronAPI.sendCameraCheckResult(false);
-          }
+          console.log("[UI] Camera check requested (IGNORED - camera not needed for Away Mode)");
+          // IMPORTANT: Do NOT call getUserMedia here!
+          // Always return false - camera check is no longer needed for Away Mode.
+          window.electronAPI.sendCameraCheckResult(false);
         });
 
         // DEBUG: Power blocker status - will show in DevTools console
