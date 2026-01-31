@@ -2,12 +2,15 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.0.1 (2026-01-28)
+ * VERSION: 2.1.0 (2026-01-31)
+ * 
+ * CHANGELOG:
+ * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
+ *          This fixes: Away Mode not activating by default, LED turning on unnecessarily.
  * 
  * Handles all Away Mode logic for the Electron main process:
  * - Power save blocker management
  * - Display control (platform-specific)
- * - Preflight checks
  * - User return detection
  * 
  * Usage:
@@ -28,7 +31,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-01-28-pb-debug-01';
+    this.__buildId = 'away-manager-2026-01-31-v2.1.0';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // State
