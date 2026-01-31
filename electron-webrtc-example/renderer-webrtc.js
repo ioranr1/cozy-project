@@ -1,7 +1,7 @@
 /**
  * Electron Renderer WebRTC Implementation
  * ========================================
- * BUILD: renderer-webrtc-2026-01-28-cleanup-sync-01
+ * BUILD: renderer-webrtc-2026-01-31-v2.2.1-quit-cleanup
  * 
  * This file should be loaded in your Electron renderer process (e.g., index.html or a hidden window).
  * It listens for IPC messages from main.js to start/stop live view sessions.
@@ -46,6 +46,64 @@ function stopTracksSafe(stream, label = 'stream') {
   } catch (e) {
     console.warn(`[Desktop] stopTracksSafe failed for ${label}:`, e);
   }
+}
+
+// Force-release camera/mic hardware synchronously (best effort)
+// Used on window unload/quit so the LED turns off even if async cleanup can't finish.
+function forceReleaseHardwareSync(reason = 'unknown') {
+  try {
+    console.log(`[Desktop] 🧹 Force releasing hardware (sync). Reason: ${reason}`);
+  } catch (_) {
+    // noop
+  }
+
+  try {
+    if (localStream) {
+      stopTracksSafe(localStream, `localStream (${reason})`);
+      localStream = null;
+    }
+  } catch (_) {
+    // noop
+  }
+
+  try {
+    if (peerConnection) {
+      try {
+        peerConnection.getSenders?.().forEach((s) => s?.track?.stop?.());
+        peerConnection.getReceivers?.().forEach((r) => r?.track?.stop?.());
+      } catch (_) {
+        // noop
+      }
+      try {
+        peerConnection.onicecandidate = null;
+        peerConnection.onconnectionstatechange = null;
+        peerConnection.oniceconnectionstatechange = null;
+        peerConnection.onsignalingstatechange = null;
+      } catch (_) {
+        // noop
+      }
+      try {
+        peerConnection.close();
+      } catch (_) {
+        // noop
+      }
+      peerConnection = null;
+    }
+  } catch (_) {
+    // noop
+  }
+}
+
+// Quit/unload safety: release hardware even if main process quits quickly.
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    forceReleaseHardwareSync('beforeunload');
+  });
+  window.addEventListener('unload', () => {
+    forceReleaseHardwareSync('unload');
+  });
+  // Optional manual debug hook
+  window.__forceReleaseHardwareSync = forceReleaseHardwareSync;
 }
 
 // Default ICE servers (STUN only - fallback)

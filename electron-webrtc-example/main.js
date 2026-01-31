@@ -76,6 +76,59 @@ let autoAwayAttempts = 0;
 const MAX_AUTO_AWAY_ATTEMPTS = 3;
 
 // =============================================================================
+// WebRTC HARDWARE CLEANUP (Quit safety)
+// =============================================================================
+
+async function stopWebRtcRendererOnQuit({ timeoutMs = 2500 } = {}) {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed?.()) return;
+
+    console.log('[App] Quit cleanup: requesting renderer to stop WebRTC (camera release)');
+
+    // Wait for renderer to confirm cleanup-complete (best effort)
+    const waitForCleanup = new Promise((resolve) => {
+      let resolved = false;
+
+      const onCleanupComplete = () => {
+        if (resolved) return;
+        resolved = true;
+        try {
+          ipcMain.removeListener('webrtc-cleanup-complete', onCleanupComplete);
+        } catch (_) {
+          // noop
+        }
+        resolve(true);
+      };
+
+      ipcMain.on('webrtc-cleanup-complete', onCleanupComplete);
+
+      setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        try {
+          ipcMain.removeListener('webrtc-cleanup-complete', onCleanupComplete);
+        } catch (_) {
+          // noop
+        }
+        console.log('[App] Quit cleanup: renderer did not confirm cleanup in time (continuing)');
+        resolve(false);
+      }, timeoutMs);
+    });
+
+    // Trigger STOP (even if not active — harmless)
+    try {
+      mainWindow.webContents?.send('stop-live-view');
+    } catch (e) {
+      console.warn('[App] Quit cleanup: failed to send stop-live-view:', e?.message || e);
+    }
+
+    await waitForCleanup;
+  } catch (e) {
+    console.warn('[App] Quit cleanup: unexpected error:', e?.message || e);
+  }
+}
+
+// =============================================================================
 // I18N STRINGS
 // =============================================================================
 
@@ -1469,6 +1522,10 @@ app.on('before-quit', async (event) => {
       clearInterval(heartbeatInterval);
       heartbeatInterval = null;
     }
+
+    // CRITICAL: Ensure camera hardware is released when quitting
+    // (Otherwise Windows can keep LED on if renderer is still streaming)
+    await stopWebRtcRendererOnQuit({ timeoutMs: 2500 });
 
     // Cleanup Away Mode
     awayManager.cleanup();
