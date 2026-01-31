@@ -6,6 +6,7 @@ import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { useDevices, Device } from '@/hooks/useDevices';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Laptop, 
   Smartphone, 
@@ -21,7 +22,8 @@ import {
   Monitor,
   ChevronDown,
   ChevronUp,
-  Archive
+  Archive,
+  Eraser
 } from 'lucide-react';
 import {
   Dialog,
@@ -100,6 +102,67 @@ const Devices: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deviceToDelete, setDeviceToDelete] = useState<Device | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Cleanup stuck sessions
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+
+  const handleCleanupStuckSessions = async () => {
+    if (!profileId) return;
+    
+    setIsCleaningUp(true);
+    try {
+      const nowIso = new Date().toISOString();
+      
+      // Get all device IDs for this profile
+      const { data: userDevices } = await supabase
+        .from('devices')
+        .select('id')
+        .eq('profile_id', profileId);
+      
+      if (!userDevices || userDevices.length === 0) {
+        toast.info(language === 'he' ? 'אין מכשירים לניקוי' : 'No devices to clean');
+        setIsCleaningUp(false);
+        return;
+      }
+      
+      const deviceIds = userDevices.map(d => d.id);
+      
+      // Close stuck RTC sessions
+      const { count: sessionsCount } = await supabase
+        .from('rtc_sessions')
+        .update({
+          status: 'ended',
+          ended_at: nowIso,
+          fail_reason: 'manual_cleanup',
+        })
+        .in('device_id', deviceIds)
+        .in('status', ['pending', 'active']);
+      
+      // Clear pending commands
+      const { count: commandsCount } = await supabase
+        .from('commands')
+        .update({
+          handled: true,
+          handled_at: nowIso,
+          status: 'cancelled',
+          error_message: 'manual_cleanup',
+        })
+        .in('device_id', deviceIds)
+        .eq('handled', false);
+      
+      console.log('[Devices] Cleanup complete:', { sessionsCount, commandsCount });
+      
+      toast.success(
+        language === 'he' 
+          ? `נוקו ${sessionsCount || 0} סשנים ו-${commandsCount || 0} פקודות`
+          : `Cleaned ${sessionsCount || 0} sessions and ${commandsCount || 0} commands`
+      );
+    } catch (error) {
+      console.error('[Devices] Cleanup error:', error);
+      toast.error(language === 'he' ? 'שגיאה בניקוי' : 'Cleanup failed');
+    }
+    setIsCleaningUp(false);
+  };
 
   const handleRenameClick = (device: Device) => {
     setDeviceToRename(device);
@@ -280,24 +343,42 @@ const Devices: React.FC = () => {
 
       <div className="p-4 space-y-4">
         {/* Actions Row */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-2 flex-wrap">
           {/* PairingCodeDialog handles its own button and dialog */}
           <PairingCodeDialog />
           
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refreshDevices()}
-            disabled={isLoading}
-            className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
-          >
-            {isLoading ? (
-              <Loader2 className={cn("w-4 h-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
-            ) : (
-              <RefreshCw className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
-            )}
-            {language === 'he' ? 'רענן' : 'Refresh'}
-          </Button>
+          <div className="flex gap-2">
+            {/* Cleanup Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCleanupStuckSessions}
+              disabled={isCleaningUp}
+              className="bg-orange-500/10 border-orange-500/30 text-orange-400 hover:bg-orange-500/20"
+            >
+              {isCleaningUp ? (
+                <Loader2 className={cn("w-4 h-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
+              ) : (
+                <Eraser className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+              )}
+              {language === 'he' ? 'נקה תקועים' : 'Clear Stuck'}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refreshDevices()}
+              disabled={isLoading}
+              className="bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+            >
+              {isLoading ? (
+                <Loader2 className={cn("w-4 h-4 animate-spin", isRTL ? "ml-2" : "mr-2")} />
+              ) : (
+                <RefreshCw className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+              )}
+              {language === 'he' ? 'רענן' : 'Refresh'}
+            </Button>
+          </div>
         </div>
 
         {/* Camera Devices Section */}
