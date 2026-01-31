@@ -325,7 +325,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     }
 
     if (sensors.length === 0) {
-      return language === 'he' ? 'מזוין • ללא חיישנים' : 'Armed • No sensors';
+      return language === 'he' ? 'פעיל • ללא חיישנים' : 'Active • No sensors';
     }
 
     return `${language === 'he' ? 'פעיל' : 'Active'} • ${sensors.join(' + ')}`;
