@@ -1088,8 +1088,21 @@ function setupIpcHandlers() {
     console.error('[IPC] ❌ WebRTC start failed:', payload);
     // Ensure state doesn't get stuck on "active" if renderer failed.
     liveViewState.isActive = false;
+    // CRITICAL: Also clear currentSessionId so START retries won't be skipped.
+    // Without this, handleStartLiveView may log "already being handled" forever.
+    liveViewState.currentSessionId = null;
     liveViewState.offerSentForSessionId = null;
+    // If a start failed, we must allow immediate retries (don't stay in cleanup mode).
+    liveViewState.isCleaningUp = false;
     updateTrayMenu();
+
+    // Best-effort: ask renderer to stop in case it partially acquired hardware.
+    try {
+      mainWindow?.webContents?.send('stop-live-view');
+    } catch (e) {
+      console.warn('[IPC] Failed to send stop-live-view after start-failed:', e?.message || e);
+    }
+
     rtcIpcEvents.emit('start-failed', payload);
   });
 
