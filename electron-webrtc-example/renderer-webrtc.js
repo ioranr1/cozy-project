@@ -133,6 +133,12 @@ async function getCameraWithRetry(maxRetries = CAMERA_MAX_RETRIES) {
       return stream;
     } catch (error) {
       console.error(`[Desktop] ❌ Camera attempt ${attempt} failed:`, error.message);
+
+      // IMPORTANT: getUserMedia cannot be aborted. If we timed out, retries can spawn
+      // multiple in-flight requests and keep the camera LED stuck on. Treat timeout as fatal.
+      if (String(error?.message || '').includes('timed out')) {
+        throw error;
+      }
       
       if (attempt < maxRetries) {
         // Wait before retry (exponential backoff)
@@ -150,79 +156,59 @@ async function getCameraWithRetry(maxRetries = CAMERA_MAX_RETRIES) {
  * Get camera access with a specific timeout
  */
 async function getCameraWithTimeout(timeoutMs) {
-  return new Promise(async (resolve, reject) => {
-    let timeoutId = null;
-    let resolved = false;
-    
-    // Set timeout
-    timeoutId = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        reject(new Error(`Camera access timed out after ${timeoutMs}ms`));
-      }
-    }, timeoutMs);
-    
+  const getUserMediaWithTimeout = async (constraints, label) => {
+    let timedOut = false;
+    let timeoutId;
+
+    const gumPromise = navigator.mediaDevices.getUserMedia(constraints);
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        reject(new Error(`Camera access timed out after ${timeoutMs}ms (${label})`));
+      }, timeoutMs);
+    });
+
     try {
-      // Try with ideal constraints first (video + audio for live view)
-      const constraints = {
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
-        },
-        audio: true  // Enable microphone for audio streaming
-      };
-      
-      console.log('[Desktop] Requesting camera with constraints:', JSON.stringify(constraints));
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeoutId);
-        resolve(stream);
-      } else {
-        // If we already timed out, stop the tracks
-        stream.getTracks().forEach(t => t.stop());
+      const stream = await Promise.race([gumPromise, timeoutPromise]);
+      clearTimeout(timeoutId);
+      return stream;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      // getUserMedia cannot be aborted; if it resolves later, stop tracks immediately.
+      if (timedOut) {
+        gumPromise
+          .then((lateStream) => stopTracksSafe(lateStream, `late getUserMedia (${label})`))
+          .catch(() => {});
       }
-    } catch (constraintError) {
-      console.warn('[Desktop] Failed with ideal constraints, trying minimal...', constraintError.message);
-      
-      // Fallback to minimal constraints (still request audio)
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeoutId);
-          resolve(stream);
-        } else {
-          stream.getTracks().forEach(t => t.stop());
-        }
-      } catch (audioMinimalError) {
-        console.warn('[Desktop] ⚠️ Failed with audio+video minimal, trying VIDEO-ONLY...', audioMinimalError.message);
-        
-        // FINAL FALLBACK: Video only (no audio) if getUserMedia fails with audio
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-          
-          if (!resolved) {
-            resolved = true;
-            clearTimeout(timeoutId);
-            console.log('[Desktop] ⚠️ Stream acquired without audio (video-only fallback)');
-            resolve(stream);
-          } else {
-            stream.getTracks().forEach(t => t.stop());
-          }
-        } catch (videoOnlyError) {
-        if (!resolved) {
-          resolved = true;
-          clearTimeout(timeoutId);
-            reject(videoOnlyError);
-        }
-        }
-      }
+      throw err;
     }
-  });
+  };
+
+  const ideal = {
+    video: {
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      frameRate: { ideal: 30 },
+    },
+    audio: true,
+  };
+
+  try {
+    console.log('[Desktop] Requesting camera with constraints:', JSON.stringify(ideal));
+    return await getUserMediaWithTimeout(ideal, 'ideal-av');
+  } catch (constraintError) {
+    console.warn('[Desktop] Failed with ideal constraints, trying minimal...', constraintError.message);
+  }
+
+  try {
+    return await getUserMediaWithTimeout({ video: true, audio: true }, 'minimal-av');
+  } catch (audioMinimalError) {
+    console.warn('[Desktop] ⚠️ Failed with audio+video minimal, trying VIDEO-ONLY...', audioMinimalError.message);
+  }
+
+  const stream = await getUserMediaWithTimeout({ video: true, audio: false }, 'video-only');
+  console.log('[Desktop] ⚠️ Stream acquired without audio (video-only fallback)');
+  return stream;
 }
 
 // ============================================================
@@ -342,8 +328,13 @@ async function startLiveView(sessionId) {
   
   // CRITICAL FIX: If already streaming THIS session, skip
   if (currentSessionId === sessionId && peerConnection) {
-    console.log('[Desktop] ⚠️ Already streaming this session:', sessionId);
-    return;
+    const state = peerConnection.connectionState;
+    if (state === 'connected' || state === 'connecting') {
+      console.log('[Desktop] ⚠️ Already streaming this session:', sessionId, 'state:', state);
+      return;
+    }
+    console.log('[Desktop] ⚠️ Existing peerConnection is not healthy, restarting. State:', state);
+    forceReleaseHardwareSync('restart-unhealthy-pc');
   }
   
   // CRITICAL FIX: Wait for cleanup to finish before starting new session (with retry)
@@ -381,6 +372,14 @@ async function startLiveView(sessionId) {
   // Capture current abort token; if it changes, we must abort this start attempt.
   const myAbortToken = abortToken;
   const isAborted = () => abortToken !== myAbortToken;
+
+  // Pre-start safety: ensure we don't keep hardware/PC in a half-open state.
+  // This prevents camera locks and "LED stuck" after failed starts.
+  if (peerConnection || localStream) {
+    console.log('[Desktop] ⚠️ Pre-start: releasing any existing WebRTC resources...');
+    forceReleaseHardwareSync('prestart');
+    await new Promise((r) => setTimeout(r, 500));
+  }
   
   // CRITICAL FIX: Force cleanup of any lingering stream
   if (localStream) {
