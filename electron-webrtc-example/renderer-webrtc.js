@@ -29,6 +29,24 @@ let pendingIceCandidates = [];
 let isCleaningUp = false; // Prevent START during cleanup
 let lastStopTime = null;   // Track when we stopped to prevent immediate restart
 let isStartingSession = false; // CRITICAL: Prevent duplicate START calls
+// Abort token to cancel an in-flight start sequence when STOP arrives mid-start.
+let abortToken = 0;
+
+function stopTracksSafe(stream, label = 'stream') {
+  if (!stream) return;
+  try {
+    stream.getTracks().forEach((t) => {
+      try {
+        t.stop();
+      } catch (_) {
+        // noop
+      }
+    });
+    console.log(`[Desktop] ✅ Stopped tracks for ${label}`);
+  } catch (e) {
+    console.warn(`[Desktop] stopTracksSafe failed for ${label}:`, e);
+  }
+}
 
 // Default ICE servers (STUN only - fallback)
 const DEFAULT_ICE_SERVERS = [
@@ -301,17 +319,25 @@ async function startLiveView(sessionId) {
   
   // Set flag to prevent duplicate starts
   isStartingSession = true;
+
+  // Capture current abort token; if it changes, we must abort this start attempt.
+  const myAbortToken = abortToken;
+  const isAborted = () => abortToken !== myAbortToken;
   
   // CRITICAL FIX: Force cleanup of any lingering stream
   if (localStream) {
     console.log('[Desktop] ⚠️ Found lingering stream, cleaning up before restart...');
-    localStream.getTracks().forEach(track => {
-      track.stop();
-      console.log('[Desktop] Emergency cleanup - stopped:', track.kind);
-    });
+    stopTracksSafe(localStream, 'lingering localStream');
     localStream = null;
     // Wait for hardware to release
     await new Promise(r => setTimeout(r, 800));
+  }
+
+  // If a STOP arrived while we were waiting, abort now.
+  if (isAborted()) {
+    console.log('[Desktop] 🛑 Start aborted before camera init (STOP received)');
+    isStartingSession = false;
+    return;
   }
   
   console.log('═══════════════════════════════════════════════════');
@@ -339,12 +365,29 @@ async function startLiveView(sessionId) {
     
     // 1. Get camera access (with timeout and retry)
     console.log('[Desktop] Step 1/5: Getting camera access (30s timeout, 3 retries)...');
-    localStream = await getCameraWithRetry(CAMERA_MAX_RETRIES);
+    const acquiredStream = await getCameraWithRetry(CAMERA_MAX_RETRIES);
+    // If STOP arrived during getUserMedia/retry, release immediately.
+    if (isAborted()) {
+      console.log('[Desktop] 🛑 Start aborted right after camera acquired (STOP received)');
+      stopTracksSafe(acquiredStream, 'acquiredStream (aborted)');
+      isStartingSession = false;
+      return;
+    }
+
+    localStream = acquiredStream;
     console.log('[Desktop] ✅ Camera access granted, tracks:', localStream.getTracks().map(t => t.kind).join(', '));
     
     // 2. Get ICE servers
     console.log('[Desktop] Step 2/5: Fetching ICE servers...');
     const iceServers = await fetchTurnCredentials();
+
+    if (isAborted()) {
+      console.log('[Desktop] 🛑 Start aborted after ICE fetch (STOP received)');
+      stopTracksSafe(localStream, 'localStream (aborted after ICE)');
+      localStream = null;
+      isStartingSession = false;
+      return;
+    }
     
     // 3. Create peer connection
     console.log('[Desktop] Step 3/5: Creating RTCPeerConnection...');
@@ -454,6 +497,12 @@ async function startLiveView(sessionId) {
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
     console.log('[Desktop] ✅ Local description set');
+
+    if (isAborted()) {
+      console.log('[Desktop] 🛑 Start aborted after setLocalDescription (STOP received)');
+      await stopLiveView();
+      return;
+    }
     
     console.log('[Desktop] Step 5/5: Sending offer to DB...');
     await insertRtcSignalWithRetry(
@@ -589,6 +638,9 @@ async function processSignal(signal) {
 }
 
 async function stopLiveView() {
+  // Cancel any in-flight start attempt immediately.
+  abortToken += 1;
+
   // Mark as cleaning up to prevent immediate restart
   isCleaningUp = true;
   isStartingSession = false; // CRITICAL: Also reset starting flag
@@ -613,10 +665,7 @@ async function stopLiveView() {
   
   // Stop all tracks
   if (localStream) {
-    localStream.getTracks().forEach(track => {
-      track.stop();
-      console.log('[Desktop] Track stopped:', track.kind);
-    });
+    stopTracksSafe(localStream, 'localStream');
     
     // CRITICAL FIX: Wait for tracks to fully release hardware
     // This prevents "device in use" errors on immediate restart
@@ -627,6 +676,21 @@ async function stopLiveView() {
   
   // Close peer connection
   if (peerConnection) {
+    try {
+      // Extra safety: stop any sender/receiver tracks too.
+      peerConnection.getSenders?.().forEach((s) => s?.track?.stop?.());
+      peerConnection.getReceivers?.().forEach((r) => r?.track?.stop?.());
+    } catch (_) {
+      // noop
+    }
+    try {
+      peerConnection.onicecandidate = null;
+      peerConnection.onconnectionstatechange = null;
+      peerConnection.oniceconnectionstatechange = null;
+      peerConnection.onsignalingstatechange = null;
+    } catch (_) {
+      // noop
+    }
     peerConnection.close();
     peerConnection = null;
     console.log('[Desktop] Peer connection closed');
