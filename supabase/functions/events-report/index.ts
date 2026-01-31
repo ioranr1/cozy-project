@@ -170,6 +170,15 @@ serve(async (req) => {
 
     console.log('[events-report] Event created:', eventRecord.id);
 
+    // Get profile for language preference (needed for AI summary)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('phone_number, country_code, full_name, preferred_language')
+      .eq('id', device.profile_id)
+      .single();
+
+    const userLanguage = profile?.preferred_language || 'he';
+
     // Run AI validation
     let aiIsReal = false;
     let aiSummary = '';
@@ -182,6 +191,7 @@ serve(async (req) => {
         snapshotUrl,
         snapshot, // Pass base64 for vision
         apiKey: LOVABLE_API_KEY,
+        language: userLanguage, // Pass user language preference
       });
 
       aiIsReal = aiResult.isReal;
@@ -207,19 +217,16 @@ serve(async (req) => {
       console.error('[events-report] AI validation error:', aiError);
       // Continue without AI validation - treat as real for safety
       aiIsReal = true;
-      aiSummary = 'AI validation unavailable - treating as real event';
+      aiSummary = userLanguage === 'he' 
+        ? 'אימות AI לא זמין - מטופל כאירוע אמיתי'
+        : 'AI validation unavailable - treating as real event';
     }
 
     // If event is real, send notifications
     if (aiIsReal) {
       console.log('[events-report] Event validated as REAL - sending notifications');
 
-      // Get profile for WhatsApp notification
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('phone_number, country_code, full_name, preferred_language')
-        .eq('id', device.profile_id)
-        .single();
+      // Profile already fetched above for language preference
 
       const notificationTypes: string[] = [];
       
@@ -304,6 +311,7 @@ interface AIValidationParams {
   snapshotUrl: string | null;
   snapshot: string | null;
   apiKey: string;
+  language: string; // 'he' or 'en'
 }
 
 interface AIValidationResult {
@@ -313,7 +321,10 @@ interface AIValidationResult {
 }
 
 async function validateWithAI(params: AIValidationParams): Promise<AIValidationResult> {
-  const { eventType, labels, snapshot, apiKey } = params;
+  const { eventType, labels, snapshot, apiKey, language } = params;
+
+  const isHebrew = language === 'he';
+  const summaryLanguage = isHebrew ? 'Hebrew' : 'English';
 
   // Build prompt based on event type
   let messages: Array<{ role: string; content: any }>;
@@ -333,11 +344,13 @@ Rules:
 - Vehicles in driveways = LOW concern
 - Shadows, reflections, or camera artifacts = FALSE POSITIVE
 
+IMPORTANT: Your summary MUST be written in ${summaryLanguage}. Keep it brief (1-2 sentences).
+
 Respond in JSON format:
 {
   "is_real": boolean,
   "confidence": number (0-1),
-  "summary": "Brief explanation in Hebrew"
+  "summary": "Brief explanation in ${summaryLanguage}"
 }`
       },
       {
@@ -377,11 +390,13 @@ Consider:
 - Multiple detections of same sound = more reliable
 - Context matters (time of day, typical household sounds)
 
+IMPORTANT: Your summary MUST be written in ${summaryLanguage}. Keep it brief (1-2 sentences).
+
 Respond in JSON format:
 {
   "is_real": boolean,
   "confidence": number (0-1),
-  "summary": "Brief explanation in Hebrew"
+  "summary": "Brief explanation in ${summaryLanguage}"
 }`
       },
       {
@@ -458,9 +473,9 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
   // Event view URL
   const eventUrl = `https://aiguard24.com/event/${eventId}`;
 
-  // Build message in Hebrew or English
   const isHebrew = language === 'he';
   
+  // Severity labels for template {{1}}
   const severityLabels: Record<string, Record<string, string>> = {
     critical: { he: '🚨 קריטי', en: '🚨 CRITICAL' },
     high: { he: '⚠️ גבוה', en: '⚠️ HIGH' },
@@ -468,40 +483,31 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
     low: { he: 'ℹ️ נמוך', en: 'ℹ️ LOW' },
   };
 
+  // Event type labels for template {{2}}
   const eventTypeLabels: Record<string, Record<string, string>> = {
     motion: { he: 'תנועה', en: 'Motion' },
     sound: { he: 'קול', en: 'Sound' },
   };
 
+  // Build template parameters
   const topLabel = labels[0]?.label || 'unknown';
   const topConfidence = labels[0]?.confidence || 0;
 
-  const severityText = severityLabels[severity]?.[isHebrew ? 'he' : 'en'] || severity;
+  // {{1}} Alert level
+  const alertLevel = severityLabels[severity]?.[isHebrew ? 'he' : 'en'] || severity;
+  
+  // {{2}} Event type
   const eventTypeText = eventTypeLabels[eventType]?.[isHebrew ? 'he' : 'en'] || eventType;
+  
+  // {{3}} What was detected (label + confidence)
+  const detectedText = isHebrew 
+    ? `${topLabel} ${(topConfidence * 100).toFixed(0)}%`
+    : `${topLabel} ${(topConfidence * 100).toFixed(0)}%`;
+  
+  // {{4}} AI Summary (already in the appropriate language from the AI)
+  const summaryText = aiSummary || (isHebrew ? 'אין סיכום זמין' : 'No summary available');
 
-  const message = isHebrew
-    ? `${severityText} - התראת אבטחה
-
-סוג: ${eventTypeText}
-זוהה: ${topLabel} (${(topConfidence * 100).toFixed(0)}%)
-
-${aiSummary}
-
-🔗 צפה באירוע: ${eventUrl}
-
-או לחץ "צפייה חיה" באפליקציה.`
-    : `${severityText} - Security Alert
-
-Type: ${eventTypeText}
-Detected: ${topLabel} (${(topConfidence * 100).toFixed(0)}%)
-
-${aiSummary}
-
-🔗 View event: ${eventUrl}
-
-Or tap "Live View" in the app.`;
-
-  // Send via WhatsApp API
+  // Send via WhatsApp Template API
   const response = await fetch(
     `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
     {
@@ -513,8 +519,32 @@ Or tap "Live View" in the app.`;
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         to: phoneNumber,
-        type: 'text',
-        text: { body: message },
+        type: 'template',
+        template: {
+          name: 'security_alert',
+          language: {
+            code: isHebrew ? 'he' : 'en_US',
+          },
+          components: [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: alertLevel },      // {{1}} Alert level
+                { type: 'text', text: eventTypeText },   // {{2}} Event type
+                { type: 'text', text: detectedText },    // {{3}} What was detected
+                { type: 'text', text: summaryText },     // {{4}} AI Summary
+              ],
+            },
+            {
+              type: 'button',
+              sub_type: 'url',
+              index: 0,
+              parameters: [
+                { type: 'text', text: eventId },  // Dynamic URL suffix
+              ],
+            },
+          ],
+        },
       }),
     }
   );
@@ -524,5 +554,6 @@ Or tap "Live View" in the app.`;
     throw new Error(`WhatsApp API error: ${response.status} - ${errorText}`);
   }
 
-  console.log('[WhatsApp] Message sent to:', phoneNumber);
+  console.log('[WhatsApp] Template message sent to:', phoneNumber);
+  console.log('[WhatsApp] Template params:', { alertLevel, eventTypeText, detectedText, summaryText, eventUrl });
 }
