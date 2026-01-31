@@ -61,7 +61,8 @@ let deviceStatusSubscription = null;
 let liveViewState = {
   isActive: false,
   currentSessionId: null,
-  isCleaningUp: false  // CRITICAL: Track renderer cleanup state
+  isCleaningUp: false,  // CRITICAL: Track renderer cleanup state
+  offerSentForSessionId: null, // Only set once renderer actually sent offer
 };
 
 // IPC events from renderer (used to correctly ACK/FAIL DB commands)
@@ -817,8 +818,11 @@ async function startNewSession(session) {
     }
   }
   
+  // NOTE: Do NOT mark as active until renderer confirms offer-sent.
+  // currentSessionId is enough to de-dupe session handling.
   liveViewState.currentSessionId = session.id;
-  liveViewState.isActive = true;
+  liveViewState.isActive = false;
+  liveViewState.offerSentForSessionId = null;
   updateTrayMenu();
 
   console.log('[RTC] Starting live view for session:', session.id);
@@ -847,6 +851,10 @@ async function handleStartLiveView() {
   // This prevents duplicate offers when both Command and RTC channels fire
   if (liveViewState.currentSessionId === pendingSession.id) {
     console.log('[RTC] handleStartLiveView: ⚠️ Session already being handled by RTC-Poll, skipping:', pendingSession.id);
+    // But we STILL must wait for offer-sent (or start-failed) so the command isn't ACKed too early.
+    if (liveViewState.offerSentForSessionId !== pendingSession.id) {
+      await waitForLiveViewStartAck(pendingSession.id);
+    }
     return;
   }
   
@@ -866,6 +874,10 @@ async function handleStartLiveView() {
 }
 
 function waitForLiveViewStartAck(sessionId, { timeoutMs = 15000 } = {}) {
+  // If the renderer already confirmed offer-sent for this session, resolve immediately.
+  if (liveViewState.offerSentForSessionId === sessionId) {
+    return Promise.resolve(true);
+  }
   return new Promise((resolve, reject) => {
     const onOfferSent = (sid) => {
       if (sid !== sessionId) return;
@@ -984,6 +996,7 @@ function setupIpcHandlers() {
     console.log('[IPC] WebRTC offer sent for session:', sessionId);
     liveViewState.isActive = true;
     liveViewState.currentSessionId = sessionId;
+    liveViewState.offerSentForSessionId = sessionId;
     updateTrayMenu();
     rtcIpcEvents.emit('offer-sent', sessionId);
   });
@@ -992,6 +1005,7 @@ function setupIpcHandlers() {
     console.error('[IPC] ❌ WebRTC start failed:', payload);
     // Ensure state doesn't get stuck on "active" if renderer failed.
     liveViewState.isActive = false;
+    liveViewState.offerSentForSessionId = null;
     updateTrayMenu();
     rtcIpcEvents.emit('start-failed', payload);
   });
@@ -1000,6 +1014,7 @@ function setupIpcHandlers() {
     console.log('[IPC] WebRTC session ended:', sessionId);
     liveViewState.isActive = false;
     liveViewState.currentSessionId = null;
+    liveViewState.offerSentForSessionId = null;
     updateTrayMenu();
   });
   

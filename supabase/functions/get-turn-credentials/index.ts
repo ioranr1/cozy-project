@@ -38,8 +38,25 @@ serve(async (req) => {
       );
     }
 
-    const iceServers = await response.json();
-    
+    const meteredResponse = await response.json();
+
+    // Metered can return either:
+    // 1) an array of RTCIceServer objects
+    // 2) an object { iceServers: RTCIceServer[] }
+    const iceServers = Array.isArray(meteredResponse)
+      ? meteredResponse
+      : Array.isArray((meteredResponse as any)?.iceServers)
+        ? (meteredResponse as any).iceServers
+        : [];
+
+    if (!iceServers.length) {
+      console.error('Metered response did not contain iceServers array:', meteredResponse);
+      return new Response(
+        JSON.stringify({ error: 'Invalid TURN response' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('Successfully retrieved ICE servers:', iceServers.length, 'servers');
 
     return new Response(
