@@ -411,6 +411,15 @@ const Viewer: React.FC = () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       cleanupStream();
 
+      // CRITICAL: Check stopSentRef FIRST to prevent duplicate STOP commands
+      // This flag is set by handleStopViewing, beforeunload, or previous unmount
+      if (stopSentRef.current) {
+        console.log('[Viewer] Unmount cleanup: STOP already sent, skipping');
+        // Still close local RTC session (no DB command needed)
+        void stopSessionFnRef.current?.();
+        return;
+      }
+
       const sid = sessionIdRef.current;
       const { isConnecting: c, isConnected: d } = connectionFlagsRef.current;
       // Only stop if we were actually in a session
@@ -420,7 +429,7 @@ const Viewer: React.FC = () => {
         void stopSessionFnRef.current?.();
 
         // Send STOP to desktop once (best-effort)
-        if (!stopSentRef.current && primaryDeviceIdRef.current) {
+        if (primaryDeviceIdRef.current) {
           stopSentRef.current = true;
           void sendCommandFnRef.current?.('STOP_LIVE_VIEW');
         }
