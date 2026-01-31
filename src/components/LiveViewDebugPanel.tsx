@@ -6,7 +6,7 @@ import { RtcDebugInfo } from '@/hooks/useRtcSession';
 import { toast } from 'sonner';
 
 interface LiveViewDebugPanelProps {
-  viewerState: 'idle' | 'connecting' | 'connected' | 'error' | 'ended';
+  viewerState: 'idle' | 'connecting' | 'connected' | 'error' | 'ended' | 'retrying';
   rtcDebugInfo: RtcDebugInfo;
   errorMessage: string | null;
 }
@@ -31,6 +31,7 @@ export const LiveViewDebugPanel: React.FC<LiveViewDebugPanelProps> = ({
         return 'bg-green-500/20 text-green-400 border-green-500/30';
       case 'connecting':
       case 'checking':
+      case 'retrying':
         return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
       case 'failed':
       case 'error':

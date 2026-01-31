@@ -14,7 +14,7 @@ import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { useDevices, getSelectedDeviceId } from '@/hooks/useDevices';
 import { toast } from 'sonner';
 
-type ViewerState = 'idle' | 'connecting' | 'connected' | 'error' | 'ended';
+type ViewerState = 'idle' | 'connecting' | 'connected' | 'error' | 'ended' | 'retrying';
 
 interface Device {
   id: string;
@@ -27,6 +27,10 @@ interface Device {
 interface LocationState {
   sessionId?: string;
 }
+
+// Auto-retry configuration
+const MAX_AUTO_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
 
 const Viewer: React.FC = () => {
   const { language, isRTL } = useLanguage();
@@ -108,6 +112,8 @@ const Viewer: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   // Must start muted for reliable autoplay on mobile
   const [isMuted, setIsMuted] = useState(true);
+  const [autoRetryCount, setAutoRetryCount] = useState(0);
+  const autoRetryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
@@ -209,25 +215,40 @@ const Viewer: React.FC = () => {
   const stopSentRef = useRef(false);
 
   const handleStatusChange = useCallback((status: RtcSessionStatus) => {
-    console.log('🔄 [VIEWER] RTC Status changed:', status, 'manualStop:', manualStopRef.current);
+    console.log('🔄 [VIEWER] RTC Status changed:', status, 'manualStop:', manualStopRef.current, 'autoRetryCount:', autoRetryCount);
     if (status === 'connecting') {
       console.log('🟡 [VIEWER] State: CONNECTING - Waiting for desktop...');
       setViewerState('connecting');
     } else if (status === 'connected') {
       console.log('🟢 [VIEWER] State: CONNECTED - Stream should be visible!');
       setViewerState('connected');
+      // Reset retry count on successful connection
+      setAutoRetryCount(0);
     } else if (status === 'failed') {
       // CRITICAL: Release start lock on failure so user can retry
       startInitiatedRef.current = false;
       
-      // Show "ended" if manual stop, otherwise show error
+      // Show "ended" if manual stop, otherwise check for auto-retry
       if (manualStopRef.current) {
         console.log('✅ [VIEWER] State: ENDED (manual stop)');
         setViewerState('ended');
         manualStopRef.current = false;
       } else {
-        console.log('🔴 [VIEWER] State: FAILED');
-        setViewerState('error');
+        // Check if we should auto-retry
+        if (autoRetryCount < MAX_AUTO_RETRIES) {
+          console.log(`🔄 [VIEWER] Auto-retry ${autoRetryCount + 1}/${MAX_AUTO_RETRIES} in ${RETRY_DELAY_MS}ms...`);
+          setViewerState('retrying');
+          setAutoRetryCount(prev => prev + 1);
+          // Schedule retry
+          autoRetryTimerRef.current = setTimeout(() => {
+            console.log(`🔄 [VIEWER] Executing auto-retry ${autoRetryCount + 1}...`);
+            handleRetryInternal();
+          }, RETRY_DELAY_MS);
+        } else {
+          console.log('🔴 [VIEWER] State: FAILED (max retries reached)');
+          setViewerState('error');
+          setAutoRetryCount(0);
+        }
       }
     } else if (status === 'ended' || status === 'idle') {
       // CRITICAL: Release start lock on end so user can start again
@@ -243,7 +264,7 @@ const Viewer: React.FC = () => {
         setViewerState('idle');
       }
     }
-  }, []);
+  }, [autoRetryCount]);
 
   // RTC Session hook
   const { 
@@ -438,6 +459,12 @@ const Viewer: React.FC = () => {
         if (primaryDeviceIdRef.current) {
           void sendCommandFnRef.current?.('STOP_LIVE_VIEW');
         }
+      }
+
+      // Clean up auto-retry timer
+      if (autoRetryTimerRef.current) {
+        clearTimeout(autoRetryTimerRef.current);
+        autoRetryTimerRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -681,8 +708,47 @@ const Viewer: React.FC = () => {
     }
   };
 
+  // Internal retry function (used by auto-retry)
+  const handleRetryInternal = async () => {
+    console.log('[Viewer] Auto-retry - starting fresh session');
+    
+    // Clean up any lingering stream
+    cleanupStream();
+    
+    // Stop previous session completely (but don't send stop command)
+    await stopSession();
+
+    // Clear the navigation sessionId so we don't auto-start-loop
+    clearDashboardSession();
+    
+    // Give React time to re-render
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Start fresh - create new session and send command
+    const activeSessionId = await startSession();
+    if (!activeSessionId) {
+      // If auto-retry fails, the status change callback will handle it
+      console.log('[Viewer] Auto-retry: session creation failed');
+      return;
+    }
+
+    // Send START command
+    const ok = await sendCommand('START_LIVE_VIEW');
+    if (!ok) {
+      await stopSession();
+      console.log('[Viewer] Auto-retry: command failed');
+    }
+  };
+
   const handleRetry = async () => {
-    console.log('[Viewer] Retry clicked - resetting state completely');
+    console.log('[Viewer] Manual retry clicked - resetting state completely');
+    
+    // Cancel any pending auto-retry
+    if (autoRetryTimerRef.current) {
+      clearTimeout(autoRetryTimerRef.current);
+      autoRetryTimerRef.current = null;
+    }
+    setAutoRetryCount(0);
     
     // 1. Reset error message and mark as manual stop (so status change doesn't trigger error again)
     setErrorMessage(null);
@@ -707,7 +773,7 @@ const Viewer: React.FC = () => {
     manualStopRef.current = false;
     
     // 7. Now start fresh - create new session and send command
-    console.log('[Viewer] Starting fresh session after retry');
+    console.log('[Viewer] Starting fresh session after manual retry');
     const activeSessionId = await startSession();
     if (!activeSessionId) {
       setViewerState('error');
@@ -969,6 +1035,39 @@ const Viewer: React.FC = () => {
             </div>
           )}
 
+          {/* Retrying State - Auto-retry in progress */}
+          {viewerState === 'retrying' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/90">
+              <RefreshCw className="w-16 h-16 text-amber-400 animate-spin mb-6" />
+              <h3 className="text-lg font-medium text-white mb-2">
+                {language === 'he' ? `מנסה שוב... (${autoRetryCount}/${MAX_AUTO_RETRIES})` : `Retrying... (${autoRetryCount}/${MAX_AUTO_RETRIES})`}
+              </h3>
+              <p className="text-white/60 text-sm mb-6">
+                {language === 'he' ? 'החיבור נכשל, מנסה אוטומטית' : 'Connection failed, retrying automatically'}
+              </p>
+              {/* Cancel button to stop retrying */}
+              <Button 
+                variant="outline" 
+                onClick={async () => {
+                  console.log('[Viewer] Cancel auto-retry clicked');
+                  // Cancel pending timer
+                  if (autoRetryTimerRef.current) {
+                    clearTimeout(autoRetryTimerRef.current);
+                    autoRetryTimerRef.current = null;
+                  }
+                  setAutoRetryCount(0);
+                  // Stop and go back
+                  await handleStopViewing(true);
+                  navigate('/dashboard');
+                }}
+                className="border-slate-600 bg-slate-800 text-white hover:bg-slate-700"
+              >
+                <X className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'ביטול וחזרה' : 'Cancel & Go Back'}
+              </Button>
+            </div>
+          )}
+
           {/* Ended State is now handled at top of renderViewerContent */}
 
           {/* Controls Overlay - Only when connected */}
@@ -1008,12 +1107,14 @@ const Viewer: React.FC = () => {
           <div className={`w-2 h-2 rounded-full ${
             viewerState === 'connected' ? 'bg-green-500 animate-pulse' :
             viewerState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+            viewerState === 'retrying' ? 'bg-amber-500 animate-pulse' :
             viewerState === 'error' ? 'bg-red-500' :
             'bg-slate-500'
           }`} />
           <span className="text-white/60">
             {viewerState === 'connected' && (language === 'he' ? 'שידור פעיל' : 'Stream Active')}
             {viewerState === 'connecting' && (language === 'he' ? 'מתחבר...' : 'Connecting...')}
+            {viewerState === 'retrying' && (language === 'he' ? `מנסה שוב (${autoRetryCount}/${MAX_AUTO_RETRIES})` : `Retrying (${autoRetryCount}/${MAX_AUTO_RETRIES})`)}
             {viewerState === 'error' && (language === 'he' ? 'שגיאה' : 'Error')}
             {viewerState === 'idle' && (language === 'he' ? 'ממתין לשידור' : 'Waiting for stream')}
           </span>
