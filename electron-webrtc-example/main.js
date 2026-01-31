@@ -30,7 +30,7 @@ const AwayManager = require('./away/away-manager');
 
 // NEW: Import Monitoring system
 const MonitoringManager = require('./monitoring/monitoring-manager');
-const LocalClipRecorder = require('./monitoring/local-clip-recorder');
+const fs = require('fs');
 
 // =============================================================================
 // CONFIGURATION
@@ -48,8 +48,8 @@ const awayManager = new AwayManager({ supabase });
 // Initialize MonitoringManager
 const monitoringManager = new MonitoringManager({ supabase });
 
-// Initialize LocalClipRecorder (will be set up after window is ready)
-let clipRecorder = null;
+// Clips folder path (initialized on startup)
+let clipsPath = null;
 
 // Subscriptions
 let commandsSubscription = null;
@@ -1139,6 +1139,50 @@ function setupIpcHandlers() {
   // Monitoring status update
   ipcMain.on('monitoring-status', (event, status) => {
     console.log('[IPC] Monitoring status:', status);
+  });
+
+  // -------------------------------------------------------------------------
+  // Clip Recording IPC handlers
+  // -------------------------------------------------------------------------
+  
+  // Get clips storage path
+  ipcMain.handle('get-clips-path', () => {
+    if (!clipsPath) {
+      clipsPath = path.join(app.getPath('userData'), 'clips');
+      // Ensure folder exists
+      if (!fs.existsSync(clipsPath)) {
+        fs.mkdirSync(clipsPath, { recursive: true });
+      }
+    }
+    return clipsPath;
+  });
+
+  // Save clip to disk
+  ipcMain.handle('save-clip', async (event, { filename, base64Data, eventId, durationSeconds }) => {
+    try {
+      if (!clipsPath) {
+        clipsPath = path.join(app.getPath('userData'), 'clips');
+        if (!fs.existsSync(clipsPath)) {
+          fs.mkdirSync(clipsPath, { recursive: true });
+        }
+      }
+
+      const filePath = path.join(clipsPath, filename);
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      fs.writeFileSync(filePath, buffer);
+      console.log(`[Clips] Saved: ${filename} (${(buffer.length / 1024 / 1024).toFixed(2)} MB)`);
+
+      return { success: true, filepath: filePath };
+    } catch (error) {
+      console.error('[Clips] Save error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Clip recorded notification
+  ipcMain.on('clip-recorded', (event, clipInfo) => {
+    console.log('[Clips] Recorded:', clipInfo.filename);
   });
 }
 
