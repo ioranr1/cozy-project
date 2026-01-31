@@ -2,14 +2,14 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.1.0 (2026-01-30)
+ * VERSION: 2.2.0 (2026-01-31)
  * 
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
  * 
  * Required dependencies:
  *   npm install electron electron-store@7.0.3 @supabase/supabase-js
- *   npm install @mediapipe/tasks-vision @tensorflow/tfjs
+ *   npm install @mediapipe/tasks-vision @tensorflow/tfjs @tensorflow-models/speech-commands
  * 
  * IMPORTANT: Use electron-store v7.0.3 (NOT v8+) to avoid ESM issues!
  * 
