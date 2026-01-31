@@ -1,7 +1,7 @@
 /**
  * Electron Renderer WebRTC Implementation
  * ========================================
- * BUILD: renderer-webrtc-2026-01-31-v2.2.1-quit-cleanup
+ * BUILD: renderer-webrtc-2026-01-31-v2.2.2-camera-fix
  * 
  * This file should be loaded in your Electron renderer process (e.g., index.html or a hidden window).
  * It listens for IPC messages from main.js to start/stop live view sessions.
