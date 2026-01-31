@@ -1577,6 +1577,20 @@ app.on('before-quit', async (event) => {
     // This prevents the mobile app from showing AWAY as active when the computer is off
     if (deviceId) {
       try {
+        // CRITICAL FIX: If live view was active, insert a synthetic STOP command
+        // so the mobile dashboard knows the stream ended (useLiveViewState checks last command)
+        if (liveViewState.isActive || liveViewState.currentSessionId) {
+          console.log('[App] Quit cleanup: inserting synthetic STOP_LIVE_VIEW command...');
+          await supabase.from('commands').insert({
+            device_id: deviceId,
+            command: 'STOP_LIVE_VIEW',
+            status: 'completed',
+            handled: true,
+            handled_at: new Date().toISOString(),
+          });
+          console.log('[App] ✅ Synthetic STOP_LIVE_VIEW command inserted');
+        }
+
         // Update device_status to NORMAL
         await supabase
           .from('device_status')
