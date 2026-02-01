@@ -79,6 +79,13 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     displayOffNote: language === 'he' 
       ? 'המסך יכבה אוטומטית (אם נתמך)' 
       : 'Display will turn off automatically (if supported)',
+    // CRITICAL: Security not monitored warning
+    securityNotMonitored: language === 'he' 
+      ? '⚠️ המערכת לא מנוטרת! המחשב לא מחובר' 
+      : '⚠️ System NOT monitored! Computer disconnected',
+    securityNotMonitoredSleeping: language === 'he' 
+      ? '⚠️ המערכת לא מנוטרת! המחשב במצב שינה' 
+      : '⚠️ System NOT monitored! Computer sleeping',
   }), [language]);
 
   // Get profile ID and selected device dynamically
@@ -498,23 +505,39 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
         </div>
       )}
 
-      {/* Offline warning */}
+      {/* CRITICAL: Offline warning - Security NOT monitored! */}
       {connectionStatus === 'offline' && !isPending && !showError && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg">
-          <WifiOff className="w-3.5 h-3.5 text-red-400" />
-          <span className="text-red-400 text-xs">
-            {t.errorDeviceOffline}
-          </span>
+        <div className="flex flex-col gap-2 px-3 py-3 bg-red-500/20 border-2 border-red-500/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 animate-pulse" />
+            <span className="text-red-300 text-sm font-semibold">
+              {t.securityNotMonitored}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <WifiOff className="w-3.5 h-3.5 text-red-400" />
+            <span className="text-red-400/80 text-xs">
+              {t.errorDeviceOffline}
+            </span>
+          </div>
         </div>
       )}
 
-      {/* Sleeping warning */}
-      {connectionStatus === 'sleeping' && !isPending && !showError && !isAway && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-          <Moon className="w-3.5 h-3.5 text-yellow-400" />
-          <span className="text-yellow-400 text-xs">
-            {t.errorDeviceSleeping}
-          </span>
+      {/* CRITICAL: Sleeping warning - Security NOT monitored! */}
+      {connectionStatus === 'sleeping' && !isPending && !showError && (
+        <div className="flex flex-col gap-2 px-3 py-3 bg-yellow-500/20 border-2 border-yellow-500/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-yellow-400 animate-pulse" />
+            <span className="text-yellow-300 text-sm font-semibold">
+              {t.securityNotMonitoredSleeping}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Moon className="w-3.5 h-3.5 text-yellow-400" />
+            <span className="text-yellow-400/80 text-xs">
+              {t.errorDeviceSleeping}
+            </span>
+          </div>
         </div>
       )}
 
