@@ -62,7 +62,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     on: language === 'he' ? 'פעיל' : 'On',
     off: language === 'he' ? 'כבוי' : 'Off',
     cameraActive: language === 'he' ? 'מצלמה פעילה ומנטרת' : 'Camera active & monitoring',
-    cameraInactive: language === 'he' ? 'מצלמה כבויה' : 'Camera inactive',
+    cameraInactive: language === 'he' ? 'המצלמה תופעל עם לחיצה על הפעל' : 'Camera will activate when you press Activate',
     cameraLoading: language === 'he' ? 'מפעיל מצלמה...' : 'Activating camera...',
   };
 
