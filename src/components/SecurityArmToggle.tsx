@@ -14,6 +14,7 @@ interface DeviceStatus {
   device_mode: string;
   motion_enabled: boolean;
   sound_enabled: boolean;
+  security_enabled: boolean;
   last_command: string | null;
   updated_at: string;
 }
@@ -35,6 +36,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [securityEnabled, setSecurityEnabled] = useState(false); // True when Electron confirms camera is active
   const [monitoringSettings, setMonitoringSettings] = useState<MonitoringSettings>({
     motionEnabled: true,
     soundEnabled: false,
@@ -78,6 +80,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       if (data) {
         const status = data as DeviceStatus;
         setIsArmed(status.is_armed);
+        setSecurityEnabled(status.security_enabled ?? false);
         setMonitoringSettings({
           motionEnabled: status.motion_enabled ?? true,
           soundEnabled: status.sound_enabled ?? false,
@@ -130,6 +133,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           console.log('[SecurityArmToggle] 🔔 Realtime update:', payload.new);
           const newStatus = payload.new as DeviceStatus;
           setIsArmed(newStatus.is_armed);
+          setSecurityEnabled(newStatus.security_enabled ?? false);
           setMonitoringSettings({
             motionEnabled: newStatus.motion_enabled ?? true,
             soundEnabled: newStatus.sound_enabled ?? false,
@@ -429,7 +433,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         cameraStatus={
           isUpdating 
             ? 'loading' 
-            : (isArmed && monitoringSettings.motionEnabled) 
+            : securityEnabled 
               ? 'active' 
               : 'inactive'
         }
