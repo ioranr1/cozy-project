@@ -1,7 +1,11 @@
 /**
  * Renderer Monitoring Controller
  * ===============================
- * VERSION: 0.1.0 (2026-01-30)
+ * VERSION: 1.0.0 (2026-02-01)
+ * 
+ * CHANGELOG:
+ * - v1.0.0: Production release with motion/sound detection integration
+ * - v0.1.0: Initial implementation
  * 
  * Runs in Electron RENDERER process.
  * Initializes and manages MotionDetector and SoundDetector.
