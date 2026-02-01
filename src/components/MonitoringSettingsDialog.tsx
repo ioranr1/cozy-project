@@ -23,7 +23,9 @@ interface MonitoringSettingsDialogProps {
   settings: MonitoringSettings;
   onSettingsChange: (settings: MonitoringSettings) => void;
   onConfirm: () => void;
+  onDeactivate?: () => void;
   isLoading?: boolean;
+  isArmed?: boolean;
   /** Current camera/monitoring status from device_status */
   cameraStatus?: 'active' | 'inactive' | 'loading';
 }
@@ -39,7 +41,9 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
   settings,
   onSettingsChange,
   onConfirm,
+  onDeactivate,
   isLoading = false,
+  isArmed = false,
   cameraStatus = 'inactive',
 }) => {
   const { language, isRTL } = useLanguage();
@@ -58,7 +62,9 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
       ? 'מזהה קולות חריגים ושולח התראות' 
       : 'Detects unusual sounds and sends alerts',
     activate: language === 'he' ? 'הפעל ניטור' : 'Activate Monitoring',
+    deactivate: language === 'he' ? 'כבה ניטור' : 'Deactivate Monitoring',
     cancel: language === 'he' ? 'ביטול' : 'Cancel',
+    close: language === 'he' ? 'סגור' : 'Close',
     on: language === 'he' ? 'פעיל' : 'On',
     off: language === 'he' ? 'כבוי' : 'Off',
     cameraActive: language === 'he' ? 'מצלמה פעילה ומנטרת' : 'Camera active & monitoring',
@@ -198,25 +204,51 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
         </div>
 
         <DialogFooter className="flex gap-2 sm:gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800"
-            disabled={isLoading}
-          >
-            {t.cancel}
-          </Button>
-          <Button
-            onClick={onConfirm}
-            disabled={isLoading || (!settings.motionEnabled && !settings.soundEnabled)}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            {isLoading ? (
-              <span className="animate-spin">⏳</span>
-            ) : (
-              t.activate
-            )}
-          </Button>
+          {isArmed ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800"
+                disabled={isLoading}
+              >
+                {t.close}
+              </Button>
+              <Button
+                onClick={onDeactivate}
+                disabled={isLoading}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isLoading ? (
+                  <span className="animate-spin">⏳</span>
+                ) : (
+                  t.deactivate
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800"
+                disabled={isLoading}
+              >
+                {t.cancel}
+              </Button>
+              <Button
+                onClick={onConfirm}
+                disabled={isLoading || (!settings.motionEnabled && !settings.soundEnabled)}
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {isLoading ? (
+                  <span className="animate-spin">⏳</span>
+                ) : (
+                  t.activate
+                )}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
