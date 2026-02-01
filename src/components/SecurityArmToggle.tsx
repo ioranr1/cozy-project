@@ -96,7 +96,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     [deviceId, language]
   );
 
-  // Fetch initial status
+  // Fetch initial status and sync commands
   const fetchStatus = useCallback(async () => {
     if (!deviceId) {
       setIsLoading(false);
@@ -117,7 +117,36 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
 
       if (data) {
         const status = data as DeviceStatus;
-        setIsArmed(status.is_armed);
+        
+        // Check if is_armed but security_enabled is false - means command never reached Electron
+        // This can happen if state was set before the Edge Function logic was deployed
+        if (status.is_armed && !status.security_enabled) {
+          console.log('[SecurityArmToggle] ⚠️ State mismatch detected: is_armed=true but security_enabled=false');
+          
+          // Check if SET_MONITORING:ON command exists
+          const { data: cmdData } = await supabase
+            .from('commands')
+            .select('id')
+            .eq('device_id', deviceId)
+            .eq('command', 'SET_MONITORING:ON')
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (!cmdData || cmdData.length === 0) {
+            console.log('[SecurityArmToggle] 🔄 No SET_MONITORING:ON found, resetting is_armed to false');
+            // Reset is_armed since the command was never sent
+            await supabase
+              .from('device_status')
+              .update({ is_armed: false })
+              .eq('device_id', deviceId);
+            setIsArmed(false);
+          } else {
+            setIsArmed(status.is_armed);
+          }
+        } else {
+          setIsArmed(status.is_armed);
+        }
+        
         setSecurityEnabled(status.security_enabled ?? false);
         setMonitoringSettings({
           motionEnabled: status.motion_enabled ?? true,
