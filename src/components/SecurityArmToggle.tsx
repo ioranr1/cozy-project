@@ -239,8 +239,8 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         return;
       }
 
-      // Step 2: Activate monitoring with selected sensors
-      const { error } = await supabase
+      // Step 2: Update device_status with armed state and sensor settings
+      const { error: statusError } = await supabase
         .from('device_status')
         .update({
           is_armed: true,
@@ -251,12 +251,35 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         })
         .eq('device_id', deviceId);
 
-      if (error) {
-        console.error('[SecurityArmToggle] Error activating monitoring:', error);
+      if (statusError) {
+        console.error('[SecurityArmToggle] Error updating status:', statusError);
         toast.error(language === 'he' ? 'שגיאה בהפעלת הניטור' : 'Failed to activate monitoring');
         return;
       }
 
+      // Step 3: CRITICAL - Send SET_MONITORING:ON command to Electron
+      // This triggers the actual camera/sensor activation via commands table
+      const { error: cmdError } = await supabase
+        .from('commands')
+        .insert({
+          device_id: deviceId,
+          command: 'SET_MONITORING:ON',
+          status: 'pending',
+          handled: false,
+        });
+
+      if (cmdError) {
+        console.error('[SecurityArmToggle] Error sending monitoring command:', cmdError);
+        // Revert status since command failed
+        await supabase
+          .from('device_status')
+          .update({ is_armed: false })
+          .eq('device_id', deviceId);
+        toast.error(language === 'he' ? 'שגיאה בשליחת פקודה למכשיר' : 'Failed to send command to device');
+        return;
+      }
+
+      console.log('[SecurityArmToggle] ✅ SET_MONITORING:ON command sent');
       setIsArmed(true);
       setShowSettingsDialog(false);
 
@@ -271,8 +294,8 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
 
       toast.success(
         language === 'he' 
-          ? `🛡️ ניטור פעיל • ${sensors.join(' + ')}` 
-          : `🛡️ Monitoring Active • ${sensors.join(' + ')}`
+          ? `🛡️ מפעיל ניטור • ${sensors.join(' + ')}` 
+          : `🛡️ Activating Monitoring • ${sensors.join(' + ')}`
       );
     } catch (err) {
       console.error('[SecurityArmToggle] Unexpected error:', err);
@@ -287,9 +310,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     if (!deviceId) return;
 
     setIsUpdating(true);
+    setShowSettingsDialog(false); // Close dialog immediately
 
     try {
-      const { error } = await supabase
+      // Step 1: Update device_status
+      const { error: statusError } = await supabase
         .from('device_status')
         .update({
           is_armed: false,
@@ -298,10 +323,28 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         })
         .eq('device_id', deviceId);
 
-      if (error) {
-        console.error('[SecurityArmToggle] Error disarming:', error);
+      if (statusError) {
+        console.error('[SecurityArmToggle] Error updating status:', statusError);
         toast.error(language === 'he' ? 'שגיאה בכיבוי הניטור' : 'Failed to disarm monitoring');
         return;
+      }
+
+      // Step 2: CRITICAL - Send SET_MONITORING:OFF command to Electron
+      // This stops the camera/sensors and releases hardware
+      const { error: cmdError } = await supabase
+        .from('commands')
+        .insert({
+          device_id: deviceId,
+          command: 'SET_MONITORING:OFF',
+          status: 'pending',
+          handled: false,
+        });
+
+      if (cmdError) {
+        console.error('[SecurityArmToggle] Error sending stop command:', cmdError);
+        // Don't revert - at least UI is updated
+      } else {
+        console.log('[SecurityArmToggle] ✅ SET_MONITORING:OFF command sent');
       }
 
       setIsArmed(false);
