@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useDevices } from '@/hooks/useDevices';
 import { MonitoringSettingsDialog, MonitoringSettings } from '@/components/MonitoringSettingsDialog';
+import { getSessionToken } from '@/hooks/useSession';
 
 interface DeviceStatus {
   id: string;
@@ -57,6 +58,43 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
 
   const { selectedDevice } = useDevices(profileId);
   const deviceId = selectedDevice?.id;
+
+  const sendMonitoringCommand = useCallback(
+    async (command: 'SET_MONITORING:ON' | 'SET_MONITORING:OFF'): Promise<string | null> => {
+      if (!deviceId) return null;
+
+      const sessionToken = getSessionToken();
+      if (!sessionToken) {
+        toast.error(language === 'he' ? 'נדרשת התחברות מחדש' : 'Please log in again');
+        return null;
+      }
+
+      console.log('[SecurityArmToggle] Sending command via Edge Function:', command, { deviceId });
+
+      const response = await supabase.functions.invoke('send-command', {
+        body: {
+          device_id: deviceId,
+          command,
+          session_token: sessionToken,
+        },
+      });
+
+      if (response.error) {
+        console.error('[SecurityArmToggle] send-command error:', response.error);
+        return null;
+      }
+
+      const data = response.data as { success?: boolean; command_id?: string; error?: string; error_code?: string };
+      if (!data?.success || !data?.command_id) {
+        console.error('[SecurityArmToggle] send-command failed:', data);
+        return null;
+      }
+
+      console.log('[SecurityArmToggle] ✅ Command inserted:', data.command_id);
+      return data.command_id;
+    },
+    [deviceId, language]
+  );
 
   // Fetch initial status
   const fetchStatus = useCallback(async () => {
@@ -257,19 +295,10 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         return;
       }
 
-      // Step 3: CRITICAL - Send SET_MONITORING:ON command to Electron
-      // This triggers the actual camera/sensor activation via commands table
-      const { error: cmdError } = await supabase
-        .from('commands')
-        .insert({
-          device_id: deviceId,
-          command: 'SET_MONITORING:ON',
-          status: 'pending',
-          handled: false,
-        });
-
-      if (cmdError) {
-        console.error('[SecurityArmToggle] Error sending monitoring command:', cmdError);
+      // Step 3: CRITICAL - Send SET_MONITORING:ON via Edge Function (RLS-safe)
+      const commandId = await sendMonitoringCommand('SET_MONITORING:ON');
+      if (!commandId) {
+        console.error('[SecurityArmToggle] Failed to send SET_MONITORING:ON');
         // Revert status since command failed
         await supabase
           .from('device_status')
@@ -279,7 +308,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         return;
       }
 
-      console.log('[SecurityArmToggle] ✅ SET_MONITORING:ON command sent');
+      console.log('[SecurityArmToggle] ✅ SET_MONITORING:ON command sent', { commandId });
       setIsArmed(true);
       setShowSettingsDialog(false);
 
@@ -329,22 +358,12 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         return;
       }
 
-      // Step 2: CRITICAL - Send SET_MONITORING:OFF command to Electron
-      // This stops the camera/sensors and releases hardware
-      const { error: cmdError } = await supabase
-        .from('commands')
-        .insert({
-          device_id: deviceId,
-          command: 'SET_MONITORING:OFF',
-          status: 'pending',
-          handled: false,
-        });
-
-      if (cmdError) {
-        console.error('[SecurityArmToggle] Error sending stop command:', cmdError);
-        // Don't revert - at least UI is updated
+      // Step 2: CRITICAL - Send SET_MONITORING:OFF via Edge Function (RLS-safe)
+      const commandId = await sendMonitoringCommand('SET_MONITORING:OFF');
+      if (!commandId) {
+        console.error('[SecurityArmToggle] Failed to send SET_MONITORING:OFF');
       } else {
-        console.log('[SecurityArmToggle] ✅ SET_MONITORING:OFF command sent');
+        console.log('[SecurityArmToggle] ✅ SET_MONITORING:OFF command sent', { commandId });
       }
 
       setIsArmed(false);
@@ -454,12 +473,20 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
 
         {/* Status Bar */}
         {isArmed && (
-          <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-red-500/10 rounded-lg">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-red-400 text-xs">
-              {language === 'he' 
-                ? 'המערכת פעילה ומנטרת' 
-                : 'System active and monitoring'}
+          <div
+            className={`mt-4 flex items-center gap-2 px-3 py-2 rounded-lg ${
+              securityEnabled ? 'bg-red-500/10' : 'bg-amber-500/10'
+            }`}
+          >
+            <div
+              className={`w-2 h-2 rounded-full animate-pulse ${
+                securityEnabled ? 'bg-red-500' : 'bg-amber-500'
+              }`}
+            />
+            <span className={`text-xs ${securityEnabled ? 'text-red-400' : 'text-amber-400'}`}>
+              {securityEnabled
+                ? (language === 'he' ? 'המצלמה פעילה ומנטרת' : 'Camera active & monitoring')
+                : (language === 'he' ? 'ממתין להפעלת מצלמה מהמחשב…' : 'Waiting for computer to activate camera…')}
             </span>
           </div>
         )}
