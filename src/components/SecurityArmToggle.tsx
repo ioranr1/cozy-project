@@ -426,6 +426,13 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         onSettingsChange={setMonitoringSettings}
         onConfirm={handleConfirmActivation}
         isLoading={isUpdating}
+        cameraStatus={
+          isUpdating 
+            ? 'loading' 
+            : (isArmed && monitoringSettings.motionEnabled) 
+              ? 'active' 
+              : 'inactive'
+        }
       />
     </>
   );
