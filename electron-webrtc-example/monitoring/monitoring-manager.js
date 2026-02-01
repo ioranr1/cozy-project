@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.3.0 (2026-01-30)
+ * VERSION: 0.3.1 (2026-02-01)
  * 
  * Manages monitoring state, configuration, and event handling.
  * Coordinates between detectors (renderer) and database (Supabase).
@@ -24,6 +24,7 @@ class MonitoringManager {
     
     // State
     this.isActive = false;
+    this.isStarting = false;
     this.config = null;
     this.detectorStatus = {
       motion: false,
@@ -193,9 +194,17 @@ class MonitoringManager {
       return { success: true };
     }
 
+    // If a start is already in progress, don't send duplicate start signals.
+    if (this.isStarting) {
+      console.log('[MonitoringManager] Start already in progress');
+      return { success: true };
+    }
+
     console.log('[MonitoringManager] Enable requested');
 
     try {
+      this.isStarting = true;
+
       // Load config if not loaded
       if (!this.config) {
         await this.loadConfig();
@@ -209,35 +218,48 @@ class MonitoringManager {
         return { success: false, error: 'Main window not available' };
       }
 
-      this.isActive = true;
-
-      // Update device_status in DB
-      if (this.deviceId) {
-        const { error } = await this.supabase
-          .from('device_status')
-          .update({
-            security_enabled: true,
-            motion_enabled: this.config.sensors.motion.enabled,
-            sound_enabled: this.config.sensors.sound.enabled,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('device_id', this.deviceId);
-
-        if (error) {
-          console.error('[MonitoringManager] Failed to update device_status:', error);
-        }
-      }
-
-      console.log('[MonitoringManager] ✓ Monitoring enabled');
-      return { success: true };
+      // IMPORTANT (SSOT): Do NOT set isActive or update DB here.
+      // The renderer will attempt getUserMedia + start detectors.
+      // We only mark active after receiving 'monitoring-started' from renderer.
+      console.log('[MonitoringManager] ⏳ Start signal sent; waiting for renderer ACK (monitoring-started)');
+      return { success: true, starting: true };
     } catch (error) {
       console.error('[MonitoringManager] Enable failed:', error);
+      this.isStarting = false;
+      this.isActive = false;
       return { success: false, error: error.message || 'Enable failed' };
     }
   }
 
+  /**
+   * Called by main.js when renderer confirmed monitoring started.
+   */
+  onRendererStarted(status) {
+    this.isStarting = false;
+    this.isActive = true;
+    console.log('[MonitoringManager] ✓ Renderer confirmed monitoring started', status);
+  }
+
+  /**
+   * Called by main.js when renderer confirmed monitoring stopped.
+   */
+  onRendererStopped() {
+    this.isStarting = false;
+    this.isActive = false;
+    console.log('[MonitoringManager] ✓ Renderer confirmed monitoring stopped');
+  }
+
+  /**
+   * Called by main.js when renderer failed to start monitoring.
+   */
+  onRendererError(error) {
+    this.isStarting = false;
+    this.isActive = false;
+    console.log('[MonitoringManager] ✗ Renderer reported monitoring error:', error);
+  }
+
   async disable() {
-    if (!this.isActive) {
+    if (!this.isActive && !this.isStarting) {
       console.log('[MonitoringManager] Already inactive');
       return { success: true };
     }
@@ -251,6 +273,7 @@ class MonitoringManager {
       }
 
       this.isActive = false;
+      this.isStarting = false;
 
       // Clear any pending events
       if (this.eventQueueTimer) {

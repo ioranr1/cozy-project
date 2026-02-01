@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.2.1 (2026-01-31)
+ * VERSION: 2.2.2 (2026-02-01)
  * 
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -67,6 +67,9 @@ let liveViewState = {
 
 // IPC events from renderer (used to correctly ACK/FAIL DB commands)
 const rtcIpcEvents = new EventEmitter();
+
+// Monitoring IPC events from renderer (used to ACK/FAIL monitoring commands)
+const monitoringIpcEvents = new EventEmitter();
 
 // Heartbeat interval
 let heartbeatInterval = null;
@@ -587,6 +590,48 @@ function subscribeToCommands(retryCount = 0) {
   console.log('[Commands] Subscription initiated, waiting for SUBSCRIBED status...');
 }
 
+function waitForMonitoringStartAck({ timeoutMs = 15000 } = {}) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      try {
+        monitoringIpcEvents.off('started', onStarted);
+        monitoringIpcEvents.off('error', onError);
+      } catch (_) {
+        // noop
+      }
+    };
+
+    const onStarted = (status) => {
+      cleanup();
+      resolve(status || { motion: false, sound: false });
+    };
+
+    const onError = (err) => {
+      cleanup();
+      reject(new Error(err || 'Monitoring start failed'));
+    };
+
+    monitoringIpcEvents.on('started', onStarted);
+    monitoringIpcEvents.on('error', onError);
+
+    setTimeout(() => {
+      if (done) return;
+      cleanup();
+      // Ensure MonitoringManager is not stuck in "starting" state.
+      try {
+        monitoringManager.onRendererError?.('timeout');
+      } catch (_) {
+        // noop
+      }
+      reject(new Error('Monitoring start timeout'));
+    }, timeoutMs);
+  });
+}
+
 async function handleCommand(command) {
   const { id, command: cmd } = command;
 
@@ -652,12 +697,55 @@ async function handleCommand(command) {
 
       case 'SET_MONITORING:ON':
         console.log('[Commands] Processing SET_MONITORING:ON command');
-        const monitoringResult = await monitoringManager.enable();
-        if (!monitoringResult.success) {
-          console.error('[Commands] ❌ Monitoring enable failed:', monitoringResult.error);
-          throw new Error(monitoringResult.error || 'Monitoring enable failed');
+        try {
+          const monitoringResult = await monitoringManager.enable();
+          if (!monitoringResult.success) {
+            console.error('[Commands] ❌ Monitoring enable failed:', monitoringResult.error);
+            throw new Error(monitoringResult.error || 'Monitoring enable failed');
+          }
+
+          // CRITICAL (SSOT): Only mark camera active after renderer confirms getUserMedia succeeded.
+          const startedStatus = await waitForMonitoringStartAck({ timeoutMs: 15000 });
+
+          if (!deviceId) {
+            throw new Error('Missing deviceId while enabling monitoring');
+          }
+
+          const nowIso = new Date().toISOString();
+          const { error: statusError } = await supabase
+            .from('device_status')
+            .update({
+              security_enabled: true,
+              motion_enabled: startedStatus?.motion ?? true,
+              sound_enabled: startedStatus?.sound ?? false,
+              updated_at: nowIso,
+            })
+            .eq('device_id', deviceId);
+
+          if (statusError) {
+            console.error('[Commands] ❌ Failed to update device_status after monitoring-started:', statusError);
+            throw new Error(statusError.message || 'Failed to update device status');
+          }
+
+          console.log('[Commands] ✅ Monitoring enabled (renderer ACK received)');
+        } catch (e) {
+          // Ensure DB reflects reality: if monitoring didn't start, it is NOT armed.
+          if (deviceId) {
+            try {
+              await supabase
+                .from('device_status')
+                .update({
+                  security_enabled: false,
+                  is_armed: false,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('device_id', deviceId);
+            } catch (_) {
+              // noop
+            }
+          }
+          throw e;
         }
-        console.log('[Commands] ✅ Monitoring enabled');
         break;
 
       case 'SET_MONITORING:OFF':
@@ -1282,16 +1370,34 @@ function setupIpcHandlers() {
   // Monitoring started notification
   ipcMain.on('monitoring-started', (event, status) => {
     console.log('[IPC] Monitoring started:', status);
+    try {
+      monitoringManager.onRendererStarted?.(status);
+    } catch (_) {
+      // noop
+    }
+    monitoringIpcEvents.emit('started', status);
   });
 
   // Monitoring stopped notification
   ipcMain.on('monitoring-stopped', (event) => {
     console.log('[IPC] Monitoring stopped');
+    try {
+      monitoringManager.onRendererStopped?.();
+    } catch (_) {
+      // noop
+    }
+    monitoringIpcEvents.emit('stopped');
   });
 
   // Monitoring error notification
   ipcMain.on('monitoring-error', (event, error) => {
     console.error('[IPC] Monitoring error:', error);
+    try {
+      monitoringManager.onRendererError?.(error);
+    } catch (_) {
+      // noop
+    }
+    monitoringIpcEvents.emit('error', error);
   });
 
   // Monitoring status update
@@ -1350,7 +1456,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-01-30-v2.1.0-monitoring');
+console.log('[Main] BUILD ID: main-js-2026-02-01-v2.2.2-monitoring-handshake');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
