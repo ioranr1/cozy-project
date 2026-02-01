@@ -68,8 +68,9 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     on: language === 'he' ? 'פעיל' : 'On',
     off: language === 'he' ? 'כבוי' : 'Off',
     cameraActive: language === 'he' ? 'מצלמה פעילה ומנטרת' : 'Camera active & monitoring',
-    cameraInactive: language === 'he' ? 'המצלמה תופעל עם לחיצה על הפעל' : 'Camera will activate when you press Activate',
+    cameraInactive: language === 'he' ? 'המצלמה תופעל לאחר שליחת פקודה למחשב' : 'Camera will activate after sending a command to the computer',
     cameraLoading: language === 'he' ? 'מפעיל מצלמה...' : 'Activating camera...',
+    cameraWaitingAck: language === 'he' ? 'ממתין לאישור מהמחשב…' : 'Waiting for computer acknowledgment…',
   };
 
   const handleMotionToggle = (checked: boolean) => {
@@ -134,7 +135,9 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
                 ? t.cameraActive 
                 : cameraStatus === 'loading' 
                 ? t.cameraLoading 
-                : t.cameraInactive}
+                : isArmed
+                  ? t.cameraWaitingAck
+                  : t.cameraInactive}
             </p>
           </div>
           {/* Status dot */}
