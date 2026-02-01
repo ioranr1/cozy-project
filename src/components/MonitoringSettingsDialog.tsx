@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Volume2 } from 'lucide-react';
+import { Eye, Volume2, Camera, CameraOff, Loader2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,6 +24,8 @@ interface MonitoringSettingsDialogProps {
   onSettingsChange: (settings: MonitoringSettings) => void;
   onConfirm: () => void;
   isLoading?: boolean;
+  /** Current camera/monitoring status from device_status */
+  cameraStatus?: 'active' | 'inactive' | 'loading';
 }
 
 /**
@@ -38,6 +40,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
   onSettingsChange,
   onConfirm,
   isLoading = false,
+  cameraStatus = 'inactive',
 }) => {
   const { language, isRTL } = useLanguage();
 
@@ -58,6 +61,9 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     cancel: language === 'he' ? 'ביטול' : 'Cancel',
     on: language === 'he' ? 'פעיל' : 'On',
     off: language === 'he' ? 'כבוי' : 'Off',
+    cameraActive: language === 'he' ? 'מצלמה פעילה ומנטרת' : 'Camera active & monitoring',
+    cameraInactive: language === 'he' ? 'מצלמה כבויה' : 'Camera inactive',
+    cameraLoading: language === 'he' ? 'מפעיל מצלמה...' : 'Activating camera...',
   };
 
   const handleMotionToggle = (checked: boolean) => {
@@ -83,7 +89,59 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        {/* Camera Status Indicator */}
+        <div className={`flex items-center gap-3 p-3 rounded-xl ${
+          cameraStatus === 'active' 
+            ? 'bg-emerald-500/10 border border-emerald-500/30' 
+            : cameraStatus === 'loading'
+            ? 'bg-amber-500/10 border border-amber-500/30'
+            : 'bg-slate-800/50 border border-slate-700'
+        }`}>
+          <div className={`relative w-10 h-10 rounded-lg flex items-center justify-center ${
+            cameraStatus === 'active' 
+              ? 'bg-emerald-500/20 text-emerald-400' 
+              : cameraStatus === 'loading'
+              ? 'bg-amber-500/20 text-amber-400'
+              : 'bg-slate-700/50 text-slate-400'
+          }`}>
+            {cameraStatus === 'loading' ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : cameraStatus === 'active' ? (
+              <Camera className="w-5 h-5" />
+            ) : (
+              <CameraOff className="w-5 h-5" />
+            )}
+            {/* Pulse animation for active state */}
+            {cameraStatus === 'active' && (
+              <span className="absolute inset-0 rounded-lg bg-emerald-500/30 animate-ping opacity-50" />
+            )}
+          </div>
+          <div className="flex-1">
+            <p className={`text-sm font-medium ${
+              cameraStatus === 'active' 
+                ? 'text-emerald-400' 
+                : cameraStatus === 'loading'
+                ? 'text-amber-400'
+                : 'text-slate-400'
+            }`}>
+              {cameraStatus === 'active' 
+                ? t.cameraActive 
+                : cameraStatus === 'loading' 
+                ? t.cameraLoading 
+                : t.cameraInactive}
+            </p>
+          </div>
+          {/* Status dot */}
+          <div className={`w-3 h-3 rounded-full ${
+            cameraStatus === 'active' 
+              ? 'bg-emerald-500 animate-pulse' 
+              : cameraStatus === 'loading'
+              ? 'bg-amber-500 animate-pulse'
+              : 'bg-slate-600'
+          }`} />
+        </div>
+
+        <div className="space-y-4 py-2">
           {/* Motion Detection Toggle */}
           <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
             <div className="flex items-center gap-3">
@@ -125,7 +183,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
                 <p className="text-sm font-medium text-white">{t.soundDetection}</p>
                 <p className="text-xs text-slate-400">{t.soundDesc}</p>
               </div>
-            </div>
+        </div>
             <div className="flex flex-col items-center gap-1">
               <Switch
                 checked={settings.soundEnabled}
