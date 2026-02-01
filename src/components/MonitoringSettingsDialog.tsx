@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Volume2, Loader2 } from 'lucide-react';
+import { Eye, Volume2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import {
@@ -24,16 +24,12 @@ interface MonitoringSettingsDialogProps {
   onSettingsChange: (settings: MonitoringSettings) => void;
   onConfirm: () => void;
   isLoading?: boolean;
-  /** If true, system is already armed - toggles save directly */
-  isAlreadyArmed?: boolean;
-  /** Callback for direct toggle changes when already armed */
-  onDirectToggle?: (settings: MonitoringSettings) => void;
 }
 
 /**
  * Dialog for configuring monitoring detection sensors.
- * - First activation: Shows "Activate" button
- * - Already armed: Toggles save directly (no button needed)
+ * Opens when user activates the Security/Monitoring toggle.
+ * Motion is ON by default, Sound is OFF by default.
  */
 export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> = ({
   open,
@@ -42,17 +38,14 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
   onSettingsChange,
   onConfirm,
   isLoading = false,
-  isAlreadyArmed = false,
-  onDirectToggle,
 }) => {
   const { language, isRTL } = useLanguage();
-  const [isSaving, setIsSaving] = React.useState(false);
 
   const t = {
     title: language === 'he' ? 'הגדרות ניטור' : 'Monitoring Settings',
     description: language === 'he' 
-      ? (isAlreadyArmed ? 'שנה את הגדרות החיישנים' : 'בחר אילו חיישנים להפעיל במצב ניטור')
-      : (isAlreadyArmed ? 'Change sensor settings' : 'Choose which sensors to activate in monitoring mode'),
+      ? 'בחר אילו חיישנים להפעיל במצב ניטור' 
+      : 'Choose which sensors to activate in monitoring mode',
     motionDetection: language === 'he' ? 'זיהוי תנועה' : 'Motion Detection',
     motionDesc: language === 'he' 
       ? 'מזהה תנועה במצלמה ושולח התראות' 
@@ -62,34 +55,17 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
       ? 'מזהה קולות חריגים ושולח התראות' 
       : 'Detects unusual sounds and sends alerts',
     activate: language === 'he' ? 'הפעל ניטור' : 'Activate Monitoring',
-    close: language === 'he' ? 'סגור' : 'Close',
     cancel: language === 'he' ? 'ביטול' : 'Cancel',
     on: language === 'he' ? 'פעיל' : 'On',
     off: language === 'he' ? 'כבוי' : 'Off',
   };
 
-  const handleMotionToggle = async (checked: boolean) => {
-    const newSettings = { ...settings, motionEnabled: checked };
-    onSettingsChange(newSettings);
-    
-    // If already armed, save directly
-    if (isAlreadyArmed && onDirectToggle) {
-      setIsSaving(true);
-      await onDirectToggle(newSettings);
-      setIsSaving(false);
-    }
+  const handleMotionToggle = (checked: boolean) => {
+    onSettingsChange({ ...settings, motionEnabled: checked });
   };
 
-  const handleSoundToggle = async (checked: boolean) => {
-    const newSettings = { ...settings, soundEnabled: checked };
-    onSettingsChange(newSettings);
-    
-    // If already armed, save directly
-    if (isAlreadyArmed && onDirectToggle) {
-      setIsSaving(true);
-      await onDirectToggle(newSettings);
-      setIsSaving(false);
-    }
+  const handleSoundToggle = (checked: boolean) => {
+    onSettingsChange({ ...settings, soundEnabled: checked });
   };
 
   return (
@@ -124,16 +100,11 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
               </div>
             </div>
             <div className="flex flex-col items-center gap-1">
-              {isSaving ? (
-                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-              ) : (
-                <Switch
-                  checked={settings.motionEnabled}
-                  onCheckedChange={handleMotionToggle}
-                  disabled={isLoading}
-                  className={settings.motionEnabled ? 'data-[state=checked]:bg-emerald-500' : ''}
-                />
-              )}
+              <Switch
+                checked={settings.motionEnabled}
+                onCheckedChange={handleMotionToggle}
+                className={settings.motionEnabled ? 'data-[state=checked]:bg-emerald-500' : ''}
+              />
               <span className={`text-xs ${settings.motionEnabled ? 'text-emerald-400' : 'text-slate-500'}`}>
                 {settings.motionEnabled ? t.on : t.off}
               </span>
@@ -156,16 +127,11 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
               </div>
             </div>
             <div className="flex flex-col items-center gap-1">
-              {isSaving ? (
-                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
-              ) : (
-                <Switch
-                  checked={settings.soundEnabled}
-                  onCheckedChange={handleSoundToggle}
-                  disabled={isLoading}
-                  className={settings.soundEnabled ? 'data-[state=checked]:bg-blue-500' : ''}
-                />
-              )}
+              <Switch
+                checked={settings.soundEnabled}
+                onCheckedChange={handleSoundToggle}
+                className={settings.soundEnabled ? 'data-[state=checked]:bg-blue-500' : ''}
+              />
               <span className={`text-xs ${settings.soundEnabled ? 'text-blue-400' : 'text-slate-500'}`}>
                 {settings.soundEnabled ? t.on : t.off}
               </span>
@@ -174,39 +140,25 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
         </div>
 
         <DialogFooter className="flex gap-2 sm:gap-2">
-          {isAlreadyArmed ? (
-            /* Already armed - just show Close button */
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800"
-            >
-              {t.close}
-            </Button>
-          ) : (
-            /* First activation - show Cancel + Activate */
-            <>
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800"
-                disabled={isLoading}
-              >
-                {t.cancel}
-              </Button>
-              <Button
-                onClick={onConfirm}
-                disabled={isLoading || (!settings.motionEnabled && !settings.soundEnabled)}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  t.activate
-                )}
-              </Button>
-            </>
-          )}
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800"
+            disabled={isLoading}
+          >
+            {t.cancel}
+          </Button>
+          <Button
+            onClick={onConfirm}
+            disabled={isLoading || (!settings.motionEnabled && !settings.soundEnabled)}
+            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {isLoading ? (
+              <span className="animate-spin">⏳</span>
+            ) : (
+              t.activate
+            )}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
