@@ -221,7 +221,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     }
   };
 
-  // Confirm activation with settings
+  // Confirm activation with settings (first time)
   const handleConfirmActivation = async () => {
     if (!deviceId) return;
 
@@ -275,6 +275,32 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       toast.error(language === 'he' ? 'שגיאה בלתי צפויה' : 'Unexpected error');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // Direct toggle update (when already armed)
+  const handleDirectToggle = async (newSettings: MonitoringSettings) => {
+    if (!deviceId) return;
+
+    try {
+      const { error } = await supabase
+        .from('device_status')
+        .update({
+          motion_enabled: newSettings.motionEnabled,
+          sound_enabled: newSettings.soundEnabled,
+          last_command_at: new Date().toISOString(),
+        })
+        .eq('device_id', deviceId);
+
+      if (error) {
+        console.error('[SecurityArmToggle] Error updating sensors:', error);
+        toast.error(language === 'he' ? 'שגיאה בעדכון החיישנים' : 'Failed to update sensors');
+        return;
+      }
+
+      toast.success(language === 'he' ? '✓ הגדרות נשמרו' : '✓ Settings saved');
+    } catch (err) {
+      console.error('[SecurityArmToggle] Unexpected error:', err);
     }
   };
 
@@ -426,6 +452,8 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         onSettingsChange={setMonitoringSettings}
         onConfirm={handleConfirmActivation}
         isLoading={isUpdating}
+        isAlreadyArmed={isArmed}
+        onDirectToggle={handleDirectToggle}
       />
     </>
   );
