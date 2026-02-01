@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, forwardRef } from 'react';
-import { Home, HomeIcon, Loader2, Plug, Monitor, AlertCircle, CheckCircle, WifiOff, Moon, AlertTriangle } from 'lucide-react';
+import { Home, HomeIcon, Loader2, Plug, Monitor, AlertCircle, CheckCircle, WifiOff, Moon, AlertTriangle, Camera, CameraOff } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -28,6 +28,13 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
   const [isLoading, setIsLoading] = useState(true);
   const [pendingMode, setPendingMode] = useState<DeviceMode | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<DeviceConnectionStatus>('unknown');
+  
+  // Security monitoring status - camera/sensors active state
+  const [securityStatus, setSecurityStatus] = useState<{
+    security_enabled: boolean;
+    motion_enabled: boolean;
+    sound_enabled: boolean;
+  }>({ security_enabled: false, motion_enabled: false, sound_enabled: false });
 
   // Comprehensive i18n translations
   const t = useMemo(() => ({
@@ -86,6 +93,16 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     securityNotMonitoredSleeping: language === 'he' 
       ? '⚠️ המערכת לא מנוטרת! המחשב במצב שינה' 
       : '⚠️ System NOT monitored! Computer sleeping',
+    // Camera/Security active indicator
+    cameraActive: language === 'he' 
+      ? '📷 מצלמה פעילה ומנטרת' 
+      : '📷 Camera active & monitoring',
+    cameraInactive: language === 'he' 
+      ? '🔴 מצלמה כבויה' 
+      : '🔴 Camera inactive',
+    securityArmed: language === 'he' 
+      ? '🛡️ מערכת אבטחה מופעלת' 
+      : '🛡️ Security system armed',
   }), [language]);
 
   // Get profile ID and selected device dynamically
@@ -246,6 +263,19 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
       if (data) {
         const status = data as any;
         setDeviceMode(status.device_mode || 'NORMAL');
+        
+        // Update security/camera status
+        setSecurityStatus({
+          security_enabled: status.security_enabled ?? false,
+          motion_enabled: status.motion_enabled ?? false,
+          sound_enabled: status.sound_enabled ?? false,
+        });
+        
+        console.log('[MobileAwayMode] Security status:', {
+          security_enabled: status.security_enabled,
+          motion_enabled: status.motion_enabled,
+          sound_enabled: status.sound_enabled,
+        });
       }
     } catch (err) {
       console.error('[MobileAwayMode] Unexpected error:', err);
@@ -282,6 +312,18 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
           
           console.log('[MobileAwayMode] Setting deviceMode from Realtime:', newMode);
           setDeviceMode(newMode);
+          
+          // CRITICAL: Update security/camera status from Realtime
+          setSecurityStatus({
+            security_enabled: newStatus.security_enabled ?? false,
+            motion_enabled: newStatus.motion_enabled ?? false,
+            sound_enabled: newStatus.sound_enabled ?? false,
+          });
+          
+          console.log('[MobileAwayMode] 📷 Camera status from Realtime:', {
+            security_enabled: newStatus.security_enabled,
+            motion_enabled: newStatus.motion_enabled,
+          });
           
           if (pendingMode && newMode === pendingMode) {
             console.log('[MobileAwayMode] Pending mode matched, clearing pending state');
@@ -541,12 +583,41 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
         </div>
       )}
 
+      {/* CAMERA/SECURITY STATUS INDICATOR - Shows if security system is actively monitoring */}
       {isAway && !isPending && !showError && (
-        <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg">
-          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <span className="text-amber-400 text-xs">
-            {t.activeMessage}
-          </span>
+        <div className="space-y-2">
+          {/* Away mode active */}
+          <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg">
+            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="text-amber-400 text-xs">
+              {t.activeMessage}
+            </span>
+          </div>
+          
+          {/* Camera/Security Status - CRITICAL for user to know if camera is working */}
+          {securityStatus.security_enabled && securityStatus.motion_enabled ? (
+            <div className="flex items-center gap-2 px-3 py-2 bg-green-500/15 border border-green-500/30 rounded-lg">
+              <Camera className="w-4 h-4 text-green-400" />
+              <span className="text-green-400 text-xs font-medium">
+                {t.cameraActive}
+              </span>
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse ml-auto" />
+            </div>
+          ) : securityStatus.security_enabled && !securityStatus.motion_enabled ? (
+            <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/15 border border-orange-500/30 rounded-lg">
+              <CameraOff className="w-4 h-4 text-orange-400" />
+              <span className="text-orange-400 text-xs font-medium">
+                {t.cameraInactive}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 px-3 py-2 bg-slate-500/15 border border-slate-500/30 rounded-lg">
+              <CameraOff className="w-4 h-4 text-slate-400" />
+              <span className="text-slate-400 text-xs">
+                {t.cameraInactive}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
