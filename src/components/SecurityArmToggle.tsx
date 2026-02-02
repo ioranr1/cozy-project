@@ -534,7 +534,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         cameraStatus={
           isUpdating 
             ? 'loading' 
-            : securityEnabled 
+            : (securityEnabled && isArmed)
               ? 'active' 
               : 'inactive'
         }
