@@ -253,7 +253,7 @@ serve(async (req) => {
         .gte('notification_sent_at', cooldownCutoff)
         .order('notification_sent_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       const isOnCooldown = !!recentNotification;
       
