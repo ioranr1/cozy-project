@@ -1,16 +1,17 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.2.1 (2026-02-02)
+  VERSION: 2.3.0 (2026-02-02)
   ============================================================
   
   CHANGELOG:
+  - v2.3.0: Added inline MediaPipe motion detection with event reporting
   - v2.2.1: Fixed monitoring initialization - proper IPC listener setup for camera start ACK
   - v2.2.0: Added renderer-monitoring.js script for motion/sound detection
   - v2.1.0: Disabled camera preflight check for Away Mode (LED fix)
   - v2.0.0: Full monitoring integration with motion/sound detection
   
-  DEPENDENCIES: Electron preload.js, renderer-webrtc.js, renderer-monitoring.js
+  DEPENDENCIES: Electron preload.js, renderer-webrtc.js, @mediapipe/tasks-vision (CDN)
   ============================================================
 -->
 <!DOCTYPE html>
@@ -465,75 +466,333 @@
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
-      // MONITORING SYSTEM - Inline initialization
-      // The renderer-monitoring.js uses require() which doesn't work in browser.
-      // Instead, we set up the monitoring IPC handlers directly here.
+      // MONITORING SYSTEM - Inline MediaPipe Integration
+      // VERSION: 2.3.0 - Full motion detection with event reporting
       // ============================================================
-      (function initMonitoringHandlers() {
-        console.log('[UI] Setting up monitoring IPC handlers...');
+      (async function initMonitoringSystem() {
+        console.log('[Monitoring] Initializing monitoring system v2.3.0...');
         
+        // Supabase config (for event reporting)
+        const SUPABASE_URL = 'https://zoripeohnedivxkvrpbi.supabase.co';
+        const EVENTS_REPORT_ENDPOINT = `${SUPABASE_URL}/functions/v1/events-report`;
+        
+        // State
         let monitoringStream = null;
+        let videoElement = null;
+        let objectDetector = null;
         let isMonitoring = false;
+        let isDetectorReady = false;
+        let detectionLoopActive = false;
+        let currentConfig = null;
+        let deviceAuthToken = null;
+        let deviceId = null;
         
-        // Listen for start monitoring command from main process
+        // Debouncing
+        const lastDetectionTime = {};
+        const DEBOUNCE_MS = 3000;
+        
+        // Label mapping from COCO to our categories
+        const LABEL_MAPPING = {
+          person: 'person',
+          cat: 'animal', dog: 'animal', bird: 'animal', horse: 'animal',
+          sheep: 'animal', cow: 'animal', elephant: 'animal', bear: 'animal',
+          car: 'vehicle', truck: 'vehicle', bus: 'vehicle', motorcycle: 'vehicle',
+          bicycle: 'vehicle', airplane: 'vehicle', boat: 'vehicle',
+        };
+        
+        // ============================================================
+        // Load MediaPipe Tasks Vision from CDN
+        // ============================================================
+        async function loadMediaPipe() {
+          try {
+            console.log('[Monitoring] Loading MediaPipe Tasks Vision from CDN...');
+            
+            // Import the library dynamically
+            const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+            const { ObjectDetector, FilesetResolver } = vision;
+            
+            console.log('[Monitoring] ✓ MediaPipe library loaded');
+            
+            // Load WASM files
+            const wasmFileset = await FilesetResolver.forVisionTasks(
+              'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+            );
+            
+            // Create object detector
+            objectDetector = await ObjectDetector.createFromOptions(wasmFileset, {
+              baseOptions: {
+                modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
+                delegate: 'GPU',
+              },
+              runningMode: 'VIDEO',
+              maxResults: 5,
+              scoreThreshold: 0.5,
+            });
+            
+            isDetectorReady = true;
+            console.log('[Monitoring] ✓ Object detector initialized');
+            return true;
+          } catch (error) {
+            console.error('[Monitoring] ✗ MediaPipe initialization failed:', error);
+            return false;
+          }
+        }
+        
+        // ============================================================
+        // Capture snapshot as base64
+        // ============================================================
+        function captureSnapshot() {
+          if (!videoElement || videoElement.readyState < 2) return null;
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = videoElement.videoWidth || 640;
+            canvas.height = videoElement.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.8);
+          } catch (e) {
+            console.error('[Monitoring] Snapshot failed:', e);
+            return null;
+          }
+        }
+        
+        // ============================================================
+        // Send event to server
+        // ============================================================
+        async function sendEventToServer(eventData) {
+          if (!deviceAuthToken || !deviceId) {
+            console.warn('[Monitoring] Missing deviceAuthToken or deviceId, skipping event');
+            return;
+          }
+          
+          try {
+            console.log(`[Monitoring] Sending event: ${eventData.label} (${(eventData.confidence * 100).toFixed(0)}%)`);
+            
+            const snapshot = captureSnapshot();
+            
+            const response = await fetch(EVENTS_REPORT_ENDPOINT, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-device-token': deviceAuthToken,
+              },
+              body: JSON.stringify({
+                device_id: deviceId,
+                event_type: 'motion',
+                labels: [{ label: eventData.label, confidence: eventData.confidence }],
+                snapshot: snapshot,
+                timestamp: Date.now(),
+                metadata: eventData.metadata || {},
+              }),
+            });
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('[Monitoring] Event report failed:', response.status, errorText);
+            } else {
+              const result = await response.json();
+              console.log('[Monitoring] ✓ Event reported:', result.ai_is_real ? 'REAL' : 'False Positive');
+            }
+          } catch (error) {
+            console.error('[Monitoring] Event send error:', error);
+          }
+        }
+        
+        // ============================================================
+        // Detection loop
+        // ============================================================
+        let lastFrameTime = 0;
+        const DETECTION_INTERVAL_MS = 200; // 5 FPS
+        
+        function runDetectionLoop() {
+          if (!detectionLoopActive || !objectDetector || !videoElement) return;
+          
+          const now = performance.now();
+          
+          if (now - lastFrameTime >= DETECTION_INTERVAL_MS) {
+            lastFrameTime = now;
+            
+            if (videoElement.readyState >= 2 && !videoElement.paused) {
+              try {
+                const detections = objectDetector.detectForVideo(videoElement, now);
+                processDetections(detections.detections);
+              } catch (e) {
+                // Ignore frame errors
+              }
+            }
+          }
+          
+          requestAnimationFrame(runDetectionLoop);
+        }
+        
+        function processDetections(detections) {
+          const nowMs = Date.now();
+          const targets = currentConfig?.sensors?.motion?.targets || ['person', 'animal', 'vehicle'];
+          const threshold = currentConfig?.sensors?.motion?.confidence_threshold || 0.6;
+          const debounceMs = currentConfig?.sensors?.motion?.debounce_ms || DEBOUNCE_MS;
+          
+          for (const detection of detections) {
+            if (!detection.categories || detection.categories.length === 0) continue;
+            
+            const category = detection.categories[0];
+            const rawLabel = category.categoryName.toLowerCase();
+            const confidence = category.score;
+            
+            const mappedLabel = LABEL_MAPPING[rawLabel];
+            if (!mappedLabel) continue;
+            if (!targets.includes(mappedLabel)) continue;
+            if (confidence < threshold) continue;
+            
+            // Debounce check
+            const lastTime = lastDetectionTime[mappedLabel] || 0;
+            if (nowMs - lastTime < debounceMs) continue;
+            
+            lastDetectionTime[mappedLabel] = nowMs;
+            
+            console.log(`[Monitoring] 🎯 Detected: ${rawLabel} → ${mappedLabel} (${(confidence * 100).toFixed(1)}%)`);
+            
+            // Send to server
+            sendEventToServer({
+              label: mappedLabel,
+              confidence: confidence,
+              metadata: {
+                raw_label: rawLabel,
+                bounding_box: detection.boundingBox ? {
+                  x: detection.boundingBox.originX,
+                  y: detection.boundingBox.originY,
+                  width: detection.boundingBox.width,
+                  height: detection.boundingBox.height,
+                } : null,
+              },
+            });
+            
+            // Also send to main process via IPC
+            window.electronAPI?.sendMonitoringEvent?.({
+              sensor_type: 'motion',
+              label: mappedLabel,
+              confidence: confidence,
+              timestamp: nowMs,
+            });
+          }
+        }
+        
+        // ============================================================
+        // Start monitoring
+        // ============================================================
+        async function startMonitoring(config) {
+          console.log('[Monitoring] Starting monitoring with config:', config);
+          currentConfig = config;
+          
+          try {
+            // Get camera stream
+            console.log('[Monitoring] Requesting camera access...');
+            monitoringStream = await navigator.mediaDevices.getUserMedia({
+              video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
+              audio: false,
+            });
+            
+            // Create hidden video element
+            videoElement = document.getElementById('monitoring-video');
+            if (!videoElement) {
+              videoElement = document.createElement('video');
+              videoElement.id = 'monitoring-video';
+              videoElement.autoplay = true;
+              videoElement.muted = true;
+              videoElement.playsInline = true;
+              videoElement.style.position = 'absolute';
+              videoElement.style.left = '-9999px';
+              videoElement.style.width = '640px';
+              videoElement.style.height = '480px';
+              document.body.appendChild(videoElement);
+            }
+            
+            videoElement.srcObject = monitoringStream;
+            await videoElement.play();
+            console.log('[Monitoring] ✓ Camera stream ready');
+            
+            // Initialize detector if not done
+            if (!isDetectorReady) {
+              await loadMediaPipe();
+            }
+            
+            // Start detection loop
+            if (isDetectorReady) {
+              detectionLoopActive = true;
+              isMonitoring = true;
+              runDetectionLoop();
+              console.log('[Monitoring] ✓ Detection loop started');
+            }
+            
+            // Send ACK to main
+            window.electronAPI?.notifyMonitoringStarted?.({ motion: isDetectorReady, sound: false });
+            console.log('[Monitoring] ✓ Sent monitoring-started ACK');
+            
+          } catch (error) {
+            console.error('[Monitoring] ✗ Start failed:', error);
+            window.electronAPI?.notifyMonitoringError?.(error.message || 'Failed to start monitoring');
+          }
+        }
+        
+        // ============================================================
+        // Stop monitoring
+        // ============================================================
+        function stopMonitoring() {
+          console.log('[Monitoring] Stopping monitoring...');
+          
+          detectionLoopActive = false;
+          isMonitoring = false;
+          
+          if (monitoringStream) {
+            monitoringStream.getTracks().forEach(track => {
+              track.stop();
+              console.log('[Monitoring] Stopped track:', track.kind);
+            });
+            monitoringStream = null;
+          }
+          
+          if (videoElement) {
+            videoElement.srcObject = null;
+          }
+          
+          window.electronAPI?.notifyMonitoringStopped?.();
+          console.log('[Monitoring] ✓ Monitoring stopped');
+        }
+        
+        // ============================================================
+        // IPC Listeners
+        // ============================================================
         if (window.electronAPI?.onStartMonitoring) {
           window.electronAPI.onStartMonitoring(async (config) => {
-            console.log('[UI] Received START_MONITORING command:', config);
+            console.log('[Monitoring] Received START_MONITORING command');
             
-            if (isMonitoring) {
-              console.log('[UI] Already monitoring, sending ACK');
-              window.electronAPI.notifyMonitoringStarted?.({ motion: true, sound: false });
-              return;
+            // Get device credentials from main process store
+            // They should be passed in config or we need to get them separately
+            deviceId = config?.device_id || localStorage.getItem('device_id');
+            deviceAuthToken = config?.device_auth_token || localStorage.getItem('device_auth_token');
+            
+            if (!deviceId || !deviceAuthToken) {
+              console.warn('[Monitoring] ⚠️ Missing device credentials - events won\'t be reported to server');
             }
             
-            try {
-              // Try to get camera access
-              console.log('[UI] ממתין למצלמה 1 - requesting getUserMedia...');
-              monitoringStream = await navigator.mediaDevices.getUserMedia({
-                video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
-                audio: false
-              });
-              
-              console.log('[UI] ✓ Camera stream obtained for monitoring');
-              isMonitoring = true;
-              
-              // Send success ACK to main process
-              window.electronAPI.notifyMonitoringStarted?.({ motion: true, sound: false });
-              console.log('[UI] ✓ Sent monitoring-started ACK to main');
-              
-            } catch (error) {
-              console.error('[UI] ✗ Camera access failed:', error.message);
-              // Send error to main process
-              window.electronAPI.notifyMonitoringError?.(error.message || 'Camera access denied');
-            }
+            await startMonitoring(config);
           });
-          console.log('[UI] ✓ onStartMonitoring listener registered');
-        } else {
-          console.warn('[UI] ⚠️ onStartMonitoring not available in electronAPI');
+          console.log('[Monitoring] ✓ onStartMonitoring listener registered');
         }
         
-        // Listen for stop monitoring command
         if (window.electronAPI?.onStopMonitoring) {
           window.electronAPI.onStopMonitoring(() => {
-            console.log('[UI] Received STOP_MONITORING command');
-            
-            // Stop camera stream
-            if (monitoringStream) {
-              monitoringStream.getTracks().forEach(track => {
-                track.stop();
-                console.log('[UI] Stopped track:', track.kind);
-              });
-              monitoringStream = null;
-            }
-            
-            isMonitoring = false;
-            window.electronAPI.notifyMonitoringStopped?.();
-            console.log('[UI] ✓ Monitoring stopped, sent ACK');
+            console.log('[Monitoring] Received STOP_MONITORING command');
+            stopMonitoring();
           });
-          console.log('[UI] ✓ onStopMonitoring listener registered');
+          console.log('[Monitoring] ✓ onStopMonitoring listener registered');
         }
         
-        console.log('[UI] ✓ Monitoring handlers initialized');
+        // Pre-load MediaPipe in background
+        loadMediaPipe().then(success => {
+          console.log('[Monitoring] MediaPipe pre-load:', success ? 'ready' : 'failed');
+        });
+        
+        console.log('[Monitoring] ✓ Monitoring system initialized');
       })();
       // ============================================================
       // CONFIG (SUPABASE_URL is already defined in renderer-webrtc.js)

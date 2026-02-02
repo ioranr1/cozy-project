@@ -1,7 +1,12 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.3.1 (2026-02-01)
+ * VERSION: 0.3.3 (2026-02-02)
+ * 
+ * CHANGELOG:
+ * - v0.3.3: Pass device_id and device_auth_token to renderer for event reporting
+ * - v0.3.2: Force reload config from DB on enable()
+ * - v0.3.1: Added local clip recording support
  * 
  * Manages monitoring state, configuration, and event handling.
  * Coordinates between detectors (renderer) and database (Supabase).
@@ -213,9 +218,16 @@ class MonitoringManager {
         sound_enabled: this.config?.sensors?.sound?.enabled,
       });
 
-      // Send start command to renderer
+      // Send start command to renderer with device credentials
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('start-monitoring', this.config);
+        // Include device credentials for event reporting
+        const configWithCredentials = {
+          ...this.config,
+          device_id: this.deviceId,
+          device_auth_token: this.deviceAuthToken,
+        };
+        this.mainWindow.webContents.send('start-monitoring', configWithCredentials);
+        console.log('[MonitoringManager] Config sent to renderer with device credentials');
       } else {
         console.error('[MonitoringManager] No main window available');
         return { success: false, error: 'Main window not available' };
