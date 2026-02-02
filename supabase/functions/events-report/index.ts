@@ -583,11 +583,16 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
     }
   );
 
+  const responseBody = await response.json();
+  
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`WhatsApp API error: ${response.status} - ${errorText}`);
+    console.error('[WhatsApp] API error response:', JSON.stringify(responseBody));
+    throw new Error(`WhatsApp API error: ${response.status} - ${JSON.stringify(responseBody)}`);
   }
 
+  // Log the full response including message_id for delivery verification
+  console.log('[WhatsApp] API Response:', JSON.stringify(responseBody));
+  console.log('[WhatsApp] Message ID:', responseBody?.messages?.[0]?.id || 'unknown');
   console.log('[WhatsApp] Template message sent to:', phoneNumber);
   console.log('[WhatsApp] Template params:', { alertLevel, eventTypeText, detectedText, summaryText, eventUrl });
 }
