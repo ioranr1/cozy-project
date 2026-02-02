@@ -469,9 +469,8 @@ interface WhatsAppParams {
 
 async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
   const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language, eventId } = params;
-
-  // Event view URL
-  const eventUrl = `https://aiguard24.com/event/${eventId}`;
+  // Event view URL - using published Lovable domain
+  const eventUrl = `https://cozy-project.lovable.app/event/${eventId}`;
 
   const isHebrew = language === 'he';
   
