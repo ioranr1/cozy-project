@@ -229,7 +229,9 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
         template: {
           name: 'security_alert',
           language: {
-            code: isHebrew ? 'he' : 'en_US',
+            // IMPORTANT: Template is registered only under en_US on Meta.
+            // We localize the message content via the parameters.
+            code: 'en_US',
           },
           components: [
             {
@@ -260,5 +262,8 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
     throw new Error(`WhatsApp API error: ${response.status} - ${errorText}`);
   }
 
-  console.log('[WhatsApp Reminder] Message sent to:', phoneNumber);
+  const responseBody = await response.json().catch(() => null);
+  console.log('[WhatsApp Reminder] API Response:', JSON.stringify(responseBody));
+  console.log('[WhatsApp Reminder] Message ID:', responseBody?.messages?.[0]?.id || 'unknown');
+  console.log('[WhatsApp Reminder] Template message sent to:', phoneNumber);
 }
