@@ -1,9 +1,11 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.3.3 (2026-02-02)
+ * VERSION: 0.3.4 (2026-02-02)
  * 
  * CHANGELOG:
+ * - v0.3.4: CRITICAL FIX - Always update security_enabled=false in DB before early return in disable()
+ *           Fixes bug where UI showed "active" but camera LED was off
  * - v0.3.3: Pass device_id and device_auth_token to renderer for event reporting
  * - v0.3.2: Force reload config from DB on enable()
  * - v0.3.1: Added local clip recording support
@@ -274,14 +276,35 @@ class MonitoringManager {
   }
 
   async disable() {
-    if (!this.isActive && !this.isStarting) {
-      console.log('[MonitoringManager] Already inactive');
-      return { success: true };
-    }
-
     console.log('[MonitoringManager] Disable requested');
 
     try {
+      // CRITICAL FIX: Always update DB first to ensure security_enabled is false
+      // This fixes the bug where UI shows "active" but camera is off
+      if (this.deviceId) {
+        const { error } = await this.supabase
+          .from('device_status')
+          .update({
+            security_enabled: false,
+            motion_enabled: false,
+            sound_enabled: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('device_id', this.deviceId);
+
+        if (error) {
+          console.error('[MonitoringManager] Failed to update device_status:', error);
+        } else {
+          console.log('[MonitoringManager] ✓ DB updated: security_enabled = false');
+        }
+      }
+
+      // If already inactive, we still updated DB above (critical for sync)
+      if (!this.isActive && !this.isStarting) {
+        console.log('[MonitoringManager] Already inactive (DB synced)');
+        return { success: true };
+      }
+
       // Send stop command to renderer
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('stop-monitoring');
@@ -296,23 +319,6 @@ class MonitoringManager {
         this.eventQueueTimer = null;
       }
       this.pendingEvents = [];
-
-      // Update device_status in DB
-      if (this.deviceId) {
-        const { error } = await this.supabase
-          .from('device_status')
-          .update({
-            security_enabled: false,
-            motion_enabled: false,
-            sound_enabled: false,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('device_id', this.deviceId);
-
-        if (error) {
-          console.error('[MonitoringManager] Failed to update device_status:', error);
-        }
-      }
 
       console.log('[MonitoringManager] ✓ Monitoring disabled');
       return { success: true };
