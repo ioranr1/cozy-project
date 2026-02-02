@@ -574,7 +574,7 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
               sub_type: 'url',
               index: 0,
               parameters: [
-                { type: 'text', text: eventId },  // Dynamic URL suffix
+                { type: 'text', text: `event/${eventId}` },  // Dynamic URL suffix with /event/ path
               ],
             },
           ],
