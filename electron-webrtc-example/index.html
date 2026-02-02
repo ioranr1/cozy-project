@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.2.0 (2026-02-01)
+  VERSION: 2.2.1 (2026-02-02)
   ============================================================
   
   CHANGELOG:
+  - v2.2.1: Fixed monitoring initialization - proper IPC listener setup for camera start ACK
   - v2.2.0: Added renderer-monitoring.js script for motion/sound detection
   - v2.1.0: Disabled camera preflight check for Away Mode (LED fix)
   - v2.0.0: Full monitoring integration with motion/sound detection
@@ -448,14 +449,11 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-01-31-v2.1.0");
+      console.log("[UI] index.html build: electron-index-2026-02-02-v2.2.1");
     </script>
 
     <!-- WebRTC logic (start/stop via IPC) -->
     <script src="renderer-webrtc.js"></script>
-    
-    <!-- Monitoring system (motion/sound detection) -->
-    <script src="./monitoring/renderer-monitoring.js"></script>
 
     <script>
       // ============================================================
@@ -463,9 +461,80 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-01-31-v2.1.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-02-v2.2.1";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
-
+      
+      // ============================================================
+      // MONITORING SYSTEM - Inline initialization
+      // The renderer-monitoring.js uses require() which doesn't work in browser.
+      // Instead, we set up the monitoring IPC handlers directly here.
+      // ============================================================
+      (function initMonitoringHandlers() {
+        console.log('[UI] Setting up monitoring IPC handlers...');
+        
+        let monitoringStream = null;
+        let isMonitoring = false;
+        
+        // Listen for start monitoring command from main process
+        if (window.electronAPI?.onStartMonitoring) {
+          window.electronAPI.onStartMonitoring(async (config) => {
+            console.log('[UI] Received START_MONITORING command:', config);
+            
+            if (isMonitoring) {
+              console.log('[UI] Already monitoring, sending ACK');
+              window.electronAPI.notifyMonitoringStarted?.({ motion: true, sound: false });
+              return;
+            }
+            
+            try {
+              // Try to get camera access
+              console.log('[UI] ממתין למצלמה 1 - requesting getUserMedia...');
+              monitoringStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
+                audio: false
+              });
+              
+              console.log('[UI] ✓ Camera stream obtained for monitoring');
+              isMonitoring = true;
+              
+              // Send success ACK to main process
+              window.electronAPI.notifyMonitoringStarted?.({ motion: true, sound: false });
+              console.log('[UI] ✓ Sent monitoring-started ACK to main');
+              
+            } catch (error) {
+              console.error('[UI] ✗ Camera access failed:', error.message);
+              // Send error to main process
+              window.electronAPI.notifyMonitoringError?.(error.message || 'Camera access denied');
+            }
+          });
+          console.log('[UI] ✓ onStartMonitoring listener registered');
+        } else {
+          console.warn('[UI] ⚠️ onStartMonitoring not available in electronAPI');
+        }
+        
+        // Listen for stop monitoring command
+        if (window.electronAPI?.onStopMonitoring) {
+          window.electronAPI.onStopMonitoring(() => {
+            console.log('[UI] Received STOP_MONITORING command');
+            
+            // Stop camera stream
+            if (monitoringStream) {
+              monitoringStream.getTracks().forEach(track => {
+                track.stop();
+                console.log('[UI] Stopped track:', track.kind);
+              });
+              monitoringStream = null;
+            }
+            
+            isMonitoring = false;
+            window.electronAPI.notifyMonitoringStopped?.();
+            console.log('[UI] ✓ Monitoring stopped, sent ACK');
+          });
+          console.log('[UI] ✓ onStopMonitoring listener registered');
+        }
+        
+        console.log('[UI] ✓ Monitoring handlers initialized');
+      })();
       // ============================================================
       // CONFIG (SUPABASE_URL is already defined in renderer-webrtc.js)
       // ============================================================
