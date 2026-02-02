@@ -205,10 +205,13 @@ class MonitoringManager {
     try {
       this.isStarting = true;
 
-      // Load config if not loaded
-      if (!this.config) {
-        await this.loadConfig();
-      }
+      // Always reload config from DB to get latest values
+      await this.loadConfig();
+      console.log('[MonitoringManager] Config loaded for enable:', {
+        monitoring_enabled: this.config?.monitoring_enabled,
+        motion_enabled: this.config?.sensors?.motion?.enabled,
+        sound_enabled: this.config?.sensors?.sound?.enabled,
+      });
 
       // Send start command to renderer
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
