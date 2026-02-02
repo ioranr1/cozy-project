@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.events-report]
 verify_jwt = false
+
+[functions.send-reminder]
+verify_jwt = false
+
+[functions.mark-event-viewed]
+verify_jwt = false

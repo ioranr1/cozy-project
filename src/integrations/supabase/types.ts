@@ -381,8 +381,11 @@ export type Database = {
           notification_sent: boolean
           notification_sent_at: string | null
           notification_type: string | null
+          reminder_sent: boolean
+          reminder_sent_at: string | null
           severity: string | null
           snapshot_url: string | null
+          viewed_at: string | null
         }
         Insert: {
           ai_confidence?: number | null
@@ -402,8 +405,11 @@ export type Database = {
           notification_sent?: boolean
           notification_sent_at?: string | null
           notification_type?: string | null
+          reminder_sent?: boolean
+          reminder_sent_at?: string | null
           severity?: string | null
           snapshot_url?: string | null
+          viewed_at?: string | null
         }
         Update: {
           ai_confidence?: number | null
@@ -423,8 +429,11 @@ export type Database = {
           notification_sent?: boolean
           notification_sent_at?: string | null
           notification_type?: string | null
+          reminder_sent?: boolean
+          reminder_sent_at?: string | null
           severity?: string | null
           snapshot_url?: string | null
+          viewed_at?: string | null
         }
         Relationships: [
           {
