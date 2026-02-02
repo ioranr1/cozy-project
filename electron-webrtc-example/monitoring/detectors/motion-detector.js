@@ -1,7 +1,11 @@
 /**
  * Motion Detector - MediaPipe Tasks Vision Integration
  * =====================================================
- * VERSION: 0.2.0 (2026-01-30)
+ * VERSION: 0.3.0 (2026-02-02)
+ * 
+ * CHANGELOG:
+ * - v0.3.0: Added snapshot capture on detection for AI validation
+ * - v0.2.0: Initial MediaPipe integration
  * 
  * Runs in Electron RENDERER process.
  * Uses MediaPipe Object Detection for local detection (person, animal, vehicle).
@@ -237,12 +241,21 @@ class MotionDetector {
       // Update debounce tracking
       this.lastDetectionTime[debounceKey] = now;
       
+      // Capture snapshot from video element
+      let snapshot = null;
+      try {
+        snapshot = this.captureSnapshot();
+      } catch (err) {
+        console.error('[MotionDetector] Snapshot capture failed:', err);
+      }
+      
       // Prepare event data
       const eventData = {
         sensor_type: 'motion',
         label: mappedLabel,
         confidence: confidence,
         timestamp: now,
+        snapshot: snapshot, // Include base64 snapshot for AI validation
         metadata: {
           raw_label: rawLabel,
           bounding_box: detection.boundingBox ? {
@@ -254,7 +267,7 @@ class MotionDetector {
         },
       };
 
-      console.log(`[MotionDetector] Detected: ${rawLabel} → ${mappedLabel} (${(confidence * 100).toFixed(1)}%)`);
+      console.log(`[MotionDetector] Detected: ${rawLabel} → ${mappedLabel} (${(confidence * 100).toFixed(1)}%)${snapshot ? ' [with snapshot]' : ''}`);
 
       // Send to main process
       if (window.electronAPI?.sendMonitoringEvent) {
@@ -263,6 +276,36 @@ class MotionDetector {
 
       // Call callback
       this.onDetection(eventData);
+    }
+  }
+
+  /**
+   * Capture a snapshot from the video element as base64 data URL
+   * @returns {string|null} Base64 data URL or null on failure
+   */
+  captureSnapshot() {
+    if (!this.videoElement || this.videoElement.readyState < 2) {
+      return null;
+    }
+
+    try {
+      // Create canvas with video dimensions
+      const canvas = document.createElement('canvas');
+      canvas.width = this.videoElement.videoWidth;
+      canvas.height = this.videoElement.videoHeight;
+      
+      // Draw current frame
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(this.videoElement, 0, 0);
+      
+      // Convert to base64 JPEG (smaller than PNG)
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      
+      console.log(`[MotionDetector] Snapshot captured: ${canvas.width}x${canvas.height}`);
+      return dataUrl;
+    } catch (error) {
+      console.error('[MotionDetector] Canvas capture error:', error);
+      return null;
     }
   }
 
