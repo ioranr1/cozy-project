@@ -76,6 +76,9 @@ const EventDetails: React.FC = () => {
 
         setEvent(eventData);
 
+        // Mark event as viewed (for notification reminder logic)
+        markEventAsViewed(eventId);
+
         // Fetch device info
         const { data: deviceData } = await supabase
           .from('devices')
@@ -97,6 +100,29 @@ const EventDetails: React.FC = () => {
 
     fetchEventData();
   }, [eventId, language]);
+
+  // Mark event as viewed to prevent reminder notification
+  const markEventAsViewed = async (eventId: string) => {
+    try {
+      const response = await fetch(
+        `https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/mark-event-viewed`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ event_id: eventId }),
+        }
+      );
+
+      if (response.ok) {
+        console.log('[EventDetails] Event marked as viewed');
+      }
+    } catch (error) {
+      // Silent fail - not critical for user experience
+      console.error('[EventDetails] Failed to mark event as viewed:', error);
+    }
+  };
 
   const handleViewLive = async () => {
     if (!device) {
