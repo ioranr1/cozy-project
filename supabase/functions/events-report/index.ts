@@ -1,11 +1,12 @@
 /**
  * Events Report Edge Function
  * ===========================
- * VERSION: 2.1.0 (2026-02-02)
+ * VERSION: 2.2.0 (2026-02-02)
  * 
  * CHANGELOG:
- * - v2.1.0: Added WhatsApp cooldown - no notification if one was sent to the same device
- *           in the last 60 seconds. Prevents notification spam from rapid detections.
+ * - v2.2.0: ATOMIC COOLDOWN - Uses acquire_whatsapp_send_slot() DB function
+ *           to prevent race conditions between parallel event reports.
+ * - v2.1.0: Added WhatsApp cooldown (had race condition bug)
  * - v2.0.0: AI validation with Gemini, Hebrew/English support
  */
 
@@ -238,34 +239,35 @@ serve(async (req) => {
 
     // If event is real, send notifications
     if (aiIsReal) {
-      console.log('[events-report] Event validated as REAL - checking cooldown before notification');
+      console.log('[events-report] Event validated as REAL - attempting to acquire WhatsApp slot');
 
       // =========================================================
-      // COOLDOWN CHECK: Don't send WhatsApp if we sent one recently
+      // ATOMIC COOLDOWN: Use DB function to prevent race conditions
+      // Only one parallel request can "win" the slot
       // =========================================================
-      const cooldownCutoff = new Date(Date.now() - NOTIFICATION_COOLDOWN_MS).toISOString();
-      
-      const { data: recentNotification } = await supabase
-        .from('monitoring_events')
-        .select('id, notification_sent_at')
-        .eq('device_id', device_id)
-        .eq('notification_sent', true)
-        .gte('notification_sent_at', cooldownCutoff)
-        .order('notification_sent_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: canSend, error: slotError } = await supabase
+        .rpc('acquire_whatsapp_send_slot', {
+          p_device_id: device_id,
+          p_cooldown_ms: NOTIFICATION_COOLDOWN_MS,
+        });
 
-      const isOnCooldown = !!recentNotification;
+      if (slotError) {
+        console.error('[events-report] Error acquiring slot:', slotError);
+      }
+
+      const gotSlot = canSend === true;
       
-      if (isOnCooldown) {
-        console.log(`[events-report] ⏸️ COOLDOWN ACTIVE - Last notification sent at ${recentNotification.notification_sent_at}`);
+      if (!gotSlot) {
+        console.log(`[events-report] ⏸️ COOLDOWN ACTIVE - Another notification was sent recently`);
         console.log(`[events-report] Skipping WhatsApp for event ${eventRecord.id} (device ${device_id})`);
+      } else {
+        console.log(`[events-report] 🎫 Slot acquired - proceeding with WhatsApp notification`);
       }
 
       const notificationTypes: string[] = [];
       
-      // Send WhatsApp notification ONLY if not on cooldown
-      if (!isOnCooldown && WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
+      // Send WhatsApp notification ONLY if we got the slot
+      if (gotSlot && WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
         try {
           await sendWhatsAppNotification({
             phoneNumber: `${profile.country_code}${profile.phone_number}`.replace(/\+/g, ''),
@@ -279,7 +281,7 @@ serve(async (req) => {
             eventId: eventRecord.id,
           });
           notificationTypes.push('whatsapp');
-          console.log('[events-report] ✅ WhatsApp notification sent');
+          console.log('[events-report] ✅ WhatsApp notification sent successfully');
         } catch (waError) {
           console.error('[events-report] WhatsApp notification failed:', waError);
         }
