@@ -330,7 +330,7 @@ async function validateWithAI(params: AIValidationParams): Promise<AIValidationR
   let messages: Array<{ role: string; content: any }>;
   
   if (eventType === 'motion' && snapshot) {
-    // Vision-based validation for motion events
+    // Vision-based validation for motion events WITH snapshot
     messages = [
       {
         role: 'system',
@@ -369,8 +369,43 @@ Respond in JSON format:
         ]
       }
     ];
+  } else if (eventType === 'motion') {
+    // Motion event WITHOUT snapshot - use labels only
+    // CRITICAL: If person detected with high confidence, treat as REAL for safety
+    const labelsText = labels.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
+    
+    console.log(`[AI Validation] Motion without snapshot - labels: ${labelsText}`);
+    
+    messages = [
+      {
+        role: 'system',
+        content: `You are a security AI assistant analyzing motion detection events for a home security system.
+Your job is to determine if detected motion represents a real security concern.
+
+CRITICAL RULES:
+- If "person" is detected with confidence >= 70%, this is ALWAYS a REAL security event. Err on the side of caution.
+- If "person" is detected with confidence >= 50%, this is likely a REAL event.
+- "animal" or "pet" = LOW concern (usually not a security threat)
+- "vehicle" = MEDIUM concern (depends on location)
+- Unknown objects with low confidence = possible FALSE POSITIVE
+
+IMPORTANT: For "person" detection, you should almost ALWAYS return is_real: true to avoid missing real threats.
+Your summary MUST be written in ${summaryLanguage}. Keep it brief (1-2 sentences).
+
+Respond in JSON format:
+{
+  "is_real": boolean,
+  "confidence": number (0-1),
+  "summary": "Brief explanation in ${summaryLanguage}"
+}`
+      },
+      {
+        role: 'user',
+        content: `Motion detected. Classified objects: ${labelsText}. Note: No camera snapshot available for this detection. Based only on the motion detection labels, is this a real security concern?`
+      }
+    ];
   } else {
-    // Text-based validation for sound events
+    // Sound events
     const labelsText = labels.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
     
     messages = [
