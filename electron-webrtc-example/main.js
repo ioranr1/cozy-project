@@ -2,11 +2,11 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.2.2 (2026-02-01)
+ * VERSION: 2.2.3 (2026-02-02)
  * 
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
- * 
+ *
  * Required dependencies:
  *   npm install electron electron-store@7.0.3 @supabase/supabase-js
  *   npm install @mediapipe/tasks-vision @tensorflow/tfjs @tensorflow-models/speech-commands
@@ -350,6 +350,9 @@ async function initDevice() {
     console.log('[Device] Using stored device:', deviceId);
     startHeartbeat();
 
+    // Fetch device_auth_token for monitoring events API
+    await fetchAndSetDeviceAuthToken();
+
     // AUTO-AWAY on startup (uses profile.auto_away_enabled)
     scheduleAutoAwayCheck('startup-stored-session');
     return;
@@ -357,6 +360,38 @@ async function initDevice() {
 
   // Device will be registered after pairing
   console.log('[Device] No stored device, waiting for pairing...');
+}
+
+/**
+ * Fetch device_auth_token from DB and set it on MonitoringManager
+ */
+async function fetchAndSetDeviceAuthToken() {
+  if (!deviceId) {
+    console.log('[DeviceToken] No deviceId, skipping token fetch');
+    return;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('devices')
+      .select('device_auth_token')
+      .eq('id', deviceId)
+      .single();
+
+    if (error) {
+      console.error('[DeviceToken] Failed to fetch token:', error);
+      return;
+    }
+
+    if (data?.device_auth_token) {
+      monitoringManager.setDeviceAuthToken(data.device_auth_token);
+      console.log('[DeviceToken] ✓ Device auth token set for monitoring');
+    } else {
+      console.warn('[DeviceToken] No device_auth_token found in DB - events will not be reported');
+    }
+  } catch (err) {
+    console.error('[DeviceToken] Unexpected error:', err);
+  }
 }
 
 // =============================================================================
@@ -504,6 +539,9 @@ async function verifyPairingCode(code) {
       // Initialize AwayManager with device info
       awayManager.setDeviceId(deviceId);
       awayManager.setLanguage(currentLanguage);
+
+      // Fetch device_auth_token for monitoring events API
+      await fetchAndSetDeviceAuthToken();
 
       // AUTO-AWAY immediately after pairing
       scheduleAutoAwayCheck('pairing-success');
