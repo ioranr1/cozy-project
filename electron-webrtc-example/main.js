@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.2.3 (2026-02-02)
+ * VERSION: 2.2.4 (2026-02-02)
  * 
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -703,6 +703,18 @@ async function handleCommand(command) {
 
       case 'SET_DEVICE_MODE:NORMAL':
         console.log('[Commands] Processing NORMAL mode command');
+        
+        // CRITICAL FIX: Stop monitoring/camera FIRST before disabling Away Mode
+        // This ensures the camera LED turns off when switching to NORMAL mode
+        if (monitoringManager.isMonitoringActive()) {
+          console.log('[Commands] Stopping monitoring as part of NORMAL mode transition...');
+          const monitoringStopResult = await monitoringManager.disable();
+          if (!monitoringStopResult.success) {
+            console.warn('[Commands] Warning: Monitoring disable failed:', monitoringStopResult.error);
+            // Continue anyway - we still want to disable Away Mode
+          }
+        }
+        
         // IMPORTANT: disable() returns { success, error } and may fail silently if not checked.
         // If we don't check it, the mobile UI can show a green "ack" even though AWAY wasn't actually disabled.
         const normalResult = await awayManager.disable();
@@ -723,6 +735,8 @@ async function handleCommand(command) {
           .from('device_status')
           .update({
             device_mode: 'NORMAL',
+            security_enabled: false,  // CRITICAL: Also disable security in DB
+            is_armed: false,          // CRITICAL: Disarm in DB
             updated_at: new Date().toISOString(),
           })
           .eq('device_id', deviceId);
@@ -731,6 +745,7 @@ async function handleCommand(command) {
           console.error('[Commands] ❌ Failed to update device_status to NORMAL:', normalDbError);
           throw new Error(normalDbError.message || 'Failed to update device status');
         }
+        console.log('[Commands] ✅ NORMAL mode set (monitoring stopped, camera released)');
         break;
 
       case 'SET_MONITORING:ON':
@@ -743,7 +758,8 @@ async function handleCommand(command) {
           }
 
           // CRITICAL (SSOT): Only mark camera active after renderer confirms getUserMedia succeeded.
-          const startedStatus = await waitForMonitoringStartAck({ timeoutMs: 15000 });
+          // CRITICAL FIX: Increased timeout from 15s to 60s for slow camera/MediaPipe init
+          const startedStatus = await waitForMonitoringStartAck({ timeoutMs: 60000 });
 
           if (!deviceId) {
             throw new Error('Missing deviceId while enabling monitoring');
