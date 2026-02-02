@@ -523,7 +523,7 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
         template: {
           name: 'security_alert',
           language: {
-            code: isHebrew ? 'he' : 'en_US',
+            code: 'en_US', // Template is registered in English (US), content is localized via parameters
           },
           components: [
             {
