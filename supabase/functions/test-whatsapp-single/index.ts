@@ -47,19 +47,19 @@ serve(async (req) => {
               {
                 type: 'body',
                 parameters: [
-                  { type: 'text', text: '🧪 TEST 5 - NO BUTTON' },
+                  { type: 'text', text: '🧪 TEST 6 - Base URL = /event/' },
                   { type: 'text', text: 'Motion' },
                   { type: 'text', text: 'person 85%' },
-                  { type: 'text', text: 'בדיקה ללא כפתור - אם מגיע הבעיה בכפתור' },
+                  { type: 'text', text: 'שנה Base URL ל-https://aiguard24.com/event/' },
                 ],
               },
-              // WITH button using event/ prefix as shown in Meta sample
+              // Button sends ONLY UUID - Base URL should be https://aiguard24.com/event/
               {
                 type: 'button',
                 sub_type: 'url',
                 index: '0',
                 parameters: [
-                  { type: 'text', text: `event/${testEventId}` },
+                  { type: 'text', text: testEventId },  // Just UUID!
                 ],
               },
             ],
