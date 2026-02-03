@@ -20,8 +20,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Reminder delay: 20 seconds after first notification
-const REMINDER_DELAY_MS = 20 * 1000;
+// Reminder delay in milliseconds (1 minute)
+const REMINDER_DELAY_MS = 60 * 1000;
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -229,9 +229,7 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
         template: {
           name: 'security_alert',
           language: {
-            // IMPORTANT: Template is registered only under en_US on Meta.
-            // We localize the message content via the parameters.
-            code: 'en_US',
+            code: isHebrew ? 'he' : 'en_US',
           },
           components: [
             {
@@ -262,8 +260,5 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
     throw new Error(`WhatsApp API error: ${response.status} - ${errorText}`);
   }
 
-  const responseBody = await response.json().catch(() => null);
-  console.log('[WhatsApp Reminder] API Response:', JSON.stringify(responseBody));
-  console.log('[WhatsApp Reminder] Message ID:', responseBody?.messages?.[0]?.id || 'unknown');
-  console.log('[WhatsApp Reminder] Template message sent to:', phoneNumber);
+  console.log('[WhatsApp Reminder] Message sent to:', phoneNumber);
 }

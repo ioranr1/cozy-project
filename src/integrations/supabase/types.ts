@@ -151,35 +151,6 @@ export type Database = {
           },
         ]
       }
-      device_notification_state: {
-        Row: {
-          created_at: string
-          device_id: string
-          last_whatsapp_sent_at: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          device_id: string
-          last_whatsapp_sent_at?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          device_id?: string
-          last_whatsapp_sent_at?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "device_notification_state_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: true
-            referencedRelation: "devices"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       device_status: {
         Row: {
           created_at: string
@@ -702,10 +673,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      acquire_whatsapp_send_slot: {
-        Args: { p_cooldown_ms?: number; p_device_id: string }
-        Returns: boolean
-      }
       get_profile_auto_away: {
         Args: { _profile_id: string }
         Returns: {

@@ -1,13 +1,12 @@
 /**
  * Events Report Edge Function
  * ===========================
- * VERSION: 3.0.0 (2026-02-03)
+ * VERSION: 2.1.0 (2026-02-02)
  * 
  * CHANGELOG:
- * - v3.0.0: SIMPLIFIED LOGIC - Every event gets AI validation.
- *           If AI says REAL → send ONE WhatsApp notification.
- *           Subsequent parallel events just get saved (no notification).
- * - v2.x.x: Previous complex cooldown logic (removed)
+ * - v2.1.0: Added WhatsApp cooldown - no notification if one was sent to the same device
+ *           in the last 60 seconds. Prevents notification spam from rapid detections.
+ * - v2.0.0: AI validation with Gemini, Hebrew/English support
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -20,6 +19,9 @@ const corsHeaders = {
 
 // AI Gateway URL
 const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+
+// Notification cooldown: 60 seconds between WhatsApp messages per device
+const NOTIFICATION_COOLDOWN_MS = 60000;
 
 // Severity mapping based on labels
 const SEVERITY_MAP: Record<string, string> = {
@@ -182,55 +184,6 @@ serve(async (req) => {
 
     console.log('[events-report] Event created:', eventRecord.id);
 
-    // =========================================================
-    // STEP 1: Check if user already has an unviewed REAL event
-    // If yes → just save to DB, no WhatsApp (prevent flooding)
-    // =========================================================
-    const { data: unviewedEvent } = await supabase
-      .from('monitoring_events')
-      .select('id')
-      .eq('device_id', device_id)
-      .eq('notification_sent', true)
-      .eq('ai_is_real', true)
-      .is('viewed_at', null)
-      .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .limit(1)
-      .maybeSingle();
-
-    if (unviewedEvent) {
-      // User has an unviewed alert → just save this event, no notification
-      console.log(`[events-report] ⏸️ User has unviewed alert ${unviewedEvent.id} - saving event without notification`);
-      
-      await supabase
-        .from('monitoring_events')
-        .update({
-          ai_validated: false,
-          ai_summary: 'Stored without notification - user has pending alert',
-          metadata: {
-            ...metadata,
-            original_timestamp: timestamp,
-            blocked_by_event: unviewedEvent.id,
-          },
-        })
-        .eq('id', eventRecord.id);
-
-      return new Response(JSON.stringify({
-        success: true,
-        event_id: eventRecord.id,
-        notification_sent: false,
-        blocked_by: unviewedEvent.id,
-        message: 'Event saved - user has pending unviewed alert',
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // =========================================================
-    // STEP 2: No pending alerts - run AI validation + send WhatsApp
-    // =========================================================
-    console.log(`[events-report] 🎯 Running AI validation for event ${eventRecord.id}`);
-
     // Get profile for language preference (needed for AI summary)
     const { data: profile } = await supabase
       .from('profiles')
@@ -271,11 +224,6 @@ serve(async (req) => {
           ai_confidence: aiConfidence,
           ai_validated_at: new Date().toISOString(),
           severity: aiIsReal ? severity : 'low', // Downgrade false positives
-          metadata: {
-            ...metadata,
-            original_timestamp: timestamp,
-            is_followup: false,
-          },
         })
         .eq('id', eventRecord.id);
 
@@ -288,22 +236,39 @@ serve(async (req) => {
         : 'AI validation unavailable - treating as real event';
     }
 
-    // If event is real, send WhatsApp notification
-    const notificationTypes: string[] = [];
-
+    // If event is real, send notifications
     if (aiIsReal) {
-      console.log('[events-report] Event validated as REAL - sending WhatsApp notification');
+      console.log('[events-report] Event validated as REAL - checking cooldown before notification');
 
-      if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
+      // =========================================================
+      // COOLDOWN CHECK: Don't send WhatsApp if we sent one recently
+      // =========================================================
+      const cooldownCutoff = new Date(Date.now() - NOTIFICATION_COOLDOWN_MS).toISOString();
+      
+      const { data: recentNotification } = await supabase
+        .from('monitoring_events')
+        .select('id, notification_sent_at')
+        .eq('device_id', device_id)
+        .eq('notification_sent', true)
+        .gte('notification_sent_at', cooldownCutoff)
+        .order('notification_sent_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      const isOnCooldown = !!recentNotification;
+      
+      if (isOnCooldown) {
+        console.log(`[events-report] ⏸️ COOLDOWN ACTIVE - Last notification sent at ${recentNotification.notification_sent_at}`);
+        console.log(`[events-report] Skipping WhatsApp for event ${eventRecord.id} (device ${device_id})`);
+      }
+
+      const notificationTypes: string[] = [];
+      
+      // Send WhatsApp notification ONLY if not on cooldown
+      if (!isOnCooldown && WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
         try {
-          // Format phone number: remove leading 0 and country code + sign (same as OTP function)
-          let formattedPhone = profile.phone_number;
-          if (formattedPhone.startsWith("0")) {
-            formattedPhone = formattedPhone.substring(1);
-          }
-          const phoneTo = `${profile.country_code.replace("+", "")}${formattedPhone}`;
-          const waResult = await sendWhatsAppNotification({
-            phoneNumber: phoneTo,
+          await sendWhatsAppNotification({
+            phoneNumber: `${profile.country_code}${profile.phone_number}`.replace(/\+/g, ''),
             eventType: event_type,
             labels,
             severity,
@@ -313,57 +278,10 @@ serve(async (req) => {
             language: profile.preferred_language || 'he',
             eventId: eventRecord.id,
           });
-
-          // Persist WhatsApp API response in DB for later debugging (delivery issues, wrong recipient, etc.)
-          const { data: metaRow } = await supabase
-            .from('monitoring_events')
-            .select('metadata')
-            .eq('id', eventRecord.id)
-            .single();
-
-          const mergedMetadata = {
-            ...(typeof metaRow?.metadata === 'object' && metaRow?.metadata !== null ? metaRow.metadata : {}),
-            whatsapp: {
-              message_id: waResult.messageId,
-              sent_to: phoneTo,
-              api_response: waResult.responseBody,
-              stored_at: new Date().toISOString(),
-            },
-          };
-
-          await supabase
-            .from('monitoring_events')
-            .update({ metadata: mergedMetadata })
-            .eq('id', eventRecord.id);
-
           notificationTypes.push('whatsapp');
-          console.log('[events-report] ✅ WhatsApp notification sent successfully');
+          console.log('[events-report] ✅ WhatsApp notification sent');
         } catch (waError) {
           console.error('[events-report] WhatsApp notification failed:', waError);
-
-          // Persist error for debugging
-          try {
-            const { data: metaRow } = await supabase
-              .from('monitoring_events')
-              .select('metadata')
-              .eq('id', eventRecord.id)
-              .single();
-
-            const mergedMetadata = {
-              ...(typeof metaRow?.metadata === 'object' && metaRow?.metadata !== null ? metaRow.metadata : {}),
-              whatsapp: {
-                error: waError instanceof Error ? waError.message : String(waError),
-                stored_at: new Date().toISOString(),
-              },
-            };
-
-            await supabase
-              .from('monitoring_events')
-              .update({ metadata: mergedMetadata })
-              .eq('id', eventRecord.id);
-          } catch {
-            // Ignore secondary logging failures
-          }
         }
       }
 
@@ -390,7 +308,7 @@ serve(async (req) => {
       ai_summary: aiSummary,
       ai_confidence: aiConfidence,
       severity,
-      notification_sent: notificationTypes.length > 0,
+      notification_sent: aiIsReal,
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -618,12 +536,7 @@ interface WhatsAppParams {
   eventId: string;
 }
 
-type WhatsAppSendResult = {
-  messageId: string | null;
-  responseBody: unknown;
-};
-
-async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAppSendResult> {
+async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
   const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language, eventId } = params;
   // Event view URL - using custom domain
   const eventUrl = `https://aiguard24.com/event/${eventId}`;
@@ -695,8 +608,7 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
               sub_type: 'url',
               index: 0,
               parameters: [
-                // Meta template Base URL is "https://aiguard24.com/event/" - send ONLY the eventId
-                { type: 'text', text: eventId },
+                { type: 'text', text: `event/${eventId}` },  // Dynamic URL suffix with /event/ path
               ],
             },
           ],
@@ -717,9 +629,4 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
   console.log('[WhatsApp] Message ID:', responseBody?.messages?.[0]?.id || 'unknown');
   console.log('[WhatsApp] Template message sent to:', phoneNumber);
   console.log('[WhatsApp] Template params:', { alertLevel, eventTypeText, detectedText, summaryText, eventUrl });
-
-  return {
-    messageId: responseBody?.messages?.[0]?.id ?? null,
-    responseBody,
-  };
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Shield, ShieldOff, Loader2, Settings, RefreshCw } from 'lucide-react';
+import { Shield, ShieldOff, Loader2, Settings } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -405,60 +405,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     }
   };
 
-  /**
-   * Recovery action for cases where UI/DB thinks monitoring is active but the user reports the camera is actually off.
-   * Forces SSOT to a safe OFF state and sends a best-effort SET_MONITORING:OFF.
-   */
-  const handleForceReset = async () => {
-    if (!deviceId) return;
-
-    const sessionToken = getSessionToken();
-    if (!sessionToken) {
-      toast.error(language === 'he' ? 'נדרשת התחברות מחדש' : 'Please log in again');
-      return;
-    }
-
-    setIsUpdating(true);
-    try {
-      const nowIso = new Date().toISOString();
-
-      const { error: statusError } = await supabase
-        .from('device_status')
-        .update({
-          is_armed: false,
-          device_mode: 'NORMAL',
-          security_enabled: false,
-          last_command: 'FORCE_RESET',
-          last_command_at: nowIso,
-        })
-        .eq('device_id', deviceId);
-
-      if (statusError) {
-        console.error('[SecurityArmToggle] Force reset DB update error:', statusError);
-        toast.error(language === 'he' ? 'שגיאה באיפוס מצב' : 'Failed to reset state');
-        return;
-      }
-
-      // Best-effort OFF command (ignore failures; SSOT already forced to safe state)
-      await supabase.functions.invoke('send-command', {
-        body: {
-          device_id: deviceId,
-          command: 'SET_MONITORING:OFF',
-          session_token: sessionToken,
-        },
-      });
-
-      setIsArmed(false);
-      setSecurityEnabled(false);
-      toast.success(language === 'he' ? 'בוצע איפוס מצב ניטור' : 'Monitoring state reset');
-    } catch (err) {
-      console.error('[SecurityArmToggle] Force reset unexpected error:', err);
-      toast.error(language === 'he' ? 'שגיאה בלתי צפויה' : 'Unexpected error');
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
   // Build sensor status text
   const getSensorStatusText = () => {
     if (!isArmed) {
@@ -523,25 +469,13 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
 
           {/* Settings Button (only when armed) */}
           {isArmed && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowSettingsDialog(true)}
-                className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-                aria-label={language === 'he' ? 'הגדרות ניטור' : 'Monitoring settings'}
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-
-              <button
-                onClick={handleForceReset}
-                className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
-                aria-label={language === 'he' ? 'איפוס מצב ניטור' : 'Reset monitoring state'}
-                title={language === 'he' ? 'איפוס מצב (כשבפועל המצלמה כבויה)' : 'Reset state (if camera is actually off)'}
-                disabled={isUpdating}
-              >
-                <RefreshCw className={`w-5 h-5 ${isUpdating ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
+            <button
+              onClick={() => setShowSettingsDialog(true)}
+              className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+              aria-label={language === 'he' ? 'הגדרות ניטור' : 'Monitoring settings'}
+            >
+              <Settings className="w-5 h-5" />
+            </button>
           )}
 
           {/* Toggle Switch */}
@@ -556,21 +490,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
                 className={isArmed ? 'data-[state=checked]:bg-red-500' : ''}
               />
             )}
-            <span
-              className={`text-xs ${
-                disabled
-                  ? 'text-slate-500'
-                  : isArmed
-                    ? (securityEnabled ? 'text-green-400' : 'text-amber-400')
-                    : 'text-slate-500'
-              }`}
-            >
-              {disabled
+            <span className={`text-xs ${disabled ? 'text-slate-500' : isArmed ? 'text-red-400' : 'text-slate-500'}`}>
+              {disabled 
                 ? (language === 'he' ? 'לא זמין' : 'Unavailable')
-                : isArmed
-                  ? (securityEnabled
-                      ? (language === 'he' ? 'פעיל' : 'Active')
-                      : (language === 'he' ? 'ממתין...' : 'Waiting...'))
+                : isArmed 
+                  ? (language === 'he' ? 'פעיל' : 'Active')
                   : (language === 'he' ? 'כבוי' : 'Off')}
             </span>
           </div>
