@@ -183,8 +183,51 @@ serve(async (req) => {
     console.log('[events-report] Event created:', eventRecord.id);
 
     // =========================================================
-    // SIMPLE LOGIC: Every event gets AI validation
-    // If AI says REAL → send WhatsApp notification
+    // STEP 1: Check if user already has an unviewed REAL event
+    // If yes → just save to DB, no WhatsApp (prevent flooding)
+    // =========================================================
+    const { data: unviewedEvent } = await supabase
+      .from('monitoring_events')
+      .select('id')
+      .eq('device_id', device_id)
+      .eq('notification_sent', true)
+      .eq('ai_is_real', true)
+      .is('viewed_at', null)
+      .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+      .limit(1)
+      .maybeSingle();
+
+    if (unviewedEvent) {
+      // User has an unviewed alert → just save this event, no notification
+      console.log(`[events-report] ⏸️ User has unviewed alert ${unviewedEvent.id} - saving event without notification`);
+      
+      await supabase
+        .from('monitoring_events')
+        .update({
+          ai_validated: false,
+          ai_summary: 'Stored without notification - user has pending alert',
+          metadata: {
+            ...metadata,
+            original_timestamp: timestamp,
+            blocked_by_event: unviewedEvent.id,
+          },
+        })
+        .eq('id', eventRecord.id);
+
+      return new Response(JSON.stringify({
+        success: true,
+        event_id: eventRecord.id,
+        notification_sent: false,
+        blocked_by: unviewedEvent.id,
+        message: 'Event saved - user has pending unviewed alert',
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // =========================================================
+    // STEP 2: No pending alerts - run AI validation + send WhatsApp
     // =========================================================
     console.log(`[events-report] 🎯 Running AI validation for event ${eventRecord.id}`);
 

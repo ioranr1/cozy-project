@@ -20,8 +20,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Reminder delay in milliseconds (1 minute)
-const REMINDER_DELAY_MS = 60 * 1000;
+// Reminder delay: 20 seconds after first notification
+const REMINDER_DELAY_MS = 20 * 1000;
 
 serve(async (req) => {
   // Handle CORS preflight
