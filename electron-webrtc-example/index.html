@@ -1,10 +1,12 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.3.1 (2026-02-03)
+  VERSION: 2.3.2 (2026-02-03)
   ============================================================
   
   CHANGELOG:
+  - v2.3.2: CRITICAL FIX - Camera initialization with progressive fallbacks + clean-start sequence
+  - v2.3.1: Snapshot validation for readyState/dimensions
   - v2.3.0: Added inline MediaPipe motion detection with event reporting
   - v2.2.1: Fixed monitoring initialization - proper IPC listener setup for camera start ACK
   - v2.2.0: Added renderer-monitoring.js script for motion/sound detection
@@ -450,7 +452,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-02-v2.2.1");
+      console.log("[UI] index.html build: electron-index-2026-02-03-v2.3.2");
     </script>
 
     <!-- WebRTC logic (start/stop via IPC) -->
@@ -462,15 +464,15 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-02-v2.2.1";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-03-v2.3.2";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
       // MONITORING SYSTEM - Inline MediaPipe Integration
-      // VERSION: 2.3.0 - Full motion detection with event reporting
+      // VERSION: 2.3.2 - Camera init with fallbacks + clean-start
       // ============================================================
       (async function initMonitoringSystem() {
-        console.log('[Monitoring] Initializing monitoring system v2.3.0...');
+        console.log('[Monitoring] Initializing monitoring system v2.3.2...');
         
         // Supabase config (for event reporting)
         const SUPABASE_URL = 'https://zoripeohnedivxkvrpbi.supabase.co';
@@ -677,23 +679,108 @@
         }
         
         // ============================================================
-        // Start monitoring
+        // Stop monitoring resources (for clean-start)
+        // ============================================================
+        function stopMonitoringResources(options = {}) {
+          const silent = options.silent || false;
+          if (!silent) console.log('[Monitoring] Releasing existing resources...');
+          
+          detectionLoopActive = false;
+          
+          if (monitoringStream) {
+            monitoringStream.getTracks().forEach(track => {
+              track.stop();
+              if (!silent) console.log('[Monitoring] Stopped track:', track.kind, track.label);
+            });
+            monitoringStream = null;
+          }
+          
+          if (videoElement && videoElement.srcObject) {
+            videoElement.srcObject = null;
+          }
+        }
+        
+        // ============================================================
+        // Helper: Try getUserMedia with constraints
+        // ============================================================
+        async function tryGetUserMedia(constraints, label) {
+          console.log(`[Monitoring] Trying getUserMedia: ${label}...`);
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            console.log(`[Monitoring] ✓ getUserMedia succeeded (${label})`);
+            return stream;
+          } catch (err) {
+            console.warn(`[Monitoring] ✗ getUserMedia failed (${label}):`, err.name, err.message);
+            return null;
+          }
+        }
+        
+        // ============================================================
+        // Build bilingual error message
+        // ============================================================
+        function buildMonitoringErrorMessage(err) {
+          const name = err.name || 'Error';
+          const msg = err.message || 'Unknown';
+          
+          if (name === 'NotReadableError') {
+            return `Camera busy/unavailable (NotReadableError): ${msg} | מצלמה תפוסה/לא זמינה – סגור תוכנות אחרות שמשתמשות במצלמה ונסה שוב`;
+          }
+          if (name === 'NotAllowedError') {
+            return `Camera permission denied (NotAllowedError): ${msg} | הרשאת מצלמה נדחתה – אשר הרשאה בהגדרות המערכת`;
+          }
+          if (name === 'OverconstrainedError') {
+            return `Camera constraints not supported (OverconstrainedError): ${msg} | הגדרות המצלמה לא נתמכות – נסה מצלמה אחרת`;
+          }
+          if (name === 'NotFoundError') {
+            return `No camera found (NotFoundError): ${msg} | לא נמצאה מצלמה – חבר מצלמה למחשב`;
+          }
+          return `Camera error (${name}): ${msg} | שגיאת מצלמה: ${msg}`;
+        }
+        
+        // ============================================================
+        // Start monitoring (v2.3.2 - with fallbacks + clean-start)
         // ============================================================
         async function startMonitoring(config) {
           console.log('[Monitoring] ═══════════════════════════════════════════════════');
-          console.log('[Monitoring] Starting monitoring with config:', JSON.stringify(config, null, 2));
+          console.log('[Monitoring] Starting monitoring v2.3.2 with config:', JSON.stringify(config, null, 2));
           console.log('[Monitoring] ═══════════════════════════════════════════════════');
           currentConfig = config;
           
+          // CLEAN-START: Release any existing resources first
+          stopMonitoringResources({ silent: true });
+          
           try {
-            // Get camera stream
-            console.log('[Monitoring] Requesting camera access via getUserMedia...');
-            monitoringStream = await navigator.mediaDevices.getUserMedia({
-              video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
-              audio: false,
-            });
+            // Progressive fallback for camera constraints
+            console.log('[Monitoring] Requesting camera access with progressive fallbacks...');
             
-            console.log('[Monitoring] ✓ getUserMedia succeeded - camera LED should be ON now');
+            // Attempt 1: Preferred constraints
+            monitoringStream = await tryGetUserMedia(
+              { video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: false },
+              'preferred 640x480@15'
+            );
+            
+            // Attempt 2: Relaxed constraints
+            if (!monitoringStream) {
+              monitoringStream = await tryGetUserMedia(
+                { video: { width: { max: 1280 }, height: { max: 720 } }, audio: false },
+                'relaxed max 1280x720'
+              );
+            }
+            
+            // Attempt 3: Minimal constraints
+            if (!monitoringStream) {
+              monitoringStream = await tryGetUserMedia(
+                { video: true, audio: false },
+                'minimal video:true'
+              );
+            }
+            
+            // If all failed, throw
+            if (!monitoringStream) {
+              throw new Error('All getUserMedia attempts failed - camera may be in use by another application');
+            }
+            
+            console.log('[Monitoring] ✓ Camera acquired - LED should be ON now');
             console.log('[Monitoring] Stream tracks:', monitoringStream.getTracks().map(t => `${t.kind}: ${t.label}`));
             
             // Create hidden video element
@@ -745,7 +832,11 @@
             console.error('[Monitoring] ✗ Start failed:', error);
             console.error('[Monitoring] Error name:', error.name);
             console.error('[Monitoring] Error message:', error.message);
-            window.electronAPI?.notifyMonitoringError?.(error.message || 'Failed to start monitoring');
+            
+            const bilingual = buildMonitoringErrorMessage(error);
+            console.error('[Monitoring] Full error:', bilingual);
+            
+            window.electronAPI?.notifyMonitoringError?.(bilingual);
           }
         }
         
