@@ -53,13 +53,13 @@ serve(async (req) => {
                   { type: 'text', text: 'Test without button component' },
                 ],
               },
-              // Button with correct format
+              // Button - try sending JUST the UUID without 'event/' prefix
               {
                 type: 'button',
                 sub_type: 'url',
-                index: '0',  // String like OTP
+                index: '0',
                 parameters: [
-                  { type: 'text', text: `event/${testEventId}` },
+                  { type: 'text', text: testEventId },  // Just UUID, no 'event/' prefix
                 ],
               },
             ],
