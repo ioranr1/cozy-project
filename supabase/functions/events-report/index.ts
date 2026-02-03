@@ -1,14 +1,3 @@
-/**
- * Events Report Edge Function
- * ===========================
- * VERSION: 2.1.0 (2026-02-02)
- * 
- * CHANGELOG:
- * - v2.1.0: Added WhatsApp cooldown - no notification if one was sent to the same device
- *           in the last 60 seconds. Prevents notification spam from rapid detections.
- * - v2.0.0: AI validation with Gemini, Hebrew/English support
- */
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.90.1";
 
@@ -19,9 +8,6 @@ const corsHeaders = {
 
 // AI Gateway URL
 const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-
-// Notification cooldown: 60 seconds between WhatsApp messages per device
-const NOTIFICATION_COOLDOWN_MS = 60000;
 
 // Severity mapping based on labels
 const SEVERITY_MAP: Record<string, string> = {
@@ -238,34 +224,14 @@ serve(async (req) => {
 
     // If event is real, send notifications
     if (aiIsReal) {
-      console.log('[events-report] Event validated as REAL - checking cooldown before notification');
+      console.log('[events-report] Event validated as REAL - sending notifications');
 
-      // =========================================================
-      // COOLDOWN CHECK: Don't send WhatsApp if we sent one recently
-      // =========================================================
-      const cooldownCutoff = new Date(Date.now() - NOTIFICATION_COOLDOWN_MS).toISOString();
-      
-      const { data: recentNotification } = await supabase
-        .from('monitoring_events')
-        .select('id, notification_sent_at')
-        .eq('device_id', device_id)
-        .eq('notification_sent', true)
-        .gte('notification_sent_at', cooldownCutoff)
-        .order('notification_sent_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      const isOnCooldown = !!recentNotification;
-      
-      if (isOnCooldown) {
-        console.log(`[events-report] ⏸️ COOLDOWN ACTIVE - Last notification sent at ${recentNotification.notification_sent_at}`);
-        console.log(`[events-report] Skipping WhatsApp for event ${eventRecord.id} (device ${device_id})`);
-      }
+      // Profile already fetched above for language preference
 
       const notificationTypes: string[] = [];
       
-      // Send WhatsApp notification ONLY if not on cooldown
-      if (!isOnCooldown && WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
+      // Send WhatsApp notification
+      if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
         try {
           await sendWhatsAppNotification({
             phoneNumber: `${profile.country_code}${profile.phone_number}`.replace(/\+/g, ''),
@@ -279,7 +245,7 @@ serve(async (req) => {
             eventId: eventRecord.id,
           });
           notificationTypes.push('whatsapp');
-          console.log('[events-report] ✅ WhatsApp notification sent');
+          console.log('[events-report] WhatsApp notification sent');
         } catch (waError) {
           console.error('[events-report] WhatsApp notification failed:', waError);
         }
