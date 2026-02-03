@@ -311,8 +311,9 @@ serve(async (req) => {
 
       if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
         try {
-          await sendWhatsAppNotification({
-            phoneNumber: `${profile.country_code}${profile.phone_number}`.replace(/\+/g, ''),
+          const phoneTo = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
+          const waResult = await sendWhatsAppNotification({
+            phoneNumber: phoneTo,
             eventType: event_type,
             labels,
             severity,
@@ -322,10 +323,57 @@ serve(async (req) => {
             language: profile.preferred_language || 'he',
             eventId: eventRecord.id,
           });
+
+          // Persist WhatsApp API response in DB for later debugging (delivery issues, wrong recipient, etc.)
+          const { data: metaRow } = await supabase
+            .from('monitoring_events')
+            .select('metadata')
+            .eq('id', eventRecord.id)
+            .single();
+
+          const mergedMetadata = {
+            ...(typeof metaRow?.metadata === 'object' && metaRow?.metadata !== null ? metaRow.metadata : {}),
+            whatsapp: {
+              message_id: waResult.messageId,
+              sent_to: phoneTo,
+              api_response: waResult.responseBody,
+              stored_at: new Date().toISOString(),
+            },
+          };
+
+          await supabase
+            .from('monitoring_events')
+            .update({ metadata: mergedMetadata })
+            .eq('id', eventRecord.id);
+
           notificationTypes.push('whatsapp');
           console.log('[events-report] ✅ WhatsApp notification sent successfully');
         } catch (waError) {
           console.error('[events-report] WhatsApp notification failed:', waError);
+
+          // Persist error for debugging
+          try {
+            const { data: metaRow } = await supabase
+              .from('monitoring_events')
+              .select('metadata')
+              .eq('id', eventRecord.id)
+              .single();
+
+            const mergedMetadata = {
+              ...(typeof metaRow?.metadata === 'object' && metaRow?.metadata !== null ? metaRow.metadata : {}),
+              whatsapp: {
+                error: waError instanceof Error ? waError.message : String(waError),
+                stored_at: new Date().toISOString(),
+              },
+            };
+
+            await supabase
+              .from('monitoring_events')
+              .update({ metadata: mergedMetadata })
+              .eq('id', eventRecord.id);
+          } catch {
+            // Ignore secondary logging failures
+          }
         }
       }
 
@@ -352,7 +400,7 @@ serve(async (req) => {
       ai_summary: aiSummary,
       ai_confidence: aiConfidence,
       severity,
-      notification_sent: aiIsReal,
+      notification_sent: notificationTypes.length > 0,
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -580,7 +628,12 @@ interface WhatsAppParams {
   eventId: string;
 }
 
-async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
+type WhatsAppSendResult = {
+  messageId: string | null;
+  responseBody: unknown;
+};
+
+async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAppSendResult> {
   const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language, eventId } = params;
   // Event view URL - using custom domain
   const eventUrl = `https://aiguard24.com/event/${eventId}`;
@@ -673,4 +726,9 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
   console.log('[WhatsApp] Message ID:', responseBody?.messages?.[0]?.id || 'unknown');
   console.log('[WhatsApp] Template message sent to:', phoneNumber);
   console.log('[WhatsApp] Template params:', { alertLevel, eventTypeText, detectedText, summaryText, eventUrl });
+
+  return {
+    messageId: responseBody?.messages?.[0]?.id ?? null,
+    responseBody,
+  };
 }
