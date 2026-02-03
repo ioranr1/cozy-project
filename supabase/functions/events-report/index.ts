@@ -224,30 +224,64 @@ serve(async (req) => {
 
     // If event is real, send notifications
     if (aiIsReal) {
-      console.log('[events-report] Event validated as REAL - sending notifications');
+      console.log('[events-report] Event validated as REAL - checking notification eligibility');
 
       // Profile already fetched above for language preference
 
       const notificationTypes: string[] = [];
       
-      // Send WhatsApp notification
+      // Send WhatsApp notification WITH throttling check
       if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
-        try {
-          await sendWhatsAppNotification({
-            phoneNumber: `${profile.country_code}${profile.phone_number}`.replace(/\+/g, ''),
-            eventType: event_type,
-            labels,
-            severity,
-            aiSummary,
-            accessToken: WHATSAPP_ACCESS_TOKEN,
-            phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
-            language: profile.preferred_language || 'he',
-            eventId: eventRecord.id,
-          });
-          notificationTypes.push('whatsapp');
-          console.log('[events-report] WhatsApp notification sent');
-        } catch (waError) {
-          console.error('[events-report] WhatsApp notification failed:', waError);
+        // Check if we can send (throttling + no unviewed PRIMARY events)
+        const { data: canSend } = await supabase.rpc('acquire_whatsapp_send_slot', {
+          p_device_id: device_id,
+          p_cooldown_ms: 60000, // 60 second cooldown between sends
+        });
+        
+        console.log(`[events-report] Throttle check: canSend=${canSend}`);
+
+        if (canSend) {
+          try {
+            await sendWhatsAppNotification({
+              phoneNumber: `${profile.country_code}${profile.phone_number}`.replace(/\+/g, ''),
+              eventType: event_type,
+              labels,
+              severity,
+              aiSummary,
+              accessToken: WHATSAPP_ACCESS_TOKEN,
+              phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
+              language: profile.preferred_language || 'he',
+              eventId: eventRecord.id,
+            });
+            notificationTypes.push('whatsapp');
+            console.log('[events-report] WhatsApp notification sent');
+            
+            // Update last_whatsapp_sent_at in device_notification_state
+            await supabase
+              .from('device_notification_state')
+              .upsert({
+                device_id,
+                last_whatsapp_sent_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'device_id' });
+              
+          } catch (waError) {
+            console.error('[events-report] WhatsApp notification failed:', waError);
+          }
+        } else {
+          console.log('[events-report] WhatsApp notification BLOCKED by throttle - user has unviewed event or cooldown active');
+          // Mark as follow-up event (no notification sent, but still recorded)
+          await supabase
+            .from('monitoring_events')
+            .update({
+              metadata: {
+                ...metadata,
+                original_timestamp: timestamp,
+                is_followup: true,
+                throttled_reason: 'unviewed_primary_exists',
+              },
+            })
+            .eq('id', eventRecord.id);
         }
       }
 
