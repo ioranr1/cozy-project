@@ -311,7 +311,12 @@ serve(async (req) => {
 
       if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
         try {
-          const phoneTo = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
+          // Format phone number: remove leading 0 and country code + sign (same as OTP function)
+          let formattedPhone = profile.phone_number;
+          if (formattedPhone.startsWith("0")) {
+            formattedPhone = formattedPhone.substring(1);
+          }
+          const phoneTo = `${profile.country_code.replace("+", "")}${formattedPhone}`;
           const waResult = await sendWhatsAppNotification({
             phoneNumber: phoneTo,
             eventType: event_type,
