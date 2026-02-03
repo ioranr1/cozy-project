@@ -6,6 +6,8 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  console.log("[Webhook] Request received:", req.method, req.url);
+  
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -15,19 +17,34 @@ Deno.serve(async (req) => {
 
   // GET = Webhook verification (Meta subscription)
   if (req.method === "GET") {
+    // Parse URL and extract query parameters
     const url = new URL(req.url);
+    
+    // Log all query params for debugging
+    console.log("[Webhook] Full URL:", req.url);
+    console.log("[Webhook] All query params:", Object.fromEntries(url.searchParams.entries()));
+    
     const mode = url.searchParams.get("hub.mode");
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    console.log("[Webhook] Verification request:", { mode, token, challenge: challenge?.substring(0, 20) });
+    console.log("[Webhook] Verification request:", { 
+      mode, 
+      token, 
+      challenge: challenge?.substring(0, 20),
+      expectedToken: VERIFY_TOKEN?.substring(0, 10) + "..." 
+    });
 
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
-      console.log("[Webhook] Verification SUCCESS");
-      return new Response(challenge, { status: 200 });
+      console.log("[Webhook] Verification SUCCESS - returning challenge");
+      // Return ONLY the challenge as plain text, no headers that might cause issues
+      return new Response(challenge!, { 
+        status: 200,
+        headers: { "Content-Type": "text/plain" }
+      });
     }
 
-    console.log("[Webhook] Verification FAILED - token mismatch");
+    console.log("[Webhook] Verification FAILED - mode:", mode, "token match:", token === VERIFY_TOKEN);
     return new Response("Forbidden", { status: 403 });
   }
 
