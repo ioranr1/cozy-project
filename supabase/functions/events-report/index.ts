@@ -242,8 +242,9 @@ serve(async (req) => {
 
         if (canSend) {
           try {
-            await sendWhatsAppNotification({
-              phoneNumber: `${profile.country_code}${profile.phone_number}`.replace(/\+/g, ''),
+            const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
+            const whatsappResult = await sendWhatsAppNotification({
+              phoneNumber: recipientPhone,
               eventType: event_type,
               labels,
               severity,
@@ -255,6 +256,23 @@ serve(async (req) => {
             });
             notificationTypes.push('whatsapp');
             console.log('[events-report] WhatsApp notification sent');
+            
+            // Store message_id and Meta response in metadata for delivery diagnostics
+            await supabase
+              .from('monitoring_events')
+              .update({
+                metadata: {
+                  ...metadata,
+                  original_timestamp: timestamp,
+                  whatsapp: {
+                    message_id: whatsappResult.messageId,
+                    recipient: recipientPhone,
+                    sent_at: new Date().toISOString(),
+                    api_response: whatsappResult.apiResponse,
+                  },
+                },
+              })
+              .eq('id', eventRecord.id);
             
             // Update last_whatsapp_sent_at in device_notification_state
             await supabase
@@ -536,7 +554,12 @@ interface WhatsAppParams {
   eventId: string;
 }
 
-async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
+interface WhatsAppResult {
+  messageId: string;
+  apiResponse: Record<string, unknown>;
+}
+
+async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAppResult> {
   const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language, eventId } = params;
   // Event view URL - using custom domain
   const eventUrl = `https://aiguard24.com/event/${eventId}`;
@@ -624,9 +647,17 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
     throw new Error(`WhatsApp API error: ${response.status} - ${JSON.stringify(responseBody)}`);
   }
 
+  const messageId = responseBody?.messages?.[0]?.id || 'unknown';
+  
   // Log the full response including message_id for delivery verification
   console.log('[WhatsApp] API Response:', JSON.stringify(responseBody));
-  console.log('[WhatsApp] Message ID:', responseBody?.messages?.[0]?.id || 'unknown');
+  console.log('[WhatsApp] Message ID:', messageId);
   console.log('[WhatsApp] Template message sent to:', phoneNumber);
   console.log('[WhatsApp] Template params:', { alertLevel, eventTypeText, detectedText, summaryText, eventUrl });
+  
+  // Return result for storage in metadata
+  return {
+    messageId,
+    apiResponse: responseBody,
+  };
 }
