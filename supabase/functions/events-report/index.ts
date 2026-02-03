@@ -710,8 +710,8 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
               sub_type: 'url',
               index: 0,
               parameters: [
-                // Meta template Base URL is "https://aiguard24.com/" so we send "event/{eventId}"
-                { type: 'text', text: `event/${eventId}` },
+                // Meta template Base URL is "https://aiguard24.com/event/" - send ONLY the eventId
+                { type: 'text', text: eventId },
               ],
             },
           ],
