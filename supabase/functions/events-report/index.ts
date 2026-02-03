@@ -589,9 +589,9 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
         to: phoneNumber,
         type: 'template',
         template: {
-          name: 'security_alert',
+          name: 'aiguard_security_alert',  // New template with correct Base URL
           language: {
-            code: 'en_US', // Template is registered in English (US), content is localized via parameters
+            code: 'en_US',
           },
           components: [
             {
@@ -606,9 +606,9 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<void> {
             {
               type: 'button',
               sub_type: 'url',
-              index: 0,
+              index: '0',
               parameters: [
-                { type: 'text', text: `event/${eventId}` },  // Dynamic URL suffix with /event/ path
+                { type: 'text', text: eventId },  // UUID only - Base URL is https://aiguard24.com/event/
               ],
             },
           ],
