@@ -47,19 +47,19 @@ serve(async (req) => {
               {
                 type: 'body',
                 parameters: [
-                  { type: 'text', text: '🧪 TEST 3' },
+                  { type: 'text', text: '🧪 TEST 5 - NO BUTTON' },
                   { type: 'text', text: 'Motion' },
                   { type: 'text', text: 'person 85%' },
-                  { type: 'text', text: 'Test without button component' },
+                  { type: 'text', text: 'בדיקה ללא כפתור - אם מגיע הבעיה בכפתור' },
                 ],
               },
-              // Button - try sending JUST the UUID without 'event/' prefix
+              // WITH button using event/ prefix as shown in Meta sample
               {
                 type: 'button',
                 sub_type: 'url',
                 index: '0',
                 parameters: [
-                  { type: 'text', text: testEventId },  // Just UUID, no 'event/' prefix
+                  { type: 'text', text: `event/${testEventId}` },
                 ],
               },
             ],
