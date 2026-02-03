@@ -41,25 +41,24 @@ serve(async (req) => {
           to: phoneNumber,
           type: 'template',
           template: {
-            name: 'security_alert',
+            name: 'aiguard_security_alert',  // New template!
             language: { code: 'en_US' },
             components: [
               {
                 type: 'body',
                 parameters: [
-                  { type: 'text', text: '🧪 TEST 6 - Base URL = /event/' },
-                  { type: 'text', text: 'Motion' },
-                  { type: 'text', text: 'person 85%' },
-                  { type: 'text', text: 'שנה Base URL ל-https://aiguard24.com/event/' },
+                  { type: 'text', text: '🚨 HIGH' },           // {{1}} Alert level
+                  { type: 'text', text: 'Motion' },           // {{2}} Event type
+                  { type: 'text', text: 'person 85%' },       // {{3}} What was detected
+                  { type: 'text', text: 'TEST - New template aiguard_security_alert' }, // {{4}} AI Summary
                 ],
               },
-              // Button sends ONLY UUID - Base URL should be https://aiguard24.com/event/
               {
                 type: 'button',
                 sub_type: 'url',
                 index: '0',
                 parameters: [
-                  { type: 'text', text: testEventId },  // Just UUID!
+                  { type: 'text', text: testEventId },  // UUID only
                 ],
               },
             ],

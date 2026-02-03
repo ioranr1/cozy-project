@@ -227,9 +227,9 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
         to: phoneNumber,
         type: 'template',
         template: {
-          name: 'security_alert',
+          name: 'aiguard_security_alert',  // New template with correct Base URL
           language: {
-            code: isHebrew ? 'he' : 'en_US',
+            code: 'en_US',  // Always en_US - content is localized via parameters
           },
           components: [
             {
@@ -244,9 +244,9 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
             {
               type: 'button',
               sub_type: 'url',
-              index: 0,
+              index: '0',
               parameters: [
-                { type: 'text', text: eventId },
+                { type: 'text', text: eventId },  // UUID only - Base URL is https://aiguard24.com/event/
               ],
             },
           ],
