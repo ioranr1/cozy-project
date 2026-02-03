@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.mark-event-viewed]
 verify_jwt = false
+
+[functions.whatsapp-webhook]
+verify_jwt = false
