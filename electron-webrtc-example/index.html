@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.3.0 (2026-02-02)
+  VERSION: 2.3.1 (2026-02-03)
   ============================================================
   
   CHANGELOG:
@@ -680,16 +680,21 @@
         // Start monitoring
         // ============================================================
         async function startMonitoring(config) {
-          console.log('[Monitoring] Starting monitoring with config:', config);
+          console.log('[Monitoring] ═══════════════════════════════════════════════════');
+          console.log('[Monitoring] Starting monitoring with config:', JSON.stringify(config, null, 2));
+          console.log('[Monitoring] ═══════════════════════════════════════════════════');
           currentConfig = config;
           
           try {
             // Get camera stream
-            console.log('[Monitoring] Requesting camera access...');
+            console.log('[Monitoring] Requesting camera access via getUserMedia...');
             monitoringStream = await navigator.mediaDevices.getUserMedia({
               video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } },
               audio: false,
             });
+            
+            console.log('[Monitoring] ✓ getUserMedia succeeded - camera LED should be ON now');
+            console.log('[Monitoring] Stream tracks:', monitoringStream.getTracks().map(t => `${t.kind}: ${t.label}`));
             
             // Create hidden video element
             videoElement = document.getElementById('monitoring-video');
@@ -704,15 +709,20 @@
               videoElement.style.width = '640px';
               videoElement.style.height = '480px';
               document.body.appendChild(videoElement);
+              console.log('[Monitoring] Created hidden video element');
             }
             
             videoElement.srcObject = monitoringStream;
             await videoElement.play();
-            console.log('[Monitoring] ✓ Camera stream ready');
+            console.log('[Monitoring] ✓ Video element playing');
             
             // Initialize detector if not done
             if (!isDetectorReady) {
-              await loadMediaPipe();
+              console.log('[Monitoring] MediaPipe not ready, loading...');
+              const mpResult = await loadMediaPipe();
+              console.log('[Monitoring] MediaPipe load result:', mpResult);
+            } else {
+              console.log('[Monitoring] MediaPipe already ready');
             }
             
             // Start detection loop
@@ -721,14 +731,20 @@
               isMonitoring = true;
               runDetectionLoop();
               console.log('[Monitoring] ✓ Detection loop started');
+            } else {
+              console.warn('[Monitoring] ⚠️ Detector not ready - camera active but no detection');
+              isMonitoring = true; // Still mark as monitoring even without detection
             }
             
             // Send ACK to main
+            console.log('[Monitoring] Sending ACK to main process...');
             window.electronAPI?.notifyMonitoringStarted?.({ motion: isDetectorReady, sound: false });
-            console.log('[Monitoring] ✓ Sent monitoring-started ACK');
+            console.log('[Monitoring] ✓ Sent monitoring-started ACK (motion:', isDetectorReady, ')');
             
           } catch (error) {
             console.error('[Monitoring] ✗ Start failed:', error);
+            console.error('[Monitoring] Error name:', error.name);
+            console.error('[Monitoring] Error message:', error.message);
             window.electronAPI?.notifyMonitoringError?.(error.message || 'Failed to start monitoring');
           }
         }
