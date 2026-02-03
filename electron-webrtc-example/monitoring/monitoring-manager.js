@@ -1,10 +1,9 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.3.5 (2026-02-02)
+ * VERSION: 0.3.4 (2026-02-02)
  * 
  * CHANGELOG:
- * - v0.3.5: Added sensor check before camera activation - skip if both motion & sound are OFF
  * - v0.3.4: CRITICAL FIX - Always update security_enabled=false in DB before early return in disable()
  *           Fixes bug where UI showed "active" but camera LED was off
  * - v0.3.3: Pass device_id and device_auth_token to renderer for event reporting
@@ -55,7 +54,7 @@ class MonitoringManager {
     this.pendingEvents = [];
     this.eventQueueTimer = null;
     
-    console.log('[MonitoringManager] Initialized (v0.3.5)');
+    console.log('[MonitoringManager] Initialized (v0.3.0)');
   }
 
   // ===========================================================================
@@ -215,37 +214,11 @@ class MonitoringManager {
 
       // Always reload config from DB to get latest values
       await this.loadConfig();
-      
-      const motionEnabled = this.config?.sensors?.motion?.enabled === true;
-      const soundEnabled = this.config?.sensors?.sound?.enabled === true;
-      
       console.log('[MonitoringManager] Config loaded for enable:', {
         monitoring_enabled: this.config?.monitoring_enabled,
-        motion_enabled: motionEnabled,
-        sound_enabled: soundEnabled,
+        motion_enabled: this.config?.sensors?.motion?.enabled,
+        sound_enabled: this.config?.sensors?.sound?.enabled,
       });
-
-      // =========================================================
-      // SENSOR CHECK: If BOTH motion and sound are OFF, skip camera
-      // =========================================================
-      if (!motionEnabled && !soundEnabled) {
-        console.log('[MonitoringManager] ⚠️ Both motion & sound sensors are OFF - skipping camera activation');
-        this.isStarting = false;
-        
-        // Update DB to reflect skipped state
-        if (this.deviceId) {
-          await this.supabase
-            .from('device_status')
-            .update({
-              security_enabled: false,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('device_id', this.deviceId);
-          console.log('[MonitoringManager] DB updated: security_enabled = false (no active sensors)');
-        }
-        
-        return { success: true, skipped: true, reason: 'No sensors enabled' };
-      }
 
       // Send start command to renderer with device credentials
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {

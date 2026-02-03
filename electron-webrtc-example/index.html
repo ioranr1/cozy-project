@@ -1,11 +1,10 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.3.1 (2026-02-02)
+  VERSION: 2.3.0 (2026-02-02)
   ============================================================
   
   CHANGELOG:
-  - v2.3.1: Fixed snapshot capture consistency - added retry logic and better validation
   - v2.3.0: Added inline MediaPipe motion detection with event reporting
   - v2.2.1: Fixed monitoring initialization - proper IPC listener setup for camera start ACK
   - v2.2.0: Added renderer-monitoring.js script for motion/sound detection
@@ -540,46 +539,17 @@
         }
         
         // ============================================================
-        // Capture snapshot as base64 - with validation
+        // Capture snapshot as base64
         // ============================================================
         function captureSnapshot() {
-          // Check video element exists and is ready
-          if (!videoElement) {
-            console.warn('[Monitoring] Snapshot: No video element');
-            return null;
-          }
-          
-          // readyState: 0=HAVE_NOTHING, 1=HAVE_METADATA, 2=HAVE_CURRENT_DATA, 3=HAVE_FUTURE_DATA, 4=HAVE_ENOUGH_DATA
-          if (videoElement.readyState < 2) {
-            console.warn('[Monitoring] Snapshot: Video not ready, readyState=' + videoElement.readyState);
-            return null;
-          }
-          
-          // Validate video dimensions
-          const width = videoElement.videoWidth;
-          const height = videoElement.videoHeight;
-          if (!width || !height || width < 10 || height < 10) {
-            console.warn('[Monitoring] Snapshot: Invalid video dimensions:', width, 'x', height);
-            return null;
-          }
-          
+          if (!videoElement || videoElement.readyState < 2) return null;
           try {
             const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
+            canvas.width = videoElement.videoWidth || 640;
+            canvas.height = videoElement.videoHeight || 480;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(videoElement, 0, 0, width, height);
-            
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-            
-            // Validate the result is not just an empty image
-            if (!dataUrl || dataUrl.length < 1000) {
-              console.warn('[Monitoring] Snapshot: Generated image too small, likely empty');
-              return null;
-            }
-            
-            console.log('[Monitoring] ✓ Snapshot captured:', width + 'x' + height, '(' + Math.round(dataUrl.length/1024) + 'KB)');
-            return dataUrl;
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.8);
           } catch (e) {
             console.error('[Monitoring] Snapshot failed:', e);
             return null;
@@ -596,10 +566,9 @@
           }
           
           try {
-            const snapshot = captureSnapshot();
-            const hasSnapshot = !!snapshot;
+            console.log(`[Monitoring] Sending event: ${eventData.label} (${(eventData.confidence * 100).toFixed(0)}%)`);
             
-            console.log(`[Monitoring] Sending event: ${eventData.label} (${(eventData.confidence * 100).toFixed(0)}%) ${hasSnapshot ? '[with snapshot]' : '[NO SNAPSHOT]'}`);
+            const snapshot = captureSnapshot();
             
             const response = await fetch(EVENTS_REPORT_ENDPOINT, {
               method: 'POST',
