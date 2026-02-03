@@ -27,6 +27,7 @@ serve(async (req) => {
 
     console.log('[TEST] Sending single WhatsApp message to:', phoneNumber);
 
+    // Test WITHOUT button - just body parameters
     const response = await fetch(
       `https://graph.facebook.com/v18.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
       {
@@ -46,16 +47,17 @@ serve(async (req) => {
               {
                 type: 'body',
                 parameters: [
-                  { type: 'text', text: '🧪 בדיקה' },        // {{1}} Alert level
-                  { type: 'text', text: 'תנועה' },           // {{2}} Event type  
-                  { type: 'text', text: 'person 85%' },      // {{3}} Detected
-                  { type: 'text', text: 'הודעת בדיקה בודדת - אם קיבלת זה עובד!' }, // {{4}} Summary
+                  { type: 'text', text: '🧪 TEST 3' },
+                  { type: 'text', text: 'Motion' },
+                  { type: 'text', text: 'person 85%' },
+                  { type: 'text', text: 'Test without button component' },
                 ],
               },
+              // Button with correct format
               {
                 type: 'button',
                 sub_type: 'url',
-                index: 0,
+                index: '0',  // String like OTP
                 parameters: [
                   { type: 'text', text: `event/${testEventId}` },
                 ],
