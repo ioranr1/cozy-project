@@ -104,20 +104,17 @@ const EventDetails: React.FC = () => {
   // Mark event as viewed to prevent reminder notification
   const markEventAsViewed = async (eventId: string) => {
     try {
-      const response = await fetch(
-        `https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/mark-event-viewed`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ event_id: eventId }),
-        }
-      );
+      // Use Supabase Functions client so apikey/auth headers are always correct.
+      const { error } = await supabase.functions.invoke('mark-event-viewed', {
+        body: { event_id: eventId },
+      });
 
-      if (response.ok) {
-        console.log('[EventDetails] Event marked as viewed');
+      if (error) {
+        console.error('[EventDetails] Failed to mark event as viewed:', error);
+        return;
       }
+
+      console.log('[EventDetails] Event marked as viewed');
     } catch (error) {
       // Silent fail - not critical for user experience
       console.error('[EventDetails] Failed to mark event as viewed:', error);

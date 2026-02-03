@@ -42,41 +42,68 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Update the event
-    const { data, error } = await supabase
+    // Fetch the event to resolve device_id
+    const { data: event, error: eventError } = await supabase
       .from('monitoring_events')
-      .update({
-        viewed_at: new Date().toISOString(),
-      })
+      .select('id, device_id')
       .eq('id', event_id)
-      .select('id, viewed_at')
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error('[mark-event-viewed] Update error:', error);
-      return new Response(JSON.stringify({ error: error.message }), {
+    if (eventError) {
+      console.error('[mark-event-viewed] Fetch event error:', eventError);
+      return new Response(JSON.stringify({ error: eventError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    if (!data) {
+    if (!event?.device_id) {
       return new Response(JSON.stringify({ error: 'Event not found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`[mark-event-viewed] Event ${event_id} marked as viewed at ${data.viewed_at}`);
+    const nowIso = new Date().toISOString();
+    const deviceId = event.device_id;
 
-    return new Response(JSON.stringify({
-      success: true,
-      event_id: data.id,
-      viewed_at: data.viewed_at,
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    // IMPORTANT:
+    // The throttle blocks if ANY unviewed PRIMARY event exists for the device.
+    // If marking single event only, older unviewed notifications would keep the device blocked.
+    // So we mark all unviewed PRIMARY events for this device as viewed to truly "reset the cycle".
+    const { data: updatedRows, error: updateError } = await supabase
+      .from('monitoring_events')
+      .update({ viewed_at: nowIso })
+      .eq('device_id', deviceId)
+      .eq('notification_sent', true)
+      .eq('ai_is_real', true)
+      .is('viewed_at', null)
+      .select('id');
+
+    if (updateError) {
+      console.error('[mark-event-viewed] Update error:', updateError);
+      return new Response(JSON.stringify({ error: updateError.message }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const markedCount = updatedRows?.length ?? 0;
+    console.log(`[mark-event-viewed] Marked ${markedCount} events as viewed for device ${deviceId}`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        event_id,
+        device_id: deviceId,
+        marked_count: markedCount,
+        viewed_at: nowIso,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
 
   } catch (error) {
     console.error('[mark-event-viewed] Unexpected error:', error);
