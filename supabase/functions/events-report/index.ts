@@ -1,16 +1,13 @@
 /**
  * Events Report Edge Function
  * ===========================
- * VERSION: 2.3.0 (2026-02-03)
+ * VERSION: 3.0.0 (2026-02-03)
  * 
  * CHANGELOG:
- * - v2.3.0: SEPARATION OF CONCERNS - First event in cooldown window gets AI
- *           validation + WhatsApp. Subsequent events are stored as "follow-up"
- *           without AI processing (saves resources).
- * - v2.2.0: ATOMIC COOLDOWN - Uses acquire_whatsapp_send_slot() DB function
- *           to prevent race conditions between parallel event reports.
- * - v2.1.0: Added WhatsApp cooldown (had race condition bug)
- * - v2.0.0: AI validation with Gemini, Hebrew/English support
+ * - v3.0.0: SIMPLIFIED LOGIC - Every event gets AI validation.
+ *           If AI says REAL → send ONE WhatsApp notification.
+ *           Subsequent parallel events just get saved (no notification).
+ * - v2.x.x: Previous complex cooldown logic (removed)
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -23,9 +20,6 @@ const corsHeaders = {
 
 // AI Gateway URL
 const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-
-// Notification cooldown: 60 seconds between WhatsApp messages per device
-const NOTIFICATION_COOLDOWN_MS = 60000;
 
 // Severity mapping based on labels
 const SEVERITY_MAP: Record<string, string> = {
@@ -189,62 +183,10 @@ serve(async (req) => {
     console.log('[events-report] Event created:', eventRecord.id);
 
     // =========================================================
-    // STEP 1: TRY TO ACQUIRE WHATSAPP SLOT FIRST
-    // This determines if this is the "primary" event or a "follow-up"
+    // SIMPLE LOGIC: Every event gets AI validation
+    // If AI says REAL → send WhatsApp notification
     // =========================================================
-    const { data: canSend, error: slotError } = await supabase
-      .rpc('acquire_whatsapp_send_slot', {
-        p_device_id: device_id,
-        p_cooldown_ms: NOTIFICATION_COOLDOWN_MS,
-      });
-
-    if (slotError) {
-      console.error('[events-report] Error acquiring slot:', slotError);
-    }
-
-    const isPrimaryEvent = canSend === true;
-
-    // =========================================================
-    // STEP 2: BRANCH LOGIC - PRIMARY vs FOLLOW-UP
-    // =========================================================
-    if (!isPrimaryEvent) {
-      // -------------------------------------------------------
-      // FOLLOW-UP EVENT: Skip AI validation, mark as follow-up
-      // -------------------------------------------------------
-      console.log(`[events-report] 📎 FOLLOW-UP EVENT - Within cooldown window`);
-      console.log(`[events-report] Skipping AI validation for event ${eventRecord.id}`);
-
-      await supabase
-        .from('monitoring_events')
-        .update({
-          ai_validated: false,
-          ai_is_real: null,
-          ai_summary: 'Follow-up detection within cooldown window',
-          metadata: {
-            ...metadata,
-            original_timestamp: timestamp,
-            is_followup: true,
-          },
-        })
-        .eq('id', eventRecord.id);
-
-      return new Response(JSON.stringify({
-        success: true,
-        event_id: eventRecord.id,
-        is_followup: true,
-        ai_validated: false,
-        notification_sent: false,
-        message: 'Event stored as follow-up (within cooldown window)',
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // -------------------------------------------------------
-    // PRIMARY EVENT: Full AI validation + WhatsApp notification
-    // -------------------------------------------------------
-    console.log(`[events-report] 🎯 PRIMARY EVENT - Running AI validation`);
+    console.log(`[events-report] 🎯 Running AI validation for event ${eventRecord.id}`);
 
     // Get profile for language preference (needed for AI summary)
     const { data: profile } = await supabase
