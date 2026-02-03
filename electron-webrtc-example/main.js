@@ -749,9 +749,13 @@ async function handleCommand(command) {
         break;
 
       case 'SET_MONITORING:ON':
+        console.log('[Commands] ═══════════════════════════════════════════════════');
         console.log('[Commands] Processing SET_MONITORING:ON command');
+        console.log('[Commands] ═══════════════════════════════════════════════════');
         try {
+          console.log('[Commands] Calling monitoringManager.enable()...');
           const monitoringResult = await monitoringManager.enable();
+          console.log('[Commands] monitoringManager.enable() result:', monitoringResult);
           if (!monitoringResult.success) {
             console.error('[Commands] ❌ Monitoring enable failed:', monitoringResult.error);
             throw new Error(monitoringResult.error || 'Monitoring enable failed');
@@ -759,7 +763,9 @@ async function handleCommand(command) {
 
           // CRITICAL (SSOT): Only mark camera active after renderer confirms getUserMedia succeeded.
           // CRITICAL FIX: Increased timeout from 15s to 60s for slow camera/MediaPipe init
+          console.log('[Commands] Waiting for renderer ACK (timeout: 60s)...');
           const startedStatus = await waitForMonitoringStartAck({ timeoutMs: 60000 });
+          console.log('[Commands] Renderer ACK received:', startedStatus);
 
           if (!deviceId) {
             throw new Error('Missing deviceId while enabling monitoring');
@@ -1510,7 +1516,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-01-v2.2.2-monitoring-handshake');
+console.log('[Main] BUILD ID: main-js-2026-02-03-v2.2.5-monitoring-debug');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 

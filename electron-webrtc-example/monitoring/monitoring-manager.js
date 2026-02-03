@@ -1,9 +1,11 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.3.4 (2026-02-02)
+ * VERSION: 0.3.5 (2026-02-03)
  * 
  * CHANGELOG:
+ * - v0.3.5: CRITICAL FIX - Add sensor preflight check to skip camera if all sensors disabled
+ *           Add explicit logging for all enable/disable state transitions
  * - v0.3.4: CRITICAL FIX - Always update security_enabled=false in DB before early return in disable()
  *           Fixes bug where UI showed "active" but camera LED was off
  * - v0.3.3: Pass device_id and device_auth_token to renderer for event reporting
@@ -14,6 +16,7 @@
  * Coordinates between detectors (renderer) and database (Supabase).
  * Sends events to edge function for AI validation and notifications.
  * Triggers local clip recording for validated events.
+ */
  */
 
 const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config');
@@ -207,41 +210,66 @@ class MonitoringManager {
       return { success: true };
     }
 
+    console.log('[MonitoringManager] ═══════════════════════════════════════════════════');
     console.log('[MonitoringManager] Enable requested');
+    console.log('[MonitoringManager] ═══════════════════════════════════════════════════');
 
     try {
       this.isStarting = true;
 
       // Always reload config from DB to get latest values
       await this.loadConfig();
+      
+      const motionEnabled = this.config?.sensors?.motion?.enabled ?? false;
+      const soundEnabled = this.config?.sensors?.sound?.enabled ?? false;
+      
       console.log('[MonitoringManager] Config loaded for enable:', {
         monitoring_enabled: this.config?.monitoring_enabled,
-        motion_enabled: this.config?.sensors?.motion?.enabled,
-        sound_enabled: this.config?.sensors?.sound?.enabled,
+        motion_enabled: motionEnabled,
+        sound_enabled: soundEnabled,
       });
 
-      // Send start command to renderer with device credentials
-      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        // Include device credentials for event reporting
-        const configWithCredentials = {
-          ...this.config,
-          device_id: this.deviceId,
-          device_auth_token: this.deviceAuthToken,
-        };
-        this.mainWindow.webContents.send('start-monitoring', configWithCredentials);
-        console.log('[MonitoringManager] Config sent to renderer with device credentials');
-      } else {
-        console.error('[MonitoringManager] No main window available');
+      // CRITICAL: Sensor preflight check - skip camera if ALL sensors disabled
+      if (!motionEnabled && !soundEnabled) {
+        console.log('[MonitoringManager] ⚠️ Both sensors disabled - skipping camera activation');
+        this.isStarting = false;
+        return { success: false, error: 'All sensors are disabled. Enable motion or sound detection first.' };
+      }
+
+      // Check mainWindow availability
+      if (!this.mainWindow) {
+        console.error('[MonitoringManager] ❌ No main window reference set!');
+        this.isStarting = false;
         return { success: false, error: 'Main window not available' };
       }
+      
+      if (this.mainWindow.isDestroyed()) {
+        console.error('[MonitoringManager] ❌ Main window is destroyed!');
+        this.isStarting = false;
+        return { success: false, error: 'Main window destroyed' };
+      }
+
+      // Include device credentials for event reporting
+      const configWithCredentials = {
+        ...this.config,
+        device_id: this.deviceId,
+        device_auth_token: this.deviceAuthToken,
+      };
+      
+      console.log('[MonitoringManager] Sending start-monitoring to renderer...');
+      console.log('[MonitoringManager] device_id:', this.deviceId);
+      console.log('[MonitoringManager] device_auth_token present:', !!this.deviceAuthToken);
+      
+      this.mainWindow.webContents.send('start-monitoring', configWithCredentials);
+      console.log('[MonitoringManager] ✓ Config sent to renderer');
 
       // IMPORTANT (SSOT): Do NOT set isActive or update DB here.
       // The renderer will attempt getUserMedia + start detectors.
       // We only mark active after receiving 'monitoring-started' from renderer.
-      console.log('[MonitoringManager] ⏳ Start signal sent; waiting for renderer ACK (monitoring-started)');
+      console.log('[MonitoringManager] ⏳ Waiting for renderer ACK (monitoring-started)...');
       return { success: true, starting: true };
     } catch (error) {
-      console.error('[MonitoringManager] Enable failed:', error);
+      console.error('[MonitoringManager] ❌ Enable failed:', error);
       this.isStarting = false;
       this.isActive = false;
       return { success: false, error: error.message || 'Enable failed' };
