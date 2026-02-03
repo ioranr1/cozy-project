@@ -241,8 +241,17 @@ serve(async (req) => {
         console.log(`[events-report] Throttle check: canSend=${canSend}`);
 
         if (canSend) {
+          const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
+
           try {
-            const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
+            console.log('[events-report] WhatsApp send attempt:', {
+              event_id: eventRecord.id,
+              device_id,
+              to: recipientPhone,
+              template: 'aiguard_security_alert',
+              template_lang: 'en_US',
+            });
+
             const whatsappResult = await sendWhatsAppNotification({
               phoneNumber: recipientPhone,
               eventType: event_type,
@@ -254,9 +263,14 @@ serve(async (req) => {
               language: profile.preferred_language || 'he',
               eventId: eventRecord.id,
             });
+
             notificationTypes.push('whatsapp');
-            console.log('[events-report] WhatsApp notification sent');
-            
+            console.log('[events-report] WhatsApp notification sent:', {
+              event_id: eventRecord.id,
+              message_id: whatsappResult.messageId,
+              status: whatsappResult.httpStatus,
+            });
+
             // Store message_id and Meta response in metadata for delivery diagnostics
             await supabase
               .from('monitoring_events')
@@ -268,23 +282,48 @@ serve(async (req) => {
                     message_id: whatsappResult.messageId,
                     recipient: recipientPhone,
                     sent_at: new Date().toISOString(),
+                    http_status: whatsappResult.httpStatus,
                     api_response: whatsappResult.apiResponse,
                   },
                 },
               })
               .eq('id', eventRecord.id);
-            
+
             // Update last_whatsapp_sent_at in device_notification_state
             await supabase
               .from('device_notification_state')
-              .upsert({
-                device_id,
-                last_whatsapp_sent_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              }, { onConflict: 'device_id' });
-              
+              .upsert(
+                {
+                  device_id,
+                  last_whatsapp_sent_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'device_id' }
+              );
           } catch (waError) {
-            console.error('[events-report] WhatsApp notification failed:', waError);
+            const errorMessage = waError instanceof Error ? waError.message : String(waError);
+            console.error('[events-report] WhatsApp notification failed:', {
+              event_id: eventRecord.id,
+              device_id,
+              to: recipientPhone,
+              error: errorMessage,
+            });
+
+            // Persist failure details (so we can diagnose even if logs are missed)
+            await supabase
+              .from('monitoring_events')
+              .update({
+                metadata: {
+                  ...metadata,
+                  original_timestamp: timestamp,
+                  whatsapp: {
+                    recipient: recipientPhone,
+                    failed_at: new Date().toISOString(),
+                    error: errorMessage,
+                  },
+                },
+              })
+              .eq('id', eventRecord.id);
           }
         } else {
           console.log('[events-report] WhatsApp notification BLOCKED by throttle - user has unviewed event or cooldown active');
@@ -556,6 +595,7 @@ interface WhatsAppParams {
 
 interface WhatsAppResult {
   messageId: string;
+  httpStatus: number;
   apiResponse: Record<string, unknown>;
 }
 
@@ -598,6 +638,50 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
   // {{4}} AI Summary (already in the appropriate language from the AI)
   const summaryText = aiSummary || (isHebrew ? 'אין סיכום זמין' : 'No summary available');
 
+  const templateName = 'aiguard_security_alert';
+  const templateLang = 'en_US';
+
+  // Mask recipient in logs (still enough for debugging)
+  const maskedTo = phoneNumber.length > 6
+    ? `${phoneNumber.slice(0, 3)}***${phoneNumber.slice(-3)}`
+    : phoneNumber;
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    to: phoneNumber,
+    type: 'template',
+    template: {
+      name: templateName,
+      language: { code: templateLang },
+      components: [
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: alertLevel },
+            { type: 'text', text: eventTypeText },
+            { type: 'text', text: detectedText },
+            { type: 'text', text: summaryText },
+          ],
+        },
+        {
+          type: 'button',
+          sub_type: 'url',
+          index: '0',
+          parameters: [{ type: 'text', text: eventId }],
+        },
+      ],
+    },
+  };
+
+  console.log('[WhatsApp][request]', JSON.stringify({
+    to: maskedTo,
+    phoneNumberId,
+    template: templateName,
+    lang: templateLang,
+    eventId,
+    params: { alertLevel, eventTypeText, detectedText, summary_len: summaryText.length },
+  }));
+
   // Send via WhatsApp Template API
   const response = await fetch(
     `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
@@ -607,40 +691,22 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: phoneNumber,
-        type: 'template',
-        template: {
-          name: 'aiguard_security_alert',  // New template with correct Base URL
-          language: {
-            code: 'en_US',
-          },
-          components: [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: alertLevel },      // {{1}} Alert level
-                { type: 'text', text: eventTypeText },   // {{2}} Event type
-                { type: 'text', text: detectedText },    // {{3}} What was detected
-                { type: 'text', text: summaryText },     // {{4}} AI Summary
-              ],
-            },
-            {
-              type: 'button',
-              sub_type: 'url',
-              index: '0',
-              parameters: [
-                { type: 'text', text: eventId },  // UUID only - Base URL is https://aiguard24.com/event/
-              ],
-            },
-          ],
-        },
-      }),
+      body: JSON.stringify(payload),
     }
   );
 
-  const responseBody = await response.json();
+  let responseBody: any = null;
+  try {
+    responseBody = await response.json();
+  } catch (_e) {
+    // Fallback for non-JSON responses
+    responseBody = { raw: await response.text() };
+  }
+
+  console.log('[WhatsApp][response]', JSON.stringify({
+    status: response.status,
+    body: responseBody,
+  }));
   
   if (!response.ok) {
     console.error('[WhatsApp] API error response:', JSON.stringify(responseBody));
@@ -658,6 +724,7 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
   // Return result for storage in metadata
   return {
     messageId,
+    httpStatus: response.status,
     apiResponse: responseBody,
   };
 }
