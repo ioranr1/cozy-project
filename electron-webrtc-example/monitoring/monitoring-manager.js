@@ -17,7 +17,6 @@
  * Sends events to edge function for AI validation and notifications.
  * Triggers local clip recording for validated events.
  */
- */
 
 const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config');
 
