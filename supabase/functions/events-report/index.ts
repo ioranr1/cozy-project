@@ -245,7 +245,7 @@ serve(async (req) => {
             event_id: eventRecord.id,
             device_id,
             to: recipientPhone,
-            template: 'aiguard_security_alert',
+            template: 'activity_notification',
             template_lang: 'en_US',
             throttle_bypassed: true,
           });
