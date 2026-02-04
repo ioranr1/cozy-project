@@ -110,11 +110,11 @@ Deno.serve(async (req) => {
                 Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
               );
 
-              // Find event by message_id in metadata and update delivery status
+              // Find event by message_id in metadata using containment operator
               const { data: events, error: findError } = await supabase
                 .from("monitoring_events")
                 .select("id, metadata")
-                .filter("metadata->whatsapp->message_id", "eq", messageId)
+                .contains("metadata", { whatsapp: { message_id: messageId } })
                 .limit(1);
 
               if (findError) {
