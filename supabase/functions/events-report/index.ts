@@ -230,112 +230,97 @@ serve(async (req) => {
 
       const notificationTypes: string[] = [];
       
-      // Send WhatsApp notification WITH throttling check
+      // Send WhatsApp notification
+      // IMPORTANT (Product requirement - Motion alerts):
+      // The first WhatsApp message for a new REAL motion event must NEVER be blocked by any
+      // cross-event or device-level throttle. Tracking for the 2-message cap is per-event via:
+      // - monitoring_events.notification_sent (+ send-reminder for the second message)
+      // - monitoring_events.reminder_sent
+      // - monitoring_events.viewed_at
       if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
-        // Check if we can send (throttling + no unviewed PRIMARY events)
-        const { data: canSend } = await supabase.rpc('acquire_whatsapp_send_slot', {
-          p_device_id: device_id,
-          p_cooldown_ms: 60000, // 60 second cooldown between sends
-        });
-        
-        console.log(`[events-report] Throttle check: canSend=${canSend}`);
+        const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
 
-        if (canSend) {
-          const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
+        try {
+          console.log('[events-report] WhatsApp send attempt:', {
+            event_id: eventRecord.id,
+            device_id,
+            to: recipientPhone,
+            template: 'aiguard_security_alert',
+            template_lang: 'en_US',
+            throttle_bypassed: true,
+          });
 
-          try {
-            console.log('[events-report] WhatsApp send attempt:', {
-              event_id: eventRecord.id,
-              device_id,
-              to: recipientPhone,
-              template: 'aiguard_security_alert',
-              template_lang: 'en_US',
-            });
+          const whatsappResult = await sendWhatsAppNotification({
+            phoneNumber: recipientPhone,
+            eventType: event_type,
+            labels,
+            severity,
+            aiSummary,
+            accessToken: WHATSAPP_ACCESS_TOKEN,
+            phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
+            language: profile.preferred_language || 'he',
+            eventId: eventRecord.id,
+          });
 
-            const whatsappResult = await sendWhatsAppNotification({
-              phoneNumber: recipientPhone,
-              eventType: event_type,
-              labels,
-              severity,
-              aiSummary,
-              accessToken: WHATSAPP_ACCESS_TOKEN,
-              phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
-              language: profile.preferred_language || 'he',
-              eventId: eventRecord.id,
-            });
+          notificationTypes.push('whatsapp');
+          console.log('[events-report] WhatsApp notification sent:', {
+            event_id: eventRecord.id,
+            message_id: whatsappResult.messageId,
+            status: whatsappResult.httpStatus,
+          });
 
-            notificationTypes.push('whatsapp');
-            console.log('[events-report] WhatsApp notification sent:', {
-              event_id: eventRecord.id,
-              message_id: whatsappResult.messageId,
-              status: whatsappResult.httpStatus,
-            });
-
-            // Store message_id and Meta response in metadata for delivery diagnostics
-            await supabase
-              .from('monitoring_events')
-              .update({
-                metadata: {
-                  ...metadata,
-                  original_timestamp: timestamp,
-                  whatsapp: {
-                    message_id: whatsappResult.messageId,
-                    recipient: recipientPhone,
-                    sent_at: new Date().toISOString(),
-                    http_status: whatsappResult.httpStatus,
-                    api_response: whatsappResult.apiResponse,
-                  },
-                },
-              })
-              .eq('id', eventRecord.id);
-
-            // Update last_whatsapp_sent_at in device_notification_state
-            await supabase
-              .from('device_notification_state')
-              .upsert(
-                {
-                  device_id,
-                  last_whatsapp_sent_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                },
-                { onConflict: 'device_id' }
-              );
-          } catch (waError) {
-            const errorMessage = waError instanceof Error ? waError.message : String(waError);
-            console.error('[events-report] WhatsApp notification failed:', {
-              event_id: eventRecord.id,
-              device_id,
-              to: recipientPhone,
-              error: errorMessage,
-            });
-
-            // Persist failure details (so we can diagnose even if logs are missed)
-            await supabase
-              .from('monitoring_events')
-              .update({
-                metadata: {
-                  ...metadata,
-                  original_timestamp: timestamp,
-                  whatsapp: {
-                    recipient: recipientPhone,
-                    failed_at: new Date().toISOString(),
-                    error: errorMessage,
-                  },
-                },
-              })
-              .eq('id', eventRecord.id);
-          }
-        } else {
-          console.log('[events-report] WhatsApp notification BLOCKED by throttle - user has unviewed event or cooldown active');
-          // Mark as follow-up event (no notification sent, but still recorded)
+          // Store message_id and Meta response in metadata for delivery diagnostics
           await supabase
             .from('monitoring_events')
             .update({
               metadata: {
                 ...metadata,
                 original_timestamp: timestamp,
-                is_followup: true,
-                throttled_reason: 'unviewed_primary_exists',
+                whatsapp: {
+                  message_id: whatsappResult.messageId,
+                  recipient: recipientPhone,
+                  sent_at: new Date().toISOString(),
+                  http_status: whatsappResult.httpStatus,
+                  api_response: whatsappResult.apiResponse,
+                  throttle_bypassed: true,
+                },
+              },
+            })
+            .eq('id', eventRecord.id);
+
+          // Keep this for diagnostics only (NOT used for gating)
+          await supabase
+            .from('device_notification_state')
+            .upsert(
+              {
+                device_id,
+                last_whatsapp_sent_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'device_id' }
+            );
+        } catch (waError) {
+          const errorMessage = waError instanceof Error ? waError.message : String(waError);
+          console.error('[events-report] WhatsApp notification failed:', {
+            event_id: eventRecord.id,
+            device_id,
+            to: recipientPhone,
+            error: errorMessage,
+          });
+
+          // Persist failure details (so we can diagnose even if logs are missed)
+          await supabase
+            .from('monitoring_events')
+            .update({
+              metadata: {
+                ...metadata,
+                original_timestamp: timestamp,
+                whatsapp: {
+                  recipient: recipientPhone,
+                  failed_at: new Date().toISOString(),
+                  error: errorMessage,
+                  throttle_bypassed: true,
+                },
               },
             })
             .eq('id', eventRecord.id);
