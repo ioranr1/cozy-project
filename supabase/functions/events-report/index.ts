@@ -589,10 +589,11 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
 
   // IMPORTANT: Per Meta policy compliance, WhatsApp message must be minimal/neutral.
   // All security details (event type, AI summary, severity) are shown ONLY in the Event View screen.
-  // Template: new_event_notification (Utility category)
-  // Body: "A new event is available. Tap to view details." - NO parameters, NO security context.
+  // Template: activity_notification (Marketing category)
+  // Body: "New activity is available.\n\nYou can view the details in your account." - NO parameters, NO security context.
+  // Button: "View details" -> https://aiguard24.com/event/{{1}}
 
-  const templateName = 'new_event_notification';
+  const templateName = 'activity_notification';
   const templateLang = 'en_US';
 
   // Mask recipient in logs (still enough for debugging)
