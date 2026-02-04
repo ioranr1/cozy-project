@@ -20,8 +20,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Reminder delay in milliseconds (1 minute)
-const REMINDER_DELAY_MS = 60 * 1000;
+// Reminder delay in milliseconds (2 minutes)
+// Rationale: Short delays cause WhatsApp to treat messages as noisy/spam-like.
+// A 2-minute gap reduces pressure on delivery and improves stability.
+const REMINDER_DELAY_MS = 2 * 60 * 1000;
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -222,32 +224,22 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
+      // Template: activity_notification (Marketing category)
+      // Body: "A new event is available. Tap to view details." - NO body parameters
+      // Button: "View details" -> https://aiguard24.com/event/{{1}}
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         to: phoneNumber,
         type: 'template',
         template: {
-          name: 'aiguard_security_alert',  // New template with correct Base URL
-          language: {
-            code: 'en_US',  // Always en_US - content is localized via parameters
-          },
+          name: 'activity_notification',
+          language: { code: 'en_US' },
           components: [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: alertLevel },      // {{1}} Alert level (with reminder)
-                { type: 'text', text: eventTypeText },   // {{2}} Event type
-                { type: 'text', text: detectedText },    // {{3}} What was detected
-                { type: 'text', text: summaryText },     // {{4}} AI Summary
-              ],
-            },
             {
               type: 'button',
               sub_type: 'url',
               index: '0',
-              parameters: [
-                { type: 'text', text: eventId },  // UUID only - Base URL is https://aiguard24.com/event/
-              ],
+              parameters: [{ type: 'text', text: eventId }],
             },
           ],
         },

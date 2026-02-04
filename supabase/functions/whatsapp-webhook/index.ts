@@ -52,14 +52,27 @@ Deno.serve(async (req) => {
   if (req.method === "POST") {
     try {
       const body = await req.json();
-      console.log("[Webhook] Received POST:", JSON.stringify(body, null, 2));
+      
+      // Log full payload for diagnostics
+      console.log("[Webhook] Received POST payload:", JSON.stringify(body, null, 2));
 
       // Extract status updates from the webhook payload
       const entries = body?.entry || [];
+      
       for (const entry of entries) {
         const changes = entry?.changes || [];
+        
         for (const change of changes) {
+          // Log the field type for debugging
+          const fieldType = change?.field;
+          console.log("[Webhook] Processing change field:", fieldType);
+          
           const statuses = change?.value?.statuses || [];
+          
+          // Log if no statuses found (might be a message or other event type)
+          if (statuses.length === 0) {
+            console.log("[Webhook] No statuses in this change. Value:", JSON.stringify(change?.value));
+          }
           
           for (const status of statuses) {
             const messageId = status?.id; // wamid.xxx
@@ -67,14 +80,28 @@ Deno.serve(async (req) => {
             const timestamp = status?.timestamp;
             const recipientId = status?.recipient_id;
             const errors = status?.errors;
+            const conversation = status?.conversation;
+            const pricing = status?.pricing;
 
-            console.log("[Webhook] Status update:", {
-              messageId,
+            // CRITICAL: Log ALL status fields for delivery diagnostics
+            console.log("[Webhook] Status update received:", {
+              wamid: messageId,
               status: statusValue,
-              timestamp,
-              recipientId,
-              errors: errors ? JSON.stringify(errors) : null
+              timestamp: timestamp,
+              recipient_id: recipientId,
+              errors: errors ? JSON.stringify(errors) : null,
+              conversation_id: conversation?.id,
+              pricing_category: pricing?.category,
             });
+            
+            // If failed, log detailed error info
+            if (statusValue === 'failed' && errors) {
+              console.error("[Webhook] DELIVERY FAILED:", {
+                wamid: messageId,
+                recipient_id: recipientId,
+                errors: JSON.stringify(errors, null, 2),
+              });
+            }
 
             // Update database with delivery status
             if (messageId && statusValue) {
