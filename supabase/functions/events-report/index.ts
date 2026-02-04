@@ -173,7 +173,7 @@ serve(async (req) => {
     // Get profile for language preference (needed for AI summary)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('phone_number, country_code, full_name, preferred_language')
+      .select('phone_number, country_code, full_name, preferred_language, phone_verified')
       .eq('id', device.profile_id)
       .single();
 
@@ -240,90 +240,101 @@ serve(async (req) => {
       if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
         const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
 
-        try {
-          console.log('[events-report] WhatsApp send attempt:', {
+        // Opt-in validation (minimal): treat phone_verified=true as explicit opt-in
+        // If not opted-in, do not send WhatsApp.
+        if (profile.phone_verified !== true) {
+          console.log('[events-report] WhatsApp skipped - user not opted-in (phone_verified != true)', {
             event_id: eventRecord.id,
             device_id,
-            to: recipientPhone,
-            template: 'activity_notification',
-            template_lang: 'en_US',
-            throttle_bypassed: true,
           });
+          // Do not mark notification_sent since no message was sent.
+        } else {
 
-          const whatsappResult = await sendWhatsAppNotification({
-            phoneNumber: recipientPhone,
-            eventType: event_type,
-            labels,
-            severity,
-            aiSummary,
-            accessToken: WHATSAPP_ACCESS_TOKEN,
-            phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
-            language: profile.preferred_language || 'he',
-            eventId: eventRecord.id,
-          });
+          try {
+            console.log('[events-report] WhatsApp send attempt:', {
+              event_id: eventRecord.id,
+              device_id,
+              to: recipientPhone,
+              template: 'activity_notification',
+              template_lang: 'en_US',
+              throttle_bypassed: true,
+            });
 
-          notificationTypes.push('whatsapp');
-          console.log('[events-report] WhatsApp notification sent:', {
-            event_id: eventRecord.id,
-            message_id: whatsappResult.messageId,
-            status: whatsappResult.httpStatus,
-          });
+            const whatsappResult = await sendWhatsAppNotification({
+              phoneNumber: recipientPhone,
+              eventType: event_type,
+              labels,
+              severity,
+              aiSummary,
+              accessToken: WHATSAPP_ACCESS_TOKEN,
+              phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
+              language: profile.preferred_language || 'he',
+              eventId: eventRecord.id,
+            });
 
-          // Store message_id and Meta response in metadata for delivery diagnostics
-          await supabase
-            .from('monitoring_events')
-            .update({
-              metadata: {
-                ...metadata,
-                original_timestamp: timestamp,
-                whatsapp: {
-                  message_id: whatsappResult.messageId,
-                  recipient: recipientPhone,
-                  sent_at: new Date().toISOString(),
-                  http_status: whatsappResult.httpStatus,
-                  api_response: whatsappResult.apiResponse,
-                  throttle_bypassed: true,
+            notificationTypes.push('whatsapp');
+            console.log('[events-report] WhatsApp notification sent:', {
+              event_id: eventRecord.id,
+              message_id: whatsappResult.messageId,
+              status: whatsappResult.httpStatus,
+            });
+
+            // Store message_id and Meta response in metadata for delivery diagnostics
+            await supabase
+              .from('monitoring_events')
+              .update({
+                metadata: {
+                  ...metadata,
+                  original_timestamp: timestamp,
+                  whatsapp: {
+                    message_id: whatsappResult.messageId,
+                    recipient: recipientPhone,
+                    sent_at: new Date().toISOString(),
+                    http_status: whatsappResult.httpStatus,
+                    api_response: whatsappResult.apiResponse,
+                    throttle_bypassed: true,
+                  },
                 },
-              },
-            })
-            .eq('id', eventRecord.id);
+              })
+              .eq('id', eventRecord.id);
 
-          // Keep this for diagnostics only (NOT used for gating)
-          await supabase
-            .from('device_notification_state')
-            .upsert(
-              {
-                device_id,
-                last_whatsapp_sent_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: 'device_id' }
-            );
-        } catch (waError) {
-          const errorMessage = waError instanceof Error ? waError.message : String(waError);
-          console.error('[events-report] WhatsApp notification failed:', {
-            event_id: eventRecord.id,
-            device_id,
-            to: recipientPhone,
-            error: errorMessage,
-          });
-
-          // Persist failure details (so we can diagnose even if logs are missed)
-          await supabase
-            .from('monitoring_events')
-            .update({
-              metadata: {
-                ...metadata,
-                original_timestamp: timestamp,
-                whatsapp: {
-                  recipient: recipientPhone,
-                  failed_at: new Date().toISOString(),
-                  error: errorMessage,
-                  throttle_bypassed: true,
+            // Keep this for diagnostics only (NOT used for gating)
+            await supabase
+              .from('device_notification_state')
+              .upsert(
+                {
+                  device_id,
+                  last_whatsapp_sent_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
                 },
-              },
-            })
-            .eq('id', eventRecord.id);
+                { onConflict: 'device_id' }
+              );
+          } catch (waError) {
+            const errorMessage = waError instanceof Error ? waError.message : String(waError);
+            console.error('[events-report] WhatsApp notification failed:', {
+              event_id: eventRecord.id,
+              device_id,
+              to: recipientPhone,
+              error: errorMessage,
+            });
+
+            // Persist failure details (so we can diagnose even if logs are missed)
+            await supabase
+              .from('monitoring_events')
+              .update({
+                metadata: {
+                  ...metadata,
+                  original_timestamp: timestamp,
+                  whatsapp: {
+                    recipient: recipientPhone,
+                    failed_at: new Date().toISOString(),
+                    error: errorMessage,
+                    throttle_bypassed: true,
+                  },
+                },
+              })
+              .eq('id', eventRecord.id);
+          }
         }
       }
 
@@ -595,6 +606,16 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
 
   const templateName = 'activity_notification';
   const templateLang = 'en_US';
+
+  // Hard guard: never allow template mixing
+  if (templateName !== 'activity_notification' || templateLang !== 'en_US') {
+    console.error('[WhatsApp] Template enforcement violation - aborting send', {
+      templateName,
+      templateLang,
+      eventId,
+    });
+    throw new Error('Template enforcement violation');
+  }
 
   // Mask recipient in logs (still enough for debugging)
   const maskedTo = phoneNumber.length > 6
