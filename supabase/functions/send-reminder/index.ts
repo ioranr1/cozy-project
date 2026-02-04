@@ -39,7 +39,7 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Calculate the cutoff time (1 minute ago)
+    // Calculate the cutoff time (2 minutes ago)
     const cutoffTime = new Date(Date.now() - REMINDER_DELAY_MS).toISOString();
 
     console.log(`[send-reminder] Checking for events needing reminders (cutoff: ${cutoffTime})`);
@@ -60,7 +60,8 @@ serve(async (req) => {
           profiles!inner (
             phone_number,
             country_code,
-            preferred_language
+            preferred_language,
+            phone_verified
           )
         )
       `)
@@ -102,6 +103,12 @@ serve(async (req) => {
 
         if (!profile || !WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
           console.log(`[send-reminder] Skipping event ${event.id} - missing profile or WhatsApp config`);
+          continue;
+        }
+
+        // Opt-in validation (minimal): treat phone_verified=true as explicit opt-in
+        if (profile.phone_verified !== true) {
+          console.log(`[send-reminder] Skipping event ${event.id} - user not opted-in (phone_verified != true)`);
           continue;
         }
 
@@ -216,6 +223,18 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
   const detectedText = `${topLabel} ${(topConfidence * 100).toFixed(0)}%`;
   const summaryText = aiSummary || (isHebrew ? 'אין סיכום זמין' : 'No summary available');
 
+  // Hard guard: never allow template mixing
+  const templateName = 'activity_notification';
+  const templateLang = 'en_US';
+  if (templateName !== 'activity_notification' || templateLang !== 'en_US') {
+    console.error('[WhatsApp Reminder] Template enforcement violation - aborting send', {
+      templateName,
+      templateLang,
+      eventId,
+    });
+    throw new Error('Template enforcement violation');
+  }
+
   const response = await fetch(
     `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
     {
@@ -232,8 +251,8 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
         to: phoneNumber,
         type: 'template',
         template: {
-          name: 'activity_notification',
-          language: { code: 'en_US' },
+          name: templateName,
+          language: { code: templateLang },
           components: [
             {
               type: 'button',

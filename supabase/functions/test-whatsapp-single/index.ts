@@ -21,9 +21,17 @@ serve(async (req) => {
       });
     }
 
-    // Single test message to your number
-    const phoneNumber = '972522750907';
-    const testEventId = 'a25e7041-a5ad-47fd-9b64-6a02a0a7f40b'; // Test event ID
+    // Optional overrides
+    let requestBody: any = {};
+    try {
+      requestBody = await req.json();
+    } catch {
+      requestBody = {};
+    }
+
+    // Single test message (defaults)
+    const phoneNumber = String(requestBody?.phoneNumber || '972522750907');
+    const testEventId = String(requestBody?.eventId || crypto.randomUUID());
 
     console.log('[TEST] Sending single WhatsApp message to:', phoneNumber);
     console.log('[TEST] Using approved template: activity_notification (en_US)');
