@@ -299,52 +299,139 @@ const EventDetails: React.FC = () => {
 
           {/* Event Info */}
           <div className="p-6">
-            {/* Device & Time Info */}
-            <div className="flex flex-wrap gap-4 mb-6 text-sm text-white/60">
-              {device && (
-                <div className="flex items-center gap-2">
-                  <Laptop className="w-4 h-4" />
-                  <span>{device.device_name}</span>
-                  {device.is_active && (
-                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  )}
+            {/* Event Metadata Section */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6 p-4 bg-slate-700/20 rounded-lg border border-slate-600/30">
+              {/* Event Type */}
+              <div>
+                <span className="text-xs text-white/40 block mb-1">
+                  {language === 'he' ? 'סוג אירוע' : 'Event Type'}
+                </span>
+                <span className="text-white font-medium">
+                  {getEventTypeLabel(event.event_type)}
+                </span>
+              </div>
+              
+              {/* Detection Result */}
+              <div>
+                <span className="text-xs text-white/40 block mb-1">
+                  {language === 'he' ? 'זוהה' : 'Detected'}
+                </span>
+                <span className="text-white font-medium">
+                  {parseLabels(event.labels)[0]?.label || (language === 'he' ? 'לא ידוע' : 'Unknown')}
+                </span>
+              </div>
+              
+              {/* Confidence Score */}
+              <div>
+                <span className="text-xs text-white/40 block mb-1">
+                  {language === 'he' ? 'ביטחון' : 'Confidence'}
+                </span>
+                <span className="text-white font-medium">
+                  {parseLabels(event.labels)[0]?.confidence 
+                    ? `${(parseLabels(event.labels)[0].confidence * 100).toFixed(0)}%`
+                    : '-'}
+                </span>
+              </div>
+              
+              {/* Alert Level */}
+              <div>
+                <span className="text-xs text-white/40 block mb-1">
+                  {language === 'he' ? 'רמת התראה' : 'Alert Level'}
+                </span>
+                <Badge className={`${getSeverityColor(event.severity)} border text-xs`}>
+                  {getSeverityLabel(event.severity)}
+                </Badge>
+              </div>
+              
+              {/* Timestamp */}
+              <div>
+                <span className="text-xs text-white/40 block mb-1">
+                  {language === 'he' ? 'זמן' : 'Time'}
+                </span>
+                <span className="text-white font-medium text-sm">
+                  {new Date(event.created_at).toLocaleTimeString(language === 'he' ? 'he-IL' : 'en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  })}
+                </span>
+              </div>
+              
+              {/* Date */}
+              <div>
+                <span className="text-xs text-white/40 block mb-1">
+                  {language === 'he' ? 'תאריך' : 'Date'}
+                </span>
+                <span className="text-white font-medium text-sm">
+                  {new Date(event.created_at).toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US')}
+                </span>
+              </div>
+            </div>
+
+            {/* Device / Camera Info */}
+            {device && (
+              <div className="flex items-center gap-3 mb-6 p-3 bg-slate-700/20 rounded-lg border border-slate-600/30">
+                <Laptop className="w-5 h-5 text-white/60" />
+                <div>
+                  <span className="text-white font-medium">{device.device_name}</span>
+                  <span className="text-white/40 text-xs block">{device.device_type}</span>
                 </div>
-              )}
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                <span>{new Date(event.created_at).toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US')}</span>
+                {device.is_active && (
+                  <span className="ml-auto flex items-center gap-1 text-green-400 text-xs">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    {language === 'he' ? 'מחובר' : 'Online'}
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4" />
-                <span>{new Date(event.created_at).toLocaleTimeString(language === 'he' ? 'he-IL' : 'en-US')}</span>
-              </div>
-            </div>
+            )}
 
-            {/* Detected Labels */}
-            <div className="mb-4">
-              <h3 className="text-sm font-medium text-white/60 mb-2">
-                {language === 'he' ? 'זוהה' : 'Detected'}
-              </h3>
-              <p className="text-white font-medium">
-                {formatLabels(event.labels)}
-              </p>
-            </div>
-
-            {/* AI Summary */}
+            {/* AI Summary Section - Full details */}
             {event.ai_summary && (
               <div className="mb-6">
-                <h2 className="text-lg font-semibold text-white mb-2">
+                <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-primary" />
                   {language === 'he' ? 'סיכום AI' : 'AI Summary'}
                 </h2>
                 <div className="p-4 bg-slate-700/30 rounded-lg border border-slate-600/30">
-                  <p className="text-white/80 leading-relaxed">
+                  <p className="text-white/90 leading-relaxed text-base">
                     {event.ai_summary}
                   </p>
                   {event.ai_confidence && (
-                    <p className="text-xs text-white/40 mt-2">
-                      {language === 'he' ? 'ביטחון AI:' : 'AI Confidence:'} {(event.ai_confidence * 100).toFixed(0)}%
-                    </p>
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-600/30">
+                      <span className="text-xs text-white/40">
+                        {language === 'he' ? 'רמת ביטחון AI:' : 'AI Confidence:'}
+                      </span>
+                      <div className="flex-1 h-2 bg-slate-600/50 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary rounded-full transition-all"
+                          style={{ width: `${event.ai_confidence * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-white font-medium">
+                        {(event.ai_confidence * 100).toFixed(0)}%
+                      </span>
+                    </div>
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* All Detected Labels */}
+            {parseLabels(event.labels).length > 1 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-white/60 mb-2">
+                  {language === 'he' ? 'כל הזיהויים' : 'All Detections'}
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {parseLabels(event.labels).map((label, idx) => (
+                    <Badge 
+                      key={idx} 
+                      variant="outline" 
+                      className="bg-slate-700/50 text-white/80 border-slate-600"
+                    >
+                      {label.label} ({(label.confidence * 100).toFixed(0)}%)
+                    </Badge>
+                  ))}
                 </div>
               </div>
             )}
@@ -366,8 +453,8 @@ const EventDetails: React.FC = () => {
                   <Film className="w-4 h-4" />
                   <span>
                     {language === 'he' 
-                      ? 'קליפ וידאו שמור מקומית במחשב. צפייה בקליפים תהיה זמינה בגרסה הבאה.'
-                      : 'Video clip saved locally on the computer. Clip viewing will be available in a future version.'}
+                      ? `קליפ וידאו (${event.local_clip_duration_seconds || '?'}s) שמור מקומית במחשב.`
+                      : `Video clip (${event.local_clip_duration_seconds || '?'}s) saved locally on the computer.`}
                   </span>
                 </div>
               </div>

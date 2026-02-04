@@ -585,45 +585,14 @@ interface WhatsAppResult {
 }
 
 async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAppResult> {
-  const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language, eventId } = params;
-  // Event view URL - using custom domain
-  const eventUrl = `https://aiguard24.com/event/${eventId}`;
+  const { phoneNumber, accessToken, phoneNumberId, eventId } = params;
 
-  const isHebrew = language === 'he';
-  
-  // Severity labels for template {{1}}
-  const severityLabels: Record<string, Record<string, string>> = {
-    critical: { he: '🚨 קריטי', en: '🚨 CRITICAL' },
-    high: { he: '⚠️ גבוה', en: '⚠️ HIGH' },
-    medium: { he: '📢 בינוני', en: '📢 MEDIUM' },
-    low: { he: 'ℹ️ נמוך', en: 'ℹ️ LOW' },
-  };
+  // IMPORTANT: Per Meta policy compliance, WhatsApp message must be minimal/neutral.
+  // All security details (event type, AI summary, severity) are shown ONLY in the Event View screen.
+  // Template: new_event_notification (Utility category)
+  // Body: "A new event is available. Tap to view details." - NO parameters, NO security context.
 
-  // Event type labels for template {{2}}
-  const eventTypeLabels: Record<string, Record<string, string>> = {
-    motion: { he: 'תנועה', en: 'Motion' },
-    sound: { he: 'קול', en: 'Sound' },
-  };
-
-  // Build template parameters
-  const topLabel = labels[0]?.label || 'unknown';
-  const topConfidence = labels[0]?.confidence || 0;
-
-  // {{1}} Alert level
-  const alertLevel = severityLabels[severity]?.[isHebrew ? 'he' : 'en'] || severity;
-  
-  // {{2}} Event type
-  const eventTypeText = eventTypeLabels[eventType]?.[isHebrew ? 'he' : 'en'] || eventType;
-  
-  // {{3}} What was detected (label + confidence)
-  const detectedText = isHebrew 
-    ? `${topLabel} ${(topConfidence * 100).toFixed(0)}%`
-    : `${topLabel} ${(topConfidence * 100).toFixed(0)}%`;
-  
-  // {{4}} AI Summary (already in the appropriate language from the AI)
-  const summaryText = aiSummary || (isHebrew ? 'אין סיכום זמין' : 'No summary available');
-
-  const templateName = 'aiguard_security_alert';
+  const templateName = 'new_event_notification';
   const templateLang = 'en_US';
 
   // Mask recipient in logs (still enough for debugging)
@@ -631,6 +600,7 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
     ? `${phoneNumber.slice(0, 3)}***${phoneNumber.slice(-3)}`
     : phoneNumber;
 
+  // Template has no body parameters - just the button with eventId
   const payload = {
     messaging_product: 'whatsapp',
     to: phoneNumber,
@@ -639,15 +609,6 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
       name: templateName,
       language: { code: templateLang },
       components: [
-        {
-          type: 'body',
-          parameters: [
-            { type: 'text', text: alertLevel },
-            { type: 'text', text: eventTypeText },
-            { type: 'text', text: detectedText },
-            { type: 'text', text: summaryText },
-          ],
-        },
         {
           type: 'button',
           sub_type: 'url',
@@ -664,7 +625,6 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
     template: templateName,
     lang: templateLang,
     eventId,
-    params: { alertLevel, eventTypeText, detectedText, summary_len: summaryText.length },
   }));
 
   // Send via WhatsApp Template API
@@ -704,7 +664,6 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
   console.log('[WhatsApp] API Response:', JSON.stringify(responseBody));
   console.log('[WhatsApp] Message ID:', messageId);
   console.log('[WhatsApp] Template message sent to:', phoneNumber);
-  console.log('[WhatsApp] Template params:', { alertLevel, eventTypeText, detectedText, summaryText, eventUrl });
   
   // Return result for storage in metadata
   return {
