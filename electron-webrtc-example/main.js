@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.2.5 (2026-02-03)
+ * VERSION: 2.2.6 (2026-02-05)
  * 
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -223,7 +223,11 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // CRITICAL: Keep monitoring/detection running while window is hidden/minimized to Tray.
+      // Without this, Chromium may throttle/stop timers/animation frames, causing motion detection
+      // to run only when the window is visible (and then "burst" events on show).
+      backgroundThrottling: false
     },
     icon: getIconPath()
   });

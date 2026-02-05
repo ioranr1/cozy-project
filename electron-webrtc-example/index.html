@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.5.0 (2026-02-05)
+  VERSION: 2.5.1 (2026-02-05)
   ============================================================
   
   CHANGELOG:
@@ -641,26 +641,41 @@
         // ============================================================
         let lastFrameTime = 0;
         const DETECTION_INTERVAL_MS = 200; // 5 FPS
+        let detectionLoopTimer = null;
         
         function runDetectionLoop() {
+          // IMPORTANT: Do NOT rely on requestAnimationFrame.
+          // When the Electron window is hidden/minimized to Tray, Chromium may stop/throttle rAF,
+          // which makes motion detection only run when the window is visible.
           if (!detectionLoopActive || !objectDetector || !videoElement) return;
-          
-          const now = performance.now();
-          
-          if (now - lastFrameTime >= DETECTION_INTERVAL_MS) {
-            lastFrameTime = now;
-            
-            if (videoElement.readyState >= 2 && !videoElement.paused) {
-              try {
-                const detections = objectDetector.detectForVideo(videoElement, now);
-                processDetections(detections.detections);
-              } catch (e) {
-                // Ignore frame errors
+
+          if (detectionLoopTimer) {
+            clearTimeout(detectionLoopTimer);
+            detectionLoopTimer = null;
+          }
+
+          const tick = () => {
+            if (!detectionLoopActive || !objectDetector || !videoElement) return;
+
+            const now = performance.now();
+
+            if (now - lastFrameTime >= DETECTION_INTERVAL_MS) {
+              lastFrameTime = now;
+
+              if (videoElement.readyState >= 2 && !videoElement.paused) {
+                try {
+                  const detections = objectDetector.detectForVideo(videoElement, now);
+                  processDetections(detections.detections);
+                } catch (e) {
+                  // Ignore frame errors
+                }
               }
             }
-          }
-          
-          requestAnimationFrame(runDetectionLoop);
+
+            detectionLoopTimer = setTimeout(tick, DETECTION_INTERVAL_MS);
+          };
+
+          tick();
         }
         
         function processDetections(detections) {
@@ -722,6 +737,11 @@
           if (!silent) console.log('[Monitoring] Releasing existing resources...');
           
           detectionLoopActive = false;
+
+          if (detectionLoopTimer) {
+            clearTimeout(detectionLoopTimer);
+            detectionLoopTimer = null;
+          }
           
           if (monitoringStream) {
             monitoringStream.getTracks().forEach(track => {
@@ -892,6 +912,11 @@
           detectionLoopActive = false;
           isMonitoring = false;
           monitoringStartedAt = null;
+
+          if (detectionLoopTimer) {
+            clearTimeout(detectionLoopTimer);
+            detectionLoopTimer = null;
+          }
           
           if (monitoringStream) {
             monitoringStream.getTracks().forEach(track => {
