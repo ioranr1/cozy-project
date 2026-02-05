@@ -224,9 +224,9 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
   const summaryText = aiSummary || (isHebrew ? 'אין סיכום זמין' : 'No summary available');
 
   // Hard guard: never allow template mixing
-  const templateName = 'activity_notification';
+  const templateName = 'security_event_alert';
   const templateLang = 'en_US';
-  if (templateName !== 'activity_notification' || templateLang !== 'en_US') {
+  if (templateName !== 'security_event_alert' || templateLang !== 'en_US') {
     console.error('[WhatsApp Reminder] Template enforcement violation - aborting send', {
       templateName,
       templateLang,
@@ -243,9 +243,9 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
-      // Template: activity_notification (Marketing category)
-      // Body: "A new event is available. Tap to view details." - NO body parameters
-      // Button: "View details" -> https://aiguard24.com/event/{{1}}
+      // Template: security_event_alert (Utility category) - Approved by Meta
+      // Body: "New activity detected on your device. Tap to view details." - NO body parameters
+      // Button: "View Details" -> https://aiguard24.com/event/{{1}}
       body: JSON.stringify({
         messaging_product: 'whatsapp',
         to: phoneNumber,

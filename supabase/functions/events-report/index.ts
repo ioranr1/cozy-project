@@ -600,15 +600,15 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
 
   // IMPORTANT: Per Meta policy compliance, WhatsApp message must be minimal/neutral.
   // All security details (event type, AI summary, severity) are shown ONLY in the Event View screen.
-  // Template: activity_notification (Marketing category)
-  // Body: "New activity is available.\n\nYou can view the details in your account." - NO parameters, NO security context.
-  // Button: "View details" -> https://aiguard24.com/event/{{1}}
+  // Template: security_event_alert (Utility category) - Approved by Meta
+  // Body: "New activity detected on your device. Tap to view details." - NO parameters, NO security context.
+  // Button: "View Details" -> https://aiguard24.com/event/{{1}}
 
-  const templateName = 'activity_notification';
+  const templateName = 'security_event_alert';
   const templateLang = 'en_US';
 
   // Hard guard: never allow template mixing
-  if (templateName !== 'activity_notification' || templateLang !== 'en_US') {
+  if (templateName !== 'security_event_alert' || templateLang !== 'en_US') {
     console.error('[WhatsApp] Template enforcement violation - aborting send', {
       templateName,
       templateLang,
