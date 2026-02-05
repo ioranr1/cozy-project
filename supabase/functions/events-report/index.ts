@@ -246,6 +246,61 @@ serve(async (req) => {
       // - monitoring_events.reminder_sent
       // - monitoring_events.viewed_at
       if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile && shouldSendWhatsApp) {
+        // =============================================================================
+        // HARD FLOW ENFORCEMENT (SSOT) - Prevent infinite primary notifications
+        // =============================================================================
+        // Required user flow:
+        // 1) Primary WhatsApp message is sent for a REAL event.
+        // 2) A single reminder is sent 2 minutes later ONLY if the event is still unviewed.
+        // 3) While that event is still "active" (unviewed AND not reminded yet), we must NOT
+        //    send another primary message for new events on the same device.
+        // 4) Clicking the WhatsApp link marks events as viewed and resets the cycle.
+        //
+        // Definition of "active event" (per product): notification_sent=true AND viewed_at IS NULL
+        // AND reminder_sent=false.
+        const { data: activeEvent, error: activeEventError } = await supabase
+          .from('monitoring_events')
+          .select('id, notification_sent_at')
+          .eq('device_id', device_id)
+          .eq('notification_sent', true)
+          .eq('ai_is_real', true)
+          .is('viewed_at', null)
+          .eq('reminder_sent', false)
+          .order('notification_sent_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (activeEventError) {
+          console.error('[events-report] Active-event throttle check failed (will fallback to cooldown):', {
+            device_id,
+            error: activeEventError.message,
+          });
+        }
+
+        if (activeEvent?.id) {
+          console.log('[events-report] Throttling PRIMARY WhatsApp - active event exists for device', {
+            device_id,
+            active_event_id: activeEvent.id,
+            current_event_id: eventRecord.id,
+          });
+
+          // Persist throttle reason for diagnostics (do NOT mark notification_sent)
+          await supabase
+            .from('monitoring_events')
+            .update({
+              metadata: {
+                ...metadata,
+                original_timestamp: timestamp,
+                notification_throttle: {
+                  reason: 'active_event_exists',
+                  active_event_id: activeEvent.id,
+                  checked_at: new Date().toISOString(),
+                },
+              },
+            })
+            .eq('id', eventRecord.id);
+        }
+
         const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
 
         // Opt-in validation (minimal): treat phone_verified=true as explicit opt-in
@@ -256,7 +311,7 @@ serve(async (req) => {
             device_id,
           });
           // Do not mark notification_sent since no message was sent.
-        } else {
+        } else if (!activeEvent?.id) {
 
           try {
             console.log('[events-report] WhatsApp send attempt:', {
@@ -265,7 +320,7 @@ serve(async (req) => {
               to: recipientPhone,
               template: 'activity_notification',
               template_lang: 'en_US',
-              throttle_bypassed: true,
+              throttle_bypassed: false,
             });
 
             const whatsappResult = await sendWhatsAppNotification({
@@ -300,7 +355,7 @@ serve(async (req) => {
                     sent_at: new Date().toISOString(),
                     http_status: whatsappResult.httpStatus,
                     api_response: whatsappResult.apiResponse,
-                    throttle_bypassed: true,
+                    throttle_bypassed: false,
                   },
                 },
               })
@@ -337,7 +392,7 @@ serve(async (req) => {
                     recipient: recipientPhone,
                     failed_at: new Date().toISOString(),
                     error: errorMessage,
-                    throttle_bypassed: true,
+                    throttle_bypassed: false,
                   },
                 },
               })
