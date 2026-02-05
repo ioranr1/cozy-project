@@ -1,13 +1,20 @@
 /**
  * Send Reminder Edge Function
  * ============================
- * VERSION: 1.0.0 (2026-02-02)
+ * VERSION: 1.1.0 (2026-02-05)
  * 
  * Called by pg_cron every minute to check for events needing reminder notifications.
+ * 
+ * CRITICAL LOGIC (v1.1.0):
+ * - For each device, only send reminder for the OLDEST pending event
+ * - This ensures the "one primary + one reminder" flow is respected per device
+ * - After sending reminder, the throttle is "exhausted" and new events can start fresh cycle
+ * 
  * Logic:
- * - Find events where notification was sent > 1 minute ago
+ * - Find events where notification was sent > 2 minutes ago
  * - reminder_sent = false
  * - viewed_at IS NULL (user hasn't clicked the link)
+ * - Group by device and pick OLDEST per device
  * - Send second (final) WhatsApp notification
  * - Mark reminder_sent = true
  */
@@ -44,8 +51,8 @@ serve(async (req) => {
 
     console.log(`[send-reminder] Checking for events needing reminders (cutoff: ${cutoffTime})`);
 
-    // Find events that need reminder
-    const { data: pendingEvents, error: queryError } = await supabase
+    // Find ALL events that need reminder - we'll filter to oldest per device in memory
+    const { data: allPendingEvents, error: queryError } = await supabase
       .from('monitoring_events')
       .select(`
         id,
@@ -55,6 +62,7 @@ serve(async (req) => {
         severity,
         ai_summary,
         notification_sent_at,
+        created_at,
         devices!inner (
           profile_id,
           profiles!inner (
@@ -69,7 +77,8 @@ serve(async (req) => {
       .eq('reminder_sent', false)
       .is('viewed_at', null)
       .eq('ai_is_real', true)
-      .lt('notification_sent_at', cutoffTime);
+      .lt('notification_sent_at', cutoffTime)
+      .order('notification_sent_at', { ascending: true }); // Oldest first
 
     if (queryError) {
       console.error('[send-reminder] Query error:', queryError);
@@ -79,9 +88,9 @@ serve(async (req) => {
       });
     }
 
-    console.log(`[send-reminder] Found ${pendingEvents?.length || 0} events needing reminders`);
+    console.log(`[send-reminder] Found ${allPendingEvents?.length || 0} total pending events`);
 
-    if (!pendingEvents || pendingEvents.length === 0) {
+    if (!allPendingEvents || allPendingEvents.length === 0) {
       return new Response(JSON.stringify({ 
         success: true, 
         reminders_sent: 0,
@@ -92,10 +101,43 @@ serve(async (req) => {
       });
     }
 
+    // GROUP BY device_id and pick ONLY the OLDEST event per device
+    // This ensures we send at most 1 reminder per device per cron run
+    const oldestEventPerDevice = new Map<string, typeof allPendingEvents[0]>();
+    
+    for (const event of allPendingEvents) {
+      const deviceId = event.device_id;
+      // Since we ordered by notification_sent_at ascending, first one we see is oldest
+      if (!oldestEventPerDevice.has(deviceId)) {
+        oldestEventPerDevice.set(deviceId, event);
+      }
+    }
+
+    const eventsToProcess = Array.from(oldestEventPerDevice.values());
+    console.log(`[send-reminder] Processing ${eventsToProcess.length} reminders (1 per device)`);
+
+    // Mark ALL other pending events as reminder_sent to prevent future duplicate reminders
+    // These events are "superseded" by the oldest one that got the reminder
+    const allEventIds = allPendingEvents.map(e => e.id);
+    const processedEventIds = eventsToProcess.map(e => e.id);
+    const supersededEventIds = allEventIds.filter(id => !processedEventIds.includes(id));
+
+    if (supersededEventIds.length > 0) {
+      console.log(`[send-reminder] Marking ${supersededEventIds.length} superseded events as reminder_sent (no message sent)`);
+      
+      await supabase
+        .from('monitoring_events')
+        .update({
+          reminder_sent: true,
+          reminder_sent_at: new Date().toISOString(),
+        })
+        .in('id', supersededEventIds);
+    }
+
     let remindersSent = 0;
     const errors: string[] = [];
 
-    for (const event of pendingEvents) {
+    for (const event of eventsToProcess) {
       try {
         // Type assertion for nested data
         const deviceData = event.devices as any;
@@ -103,18 +145,35 @@ serve(async (req) => {
 
         if (!profile || !WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
           console.log(`[send-reminder] Skipping event ${event.id} - missing profile or WhatsApp config`);
+          
+          // Still mark as sent to prevent infinite retry
+          await supabase
+            .from('monitoring_events')
+            .update({
+              reminder_sent: true,
+              reminder_sent_at: new Date().toISOString(),
+            })
+            .eq('id', event.id);
           continue;
         }
 
         // Opt-in validation (minimal): treat phone_verified=true as explicit opt-in
         if (profile.phone_verified !== true) {
           console.log(`[send-reminder] Skipping event ${event.id} - user not opted-in (phone_verified != true)`);
+          
+          // Still mark as sent to prevent infinite retry
+          await supabase
+            .from('monitoring_events')
+            .update({
+              reminder_sent: true,
+              reminder_sent_at: new Date().toISOString(),
+            })
+            .eq('id', event.id);
           continue;
         }
 
         const phoneNumber = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
         const language = profile.preferred_language || 'he';
-        const isHebrew = language === 'he';
 
         // Send reminder notification
         await sendReminderWhatsApp({
@@ -140,7 +199,7 @@ serve(async (req) => {
           .eq('id', event.id);
 
         remindersSent++;
-        console.log(`[send-reminder] Reminder sent for event ${event.id}`);
+        console.log(`[send-reminder] Reminder sent for event ${event.id} (device: ${event.device_id})`);
 
       } catch (eventError) {
         const errorMsg = eventError instanceof Error ? eventError.message : 'Unknown error';
@@ -161,7 +220,8 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       reminders_sent: remindersSent,
-      total_processed: pendingEvents.length,
+      events_superseded: supersededEventIds.length,
+      total_pending_found: allPendingEvents.length,
       errors: errors.length > 0 ? errors : undefined,
     }), {
       status: 200,
