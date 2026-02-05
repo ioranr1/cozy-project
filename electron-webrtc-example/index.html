@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.3.2 (2026-02-03)
+  VERSION: 2.4.0 (2026-02-05)
   ============================================================
   
   CHANGELOG:
+  - v2.4.0: CRITICAL FIX - 30s debounce + isProcessingEvent lock + snapshot-required guard
   - v2.3.2: CRITICAL FIX - Camera initialization with progressive fallbacks + clean-start sequence
   - v2.3.1: Snapshot validation for readyState/dimensions
   - v2.3.0: Added inline MediaPipe motion detection with event reporting
@@ -452,7 +453,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-03-v2.3.2");
+      console.log("[UI] index.html build: electron-index-2026-02-05-v2.4.0");
     </script>
 
     <!-- WebRTC logic (start/stop via IPC) -->
@@ -464,7 +465,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-03-v2.3.2";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-05-v2.4.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -472,7 +473,7 @@
       // VERSION: 2.3.2 - Camera init with fallbacks + clean-start
       // ============================================================
       (async function initMonitoringSystem() {
-        console.log('[Monitoring] Initializing monitoring system v2.3.2...');
+        console.log('[Monitoring] Initializing monitoring system v2.4.0...');
         
         // Supabase config (for event reporting)
         const SUPABASE_URL = 'https://zoripeohnedivxkvrpbi.supabase.co';
@@ -491,7 +492,8 @@
         
         // Debouncing
         const lastDetectionTime = {};
-        const DEBOUNCE_MS = 3000;
+        const DEBOUNCE_MS = 30000; // 30 seconds - prevent rapid firing
+        let isProcessingEvent = false; // Block concurrent sends
         
         // Label mapping from COCO to our categories
         const LABEL_MAPPING = {
@@ -567,10 +569,24 @@
             return;
           }
           
+          // Prevent concurrent sends - only one event at a time
+          if (isProcessingEvent) {
+            console.log('[Monitoring] Already processing an event, skipping');
+            return;
+          }
+          
           try {
+            isProcessingEvent = true;
             console.log(`[Monitoring] Sending event: ${eventData.label} (${(eventData.confidence * 100).toFixed(0)}%)`);
             
             const snapshot = captureSnapshot();
+            
+            // CRITICAL: Only send if we have a snapshot
+            if (!snapshot) {
+              console.log('[Monitoring] No snapshot available, skipping event');
+              isProcessingEvent = false;
+              return;
+            }
             
             const response = await fetch(EVENTS_REPORT_ENDPOINT, {
               method: 'POST',
@@ -597,6 +613,8 @@
             }
           } catch (error) {
             console.error('[Monitoring] Event send error:', error);
+          } finally {
+            isProcessingEvent = false;
           }
         }
         
