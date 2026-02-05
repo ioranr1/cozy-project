@@ -226,6 +226,14 @@ serve(async (req) => {
     if (aiIsReal) {
       console.log('[events-report] Event validated as REAL - checking notification eligibility');
 
+      // IMPORTANT: Only send WhatsApp if we have a snapshot for motion events
+      // This prevents duplicate notifications (one without image, one with)
+      const shouldSendWhatsApp = event_type !== 'motion' || snapshotUrl !== null;
+      
+      if (!shouldSendWhatsApp) {
+        console.log('[events-report] Skipping WhatsApp - motion event without snapshot');
+      }
+
       // Profile already fetched above for language preference
 
       const notificationTypes: string[] = [];
@@ -237,7 +245,7 @@ serve(async (req) => {
       // - monitoring_events.notification_sent (+ send-reminder for the second message)
       // - monitoring_events.reminder_sent
       // - monitoring_events.viewed_at
-      if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile) {
+      if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile && shouldSendWhatsApp) {
         const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
 
         // Opt-in validation (minimal): treat phone_verified=true as explicit opt-in
