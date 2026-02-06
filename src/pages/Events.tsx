@@ -145,7 +145,11 @@ const Events: React.FC = () => {
               variant={filter === 'real' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('real')}
-              className={filter === 'real' ? 'bg-slate-800 hover:bg-slate-700 text-white' : 'border-slate-600 text-white/60'}
+              className={
+                filter === 'real'
+                  ? 'bg-slate-800 hover:bg-slate-700 text-white'
+                  : 'bg-slate-900/50 hover:bg-slate-800 text-white/80 border-slate-700'
+              }
             >
               {language === 'he' ? 'אמיתי' : 'Real'}
             </Button>
