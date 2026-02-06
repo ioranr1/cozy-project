@@ -137,7 +137,7 @@ const Events: React.FC = () => {
               size="sm"
               onClick={() => setFilter('all')}
               className={filter === 'all' 
-                ? 'bg-gray-600 hover:bg-gray-700 text-white' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
                 : 'bg-slate-950 hover:bg-slate-900 text-white'}
             >
               {language === 'he' ? 'הכל' : 'All'}
