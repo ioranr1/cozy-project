@@ -218,7 +218,7 @@ const EventDetails: React.FC = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate(-1)}
+                onClick={() => navigate('/events')}
                 className="text-white/60 hover:text-white hover:bg-white/10"
               >
                 <ArrowLeft className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
