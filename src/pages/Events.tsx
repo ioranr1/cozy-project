@@ -14,8 +14,10 @@ import {
   Film,
   Eye,
   Volume2,
-  Filter
+  Filter,
+  Copy
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { cn } from '@/lib/utils';
 import type { Json } from '@/integrations/supabase/types';
@@ -239,12 +241,25 @@ const Events: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Time */}
-                  <div className="text-right flex-shrink-0">
+                  {/* Time & Copy */}
+                  <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <div className="flex items-center gap-1 text-white/40 text-sm">
                       <Clock className="w-3 h-3" />
                       <span>{formatTimeAgo(event.created_at)}</span>
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const url = `${window.location.origin}/event/${event.id}`;
+                        navigator.clipboard.writeText(url);
+                        toast.success(language === 'he' ? 'הקישור הועתק!' : 'Link copied!');
+                      }}
+                      className="text-white/40 hover:text-white hover:bg-white/10 p-1 h-auto"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               </div>
