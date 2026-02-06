@@ -134,30 +134,29 @@ const Events: React.FC = () => {
           {/* Filter Buttons */}
           <div className="flex gap-2">
             <Button
-              variant={filter === 'all' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('all')}
-              className={filter === 'all' ? '' : 'border-slate-600 text-white/60'}
+              className={filter === 'all' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-slate-950 hover:bg-slate-900 text-white'}
             >
               {language === 'he' ? 'הכל' : 'All'}
             </Button>
             <Button
-              variant={filter === 'real' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('real')}
-              className={
-                filter === 'real'
-                  ? 'bg-slate-800 hover:bg-slate-700 text-white'
-                  : 'bg-slate-900/50 hover:bg-slate-800 text-white/80 border-slate-700'
-              }
+              className={filter === 'real' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-slate-950 hover:bg-slate-900 text-white'}
             >
               {language === 'he' ? 'אמיתי' : 'Real'}
             </Button>
             <Button
-              variant={filter === 'false' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('false')}
-              className={filter === 'false' ? 'bg-blue-700 hover:bg-blue-800 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'}
+              className={filter === 'false' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-slate-950 hover:bg-slate-900 text-white'}
             >
               {language === 'he' ? 'שווא' : 'False'}
             </Button>
