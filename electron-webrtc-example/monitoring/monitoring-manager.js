@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.3.7 (2026-02-06)
+ * VERSION: 0.3.8 (2026-02-06)
  * 
  * CHANGELOG:
  * - v0.3.5: CRITICAL FIX - Add sensor preflight check to skip camera if all sensors disabled
