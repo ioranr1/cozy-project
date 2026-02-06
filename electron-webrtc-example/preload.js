@@ -333,10 +333,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   notifyClipRecorded: (clipInfo) => {
     ipcRenderer.send('clip-recorded', clipInfo);
+  },
+
+  /**
+   * Listen for start-clip-recording command from main process
+   * @param {function({eventId: string, durationSeconds: number})} callback
+   */
+  onStartClipRecording: (callback) => {
+    ipcRenderer.on('start-clip-recording', (event, data) => {
+      callback(data);
+    });
   }
 });
 
 // BUILD STAMP (debug)
-const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-01-30-monitoring-01';
+const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-06-clip-ipc-01';
+console.log('[Preload] electronAPI exposed to renderer');
+console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);
 console.log('[Preload] electronAPI exposed to renderer');
 console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);

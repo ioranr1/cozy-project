@@ -963,6 +963,81 @@
           console.log('[Monitoring] ✓ onStopMonitoring listener registered');
         }
         
+        // ============================================================
+        // Clip Recording - triggered by Main after AI validates event
+        // ============================================================
+        if (window.electronAPI?.onStartClipRecording) {
+          window.electronAPI.onStartClipRecording(async ({ eventId, durationSeconds }) => {
+            console.log(`[ClipRecorder] Recording requested: event=${eventId}, duration=${durationSeconds}s`);
+            
+            if (!monitoringStream || !videoElement) {
+              console.warn('[ClipRecorder] No active monitoring stream, skipping clip');
+              return;
+            }
+            
+            try {
+              const recorder = new MediaRecorder(monitoringStream, {
+                mimeType: 'video/webm;codecs=vp9',
+                videoBitsPerSecond: 2500000,
+              });
+              
+              const chunks = [];
+              
+              recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+              };
+              
+              recorder.onstop = async () => {
+                console.log(`[ClipRecorder] Recording stopped, ${chunks.length} chunks`);
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                
+                // Convert to base64
+                const reader = new FileReader();
+                reader.onloadend = async () => {
+                  const base64 = reader.result.split(',')[1]; // strip data:... prefix
+                  const filename = `${eventId}_${Date.now()}.webm`;
+                  
+                  console.log(`[ClipRecorder] Saving clip: ${filename} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
+                  
+                  const result = await window.electronAPI.saveClip({
+                    filename,
+                    base64Data: base64,
+                    eventId,
+                    durationSeconds,
+                  });
+                  
+                  if (result.success) {
+                    console.log(`[ClipRecorder] ✓ Clip saved: ${result.filepath}`);
+                    window.electronAPI.notifyClipRecorded({
+                      eventId,
+                      filename,
+                      durationSeconds,
+                      filepath: result.filepath,
+                    });
+                  } else {
+                    console.error(`[ClipRecorder] ✗ Save failed:`, result.error);
+                  }
+                };
+                reader.readAsDataURL(blob);
+              };
+              
+              recorder.start();
+              console.log(`[ClipRecorder] ✓ Recording started (${durationSeconds}s)`);
+              
+              setTimeout(() => {
+                if (recorder.state === 'recording') {
+                  recorder.stop();
+                  console.log('[ClipRecorder] Timer expired, stopping recorder');
+                }
+              }, durationSeconds * 1000);
+              
+            } catch (err) {
+              console.error('[ClipRecorder] Recording error:', err);
+            }
+          });
+          console.log('[Monitoring] ✓ onStartClipRecording listener registered');
+        }
+        
         // Pre-load MediaPipe in background
         loadMediaPipe().then(success => {
           console.log('[Monitoring] MediaPipe pre-load:', success ? 'ready' : 'failed');

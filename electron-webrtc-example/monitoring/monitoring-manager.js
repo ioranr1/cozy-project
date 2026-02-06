@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.3.6 (2026-02-03)
+ * VERSION: 0.3.7 (2026-02-06)
  * 
  * CHANGELOG:
  * - v0.3.5: CRITICAL FIX - Add sensor preflight check to skip camera if all sensors disabled
@@ -456,21 +456,15 @@ class MonitoringManager {
         notification_sent: result.notification_sent,
       });
 
-      // If event is validated as real, trigger local clip recording
-      if (result.ai_is_real && this.clipRecorder) {
-        console.log('[MonitoringManager] Triggering local clip recording...');
-        const clipResult = await this.clipRecorder.startRecording(result.event_id);
-        
-        if (clipResult) {
-          // Update server with clip metadata
-          await this.supabase
-            .from('monitoring_events')
-            .update({
-              has_local_clip: true,
-              local_clip_duration_seconds: this.clipRecorder.config?.clip_duration_seconds || 10,
-            })
-            .eq('id', result.event_id);
-        }
+      // If event is validated as real, trigger local clip recording via IPC
+      // CRITICAL: Recording must happen in the Renderer (where MediaRecorder + camera stream live)
+      if (result.ai_is_real && this.mainWindow && !this.mainWindow.isDestroyed()) {
+        const durationSeconds = this.config?.clips?.clip_duration_seconds || 10;
+        console.log(`[MonitoringManager] Triggering clip recording via IPC (event: ${result.event_id}, ${durationSeconds}s)...`);
+        this.mainWindow.webContents.send('start-clip-recording', {
+          eventId: result.event_id,
+          durationSeconds,
+        });
       }
 
       return result;
