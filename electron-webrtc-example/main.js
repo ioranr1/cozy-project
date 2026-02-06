@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.2.6 (2026-02-05)
+ * VERSION: 2.2.7 (2026-02-06)
  * 
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1508,9 +1508,31 @@ function setupIpcHandlers() {
     }
   });
 
-  // Clip recorded notification
-  ipcMain.on('clip-recorded', (event, clipInfo) => {
+  // Clip recorded notification - update DB with clip metadata
+  ipcMain.on('clip-recorded', async (event, clipInfo) => {
     console.log('[Clips] Recorded:', clipInfo.filename);
+    
+    // Update monitoring_events with clip metadata
+    if (clipInfo.eventId) {
+      try {
+        const { error } = await supabase
+          .from('monitoring_events')
+          .update({
+            has_local_clip: true,
+            local_clip_duration_seconds: clipInfo.durationSeconds || 10,
+            local_clip_filename: clipInfo.filename,
+          })
+          .eq('id', clipInfo.eventId);
+        
+        if (error) {
+          console.error('[Clips] Failed to update event metadata:', error);
+        } else {
+          console.log('[Clips] ✓ Event metadata updated with clip info');
+        }
+      } catch (err) {
+        console.error('[Clips] DB update error:', err);
+      }
+    }
   });
 }
 
