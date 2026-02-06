@@ -479,7 +479,7 @@ const EventDetails: React.FC = () => {
               <Button
                 variant="outline"
                 onClick={() => navigate('/events')}
-                className="flex-1 border-slate-600 text-white hover:bg-slate-700"
+                className="flex-1 bg-gray-600 hover:bg-gray-700 text-white border-gray-700"
               >
                 {language === 'he' ? 'כל האירועים' : 'All Events'}
               </Button>
