@@ -65,6 +65,56 @@ export type Database = {
           },
         ]
       }
+      archived_events: {
+        Row: {
+          ai_confidence: number | null
+          ai_is_real: boolean | null
+          ai_summary: string | null
+          archived_at: string
+          created_at: string
+          device_id: string
+          event_type: string
+          id: string
+          original_event_id: string
+          severity: string | null
+          viewed_at: string | null
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_is_real?: boolean | null
+          ai_summary?: string | null
+          archived_at?: string
+          created_at: string
+          device_id: string
+          event_type: string
+          id?: string
+          original_event_id: string
+          severity?: string | null
+          viewed_at?: string | null
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_is_real?: boolean | null
+          ai_summary?: string | null
+          archived_at?: string
+          created_at?: string
+          device_id?: string
+          event_type?: string
+          id?: string
+          original_event_id?: string
+          severity?: string | null
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "archived_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       camera_desync_reports: {
         Row: {
           created_at: string
