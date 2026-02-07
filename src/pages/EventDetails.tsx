@@ -5,7 +5,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { Shield, ArrowLeft, Video, AlertTriangle, Clock, Calendar, Laptop, CheckCircle, XCircle, Film } from 'lucide-react';
+import { Shield, ArrowLeft, Video, AlertTriangle, Clock, Calendar, Laptop, CheckCircle, XCircle, Film, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -449,13 +449,26 @@ const EventDetails: React.FC = () => {
             {/* Local Clip Note */}
             {event.has_local_clip && (
               <div className="mb-6 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <div className="flex items-center gap-2 text-blue-400 text-sm">
-                  <Film className="w-4 h-4" />
-                  <span>
-                    {language === 'he' 
-                      ? `קליפ וידאו (${event.local_clip_duration_seconds || '?'}s) שמור מקומית במחשב.`
-                      : `Video clip (${event.local_clip_duration_seconds || '?'}s) saved locally on the computer.`}
-                  </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-blue-400 text-sm">
+                    <Film className="w-4 h-4" />
+                    <span>
+                      {language === 'he' 
+                        ? `קליפ וידאו (${event.local_clip_duration_seconds || '?'}s) שמור מקומית במחשב.`
+                        : `Video clip (${event.local_clip_duration_seconds || '?'}s) saved locally on the computer.`}
+                    </span>
+                  </div>
+                  {(window as any).electronAPI?.openClipsFolder && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => (window as any).electronAPI.openClipsFolder()}
+                      className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 gap-1"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      {language === 'he' ? 'פתח תיקייה' : 'Open Folder'}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
