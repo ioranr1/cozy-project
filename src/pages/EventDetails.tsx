@@ -458,7 +458,7 @@ const EventDetails: React.FC = () => {
                         : `Video clip (${event.local_clip_duration_seconds || '?'}s) saved locally on the computer.`}
                     </span>
                   </div>
-                  {(window as any).electronAPI?.openClipsFolder && (
+                  {(window as any).electronAPI?.openClipsFolder ? (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -468,6 +468,10 @@ const EventDetails: React.FC = () => {
                       <FolderOpen className="w-4 h-4" />
                       {language === 'he' ? 'פתח תיקייה' : 'Open Folder'}
                     </Button>
+                  ) : (
+                    <span className="text-blue-400/60 text-xs">
+                      {language === 'he' ? 'נתיב: userData/clips/' : 'Path: userData/clips/'}
+                    </span>
                   )}
                 </div>
               </div>
