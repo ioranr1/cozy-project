@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.2.9 (2026-02-07)
+ * VERSION: 2.3.0 (2026-02-07)
  * 
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1473,26 +1473,24 @@ function setupIpcHandlers() {
   // Clip Recording IPC handlers
   // -------------------------------------------------------------------------
   
-  // Get clips storage path
-  ipcMain.handle('get-clips-path', () => {
+  // Get clips storage path - saved to Desktop/SecurityClips for easy access
+  function ensureClipsPath() {
     if (!clipsPath) {
-      clipsPath = path.join(app.getPath('userData'), 'clips');
-      // Ensure folder exists
+      clipsPath = path.join(app.getPath('desktop'), 'SecurityClips');
       if (!fs.existsSync(clipsPath)) {
         fs.mkdirSync(clipsPath, { recursive: true });
       }
     }
     return clipsPath;
+  }
+
+  ipcMain.handle('get-clips-path', () => {
+    return ensureClipsPath();
   });
 
   // Open clips folder in OS file explorer
   ipcMain.handle('open-clips-folder', () => {
-    if (!clipsPath) {
-      clipsPath = path.join(app.getPath('userData'), 'clips');
-      if (!fs.existsSync(clipsPath)) {
-        fs.mkdirSync(clipsPath, { recursive: true });
-      }
-    }
+    ensureClipsPath();
     const { shell } = require('electron');
     shell.openPath(clipsPath);
     console.log('[Clips] Opened folder:', clipsPath);
@@ -1500,12 +1498,7 @@ function setupIpcHandlers() {
 
   ipcMain.handle('save-clip', async (event, { filename, base64Data, eventId, durationSeconds }) => {
     try {
-      if (!clipsPath) {
-        clipsPath = path.join(app.getPath('userData'), 'clips');
-        if (!fs.existsSync(clipsPath)) {
-          fs.mkdirSync(clipsPath, { recursive: true });
-        }
-      }
+      ensureClipsPath();
 
       const filePath = path.join(clipsPath, filename);
       const buffer = Buffer.from(base64Data, 'base64');
@@ -1574,7 +1567,7 @@ app.whenReady().then(async () => {
     
     // Initialize LocalClipRecorder
     clipRecorder = new LocalClipRecorder({
-      clipsDir: path.join(app.getPath('userData'), 'clips'),
+      clipsDir: path.join(app.getPath('desktop'), 'SecurityClips'),
       defaultDurationSeconds: 10,
     });
     monitoringManager.setClipRecorder(clipRecorder);

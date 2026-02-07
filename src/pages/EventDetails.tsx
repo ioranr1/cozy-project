@@ -470,7 +470,7 @@ const EventDetails: React.FC = () => {
                     </Button>
                   ) : (
                     <span className="text-blue-400/60 text-xs">
-                      {language === 'he' ? 'נתיב: userData/clips/' : 'Path: userData/clips/'}
+                      {language === 'he' ? 'נתיב: שולחן העבודה / SecurityClips' : 'Path: Desktop/SecurityClips/'}
                     </span>
                   )}
                 </div>
