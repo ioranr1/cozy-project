@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.3.0 (2026-02-07)
+ * VERSION: 2.3.1 (2026-02-07)
  * 
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1763,50 +1763,57 @@ app.on('before-quit', async (event) => {
       heartbeatInterval = null;
     }
 
-    // CRITICAL: Ensure camera hardware is released when quitting
-    // (Otherwise Windows can keep LED on if renderer is still streaming)
-    await stopWebRtcRendererOnQuit({ timeoutMs: 2500 });
-
-    // Cleanup Away Mode
+    // Cleanup Away Mode (sync, no await needed)
     awayManager.cleanup();
 
-    // CRITICAL: Reset device_mode to NORMAL when Electron closes
-    // This prevents the mobile app from showing AWAY as active when the computer is off
+    // CRITICAL FIX v2.3.1: DB updates FIRST, in parallel, with a 3s timeout.
+    // Windows can kill the process before sequential awaits finish.
+    // By running all DB updates concurrently and before WebRTC cleanup,
+    // the mobile dashboard gets the NORMAL/inactive state immediately.
     if (deviceId) {
-      try {
-        // CRITICAL FIX: If live view was active, insert a synthetic STOP command
-        // so the mobile dashboard knows the stream ended (useLiveViewState checks last command)
-        if (liveViewState.isActive || liveViewState.currentSessionId) {
-          console.log('[App] Quit cleanup: inserting synthetic STOP_LIVE_VIEW command...');
-          await supabase.from('commands').insert({
+      const dbUpdates = [];
+
+      // If live view was active, insert a synthetic STOP command
+      if (liveViewState.isActive || liveViewState.currentSessionId) {
+        console.log('[App] Quit cleanup: inserting synthetic STOP_LIVE_VIEW command...');
+        dbUpdates.push(
+          supabase.from('commands').insert({
             device_id: deviceId,
             command: 'STOP_LIVE_VIEW',
             status: 'completed',
             handled: true,
             handled_at: new Date().toISOString(),
-          });
-          console.log('[App] ✅ Synthetic STOP_LIVE_VIEW command inserted');
-        }
+          })
+        );
+      }
 
-        // Update device_status to NORMAL
-        await supabase
+      // Update device_status to NORMAL + mark device inactive — in parallel
+      dbUpdates.push(
+        supabase
           .from('device_status')
           .update({ device_mode: 'NORMAL', updated_at: new Date().toISOString() })
-          .eq('device_id', deviceId);
-        
-        console.log('[App] Device mode reset to NORMAL');
-        
-        // Mark device as inactive
-        await supabase
+          .eq('device_id', deviceId)
+      );
+      dbUpdates.push(
+        supabase
           .from('devices')
           .update({ is_active: false })
-          .eq('id', deviceId);
-        
-        console.log('[App] Device marked inactive, quitting...');
+          .eq('id', deviceId)
+      );
+
+      try {
+        await Promise.race([
+          Promise.all(dbUpdates),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('DB cleanup timeout')), 3000))
+        ]);
+        console.log('[App] ✅ DB cleanup completed (device NORMAL + inactive)');
       } catch (err) {
-        console.error('[App] Failed to cleanup device state:', err);
+        console.warn('[App] ⚠️ DB cleanup did not finish in time:', err.message);
       }
     }
+
+    // WebRTC cleanup AFTER DB updates are sent
+    await stopWebRtcRendererOnQuit({ timeoutMs: 2500 });
 
     // Unsubscribe from channels
     if (commandsSubscription) {
