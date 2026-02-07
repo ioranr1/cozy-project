@@ -1,0 +1,1 @@
+UPDATE monitoring_config SET config = jsonb_set(jsonb_set(config, '{sensors,motion,debounce_ms}', '60000'), '{sensors,sound,debounce_ms}', '60000'), updated_at = now() WHERE device_id = '9b4d46ac-5d00-4867-ba92-1ffdae2b5052';
