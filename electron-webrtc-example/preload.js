@@ -347,12 +347,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('start-clip-recording', (event, data) => {
       callback(data);
     });
-  }
+  },
+
+  /**
+   * Open the local clips folder in the OS file explorer
+   * @returns {Promise<void>}
+   */
+  openClipsFolder: () => ipcRenderer.invoke('open-clips-folder')
 });
 
 // BUILD STAMP (debug)
-const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-06-clip-ipc-01';
-console.log('[Preload] electronAPI exposed to renderer');
-console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);
+const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-07-open-clips-01';
 console.log('[Preload] electronAPI exposed to renderer');
 console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);

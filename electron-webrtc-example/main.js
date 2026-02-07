@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.2.8 (2026-02-06)
+ * VERSION: 2.2.9 (2026-02-07)
  * 
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1485,7 +1485,19 @@ function setupIpcHandlers() {
     return clipsPath;
   });
 
-  // Save clip to disk
+  // Open clips folder in OS file explorer
+  ipcMain.handle('open-clips-folder', () => {
+    if (!clipsPath) {
+      clipsPath = path.join(app.getPath('userData'), 'clips');
+      if (!fs.existsSync(clipsPath)) {
+        fs.mkdirSync(clipsPath, { recursive: true });
+      }
+    }
+    const { shell } = require('electron');
+    shell.openPath(clipsPath);
+    console.log('[Clips] Opened folder:', clipsPath);
+  });
+
   ipcMain.handle('save-clip', async (event, { filename, base64Data, eventId, durationSeconds }) => {
     try {
       if (!clipsPath) {
