@@ -104,7 +104,7 @@ class SoundDetector {
     
     // Debounce tracking per label
     this.lastDetectionTime = {};
-    this.debounceMs = options.debounce_ms || 20000;
+    this.debounceMs = options.debounce_ms || 60000;
     
     console.log('[SoundDetector] Created with options:', this.options);
   }
