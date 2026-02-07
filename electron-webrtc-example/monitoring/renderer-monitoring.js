@@ -138,7 +138,7 @@ class RendererMonitoringController {
         this.motionDetector.updateConfig({
           targets: config?.sensors?.motion?.targets || ['person', 'animal', 'vehicle'],
           confidence_threshold: config?.sensors?.motion?.confidence_threshold || 0.7,
-          debounce_ms: config?.sensors?.motion?.debounce_ms || 3000,
+          debounce_ms: config?.sensors?.motion?.debounce_ms || 20000,
         });
         
         await this.motionDetector.start(this.videoElement);
@@ -152,7 +152,7 @@ class RendererMonitoringController {
         this.soundDetector.updateConfig({
           targets: config?.sensors?.sound?.targets || ['glass_breaking', 'baby_crying', 'alarm', 'gunshot', 'scream'],
           confidence_threshold: config?.sensors?.sound?.confidence_threshold || 0.6,
-          debounce_ms: config?.sensors?.sound?.debounce_ms || 2000,
+          debounce_ms: config?.sensors?.sound?.debounce_ms || 20000,
         });
         
         await this.soundDetector.start();

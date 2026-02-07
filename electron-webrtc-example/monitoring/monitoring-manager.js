@@ -375,7 +375,7 @@ class MonitoringManager {
     console.log(`[MonitoringManager] Event: ${sensor_type}/${label} (${(confidence * 100).toFixed(1)}%)`);
 
     // Check debounce
-    const debounceMs = this.config?.sensors?.[sensor_type]?.debounce_ms || 3000;
+    const debounceMs = this.config?.sensors?.[sensor_type]?.debounce_ms || 20000;
     const lastTime = this.lastEventTime[sensor_type]?.[label] || 0;
     
     if (timestamp - lastTime < debounceMs) {
