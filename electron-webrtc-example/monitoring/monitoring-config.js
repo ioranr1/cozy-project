@@ -18,7 +18,7 @@ const MOTION_SENSOR_DEFAULTS = {
   enabled: false,
   targets: ['person', 'animal', 'vehicle'],
   confidence_threshold: 0.7,
-  debounce_ms: 20000,
+  debounce_ms: 60000,
   // MediaPipe specific settings
   model: 'efficientdet_lite0', // or 'efficientdet_lite2' for higher accuracy
   max_results: 5,
@@ -32,7 +32,7 @@ const SOUND_SENSOR_DEFAULTS = {
   enabled: false,
   targets: ['glass_breaking', 'baby_crying', 'dog_barking', 'alarm', 'gunshot'],
   confidence_threshold: 0.6,
-  debounce_ms: 20000,
+  debounce_ms: 60000,
   // YAMNet specific settings
   sample_rate: 16000,
   frame_length_ms: 960,

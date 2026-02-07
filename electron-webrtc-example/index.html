@@ -5,8 +5,8 @@
   ============================================================
   
   CHANGELOG:
+  - v2.5.2: Changed debounce to 60s default for security best practice
   - v2.5.1: Changed debounce from 30s to 20s for faster re-detection
-  - v2.5.0: CRITICAL FIX - 10s startup grace period + isMonitoring guard before detection
   - v2.3.2: CRITICAL FIX - Camera initialization with progressive fallbacks + clean-start sequence
   - v2.3.1: Snapshot validation for readyState/dimensions
   - v2.3.0: Added inline MediaPipe motion detection with event reporting
@@ -454,7 +454,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-07-v2.5.1");
+      console.log("[UI] index.html build: electron-index-2026-02-07-v2.5.2");
     </script>
 
     <!-- WebRTC logic (start/stop via IPC) -->
@@ -466,7 +466,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-07-v2.5.1";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-07-v2.5.2";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -474,7 +474,7 @@
       // VERSION: 2.5.0 - Startup grace period + isMonitoring guard
       // ============================================================
       (async function initMonitoringSystem() {
-        console.log('[Monitoring] Initializing monitoring system v2.5.1...');
+        console.log('[Monitoring] Initializing monitoring system v2.5.2...');
         
         // Supabase config (for event reporting)
         const SUPABASE_URL = 'https://zoripeohnedivxkvrpbi.supabase.co';
@@ -493,7 +493,7 @@
         
         // Debouncing
         const lastDetectionTime = {};
-        const DEBOUNCE_MS = 20000; // 20 seconds - prevent rapid firing
+        const DEBOUNCE_MS = 60000; // 60 seconds - prevent rapid firing
         let isProcessingEvent = false; // Block concurrent sends
         
         // CRITICAL: Startup grace period - no events for first 10 seconds
@@ -798,7 +798,7 @@
         // ============================================================
         async function startMonitoring(config) {
           console.log('[Monitoring] ═══════════════════════════════════════════════════');
-          console.log('[Monitoring] Starting monitoring v2.5.1 with config:', JSON.stringify(config, null, 2));
+          console.log('[Monitoring] Starting monitoring v2.5.2 with config:', JSON.stringify(config, null, 2));
           console.log('[Monitoring] ═══════════════════════════════════════════════════');
           currentConfig = config;
           
