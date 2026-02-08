@@ -25,7 +25,7 @@ const SEVERITY_MAP: Record<string, string> = {
 };
 
 // Event types that should NOT trigger WhatsApp by default
-const NON_WHATSAPP_EVENT_TYPES = new Set(['sound_baby_cry', 'sound_disturbance']);
+const NON_WHATSAPP_EVENT_TYPES = new Set(['sound_disturbance']);
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -312,24 +312,7 @@ serve(async (req) => {
 
       // IMPORTANT: Only send WhatsApp if we have a snapshot for motion events
       // AND if the event type is eligible for WhatsApp (non-informational/disturbance)
-      // EXCEPTION: Baby cry can send WhatsApp if user explicitly opted in (babyCryWhatsApp=true in config)
-      let isNonWhatsAppEventType = NON_WHATSAPP_EVENT_TYPES.has(event_type);
-      
-      // Check if baby cry WhatsApp is explicitly enabled in monitoring_config
-      if (event_type === 'sound_baby_cry' && isNonWhatsAppEventType) {
-        const { data: monConfig } = await supabase
-          .from('monitoring_config')
-          .select('config')
-          .eq('device_id', device_id)
-          .maybeSingle();
-        
-        const babyCryWhatsApp = (monConfig?.config as any)?.babyCryWhatsApp === true;
-        if (babyCryWhatsApp) {
-          isNonWhatsAppEventType = false;
-          console.log('[events-report] Baby cry WhatsApp opt-in enabled by user');
-        }
-      }
-      
+      const isNonWhatsAppEventType = NON_WHATSAPP_EVENT_TYPES.has(event_type);
       const shouldSendWhatsApp = !isNonWhatsAppEventType && (event_type !== 'motion' || snapshotUrl !== null);
       
       if (!shouldSendWhatsApp) {

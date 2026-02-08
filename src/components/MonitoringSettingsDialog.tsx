@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Volume2, Camera, CameraOff, Loader2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { Eye, Volume2, Camera, CameraOff, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -71,7 +71,6 @@ export interface MonitoringSettings {
   motionEnabled: boolean;
   soundEnabled: boolean;
   soundTargets: SoundTarget[];
-  babyCryWhatsApp?: boolean;
 }
 
 interface MonitoringSettingsDialogProps {
@@ -135,7 +134,6 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     cameraInactive: language === 'he' ? 'המצלמה תופעל לאחר שליחת פקודה למחשב' : 'Camera will activate after sending a command to the computer',
     cameraLoading: language === 'he' ? 'מפעיל מצלמה...' : 'Activating camera...',
     cameraWaitingAck: language === 'he' ? 'ממתין לאישור מהמחשב…' : 'Waiting for computer acknowledgment…',
-    babyCryWhatsApp: language === 'he' ? 'שלח WhatsApp לבכי תינוק' : 'Send WhatsApp for baby cry',
   };
 
   const handleMotionToggle = (checked: boolean) => {
@@ -159,12 +157,6 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
       : settings.soundTargets.filter(t => t !== target);
     onSettingsChange({ ...settings, soundTargets: newTargets });
   };
-
-  const handleBabyCryWhatsAppToggle = (checked: boolean) => {
-    onSettingsChange({ ...settings, babyCryWhatsApp: checked });
-  };
-
-  const babyCryEnabled = settings.soundTargets.includes('baby_crying');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -321,37 +313,22 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
                           const label = SOUND_TARGET_LABELS[target];
                           const isChecked = settings.soundTargets.includes(target);
                           return (
-                            <div key={target}>
-                              <label
-                                className={`flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
-                                  isChecked ? 'bg-blue-500/10' : 'hover:bg-slate-700/30'
-                                }`}
-                              >
-                                <Checkbox
-                                  checked={isChecked}
-                                  onCheckedChange={(checked) => handleSoundTargetToggle(target, !!checked)}
-                                  className="border-slate-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                                />
-                                <span className="text-base">{label.icon}</span>
-                                <span className={`text-sm ${isChecked ? 'text-white' : 'text-slate-400'}`}>
-                                  {language === 'he' ? label.he : label.en}
-                                </span>
-                              </label>
-                              {/* Baby cry WhatsApp opt-in toggle */}
-                              {target === 'baby_crying' && isChecked && (
-                                <div className="flex items-center gap-2 px-10 py-1.5">
-                                  <MessageSquare className="w-3.5 h-3.5 text-slate-500" />
-                                  <span className="text-[11px] text-slate-500 flex-1">
-                                    {t.babyCryWhatsApp}
-                                  </span>
-                                  <Switch
-                                    checked={settings.babyCryWhatsApp ?? false}
-                                    onCheckedChange={handleBabyCryWhatsAppToggle}
-                                    className="scale-75 data-[state=checked]:bg-green-500"
-                                  />
-                                </div>
-                              )}
-                            </div>
+                            <label
+                              key={target}
+                              className={`flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
+                                isChecked ? 'bg-blue-500/10' : 'hover:bg-slate-700/30'
+                              }`}
+                            >
+                              <Checkbox
+                                checked={isChecked}
+                                onCheckedChange={(checked) => handleSoundTargetToggle(target, !!checked)}
+                                className="border-slate-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                              />
+                              <span className="text-base">{label.icon}</span>
+                              <span className={`text-sm ${isChecked ? 'text-white' : 'text-slate-400'}`}>
+                                {language === 'he' ? label.he : label.en}
+                              </span>
+                            </label>
                           );
                         })}
                       </div>
