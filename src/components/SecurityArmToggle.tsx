@@ -165,6 +165,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           motionEnabled: status.motion_enabled ?? true,
           soundEnabled: status.sound_enabled ?? false,
           soundTargets: soundTargets && soundTargets.length > 0 ? soundTargets : [...DEFAULT_SOUND_TARGETS],
+          babyCryWhatsApp: config?.babyCryWhatsApp === true,
         });
       } else {
         // No status record exists - create one
@@ -350,6 +351,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
               monitoring_enabled: true,
               ai_validation_enabled: true,
               notification_cooldown_ms: 60000,
+              babyCryWhatsApp: monitoringSettings.babyCryWhatsApp ?? false,
               sensors: {
                 motion: {
                   enabled: monitoringSettings.motionEnabled,
