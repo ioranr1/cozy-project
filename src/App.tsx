@@ -14,6 +14,7 @@ import Viewer from "./pages/Viewer";
 import EventDetails from "./pages/EventDetails";
 import Events from "./pages/Events";
 import LiveView from "./pages/LiveView";
+import MicrophoneTestPage from "./pages/MicrophoneTestPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/devices" element={<Devices />} />
             <Route path="/camera" element={<Camera />} />
+            <Route path="/mic-test" element={<MicrophoneTestPage />} />
             <Route path="/viewer" element={<Viewer />} />
             <Route path="/events" element={<Events />} />
             <Route path="/event/:eventId" element={<EventDetails />} />

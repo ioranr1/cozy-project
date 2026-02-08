@@ -21,7 +21,7 @@ import { AwayModeCard } from '@/components/AwayModeCard';
 import { MobileAwayModeCard } from '@/components/MobileAwayModeCard';
 import { SecurityModeComingSoon } from '@/components/SecurityModeComingSoon';
 import { OfflineBanner } from '@/components/OfflineBanner';
-import MicrophoneTest from '@/components/MicrophoneTest';
+
 
 interface UserProfile {
   id?: string;
@@ -705,8 +705,6 @@ const Dashboard: React.FC = () => {
               <SecurityModeComingSoon />
             )}
 
-            {/* Microphone Test - Desktop diagnostic tool */}
-            <MicrophoneTest />
 
             {/* Advanced Settings */}
             <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
