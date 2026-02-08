@@ -265,7 +265,6 @@ serve(async (req) => {
           .eq('notification_sent', true)
           .eq('ai_is_real', true)
           .is('viewed_at', null)
-          .eq('reminder_sent', false)
           .order('notification_sent_at', { ascending: false })
           .limit(1)
           .maybeSingle();
