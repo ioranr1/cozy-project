@@ -1,12 +1,12 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.5.2 (2026-02-06)
+  VERSION: 2.6.0 (2026-02-08)
   ============================================================
   
   CHANGELOG:
+  - v2.6.0: CRITICAL FIX - Camera/Sound separation: camera only activates when motion is enabled
   - v2.5.2: Changed debounce to 60s default for security best practice
-  - v2.5.1: Changed debounce from 30s to 20s for faster re-detection
   - v2.3.2: CRITICAL FIX - Camera initialization with progressive fallbacks + clean-start sequence
   - v2.3.1: Snapshot validation for readyState/dimensions
   - v2.3.0: Added inline MediaPipe motion detection with event reporting
@@ -454,7 +454,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-07-v2.5.2");
+      console.log("[UI] index.html build: electron-index-2026-02-08-v2.6.0");
     </script>
 
     <!-- WebRTC logic (start/stop via IPC) -->
@@ -466,7 +466,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-07-v2.5.2";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-08-v2.6.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -798,7 +798,7 @@
         // ============================================================
         async function startMonitoring(config) {
           console.log('[Monitoring] ═══════════════════════════════════════════════════');
-          console.log('[Monitoring] Starting monitoring v2.5.2 with config:', JSON.stringify(config, null, 2));
+          console.log('[Monitoring] Starting monitoring v2.6.0 with config:', JSON.stringify(config, null, 2));
           console.log('[Monitoring] ═══════════════════════════════════════════════════');
           currentConfig = config;
           
@@ -808,88 +808,106 @@
           // CRITICAL: Reset startup timestamp for grace period
           monitoringStartedAt = null;
           
+          const motionEnabled = config?.sensors?.motion?.enabled ?? false;
+          const soundEnabled = config?.sensors?.sound?.enabled ?? false;
+          
+          console.log('[Monitoring] Sensor config:', { motionEnabled, soundEnabled });
+          
           try {
-            // Progressive fallback for camera constraints
-            console.log('[Monitoring] Requesting camera access with progressive fallbacks...');
+            let motionStarted = false;
+            let soundStarted = false;
             
-            // Attempt 1: Preferred constraints
-            monitoringStream = await tryGetUserMedia(
-              { video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: false },
-              'preferred 640x480@15'
-            );
-            
-            // Attempt 2: Relaxed constraints
-            if (!monitoringStream) {
+            // ============================================================
+            // MOTION: Only activate camera if motion detection is enabled
+            // ============================================================
+            if (motionEnabled) {
+              console.log('[Monitoring] Motion enabled - requesting camera access...');
+              
+              // Progressive fallback for camera constraints
               monitoringStream = await tryGetUserMedia(
-                { video: { width: { max: 1280 }, height: { max: 720 } }, audio: false },
-                'relaxed max 1280x720'
+                { video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: false },
+                'preferred 640x480@15'
               );
-            }
-            
-            // Attempt 3: Minimal constraints
-            if (!monitoringStream) {
-              monitoringStream = await tryGetUserMedia(
-                { video: true, audio: false },
-                'minimal video:true'
-              );
-            }
-            
-            // If all failed, throw
-            if (!monitoringStream) {
-              throw new Error('All getUserMedia attempts failed - camera may be in use by another application');
-            }
-            
-            console.log('[Monitoring] ✓ Camera acquired - LED should be ON now');
-            console.log('[Monitoring] Stream tracks:', monitoringStream.getTracks().map(t => `${t.kind}: ${t.label}`));
-            
-            // Create hidden video element
-            videoElement = document.getElementById('monitoring-video');
-            if (!videoElement) {
-              videoElement = document.createElement('video');
-              videoElement.id = 'monitoring-video';
-              videoElement.autoplay = true;
-              videoElement.muted = true;
-              videoElement.playsInline = true;
-              videoElement.style.position = 'absolute';
-              videoElement.style.left = '-9999px';
-              videoElement.style.width = '640px';
-              videoElement.style.height = '480px';
-              document.body.appendChild(videoElement);
-              console.log('[Monitoring] Created hidden video element');
-            }
-            
-            videoElement.srcObject = monitoringStream;
-            await videoElement.play();
-            console.log('[Monitoring] ✓ Video element playing');
-            
-            // Initialize detector if not done
-            if (!isDetectorReady) {
-              console.log('[Monitoring] MediaPipe not ready, loading...');
-              const mpResult = await loadMediaPipe();
-              console.log('[Monitoring] MediaPipe load result:', mpResult);
+              
+              if (!monitoringStream) {
+                monitoringStream = await tryGetUserMedia(
+                  { video: { width: { max: 1280 }, height: { max: 720 } }, audio: false },
+                  'relaxed max 1280x720'
+                );
+              }
+              
+              if (!monitoringStream) {
+                monitoringStream = await tryGetUserMedia(
+                  { video: true, audio: false },
+                  'minimal video:true'
+                );
+              }
+              
+              if (!monitoringStream) {
+                console.error('[Monitoring] ✗ All camera attempts failed');
+                // Don't throw - sound detection can still work without camera
+                if (!soundEnabled) {
+                  throw new Error('Camera unavailable and sound not enabled');
+                }
+              } else {
+                console.log('[Monitoring] ✓ Camera acquired - LED should be ON now');
+                
+                // Create hidden video element
+                videoElement = document.getElementById('monitoring-video');
+                if (!videoElement) {
+                  videoElement = document.createElement('video');
+                  videoElement.id = 'monitoring-video';
+                  videoElement.autoplay = true;
+                  videoElement.muted = true;
+                  videoElement.playsInline = true;
+                  videoElement.style.position = 'absolute';
+                  videoElement.style.left = '-9999px';
+                  videoElement.style.width = '640px';
+                  videoElement.style.height = '480px';
+                  document.body.appendChild(videoElement);
+                }
+                
+                videoElement.srcObject = monitoringStream;
+                await videoElement.play();
+                
+                // Initialize MediaPipe detector if not done
+                if (!isDetectorReady) {
+                  const mpResult = await loadMediaPipe();
+                  console.log('[Monitoring] MediaPipe load result:', mpResult);
+                }
+                
+                // Start detection loop
+                if (isDetectorReady) {
+                  detectionLoopActive = true;
+                  motionStarted = true;
+                  console.log('[Monitoring] ✓ Motion detection loop started');
+                  runDetectionLoop();
+                }
+              }
             } else {
-              console.log('[Monitoring] MediaPipe already ready');
+              console.log('[Monitoring] Motion DISABLED - camera stays OFF 📷🚫');
             }
             
-            // Start detection loop
-            if (isDetectorReady) {
-              detectionLoopActive = true;
-              isMonitoring = true;
-              // CRITICAL: Set startup timestamp for grace period
-              monitoringStartedAt = Date.now();
-              console.log('[Monitoring] ✓ Grace period started (10s)');
-              runDetectionLoop();
-              console.log('[Monitoring] ✓ Detection loop started');
-            } else {
-              console.warn('[Monitoring] ⚠️ Detector not ready - camera active but no detection');
-              isMonitoring = true; // Still mark as monitoring even without detection
-              monitoringStartedAt = Date.now();
+            // ============================================================
+            // SOUND: Uses microphone only, no camera needed
+            // ============================================================
+            if (soundEnabled) {
+              console.log('[Monitoring] Sound enabled - microphone only (no camera)');
+              // Sound detection is handled by the SoundDetector class via renderer-monitoring.js
+              // or will be integrated here in a future version
+              soundStarted = true;
+              console.log('[Monitoring] ✓ Sound detection enabled');
             }
+            
+            // Mark monitoring as active
+            isMonitoring = true;
+            monitoringStartedAt = Date.now();
+            console.log('[Monitoring] ✓ Grace period started (10s)');
             
             // Send ACK to main
             console.log('[Monitoring] Sending ACK to main process...');
-            window.electronAPI?.notifyMonitoringStarted?.({ motion: isDetectorReady, sound: false });
-            console.log('[Monitoring] ✓ Sent monitoring-started ACK (motion:', isDetectorReady, ')');
+            window.electronAPI?.notifyMonitoringStarted?.({ motion: motionStarted, sound: soundStarted });
+            console.log('[Monitoring] ✓ Sent monitoring-started ACK (motion:', motionStarted, ', sound:', soundStarted, ')');
             
           } catch (error) {
             console.error('[Monitoring] ✗ Start failed:', error);

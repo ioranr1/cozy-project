@@ -1,9 +1,10 @@
 /**
  * Renderer Monitoring Controller
  * ===============================
- * VERSION: 1.0.0 (2026-02-01)
+ * VERSION: 1.1.0 (2026-02-08)
  * 
  * CHANGELOG:
+ * - v1.1.0: CRITICAL FIX - Camera only activates when motion is enabled (sound-only = no camera)
  * - v1.0.0: Production release with motion/sound detection integration
  * - v0.1.0: Initial implementation
  * 
@@ -126,29 +127,32 @@ class RendererMonitoringController {
     this.config = config;
 
     try {
-      // Get or create video element for camera
-      this.videoElement = await this.setupVideoElement();
-      
       const motionEnabled = config?.sensors?.motion?.enabled ?? true;
       const soundEnabled = config?.sensors?.sound?.enabled ?? false;
 
-      // Start motion detector if enabled
-      if (motionEnabled && this.status.motionReady) {
-        // Update detector config
-        this.motionDetector.updateConfig({
-          targets: config?.sensors?.motion?.targets || ['person', 'animal', 'vehicle'],
-          confidence_threshold: config?.sensors?.motion?.confidence_threshold || 0.7,
-          debounce_ms: config?.sensors?.motion?.debounce_ms || 60000,
-        });
-        
-        await this.motionDetector.start(this.videoElement);
-        this.status.motionRunning = true;
-        console.log('[RendererMonitoring] ✓ Motion detector started');
+      console.log('[RendererMonitoring] Sensor config:', { motionEnabled, soundEnabled });
+
+      // CRITICAL: Only activate camera if motion detection is enabled
+      if (motionEnabled) {
+        this.videoElement = await this.setupVideoElement();
+
+        if (this.status.motionReady) {
+          this.motionDetector.updateConfig({
+            targets: config?.sensors?.motion?.targets || ['person', 'animal', 'vehicle'],
+            confidence_threshold: config?.sensors?.motion?.confidence_threshold || 0.7,
+            debounce_ms: config?.sensors?.motion?.debounce_ms || 60000,
+          });
+          
+          await this.motionDetector.start(this.videoElement);
+          this.status.motionRunning = true;
+          console.log('[RendererMonitoring] ✓ Motion detector started (camera ON)');
+        }
+      } else {
+        console.log('[RendererMonitoring] Motion disabled - camera stays OFF');
       }
 
-      // Start sound detector if enabled
+      // Start sound detector if enabled (uses microphone, NOT camera)
       if (soundEnabled && this.status.soundReady) {
-        // Update detector config
         this.soundDetector.updateConfig({
           targets: config?.sensors?.sound?.targets || ['glass_breaking', 'baby_crying', 'alarm', 'gunshot', 'scream'],
           confidence_threshold: config?.sensors?.sound?.confidence_threshold || 0.6,
@@ -157,7 +161,7 @@ class RendererMonitoringController {
         
         await this.soundDetector.start();
         this.status.soundRunning = true;
-        console.log('[RendererMonitoring] ✓ Sound detector started');
+        console.log('[RendererMonitoring] ✓ Sound detector started (microphone only)');
       }
 
       this.isMonitoring = true;
@@ -194,11 +198,15 @@ class RendererMonitoringController {
       this.status.soundRunning = false;
     }
 
-    // Stop video stream
+    // Stop video stream (only exists if motion was enabled)
     if (this.videoElement && this.videoElement.srcObject) {
       const tracks = this.videoElement.srcObject.getTracks();
-      tracks.forEach(track => track.stop());
+      tracks.forEach(track => {
+        track.stop();
+        console.log('[RendererMonitoring] Stopped track:', track.kind, track.label);
+      });
       this.videoElement.srcObject = null;
+      console.log('[RendererMonitoring] ✓ Camera released');
     }
 
     this.isMonitoring = false;
