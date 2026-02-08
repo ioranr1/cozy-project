@@ -5,7 +5,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useDevices } from '@/hooks/useDevices';
-import { MonitoringSettingsDialog, MonitoringSettings } from '@/components/MonitoringSettingsDialog';
+import { MonitoringSettingsDialog, MonitoringSettings, DEFAULT_SOUND_TARGETS, SoundTarget } from '@/components/MonitoringSettingsDialog';
 import { getSessionToken } from '@/hooks/useSession';
 
 interface DeviceStatus {
@@ -41,6 +41,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
   const [monitoringSettings, setMonitoringSettings] = useState<MonitoringSettings>({
     motionEnabled: true,
     soundEnabled: false,
+    soundTargets: [...DEFAULT_SOUND_TARGETS],
   });
 
   // Get profile ID and selected device dynamically
@@ -148,9 +149,21 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         }
         
         setSecurityEnabled(status.security_enabled ?? false);
+        
+        // Fetch sound targets from monitoring_config
+        const { data: configData } = await supabase
+          .from('monitoring_config')
+          .select('config')
+          .eq('device_id', deviceId)
+          .maybeSingle();
+        
+        const config = configData?.config as Record<string, any> | null;
+        const soundTargets = config?.sensors?.sound?.targets as SoundTarget[] | undefined;
+        
         setMonitoringSettings({
           motionEnabled: status.motion_enabled ?? true,
           soundEnabled: status.sound_enabled ?? false,
+          soundTargets: soundTargets && soundTargets.length > 0 ? soundTargets : [...DEFAULT_SOUND_TARGETS],
         });
       } else {
         // No status record exists - create one
@@ -201,10 +214,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           const newStatus = payload.new as DeviceStatus;
           setIsArmed(newStatus.is_armed);
           setSecurityEnabled(newStatus.security_enabled ?? false);
-          setMonitoringSettings({
+          setMonitoringSettings(prev => ({
             motionEnabled: newStatus.motion_enabled ?? true,
             soundEnabled: newStatus.sound_enabled ?? false,
-          });
+            soundTargets: prev.soundTargets,
+          }));
         }
       )
       .subscribe((status) => {
@@ -322,6 +336,40 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         console.error('[SecurityArmToggle] Error updating status:', statusError);
         toast.error(language === 'he' ? 'שגיאה בהפעלת הניטור' : 'Failed to activate monitoring');
         return;
+      }
+
+      // Step 2b: Update monitoring_config with sound targets
+      if (monitoringSettings.soundEnabled && profileId) {
+        const { error: configError } = await supabase
+          .from('monitoring_config')
+          .upsert({
+            device_id: deviceId,
+            profile_id: profileId,
+            config: {
+              monitoring_enabled: true,
+              ai_validation_enabled: true,
+              notification_cooldown_ms: 60000,
+              sensors: {
+                motion: {
+                  enabled: monitoringSettings.motionEnabled,
+                  targets: ['person', 'animal', 'vehicle'],
+                  confidence_threshold: 0.7,
+                  debounce_ms: 3000,
+                },
+                sound: {
+                  enabled: monitoringSettings.soundEnabled,
+                  targets: monitoringSettings.soundTargets,
+                  confidence_threshold: 0.6,
+                  debounce_ms: 2000,
+                },
+              },
+            },
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'device_id' });
+
+        if (configError) {
+          console.error('[SecurityArmToggle] Error updating monitoring_config:', configError);
+        }
       }
 
       // Step 3: CRITICAL - Send SET_MONITORING:ON via Edge Function (RLS-safe)
