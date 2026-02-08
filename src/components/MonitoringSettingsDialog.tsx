@@ -1,7 +1,7 @@
 import React from 'react';
-import { Eye, Volume2, Camera, CameraOff, Loader2 } from 'lucide-react';
+import { Eye, Volume2, Camera, CameraOff, Loader2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -39,10 +39,10 @@ interface SoundCategoryInfo {
 
 const SOUND_CATEGORIES: SoundCategoryInfo[] = [
   {
-    id: 'security',
-    labelHe: '🔒 אבטחה',
-    labelEn: '🔒 Security',
-    targets: ['glass_breaking', 'alarm', 'gunshot', 'siren'],
+    id: 'informational',
+    labelHe: '👶 משפחתי (מידע)',
+    labelEn: '👶 Family (Info)',
+    targets: ['baby_crying'],
   },
   {
     id: 'disturbance',
@@ -51,23 +51,27 @@ const SOUND_CATEGORIES: SoundCategoryInfo[] = [
     targets: ['door_knock', 'dog_barking', 'scream'],
   },
   {
-    id: 'informational',
-    labelHe: '👶 משפחתי',
-    labelEn: '👶 Family',
-    targets: ['baby_crying'],
+    id: 'security',
+    labelHe: '🔒 אבטחה',
+    labelEn: '🔒 Security',
+    targets: ['glass_breaking', 'alarm', 'gunshot', 'siren'],
   },
 ];
 
-/** Default: Family category (baby_crying) */
-export const DEFAULT_SOUND_TARGETS: SoundTarget[] = ['baby_crying'];
-
-/** Default category */
-export const DEFAULT_SOUND_CATEGORY: SoundCategory = 'informational';
+/** Default targets when sound is first enabled */
+export const DEFAULT_SOUND_TARGETS: SoundTarget[] = [
+  'glass_breaking',
+  'alarm',
+  'gunshot',
+  'scream',
+  'siren',
+];
 
 export interface MonitoringSettings {
   motionEnabled: boolean;
   soundEnabled: boolean;
   soundTargets: SoundTarget[];
+  babyCryWhatsApp?: boolean;
 }
 
 interface MonitoringSettingsDialogProps {
@@ -79,26 +83,20 @@ interface MonitoringSettingsDialogProps {
   onDeactivate?: () => void;
   isLoading?: boolean;
   isArmed?: boolean;
-  /** Current camera/monitoring status from device_status */
   cameraStatus?: 'active' | 'inactive' | 'loading';
 }
 
-const SOUND_TARGET_LABELS: Record<SoundTarget, { he: string; en: string; icon: string; descHe: string; descEn: string }> = {
-  glass_breaking: { he: 'שבירת זכוכית', en: 'Glass Breaking', icon: '🪟', descHe: '', descEn: '' },
-  baby_crying:    { he: 'בכי תינוק', en: 'Baby Crying', icon: '👶', descHe: 'התראה אינפורמטיבית', descEn: 'Informational alert' },
-  dog_barking:    { he: 'נביחת כלב', en: 'Dog Barking', icon: '🐕', descHe: '', descEn: '' },
-  alarm:          { he: 'אזעקה', en: 'Alarm', icon: '🚨', descHe: '', descEn: '' },
-  gunshot:        { he: 'ירי', en: 'Gunshot', icon: '💥', descHe: '', descEn: '' },
-  scream:         { he: 'צעקה / צעקת עזרה', en: 'Scream / Shout', icon: '😱', descHe: '', descEn: '' },
-  siren:          { he: 'סירנה', en: 'Siren', icon: '🚑', descHe: '', descEn: '' },
-  door_knock:     { he: 'דפיקה בדלת', en: 'Door Knock', icon: '🚪', descHe: '', descEn: '' },
+const SOUND_TARGET_LABELS: Record<SoundTarget, { he: string; en: string; icon: string }> = {
+  glass_breaking: { he: 'שבירת זכוכית', en: 'Glass Breaking', icon: '🪟' },
+  baby_crying:    { he: 'בכי תינוק', en: 'Baby Crying', icon: '👶' },
+  dog_barking:    { he: 'נביחת כלב', en: 'Dog Barking', icon: '🐕' },
+  alarm:          { he: 'אזעקה', en: 'Alarm', icon: '🚨' },
+  gunshot:        { he: 'ירי', en: 'Gunshot', icon: '💥' },
+  scream:         { he: 'צעקה / צעקת עזרה', en: 'Scream / Shout', icon: '😱' },
+  siren:          { he: 'סירנה', en: 'Siren', icon: '🚑' },
+  door_knock:     { he: 'דפיקה בדלת', en: 'Door Knock', icon: '🚪' },
 };
 
-/**
- * Dialog for configuring monitoring detection sensors.
- * Opens when user activates the Security/Monitoring toggle.
- * Motion is ON by default, Sound is OFF by default.
- */
 export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> = ({
   open,
   onOpenChange,
@@ -113,20 +111,6 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
   const { language, isRTL } = useLanguage();
   const [soundExpanded, setSoundExpanded] = React.useState(false);
 
-  // Derive active category from current soundTargets
-  const getActiveCategory = (): SoundCategory => {
-    for (const cat of SOUND_CATEGORIES) {
-      const catTargets = cat.targets;
-      if (catTargets.every(t => settings.soundTargets.includes(t)) &&
-          settings.soundTargets.every(t => catTargets.includes(t as SoundTarget))) {
-        return cat.id;
-      }
-    }
-    return 'informational'; // default
-  };
-
-  const activeCategory = getActiveCategory();
-
   const t = {
     title: language === 'he' ? 'הגדרות ניטור' : 'Monitoring Settings',
     description: language === 'he' 
@@ -140,8 +124,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     soundDesc: language === 'he' 
       ? 'מזהה קולות חריגים ושולח התראות' 
       : 'Detects unusual sounds and sends alerts',
-    soundTargetsLabel: language === 'he' ? 'בחר קטגוריית קול' : 'Choose sound category',
-    includes: language === 'he' ? 'כולל:' : 'Includes:',
+    soundTargetsLabel: language === 'he' ? 'סוגי קולות לזיהוי' : 'Sound types to detect',
     activate: language === 'he' ? 'הפעל ניטור' : 'Activate Monitoring',
     deactivate: language === 'he' ? 'כבה ניטור' : 'Deactivate Monitoring',
     cancel: language === 'he' ? 'ביטול' : 'Cancel',
@@ -152,6 +135,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     cameraInactive: language === 'he' ? 'המצלמה תופעל לאחר שליחת פקודה למחשב' : 'Camera will activate after sending a command to the computer',
     cameraLoading: language === 'he' ? 'מפעיל מצלמה...' : 'Activating camera...',
     cameraWaitingAck: language === 'he' ? 'ממתין לאישור מהמחשב…' : 'Waiting for computer acknowledgment…',
+    babyCryWhatsApp: language === 'he' ? 'שלח WhatsApp לבכי תינוק' : 'Send WhatsApp for baby cry',
   };
 
   const handleMotionToggle = (checked: boolean) => {
@@ -166,14 +150,21 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
         ? [...DEFAULT_SOUND_TARGETS] 
         : settings.soundTargets,
     });
+    if (checked) setSoundExpanded(true);
   };
 
-  const handleCategoryChange = (categoryId: string) => {
-    const category = SOUND_CATEGORIES.find(c => c.id === categoryId);
-    if (category) {
-      onSettingsChange({ ...settings, soundTargets: [...category.targets] });
-    }
+  const handleSoundTargetToggle = (target: SoundTarget, checked: boolean) => {
+    const newTargets = checked
+      ? [...settings.soundTargets, target]
+      : settings.soundTargets.filter(t => t !== target);
+    onSettingsChange({ ...settings, soundTargets: newTargets });
   };
+
+  const handleBabyCryWhatsAppToggle = (checked: boolean) => {
+    onSettingsChange({ ...settings, babyCryWhatsApp: checked });
+  };
+
+  const babyCryEnabled = settings.soundTargets.includes('baby_crying');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -298,46 +289,75 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
               </div>
             </div>
 
-            {/* Sound Category - Radio selection */}
+            {/* Sound Targets - expandable checklist grouped by category */}
             {settings.soundEnabled && (
-              <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden p-3 space-y-2">
-                <p className="text-xs text-slate-400 mb-2">{t.soundTargetsLabel}</p>
-                <RadioGroup
-                  value={activeCategory}
-                  onValueChange={handleCategoryChange}
-                  className="space-y-2"
+              <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setSoundExpanded(!soundExpanded)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700/30 transition-colors"
                 >
-                  {SOUND_CATEGORIES.map((category) => {
-                    const isSelected = activeCategory === category.id;
-                    return (
-                      <label
-                        key={category.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
-                          isSelected 
-                            ? 'bg-blue-500/10 border-blue-500/40' 
-                            : 'border-transparent hover:bg-slate-700/30'
-                        }`}
-                      >
-                        <RadioGroupItem
-                          value={category.id}
-                          className="mt-0.5 border-slate-500 data-[state=checked]:border-blue-500 data-[state=checked]:text-blue-500"
-                        />
-                        <div className="flex-1">
-                          <p className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-slate-400'}`}>
-                            {language === 'he' ? category.labelHe : category.labelEn}
-                          </p>
-                          <p className="text-[11px] text-slate-500 mt-1">
-                            {t.includes}{' '}
-                            {category.targets.map(target => {
-                              const info = SOUND_TARGET_LABELS[target];
-                              return `${info.icon} ${language === 'he' ? info.he : info.en}`;
-                            }).join(', ')}
-                          </p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </RadioGroup>
+                  <span className="flex items-center gap-2">
+                    <span>{t.soundTargetsLabel}</span>
+                    <span className="text-xs text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
+                      {settings.soundTargets.length}/{ALL_SOUND_TARGETS.length}
+                    </span>
+                  </span>
+                  {soundExpanded ? (
+                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  )}
+                </button>
+
+                {soundExpanded && (
+                  <div className="px-3 pb-3 space-y-3">
+                    {SOUND_CATEGORIES.map((category) => (
+                      <div key={category.id} className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide px-1">
+                          {language === 'he' ? category.labelHe : category.labelEn}
+                        </p>
+                        {category.targets.map((target) => {
+                          const label = SOUND_TARGET_LABELS[target];
+                          const isChecked = settings.soundTargets.includes(target);
+                          return (
+                            <div key={target}>
+                              <label
+                                className={`flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
+                                  isChecked ? 'bg-blue-500/10' : 'hover:bg-slate-700/30'
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={(checked) => handleSoundTargetToggle(target, !!checked)}
+                                  className="border-slate-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                                />
+                                <span className="text-base">{label.icon}</span>
+                                <span className={`text-sm ${isChecked ? 'text-white' : 'text-slate-400'}`}>
+                                  {language === 'he' ? label.he : label.en}
+                                </span>
+                              </label>
+                              {/* Baby cry WhatsApp opt-in toggle */}
+                              {target === 'baby_crying' && isChecked && (
+                                <div className="flex items-center gap-2 px-10 py-1.5">
+                                  <MessageSquare className="w-3.5 h-3.5 text-slate-500" />
+                                  <span className="text-[11px] text-slate-500 flex-1">
+                                    {t.babyCryWhatsApp}
+                                  </span>
+                                  <Switch
+                                    checked={settings.babyCryWhatsApp ?? false}
+                                    onCheckedChange={handleBabyCryWhatsAppToggle}
+                                    className="scale-75 data-[state=checked]:bg-green-500"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
