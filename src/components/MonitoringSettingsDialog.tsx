@@ -27,6 +27,37 @@ export const ALL_SOUND_TARGETS = [
 
 export type SoundTarget = typeof ALL_SOUND_TARGETS[number];
 
+/** Sound categories for grouped display */
+type SoundCategory = 'security' | 'disturbance' | 'informational';
+
+interface SoundCategoryInfo {
+  id: SoundCategory;
+  labelHe: string;
+  labelEn: string;
+  targets: SoundTarget[];
+}
+
+const SOUND_CATEGORIES: SoundCategoryInfo[] = [
+  {
+    id: 'security',
+    labelHe: '🔒 אבטחה',
+    labelEn: '🔒 Security',
+    targets: ['glass_breaking', 'alarm', 'gunshot', 'siren'],
+  },
+  {
+    id: 'disturbance',
+    labelHe: '🏠 רעשי בית',
+    labelEn: '🏠 Home Noises',
+    targets: ['door_knock', 'dog_barking', 'scream'],
+  },
+  {
+    id: 'informational',
+    labelHe: '👶 משפחתי',
+    labelEn: '👶 Family',
+    targets: ['baby_crying'],
+  },
+];
+
 /** Default targets when sound is first enabled */
 export const DEFAULT_SOUND_TARGETS: SoundTarget[] = [
   'glass_breaking',
@@ -55,15 +86,15 @@ interface MonitoringSettingsDialogProps {
   cameraStatus?: 'active' | 'inactive' | 'loading';
 }
 
-const SOUND_TARGET_LABELS: Record<SoundTarget, { he: string; en: string; icon: string }> = {
-  glass_breaking: { he: 'שבירת זכוכית', en: 'Glass Breaking', icon: '🪟' },
-  baby_crying: { he: 'בכי תינוק', en: 'Baby Crying', icon: '👶' },
-  dog_barking: { he: 'נביחת כלב', en: 'Dog Barking', icon: '🐕' },
-  alarm: { he: 'אזעקה', en: 'Alarm', icon: '🚨' },
-  gunshot: { he: 'ירי', en: 'Gunshot', icon: '💥' },
-  scream: { he: 'צעקה', en: 'Scream', icon: '😱' },
-  siren: { he: 'סירנה', en: 'Siren', icon: '🚑' },
-  door_knock: { he: 'דפיקה בדלת', en: 'Door Knock', icon: '🚪' },
+const SOUND_TARGET_LABELS: Record<SoundTarget, { he: string; en: string; icon: string; descHe: string; descEn: string }> = {
+  glass_breaking: { he: 'שבירת זכוכית', en: 'Glass Breaking', icon: '🪟', descHe: '', descEn: '' },
+  baby_crying:    { he: 'בכי תינוק', en: 'Baby Crying', icon: '👶', descHe: 'התראה אינפורמטיבית', descEn: 'Informational alert' },
+  dog_barking:    { he: 'נביחת כלב', en: 'Dog Barking', icon: '🐕', descHe: '', descEn: '' },
+  alarm:          { he: 'אזעקה', en: 'Alarm', icon: '🚨', descHe: '', descEn: '' },
+  gunshot:        { he: 'ירי', en: 'Gunshot', icon: '💥', descHe: '', descEn: '' },
+  scream:         { he: 'צעקה / צעקת עזרה', en: 'Scream / Shout', icon: '😱', descHe: '', descEn: '' },
+  siren:          { he: 'סירנה', en: 'Siren', icon: '🚑', descHe: '', descEn: '' },
+  door_knock:     { he: 'דפיקה בדלת', en: 'Door Knock', icon: '🚪', descHe: '', descEn: '' },
 };
 
 /**
@@ -121,7 +152,6 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     onSettingsChange({ 
       ...settings, 
       soundEnabled: checked,
-      // When enabling sound for the first time with empty targets, use defaults
       soundTargets: checked && settings.soundTargets.length === 0 
         ? [...DEFAULT_SOUND_TARGETS] 
         : settings.soundTargets,
@@ -267,7 +297,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
               </div>
             </div>
 
-            {/* Sound Targets - expandable section */}
+            {/* Sound Targets - expandable section grouped by category */}
             {settings.soundEnabled && (
               <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden">
                 <button
@@ -289,9 +319,9 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
                 </button>
 
                 {soundExpanded && (
-                  <div className="px-3 pb-3 space-y-1.5">
+                  <div className="px-3 pb-3 space-y-3">
                     {/* Select/Deselect All */}
-                    <div className="flex gap-2 mb-2">
+                    <div className="flex gap-2 mb-1">
                       <button
                         type="button"
                         onClick={handleSelectAll}
@@ -309,28 +339,42 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
                       </button>
                     </div>
 
-                    {ALL_SOUND_TARGETS.map((target) => {
-                      const label = SOUND_TARGET_LABELS[target];
-                      const isChecked = settings.soundTargets.includes(target);
-                      return (
-                        <label
-                          key={target}
-                          className={`flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
-                            isChecked ? 'bg-blue-500/10' : 'hover:bg-slate-700/30'
-                          }`}
-                        >
-                          <Checkbox
-                            checked={isChecked}
-                            onCheckedChange={(checked) => handleSoundTargetToggle(target, !!checked)}
-                            className="border-slate-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                          />
-                          <span className="text-base">{label.icon}</span>
-                          <span className={`text-sm ${isChecked ? 'text-white' : 'text-slate-400'}`}>
-                            {language === 'he' ? label.he : label.en}
-                          </span>
-                        </label>
-                      );
-                    })}
+                    {/* Render by category */}
+                    {SOUND_CATEGORIES.map((category) => (
+                      <div key={category.id} className="space-y-1">
+                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide px-1">
+                          {language === 'he' ? category.labelHe : category.labelEn}
+                        </p>
+                        {category.targets.map((target) => {
+                          const label = SOUND_TARGET_LABELS[target];
+                          const isChecked = settings.soundTargets.includes(target);
+                          const desc = language === 'he' ? label.descHe : label.descEn;
+                          return (
+                            <label
+                              key={target}
+                              className={`flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
+                                isChecked ? 'bg-blue-500/10' : 'hover:bg-slate-700/30'
+                              }`}
+                            >
+                              <Checkbox
+                                checked={isChecked}
+                                onCheckedChange={(checked) => handleSoundTargetToggle(target, !!checked)}
+                                className="border-slate-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                              />
+                              <span className="text-base">{label.icon}</span>
+                              <div className="flex-1">
+                                <span className={`text-sm ${isChecked ? 'text-white' : 'text-slate-400'}`}>
+                                  {language === 'he' ? label.he : label.en}
+                                </span>
+                                {desc && (
+                                  <p className="text-[10px] text-slate-500">{desc}</p>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

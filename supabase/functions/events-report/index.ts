@@ -13,15 +13,19 @@ const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const SEVERITY_MAP: Record<string, string> = {
   person: 'high',
   gunshot: 'critical',
-  scream: 'critical',
+  scream: 'medium',        // Disturbance category (was critical)
   glass_breaking: 'high',
   alarm: 'high',
   siren: 'high',
-  baby_crying: 'medium',
+  baby_crying: 'info',     // Informational category
   animal: 'low',
   vehicle: 'low',
-  dog_barking: 'low',
+  dog_barking: 'medium',   // Disturbance category (was low)
+  door_knock: 'medium',    // Disturbance category
 };
+
+// Event types that should NOT trigger WhatsApp by default
+const NON_WHATSAPP_EVENT_TYPES = new Set(['sound_baby_cry', 'sound_disturbance']);
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -227,11 +231,12 @@ serve(async (req) => {
       console.log('[events-report] Event validated as REAL - checking notification eligibility');
 
       // IMPORTANT: Only send WhatsApp if we have a snapshot for motion events
-      // This prevents duplicate notifications (one without image, one with)
-      const shouldSendWhatsApp = event_type !== 'motion' || snapshotUrl !== null;
+      // AND if the event type is eligible for WhatsApp (non-informational/disturbance)
+      const isNonWhatsAppEventType = NON_WHATSAPP_EVENT_TYPES.has(event_type);
+      const shouldSendWhatsApp = !isNonWhatsAppEventType && (event_type !== 'motion' || snapshotUrl !== null);
       
       if (!shouldSendWhatsApp) {
-        console.log('[events-report] Skipping WhatsApp - motion event without snapshot');
+        console.log(`[events-report] Skipping WhatsApp - ${isNonWhatsAppEventType ? 'non-security event type: ' + event_type : 'motion event without snapshot'}`);
       }
 
       // Profile already fetched above for language preference
@@ -553,8 +558,73 @@ Respond in JSON format:
         content: `Motion detected. Classified objects: ${labelsText}. Note: No camera snapshot available for this detection. Based only on the motion detection labels, is this a real security concern?`
       }
     ];
+  } else if (eventType === 'sound_baby_cry') {
+    // Baby cry - informational, not security
+    const labelsText = labels.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
+    
+    messages = [
+      {
+        role: 'system',
+        content: `You are a home assistant AI analyzing audio detection events.
+Your job is to determine if baby crying is genuinely detected.
+
+Rules:
+- This is an INFORMATIONAL event, NOT a security event
+- Confirm or deny the detection quality
+- Use caring, non-alarming language (never say "alert" or "warning")
+- Confidence >= 60% over multiple windows = likely real
+
+IMPORTANT: Your summary MUST be written in ${summaryLanguage}. Keep it brief (1 sentence).
+Use soft wording like "${isHebrew ? 'זוהה בכי תינוק' : 'Baby crying detected'}".
+
+Respond in JSON format:
+{
+  "is_real": boolean,
+  "confidence": number (0-1),
+  "summary": "Brief explanation in ${summaryLanguage}"
+}`
+      },
+      {
+        role: 'user',
+        content: `Audio event detected. Classified sounds: ${labelsText}. Is this a real baby cry detection?`
+      }
+    ];
+  } else if (eventType === 'sound_disturbance') {
+    // Home disturbance - moderate concern
+    const labelsText = labels.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
+    
+    messages = [
+      {
+        role: 'system',
+        content: `You are a home assistant AI analyzing audio detection events for a home monitoring system.
+Your job is to determine if detected home noises represent a notable event.
+
+Sound classifications:
+- door_knock = Someone at the door (moderate)
+- dog_barking = Pet activity (low-moderate)
+- scream = Could be urgent or just household noise (moderate-high)
+
+Consider:
+- High confidence (>0.5) across multiple windows = more reliable
+- Single isolated sounds may be false positives
+- Use moderate, non-alarming language (say "${isHebrew ? 'זוהה רעש חזק' : 'Loud noise detected'}" not "security alert")
+
+IMPORTANT: Your summary MUST be written in ${summaryLanguage}. Keep it brief (1-2 sentences).
+
+Respond in JSON format:
+{
+  "is_real": boolean,
+  "confidence": number (0-1),
+  "summary": "Brief explanation in ${summaryLanguage}"
+}`
+      },
+      {
+        role: 'user',
+        content: `Audio event detected. Classified sounds: ${labelsText}. Is this a real home disturbance or false positive?`
+      }
+    ];
   } else {
-    // Sound events
+    // Security sound events
     const labelsText = labels.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
     
     messages = [
@@ -564,13 +634,11 @@ Respond in JSON format:
 Your job is to determine if detected sounds represent a real security concern.
 
 Sound classifications:
-- glass_breaking, gunshot, scream = CRITICAL (likely real threat)
+- glass_breaking, gunshot = CRITICAL (likely real threat)
 - alarm, siren = HIGH (investigate immediately)
-- baby_crying = MEDIUM (may need attention)
-- dog_barking = LOW (usually normal)
 
 Consider:
-- High confidence scores (>0.8) are more reliable
+- High confidence scores (>0.5) are more reliable
 - Multiple detections of same sound = more reliable
 - Context matters (time of day, typical household sounds)
 
