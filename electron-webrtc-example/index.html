@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.7.0 (2026-02-08)
+  VERSION: 2.8.0 (2026-02-08)
   ============================================================
   
   CHANGELOG:
+  - v2.8.0: CRITICAL - Inline YAMNet sound detection integration (was placeholder only)
   - v2.7.0: Added sensor status indicator (camera/mic icons) in success screen
   - v2.6.0: CRITICAL FIX - Camera/Sound separation: camera only activates when motion is enabled
   - v2.5.2: Changed debounce to 60s default for security best practice
@@ -536,7 +537,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-08-v2.7.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-08-v2.8.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -569,6 +570,75 @@
         // CRITICAL: Startup grace period - no events for first 10 seconds
         const STARTUP_GRACE_PERIOD_MS = 10000;
         let monitoringStartedAt = null;
+        
+        // ============================================================
+        // SOUND DETECTION STATE (YAMNet)
+        // ============================================================
+        let soundModel = null;
+        let soundAudioContext = null;
+        let soundMediaStream = null;
+        let soundProcessor = null;
+        let soundSource = null;
+        let isSoundRunning = false;
+        let isSoundModelReady = false;
+        let soundAudioBuffer = [];
+        const SOUND_SAMPLE_RATE = 16000;
+        const SOUND_FRAME_LENGTH = 0.975; // ~1 second per inference
+        const SOUND_SAMPLES_NEEDED = Math.floor(SOUND_SAMPLE_RATE * SOUND_FRAME_LENGTH);
+        const SOUND_RMS_THRESHOLD = 0.01;
+        let soundLastDetectionTime = {};
+        let soundPersistenceCount = {};
+        let soundScoreHistory = {};
+        let isProcessingSoundEvent = false;
+        
+        // YAMNet target class indices
+        const YAMNET_TARGET_CLASSES = {
+          441: { label: 'glass_breaking', name: 'Shatter' },
+          442: { label: 'glass_breaking', name: 'Splinter' },
+          443: { label: 'glass_breaking', name: 'Crash' },
+          22: { label: 'baby_crying', name: 'Crying, sobbing' },
+          23: { label: 'baby_crying', name: 'Baby cry, infant cry' },
+          24: { label: 'baby_crying', name: 'Whimper' },
+          67: { label: 'dog_barking', name: 'Bark' },
+          68: { label: 'dog_barking', name: 'Yip' },
+          69: { label: 'dog_barking', name: 'Howl' },
+          70: { label: 'dog_barking', name: 'Growling' },
+          389: { label: 'alarm', name: 'Smoke detector, smoke alarm' },
+          390: { label: 'alarm', name: 'Fire alarm' },
+          392: { label: 'alarm', name: 'Buzzer' },
+          394: { label: 'alarm', name: 'Alarm clock' },
+          427: { label: 'gunshot', name: 'Gunshot, gunfire' },
+          428: { label: 'gunshot', name: 'Machine gun' },
+          429: { label: 'gunshot', name: 'Fusillade' },
+          426: { label: 'explosion', name: 'Explosion' },
+          20: { label: 'scream', name: 'Screaming' },
+          21: { label: 'scream', name: 'Wail, moan' },
+          19: { label: 'scream', name: 'Shout' },
+          321: { label: 'door_knock', name: 'Knock' },
+          322: { label: 'door_knock', name: 'Tap' },
+          323: { label: 'door_sound', name: 'Door' },
+          324: { label: 'door_sound', name: 'Doorbell' },
+          396: { label: 'siren', name: 'Siren' },
+          397: { label: 'siren', name: 'Civil defense siren' },
+          398: { label: 'siren', name: 'Ambulance (siren)' },
+          399: { label: 'siren', name: 'Fire engine, fire truck (siren)' },
+          400: { label: 'siren', name: 'Police car (siren)' },
+        };
+        
+        const SOUND_LABEL_POLICIES = {
+          baby_crying:    { threshold: 0.60, persistence: 3, debounce_ms: 180000, event_type: 'sound_baby_cry',   category: 'informational' },
+          door_knock:     { threshold: 0.50, persistence: 2, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
+          dog_barking:    { threshold: 0.50, persistence: 2, debounce_ms: 120000, event_type: 'sound_disturbance', category: 'disturbance' },
+          scream:         { threshold: 0.45, persistence: 2, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
+          glass_breaking: { threshold: 0.45, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
+          alarm:          { threshold: 0.50, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
+          gunshot:        { threshold: 0.40, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
+          explosion:      { threshold: 0.40, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
+          siren:          { threshold: 0.50, persistence: 1, debounce_ms: 60000,  event_type: 'sound',            category: 'security' },
+          door_sound:     { threshold: 0.50, persistence: 2, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
+        };
+        
+        let soundTargetLabels = new Set();
         
         // Label mapping from COCO to our categories
         const LABEL_MAPPING = {
@@ -707,6 +777,329 @@
         }
         
         // ============================================================
+        // SOUND: Send sound event to server (no snapshot required)
+        // ============================================================
+        async function sendSoundEventToServer(eventData) {
+          if (!deviceAuthToken || !deviceId) {
+            console.warn('[Monitoring] Missing deviceAuthToken or deviceId, skipping sound event');
+            return;
+          }
+          if (!isMonitoring) {
+            console.log('[Monitoring] Monitoring not active, skipping sound event');
+            return;
+          }
+          if (monitoringStartedAt && (Date.now() - monitoringStartedAt) < STARTUP_GRACE_PERIOD_MS) {
+            console.log(`[Monitoring] Startup grace period - skipping sound event`);
+            return;
+          }
+          if (isProcessingSoundEvent) {
+            console.log('[Monitoring] Already processing a sound event, skipping');
+            return;
+          }
+          
+          try {
+            isProcessingSoundEvent = true;
+            console.log(`[Monitoring] 🔊 Sending sound event: ${eventData.label} (${(eventData.confidence * 100).toFixed(0)}%)`);
+            
+            const response = await fetch(EVENTS_REPORT_ENDPOINT, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-device-token': deviceAuthToken,
+              },
+              body: JSON.stringify({
+                device_id: deviceId,
+                event_type: eventData.event_type || 'sound',
+                labels: [{ label: eventData.label, confidence: eventData.confidence }],
+                snapshot: null,
+                timestamp: Date.now(),
+                metadata: eventData.metadata || {},
+              }),
+            });
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error('[Monitoring] Sound event report failed:', response.status, errorText);
+            } else {
+              const result = await response.json();
+              console.log('[Monitoring] ✓ Sound event reported:', JSON.stringify({
+                event_id: result.event_id,
+                ai_is_real: result.ai_is_real,
+                notification_sent: result.notification_sent,
+              }));
+            }
+          } catch (error) {
+            console.error('[Monitoring] Sound event send error:', error);
+          } finally {
+            isProcessingSoundEvent = false;
+          }
+        }
+        
+        // ============================================================
+        // SOUND: Load TensorFlow.js + YAMNet
+        // ============================================================
+        async function loadYAMNet() {
+          try {
+            console.log('[Sound] Loading TensorFlow.js...');
+            
+            if (typeof tf === 'undefined') {
+              await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+              });
+              console.log('[Sound] ✓ TensorFlow.js loaded');
+            }
+            
+            await tf.ready();
+            console.log('[Sound] TF.js backend:', tf.getBackend());
+            
+            console.log('[Sound] Loading YAMNet model...');
+            soundModel = await tf.loadGraphModel(
+              'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1',
+              { fromTFHub: true }
+            );
+            
+            const dummy = tf.zeros([15600]);
+            const warmup = soundModel.predict(dummy);
+            warmup.dispose();
+            dummy.dispose();
+            
+            isSoundModelReady = true;
+            console.log('[Sound] ✓ YAMNet model loaded and warmed up');
+            return true;
+          } catch (error) {
+            console.error('[Sound] ✗ YAMNet initialization failed:', error);
+            isSoundModelReady = false;
+            return false;
+          }
+        }
+        
+        // ============================================================
+        // SOUND: Start microphone capture + inference
+        // ============================================================
+        async function startSoundDetection(config) {
+          if (isSoundRunning) {
+            console.log('[Sound] Already running');
+            return true;
+          }
+          
+          if (!isSoundModelReady) {
+            const loaded = await loadYAMNet();
+            if (!loaded) {
+              console.error('[Sound] Cannot start - model not loaded');
+              return false;
+            }
+          }
+          
+          const targets = config?.sensors?.sound?.targets || ['glass_breaking', 'baby_crying', 'alarm', 'gunshot', 'scream'];
+          soundTargetLabels = new Set(targets);
+          console.log('[Sound] Target labels:', Array.from(soundTargetLabels));
+          
+          try {
+            console.log('[Sound] Starting microphone capture...');
+            soundMediaStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                sampleRate: SOUND_SAMPLE_RATE,
+                channelCount: 1,
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+              }
+            });
+            
+            soundAudioContext = new AudioContext({ sampleRate: SOUND_SAMPLE_RATE });
+            soundSource = soundAudioContext.createMediaStreamSource(soundMediaStream);
+            soundProcessor = soundAudioContext.createScriptProcessor(4096, 1, 1);
+            
+            soundProcessor.onaudioprocess = (event) => {
+              if (!isSoundRunning) return;
+              const inputData = event.inputBuffer.getChannelData(0);
+              processSoundChunk(new Float32Array(inputData));
+            };
+            
+            soundSource.connect(soundProcessor);
+            soundProcessor.connect(soundAudioContext.destination);
+            
+            isSoundRunning = true;
+            soundAudioBuffer = [];
+            soundPersistenceCount = {};
+            soundScoreHistory = {};
+            soundLastDetectionTime = {};
+            
+            console.log('[Sound] ✓ Microphone capture started, inference running');
+            return true;
+          } catch (error) {
+            console.error('[Sound] Failed to start microphone:', error);
+            return false;
+          }
+        }
+        
+        // ============================================================
+        // SOUND: Process audio chunk → accumulate → infer
+        // ============================================================
+        function processSoundChunk(chunk) {
+          soundAudioBuffer.push(...chunk);
+          
+          if (soundAudioBuffer.length >= SOUND_SAMPLES_NEEDED) {
+            const samples = new Float32Array(soundAudioBuffer.slice(0, SOUND_SAMPLES_NEEDED));
+            soundAudioBuffer = soundAudioBuffer.slice(SOUND_SAMPLES_NEEDED);
+            
+            const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
+            if (rms < SOUND_RMS_THRESHOLD) {
+              for (const label of Object.keys(soundPersistenceCount)) {
+                soundPersistenceCount[label] = 0;
+              }
+              return;
+            }
+            
+            runSoundInference(samples);
+          }
+        }
+        
+        // ============================================================
+        // SOUND: Run YAMNet inference
+        // ============================================================
+        async function runSoundInference(samples) {
+          try {
+            const inputTensor = tf.tensor1d(samples);
+            const output = soundModel.predict(inputTensor);
+            
+            const scores = Array.isArray(output) ? output[0] : output;
+            const scoresData = await scores.data();
+            
+            const numClasses = 521;
+            const numFrames = scoresData.length / numClasses;
+            
+            const avgScores = new Float32Array(numClasses);
+            for (let c = 0; c < numClasses; c++) {
+              let sum = 0;
+              for (let f = 0; f < numFrames; f++) {
+                sum += scoresData[f * numClasses + c];
+              }
+              avgScores[c] = sum / numFrames;
+            }
+            
+            processSoundScores(avgScores);
+            
+            inputTensor.dispose();
+            if (Array.isArray(output)) {
+              output.forEach(t => t.dispose());
+            } else {
+              output.dispose();
+            }
+          } catch (error) {
+            console.error('[Sound] Inference error:', error);
+          }
+        }
+        
+        // ============================================================
+        // SOUND: Process scores with per-label policies
+        // ============================================================
+        function processSoundScores(scores) {
+          const now = Date.now();
+          const labelBestScores = {};
+          
+          for (const [indexStr, classInfo] of Object.entries(YAMNET_TARGET_CLASSES)) {
+            const index = parseInt(indexStr);
+            const score = scores[index];
+            const label = classInfo.label;
+            
+            if (!soundTargetLabels.has(label)) continue;
+            
+            if (!labelBestScores[label] || score > labelBestScores[label].score) {
+              labelBestScores[label] = { score, name: classInfo.name, classIndex: index };
+            }
+          }
+          
+          for (const [label, best] of Object.entries(labelBestScores)) {
+            const policy = SOUND_LABEL_POLICIES[label] || { threshold: 0.50, persistence: 1, debounce_ms: 60000, event_type: 'sound', category: 'security' };
+            
+            if (best.score < policy.threshold) {
+              soundPersistenceCount[label] = 0;
+              continue;
+            }
+            
+            soundPersistenceCount[label] = (soundPersistenceCount[label] || 0) + 1;
+            
+            if (!soundScoreHistory[label]) soundScoreHistory[label] = [];
+            soundScoreHistory[label].push(best.score);
+            if (soundScoreHistory[label].length > 10) soundScoreHistory[label].shift();
+            
+            if (soundPersistenceCount[label] < policy.persistence) continue;
+            
+            const lastTime = soundLastDetectionTime[label] || 0;
+            if (now - lastTime < policy.debounce_ms) continue;
+            
+            // ═══ Sound Detection confirmed! ═══
+            const scoreHist = soundScoreHistory[label] || [];
+            soundPersistenceCount[label] = 0;
+            soundLastDetectionTime[label] = now;
+            
+            console.log(`[Sound] ✓ DETECTED: ${best.name} → ${label} [${policy.category}] (${(best.score * 100).toFixed(1)}%) persistence=${policy.persistence}`);
+            
+            const audioCtxMeta = policy.category === 'informational' ? {
+              score_history: scoreHist.slice(-10),
+              avg_score: scoreHist.length > 0 ? scoreHist.reduce((a, b) => a + b, 0) / scoreHist.length : best.score,
+              peak_score: scoreHist.length > 0 ? Math.max(...scoreHist) : best.score,
+              consecutive_windows: policy.persistence,
+              requires_ai_verification: true,
+            } : null;
+            
+            sendSoundEventToServer({
+              label: label,
+              confidence: best.score,
+              event_type: policy.event_type,
+              metadata: {
+                yamnet_class: best.name,
+                yamnet_index: best.classIndex,
+                category: policy.category,
+                persistence_windows: policy.persistence,
+                ...(audioCtxMeta ? { audio_context: audioCtxMeta } : {}),
+              },
+            });
+            
+            window.electronAPI?.sendMonitoringEvent?.({
+              sensor_type: policy.event_type,
+              label: label,
+              confidence: best.score,
+              timestamp: now,
+              metadata: { yamnet_class: best.name, category: policy.category },
+            });
+          }
+        }
+        
+        // ============================================================
+        // SOUND: Stop sound detection
+        // ============================================================
+        function stopSoundDetection() {
+          console.log('[Sound] Stopping...');
+          isSoundRunning = false;
+          
+          if (soundProcessor) { soundProcessor.disconnect(); soundProcessor = null; }
+          if (soundSource) { soundSource.disconnect(); soundSource = null; }
+          if (soundMediaStream) {
+            soundMediaStream.getTracks().forEach(track => {
+              track.stop();
+              console.log('[Sound] Stopped mic track:', track.label);
+            });
+            soundMediaStream = null;
+          }
+          if (soundAudioContext && soundAudioContext.state !== 'closed') {
+            soundAudioContext.close();
+            soundAudioContext = null;
+          }
+          
+          soundAudioBuffer = [];
+          soundPersistenceCount = {};
+          soundScoreHistory = {};
+          soundLastDetectionTime = {};
+          console.log('[Sound] ✓ Stopped');
+        }
+        
+        // ============================================================
         // Detection loop
         // ============================================================
         let lastFrameTime = 0;
@@ -823,6 +1216,11 @@
           
           if (videoElement && videoElement.srcObject) {
             videoElement.srcObject = null;
+          }
+          
+          // Also stop sound detection on clean-start
+          if (isSoundRunning) {
+            stopSoundDetection();
           }
         }
         
@@ -962,11 +1360,14 @@
             // SOUND: Uses microphone only, no camera needed
             // ============================================================
             if (soundEnabled) {
-              console.log('[Monitoring] Sound enabled - microphone only (no camera)');
-              // Sound detection is handled by the SoundDetector class via renderer-monitoring.js
-              // or will be integrated here in a future version
-              soundStarted = true;
-              console.log('[Monitoring] ✓ Sound detection enabled');
+              console.log('[Monitoring] Sound enabled - starting YAMNet microphone detection...');
+              const soundOk = await startSoundDetection(config);
+              if (soundOk) {
+                soundStarted = true;
+                console.log('[Monitoring] ✓ Sound detection started (YAMNet + microphone)');
+              } else {
+                console.error('[Monitoring] ✗ Sound detection failed to start');
+              }
             }
             
             // Mark monitoring as active
@@ -1019,6 +1420,9 @@
           if (videoElement) {
             videoElement.srcObject = null;
           }
+          
+          // Stop sound detection
+          stopSoundDetection();
           
           window.electronAPI?.notifyMonitoringStopped?.();
           updateSensorIndicator({ motion: false, sound: false });
