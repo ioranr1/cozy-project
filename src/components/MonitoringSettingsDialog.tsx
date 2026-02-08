@@ -1,7 +1,7 @@
 import React from 'react';
-import { Eye, Volume2, Camera, CameraOff, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Eye, Volume2, Camera, CameraOff, Loader2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -58,14 +58,11 @@ const SOUND_CATEGORIES: SoundCategoryInfo[] = [
   },
 ];
 
-/** Default targets when sound is first enabled */
-export const DEFAULT_SOUND_TARGETS: SoundTarget[] = [
-  'glass_breaking',
-  'alarm',
-  'gunshot',
-  'scream',
-  'siren',
-];
+/** Default: Family category (baby_crying) */
+export const DEFAULT_SOUND_TARGETS: SoundTarget[] = ['baby_crying'];
+
+/** Default category */
+export const DEFAULT_SOUND_CATEGORY: SoundCategory = 'informational';
 
 export interface MonitoringSettings {
   motionEnabled: boolean;
@@ -116,6 +113,20 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
   const { language, isRTL } = useLanguage();
   const [soundExpanded, setSoundExpanded] = React.useState(false);
 
+  // Derive active category from current soundTargets
+  const getActiveCategory = (): SoundCategory => {
+    for (const cat of SOUND_CATEGORIES) {
+      const catTargets = cat.targets;
+      if (catTargets.every(t => settings.soundTargets.includes(t)) &&
+          settings.soundTargets.every(t => catTargets.includes(t as SoundTarget))) {
+        return cat.id;
+      }
+    }
+    return 'informational'; // default
+  };
+
+  const activeCategory = getActiveCategory();
+
   const t = {
     title: language === 'he' ? 'הגדרות ניטור' : 'Monitoring Settings',
     description: language === 'he' 
@@ -129,9 +140,8 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     soundDesc: language === 'he' 
       ? 'מזהה קולות חריגים ושולח התראות' 
       : 'Detects unusual sounds and sends alerts',
-    soundTargetsLabel: language === 'he' ? 'סוגי קולות לזיהוי' : 'Sound types to detect',
-    selectAll: language === 'he' ? 'בחר הכל' : 'Select All',
-    deselectAll: language === 'he' ? 'נקה הכל' : 'Deselect All',
+    soundTargetsLabel: language === 'he' ? 'בחר קטגוריית קול' : 'Choose sound category',
+    includes: language === 'he' ? 'כולל:' : 'Includes:',
     activate: language === 'he' ? 'הפעל ניטור' : 'Activate Monitoring',
     deactivate: language === 'he' ? 'כבה ניטור' : 'Deactivate Monitoring',
     cancel: language === 'he' ? 'ביטול' : 'Cancel',
@@ -156,22 +166,13 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
         ? [...DEFAULT_SOUND_TARGETS] 
         : settings.soundTargets,
     });
-    if (checked) setSoundExpanded(true);
   };
 
-  const handleSoundTargetToggle = (target: SoundTarget, checked: boolean) => {
-    const newTargets = checked
-      ? [...settings.soundTargets, target]
-      : settings.soundTargets.filter(t => t !== target);
-    onSettingsChange({ ...settings, soundTargets: newTargets });
-  };
-
-  const handleSelectAll = () => {
-    onSettingsChange({ ...settings, soundTargets: [...ALL_SOUND_TARGETS] });
-  };
-
-  const handleDeselectAll = () => {
-    onSettingsChange({ ...settings, soundTargets: [] });
+  const handleCategoryChange = (categoryId: string) => {
+    const category = SOUND_CATEGORIES.find(c => c.id === categoryId);
+    if (category) {
+      onSettingsChange({ ...settings, soundTargets: [...category.targets] });
+    }
   };
 
   return (
@@ -297,86 +298,46 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
               </div>
             </div>
 
-            {/* Sound Targets - expandable section grouped by category */}
+            {/* Sound Category - Radio selection */}
             {settings.soundEnabled && (
-              <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setSoundExpanded(!soundExpanded)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700/30 transition-colors"
+              <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden p-3 space-y-2">
+                <p className="text-xs text-slate-400 mb-2">{t.soundTargetsLabel}</p>
+                <RadioGroup
+                  value={activeCategory}
+                  onValueChange={handleCategoryChange}
+                  className="space-y-2"
                 >
-                  <span className="flex items-center gap-2">
-                    <span>{t.soundTargetsLabel}</span>
-                    <span className="text-xs text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
-                      {settings.soundTargets.length}/{ALL_SOUND_TARGETS.length}
-                    </span>
-                  </span>
-                  {soundExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
-                  )}
-                </button>
-
-                {soundExpanded && (
-                  <div className="px-3 pb-3 space-y-3">
-                    {/* Select/Deselect All */}
-                    <div className="flex gap-2 mb-1">
-                      <button
-                        type="button"
-                        onClick={handleSelectAll}
-                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  {SOUND_CATEGORIES.map((category) => {
+                    const isSelected = activeCategory === category.id;
+                    return (
+                      <label
+                        key={category.id}
+                        className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors border ${
+                          isSelected 
+                            ? 'bg-blue-500/10 border-blue-500/40' 
+                            : 'border-transparent hover:bg-slate-700/30'
+                        }`}
                       >
-                        {t.selectAll}
-                      </button>
-                      <span className="text-slate-600">|</span>
-                      <button
-                        type="button"
-                        onClick={handleDeselectAll}
-                        className="text-xs text-slate-400 hover:text-slate-300 transition-colors"
-                      >
-                        {t.deselectAll}
-                      </button>
-                    </div>
-
-                    {/* Render by category */}
-                    {SOUND_CATEGORIES.map((category) => (
-                      <div key={category.id} className="space-y-1">
-                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wide px-1">
-                          {language === 'he' ? category.labelHe : category.labelEn}
-                        </p>
-                        {category.targets.map((target) => {
-                          const label = SOUND_TARGET_LABELS[target];
-                          const isChecked = settings.soundTargets.includes(target);
-                          const desc = language === 'he' ? label.descHe : label.descEn;
-                          return (
-                            <label
-                              key={target}
-                              className={`flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
-                                isChecked ? 'bg-blue-500/10' : 'hover:bg-slate-700/30'
-                              }`}
-                            >
-                              <Checkbox
-                                checked={isChecked}
-                                onCheckedChange={(checked) => handleSoundTargetToggle(target, !!checked)}
-                                className="border-slate-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                              />
-                              <span className="text-base">{label.icon}</span>
-                              <div className="flex-1">
-                                <span className={`text-sm ${isChecked ? 'text-white' : 'text-slate-400'}`}>
-                                  {language === 'he' ? label.he : label.en}
-                                </span>
-                                {desc && (
-                                  <p className="text-[10px] text-slate-500">{desc}</p>
-                                )}
-                              </div>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                        <RadioGroupItem
+                          value={category.id}
+                          className="mt-0.5 border-slate-500 data-[state=checked]:border-blue-500 data-[state=checked]:text-blue-500"
+                        />
+                        <div className="flex-1">
+                          <p className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-slate-400'}`}>
+                            {language === 'he' ? category.labelHe : category.labelEn}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            {t.includes}{' '}
+                            {category.targets.map(target => {
+                              const info = SOUND_TARGET_LABELS[target];
+                              return `${info.icon} ${language === 'he' ? info.he : info.en}`;
+                            }).join(', ')}
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </RadioGroup>
               </div>
             )}
           </div>
