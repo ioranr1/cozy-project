@@ -339,8 +339,8 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         return;
       }
 
-      // Step 2b: Update monitoring_config with sound targets
-      if (monitoringSettings.soundEnabled && profileId) {
+      // Step 2b: ALWAYS update monitoring_config so Electron reads correct sensor state
+      if (profileId) {
         const { error: configError } = await supabase
           .from('monitoring_config')
           .upsert({
