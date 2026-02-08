@@ -1,6 +1,7 @@
 import React from 'react';
-import { Eye, Volume2, Camera, CameraOff, Loader2 } from 'lucide-react';
+import { Eye, Volume2, Camera, CameraOff, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,9 +13,33 @@ import {
 } from '@/components/ui/dialog';
 import { useLanguage } from '@/contexts/LanguageContext';
 
+/** All available sound detection targets */
+export const ALL_SOUND_TARGETS = [
+  'glass_breaking',
+  'baby_crying',
+  'dog_barking',
+  'alarm',
+  'gunshot',
+  'scream',
+  'siren',
+  'door_knock',
+] as const;
+
+export type SoundTarget = typeof ALL_SOUND_TARGETS[number];
+
+/** Default targets when sound is first enabled */
+export const DEFAULT_SOUND_TARGETS: SoundTarget[] = [
+  'glass_breaking',
+  'alarm',
+  'gunshot',
+  'scream',
+  'siren',
+];
+
 export interface MonitoringSettings {
   motionEnabled: boolean;
   soundEnabled: boolean;
+  soundTargets: SoundTarget[];
 }
 
 interface MonitoringSettingsDialogProps {
@@ -29,6 +54,17 @@ interface MonitoringSettingsDialogProps {
   /** Current camera/monitoring status from device_status */
   cameraStatus?: 'active' | 'inactive' | 'loading';
 }
+
+const SOUND_TARGET_LABELS: Record<SoundTarget, { he: string; en: string; icon: string }> = {
+  glass_breaking: { he: 'שבירת זכוכית', en: 'Glass Breaking', icon: '🪟' },
+  baby_crying: { he: 'בכי תינוק', en: 'Baby Crying', icon: '👶' },
+  dog_barking: { he: 'נביחת כלב', en: 'Dog Barking', icon: '🐕' },
+  alarm: { he: 'אזעקה', en: 'Alarm', icon: '🚨' },
+  gunshot: { he: 'ירי', en: 'Gunshot', icon: '💥' },
+  scream: { he: 'צעקה', en: 'Scream', icon: '😱' },
+  siren: { he: 'סירנה', en: 'Siren', icon: '🚑' },
+  door_knock: { he: 'דפיקה בדלת', en: 'Door Knock', icon: '🚪' },
+};
 
 /**
  * Dialog for configuring monitoring detection sensors.
@@ -47,6 +83,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
   cameraStatus = 'inactive',
 }) => {
   const { language, isRTL } = useLanguage();
+  const [soundExpanded, setSoundExpanded] = React.useState(false);
 
   const t = {
     title: language === 'he' ? 'הגדרות ניטור' : 'Monitoring Settings',
@@ -61,6 +98,9 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     soundDesc: language === 'he' 
       ? 'מזהה קולות חריגים ושולח התראות' 
       : 'Detects unusual sounds and sends alerts',
+    soundTargetsLabel: language === 'he' ? 'סוגי קולות לזיהוי' : 'Sound types to detect',
+    selectAll: language === 'he' ? 'בחר הכל' : 'Select All',
+    deselectAll: language === 'he' ? 'נקה הכל' : 'Deselect All',
     activate: language === 'he' ? 'הפעל ניטור' : 'Activate Monitoring',
     deactivate: language === 'he' ? 'כבה ניטור' : 'Deactivate Monitoring',
     cancel: language === 'he' ? 'ביטול' : 'Cancel',
@@ -78,13 +118,36 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
   };
 
   const handleSoundToggle = (checked: boolean) => {
-    onSettingsChange({ ...settings, soundEnabled: checked });
+    onSettingsChange({ 
+      ...settings, 
+      soundEnabled: checked,
+      // When enabling sound for the first time with empty targets, use defaults
+      soundTargets: checked && settings.soundTargets.length === 0 
+        ? [...DEFAULT_SOUND_TARGETS] 
+        : settings.soundTargets,
+    });
+    if (checked) setSoundExpanded(true);
+  };
+
+  const handleSoundTargetToggle = (target: SoundTarget, checked: boolean) => {
+    const newTargets = checked
+      ? [...settings.soundTargets, target]
+      : settings.soundTargets.filter(t => t !== target);
+    onSettingsChange({ ...settings, soundTargets: newTargets });
+  };
+
+  const handleSelectAll = () => {
+    onSettingsChange({ ...settings, soundTargets: [...ALL_SOUND_TARGETS] });
+  };
+
+  const handleDeselectAll = () => {
+    onSettingsChange({ ...settings, soundTargets: [] });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="bg-slate-900 border-slate-700 text-white max-w-sm mx-auto"
+        className="bg-slate-900 border-slate-700 text-white max-w-sm mx-auto max-h-[90vh] overflow-y-auto"
         dir={isRTL ? 'rtl' : 'ltr'}
       >
         <DialogHeader>
@@ -118,7 +181,6 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
             ) : (
               <CameraOff className="w-5 h-5" />
             )}
-            {/* Pulse animation for active state */}
             {cameraStatus === 'active' && (
               <span className="absolute inset-0 rounded-lg bg-emerald-500/30 animate-ping opacity-50" />
             )}
@@ -140,7 +202,6 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
                   : t.cameraInactive}
             </p>
           </div>
-          {/* Status dot */}
           <div className={`w-3 h-3 rounded-full ${
             cameraStatus === 'active' 
               ? 'bg-emerald-500 animate-pulse' 
@@ -179,30 +240,101 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
           </div>
 
           {/* Sound Detection Toggle */}
-          <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                settings.soundEnabled 
-                  ? 'bg-blue-500/20 text-blue-400' 
-                  : 'bg-slate-700/50 text-slate-400'
-              }`}>
-                <Volume2 className="w-5 h-5" />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                  settings.soundEnabled 
+                    ? 'bg-blue-500/20 text-blue-400' 
+                    : 'bg-slate-700/50 text-slate-400'
+                }`}>
+                  <Volume2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">{t.soundDetection}</p>
+                  <p className="text-xs text-slate-400">{t.soundDesc}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-white">{t.soundDetection}</p>
-                <p className="text-xs text-slate-400">{t.soundDesc}</p>
+              <div className="flex flex-col items-center gap-1">
+                <Switch
+                  checked={settings.soundEnabled}
+                  onCheckedChange={handleSoundToggle}
+                  className={settings.soundEnabled ? 'data-[state=checked]:bg-blue-500' : ''}
+                />
+                <span className={`text-xs ${settings.soundEnabled ? 'text-blue-400' : 'text-slate-500'}`}>
+                  {settings.soundEnabled ? t.on : t.off}
+                </span>
               </div>
-        </div>
-            <div className="flex flex-col items-center gap-1">
-              <Switch
-                checked={settings.soundEnabled}
-                onCheckedChange={handleSoundToggle}
-                className={settings.soundEnabled ? 'data-[state=checked]:bg-blue-500' : ''}
-              />
-              <span className={`text-xs ${settings.soundEnabled ? 'text-blue-400' : 'text-slate-500'}`}>
-                {settings.soundEnabled ? t.on : t.off}
-              </span>
             </div>
+
+            {/* Sound Targets - expandable section */}
+            {settings.soundEnabled && (
+              <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setSoundExpanded(!soundExpanded)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700/30 transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <span>{t.soundTargetsLabel}</span>
+                    <span className="text-xs text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
+                      {settings.soundTargets.length}/{ALL_SOUND_TARGETS.length}
+                    </span>
+                  </span>
+                  {soundExpanded ? (
+                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  )}
+                </button>
+
+                {soundExpanded && (
+                  <div className="px-3 pb-3 space-y-1.5">
+                    {/* Select/Deselect All */}
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={handleSelectAll}
+                        className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        {t.selectAll}
+                      </button>
+                      <span className="text-slate-600">|</span>
+                      <button
+                        type="button"
+                        onClick={handleDeselectAll}
+                        className="text-xs text-slate-400 hover:text-slate-300 transition-colors"
+                      >
+                        {t.deselectAll}
+                      </button>
+                    </div>
+
+                    {ALL_SOUND_TARGETS.map((target) => {
+                      const label = SOUND_TARGET_LABELS[target];
+                      const isChecked = settings.soundTargets.includes(target);
+                      return (
+                        <label
+                          key={target}
+                          className={`flex items-center gap-3 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
+                            isChecked ? 'bg-blue-500/10' : 'hover:bg-slate-700/30'
+                          }`}
+                        >
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(checked) => handleSoundTargetToggle(target, !!checked)}
+                            className="border-slate-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
+                          />
+                          <span className="text-base">{label.icon}</span>
+                          <span className={`text-sm ${isChecked ? 'text-white' : 'text-slate-400'}`}>
+                            {language === 'he' ? label.he : label.en}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
