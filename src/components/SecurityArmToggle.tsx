@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Shield, ShieldOff, Loader2, Settings } from 'lucide-react';
+import { SensorStatusIndicator } from '@/components/SensorStatusIndicator';
 import { Switch } from '@/components/ui/switch';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -560,11 +561,17 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
                 securityEnabled ? 'bg-red-500' : 'bg-amber-500'
               }`}
             />
-            <span className={`text-xs ${securityEnabled ? 'text-red-400' : 'text-amber-400'}`}>
+            <span className={`text-xs flex-1 ${securityEnabled ? 'text-red-400' : 'text-amber-400'}`}>
               {securityEnabled
-                ? (language === 'he' ? 'המצלמה פעילה ומנטרת' : 'Camera active & monitoring')
-                : (language === 'he' ? 'ממתין להפעלת מצלמה מהמחשב…' : 'Waiting for computer to activate camera…')}
+                ? (language === 'he' ? 'מנטר פעיל' : 'Monitoring active')
+                : (language === 'he' ? 'ממתין להפעלה מהמחשב…' : 'Waiting for computer…')}
             </span>
+            <SensorStatusIndicator
+              motionEnabled={monitoringSettings.motionEnabled}
+              soundEnabled={monitoringSettings.soundEnabled}
+              securityEnabled={securityEnabled}
+              isArmed={isArmed}
+            />
           </div>
         )}
       </div>
