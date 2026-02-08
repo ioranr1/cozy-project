@@ -1,11 +1,104 @@
 /**
  * Monitoring Configuration Defaults & Schemas
  * ============================================
- * VERSION: 0.1.0 (2026-01-30)
+ * VERSION: 0.2.0 (2026-02-08)
+ * 
+ * CHANGELOG:
+ * - v0.2.0: Added per-category sound policies (informational/disturbance/security)
+ *           Per-label thresholds, persistence, debounce, and severity
+ * - v0.1.0: Initial configuration with flat defaults
  * 
  * Default configurations and validation schemas for monitoring sensors.
  * Designed for easy extension with new sensor types.
  */
+
+// =============================================================================
+// SOUND CATEGORY POLICIES
+// =============================================================================
+
+/**
+ * Per-label sound detection policies.
+ * The detector applies these automatically - users only pick which sounds to detect.
+ */
+const SOUND_LABEL_POLICIES = {
+  // ── A) Informational / Family (non-security) ──────────────────────────────
+  baby_crying: {
+    category: 'informational',
+    event_type: 'sound_baby_cry',
+    threshold: 0.60,
+    persistence: 3,       // consecutive windows required
+    debounce_ms: 180000,  // 3 minutes
+    severity: 'info',
+    whatsapp_default: false, // WhatsApp only if user explicitly enables
+  },
+
+  // ── B) Disturbance (home noises) ───────────────────────────────────────────
+  door_knock: {
+    category: 'disturbance',
+    event_type: 'sound_disturbance',
+    threshold: 0.50,
+    persistence: 2,
+    debounce_ms: 60000,   // 1 minute
+    severity: 'medium',
+    whatsapp_default: false,
+  },
+  dog_barking: {
+    category: 'disturbance',
+    event_type: 'sound_disturbance',
+    threshold: 0.50,
+    persistence: 2,
+    debounce_ms: 120000,  // 2 minutes
+    severity: 'medium',
+    whatsapp_default: false,
+  },
+  scream: {
+    category: 'disturbance',
+    event_type: 'sound_disturbance',
+    threshold: 0.45,
+    persistence: 2,
+    debounce_ms: 60000,
+    severity: 'medium',
+    whatsapp_default: false,
+  },
+
+  // ── C) Security ────────────────────────────────────────────────────────────
+  glass_breaking: {
+    category: 'security',
+    event_type: 'sound',
+    threshold: 0.45,
+    persistence: 1,
+    debounce_ms: 30000,
+    severity: 'high',
+    whatsapp_default: true,
+  },
+  alarm: {
+    category: 'security',
+    event_type: 'sound',
+    threshold: 0.50,
+    persistence: 1,
+    debounce_ms: 30000,
+    severity: 'high',
+    whatsapp_default: true,
+  },
+  gunshot: {
+    category: 'security',
+    event_type: 'sound',
+    threshold: 0.40,
+    persistence: 1,
+    debounce_ms: 30000,
+    severity: 'critical',
+    whatsapp_default: true,
+  },
+  siren: {
+    category: 'security',
+    event_type: 'sound',
+    threshold: 0.50,
+    persistence: 1,
+    debounce_ms: 60000,
+    severity: 'high',
+    whatsapp_default: true,
+  },
+};
 
 // =============================================================================
 // DEFAULT SENSOR CONFIGURATIONS
@@ -20,7 +113,7 @@ const MOTION_SENSOR_DEFAULTS = {
   confidence_threshold: 0.7,
   debounce_ms: 60000,
   // MediaPipe specific settings
-  model: 'efficientdet_lite0', // or 'efficientdet_lite2' for higher accuracy
+  model: 'efficientdet_lite0',
   max_results: 5,
   score_threshold: 0.5,
 };
@@ -30,12 +123,15 @@ const MOTION_SENSOR_DEFAULTS = {
  */
 const SOUND_SENSOR_DEFAULTS = {
   enabled: false,
-  targets: ['glass_breaking', 'baby_crying', 'dog_barking', 'alarm', 'gunshot'],
-  confidence_threshold: 0.6,
+  targets: ['glass_breaking', 'alarm', 'gunshot', 'scream', 'siren'],
+  // Global fallback (overridden by per-label policies)
+  confidence_threshold: 0.5,
   debounce_ms: 60000,
   // YAMNet specific settings
   sample_rate: 16000,
   frame_length_ms: 960,
+  // RMS gate: skip near-silence frames
+  rms_threshold: 0.01,
 };
 
 /**
@@ -48,9 +144,9 @@ const DEFAULT_MONITORING_CONFIG = {
     sound: { ...SOUND_SENSOR_DEFAULTS },
   },
   // Global settings
-  notification_cooldown_ms: 60000, // 1 minute between notifications
+  notification_cooldown_ms: 60000,
   event_retention_days: 30,
-  ai_validation_enabled: false, // Future: send events for AI validation
+  ai_validation_enabled: false,
 };
 
 // =============================================================================
@@ -71,29 +167,22 @@ const MOTION_LABELS = [
 
 /**
  * Sound detection labels supported by YAMNet
- * Reference: https://github.com/tensorflow/models/blob/master/research/audioset/yamnet/yamnet_class_map.csv
  */
 const SOUND_LABELS = [
-  { id: 'glass_breaking', name_en: 'Glass Breaking', name_he: 'שבירת זכוכית', yamnet_ids: [441, 442] },
-  { id: 'baby_crying', name_en: 'Baby Crying', name_he: 'בכי תינוק', yamnet_ids: [22] },
-  { id: 'dog_barking', name_en: 'Dog Barking', name_he: 'נביחת כלב', yamnet_ids: [67] },
-  { id: 'alarm', name_en: 'Alarm', name_he: 'אזעקה', yamnet_ids: [389, 390, 391, 392] },
-  { id: 'gunshot', name_en: 'Gunshot', name_he: 'יריות', yamnet_ids: [427, 428, 429] },
-  { id: 'scream', name_en: 'Scream', name_he: 'צעקה', yamnet_ids: [20] },
-  { id: 'door_knock', name_en: 'Door Knock', name_he: 'דפיקה בדלת', yamnet_ids: [321] },
-  { id: 'siren', name_en: 'Siren', name_he: 'צופר/סירנה', yamnet_ids: [396, 397] },
+  { id: 'glass_breaking', name_en: 'Glass Breaking', name_he: 'שבירת זכוכית', yamnet_ids: [441, 442], category: 'security' },
+  { id: 'baby_crying', name_en: 'Baby Crying', name_he: 'בכי תינוק', yamnet_ids: [22, 23, 24], category: 'informational' },
+  { id: 'dog_barking', name_en: 'Dog Barking', name_he: 'נביחת כלב', yamnet_ids: [67], category: 'disturbance' },
+  { id: 'alarm', name_en: 'Alarm', name_he: 'אזעקה', yamnet_ids: [389, 390, 391, 392], category: 'security' },
+  { id: 'gunshot', name_en: 'Gunshot', name_he: 'ירי', yamnet_ids: [427, 428, 429], category: 'security' },
+  { id: 'scream', name_en: 'Scream', name_he: 'צעקה', yamnet_ids: [20], category: 'disturbance' },
+  { id: 'door_knock', name_en: 'Door Knock', name_he: 'דפיקה בדלת', yamnet_ids: [321], category: 'disturbance' },
+  { id: 'siren', name_en: 'Siren', name_he: 'צופר/סירנה', yamnet_ids: [396, 397], category: 'security' },
 ];
 
 // =============================================================================
 // VALIDATION HELPERS
 // =============================================================================
 
-/**
- * Validate a sensor configuration object
- * @param {object} config - Sensor config to validate
- * @param {string} sensorType - 'motion' or 'sound'
- * @returns {{ valid: boolean, errors: string[] }}
- */
 function validateSensorConfig(config, sensorType) {
   const errors = [];
   
@@ -118,11 +207,6 @@ function validateSensorConfig(config, sensorType) {
   return { valid: errors.length === 0, errors };
 }
 
-/**
- * Merge partial config with defaults
- * @param {object} partialConfig - User provided config
- * @returns {object} - Complete config with defaults filled in
- */
 function mergeWithDefaults(partialConfig = {}) {
   return {
     monitoring_enabled: partialConfig.monitoring_enabled ?? DEFAULT_MONITORING_CONFIG.monitoring_enabled,
@@ -142,6 +226,22 @@ function mergeWithDefaults(partialConfig = {}) {
   };
 }
 
+/**
+ * Get the policy for a specific sound label.
+ * Falls back to security defaults if label not found.
+ */
+function getSoundLabelPolicy(label) {
+  return SOUND_LABEL_POLICIES[label] || {
+    category: 'security',
+    event_type: 'sound',
+    threshold: 0.50,
+    persistence: 1,
+    debounce_ms: 60000,
+    severity: 'medium',
+    whatsapp_default: true,
+  };
+}
+
 // =============================================================================
 // EXPORTS
 // =============================================================================
@@ -152,6 +252,9 @@ module.exports = {
   MOTION_SENSOR_DEFAULTS,
   SOUND_SENSOR_DEFAULTS,
   
+  // Per-label policies
+  SOUND_LABEL_POLICIES,
+  
   // Labels
   MOTION_LABELS,
   SOUND_LABELS,
@@ -159,4 +262,5 @@ module.exports = {
   // Helpers
   validateSensorConfig,
   mergeWithDefaults,
+  getSoundLabelPolicy,
 };

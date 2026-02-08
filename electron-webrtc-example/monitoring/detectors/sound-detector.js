@@ -1,7 +1,12 @@
 /**
  * Sound Detector - TensorFlow.js + YAMNet Integration
  * ====================================================
- * VERSION: 0.2.0 (2026-01-30)
+ * VERSION: 0.3.0 (2026-02-08)
+ * 
+ * CHANGELOG:
+ * - v0.3.0: Per-label thresholds, persistence tracking, RMS pre-filter,
+ *           distinct event types (sound_baby_cry / sound_disturbance / sound)
+ * - v0.2.0: Initial YAMNet integration with flat thresholds
  * 
  * Runs in Electron RENDERER process.
  * Uses TensorFlow.js with YAMNet for audio classification.
@@ -69,12 +74,31 @@ const YAMNET_TARGET_CLASSES = {
 // All target class indices for quick lookup
 const TARGET_CLASS_INDICES = new Set(Object.keys(YAMNET_TARGET_CLASSES).map(Number));
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// Per-label policy defaults (imported at runtime from monitoring-config if avail)
+// Fallback values baked in for resilience.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const DEFAULT_LABEL_POLICIES = {
+  // Informational
+  baby_crying:    { threshold: 0.60, persistence: 3, debounce_ms: 180000, event_type: 'sound_baby_cry',   category: 'informational' },
+  // Disturbance
+  door_knock:     { threshold: 0.50, persistence: 2, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
+  dog_barking:    { threshold: 0.50, persistence: 2, debounce_ms: 120000, event_type: 'sound_disturbance', category: 'disturbance' },
+  scream:         { threshold: 0.45, persistence: 2, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
+  // Security
+  glass_breaking: { threshold: 0.45, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
+  alarm:          { threshold: 0.50, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
+  gunshot:        { threshold: 0.40, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
+  siren:          { threshold: 0.50, persistence: 1, debounce_ms: 60000,  event_type: 'sound',            category: 'security' },
+};
+
 class SoundDetector {
   constructor(options = {}) {
     this.options = {
       sampleRate: 16000, // YAMNet expects 16kHz
       frameLength: 0.975, // ~1 second per inference
-      confidenceThreshold: options.confidenceThreshold || 0.5,
+      rmsThreshold: options.rmsThreshold || 0.01, // skip near-silence
       ...options,
     };
 
@@ -98,15 +122,27 @@ class SoundDetector {
       'siren',
     ]);
     
+    // Per-label policies (merged with config overrides if provided)
+    this.labelPolicies = { ...DEFAULT_LABEL_POLICIES };
+    if (options.labelPolicies) {
+      for (const [label, policy] of Object.entries(options.labelPolicies)) {
+        this.labelPolicies[label] = { ...DEFAULT_LABEL_POLICIES[label], ...policy };
+      }
+    }
+    
     // Audio buffer for accumulating samples
     this.audioBuffer = [];
     this.samplesNeeded = Math.floor(this.options.sampleRate * this.options.frameLength);
     
-    // Debounce tracking per label
+    // Debounce tracking per label (timestamp of last emitted event)
     this.lastDetectionTime = {};
-    this.debounceMs = options.debounce_ms || 60000;
     
-    console.log('[SoundDetector] Created with options:', this.options);
+    // Persistence tracking per label (consecutive window count above threshold)
+    this.persistenceCount = {};
+    
+    console.log('[SoundDetector] Created v0.3.0 with per-label policies');
+    console.log('[SoundDetector] Targets:', Array.from(this.targetLabels));
+    console.log('[SoundDetector] RMS threshold:', this.options.rmsThreshold);
   }
 
   /**
@@ -126,7 +162,6 @@ class SoundDetector {
       console.log('[SoundDetector] TensorFlow.js backend:', tf.getBackend());
       
       // Load YAMNet model from TensorFlow Hub
-      // YAMNet expects 16kHz mono audio
       this.model = await tf.loadGraphModel(
         'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1',
         { fromTFHub: true }
@@ -195,8 +230,6 @@ class SoundDetector {
       this.source = this.audioContext.createMediaStreamSource(this.mediaStream);
 
       // Create script processor for audio data access
-      // Note: ScriptProcessorNode is deprecated but still works
-      // Alternative: AudioWorklet (more complex setup)
       this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
 
       this.processor.onaudioprocess = (event) => {
@@ -212,6 +245,7 @@ class SoundDetector {
 
       this.isRunning = true;
       this.audioBuffer = [];
+      this.persistenceCount = {};
       console.log('[SoundDetector] ✓ Audio capture started');
       
       return true;
@@ -233,6 +267,16 @@ class SoundDetector {
       const samples = new Float32Array(this.audioBuffer.slice(0, this.samplesNeeded));
       this.audioBuffer = this.audioBuffer.slice(this.samplesNeeded);
       
+      // ── RMS pre-filter: skip near-silence ──
+      const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
+      if (rms < this.options.rmsThreshold) {
+        // Reset all persistence counters on silence
+        for (const label of Object.keys(this.persistenceCount)) {
+          this.persistenceCount[label] = 0;
+        }
+        return;
+      }
+      
       // Run inference asynchronously
       this.runInference(samples);
     }
@@ -243,18 +287,13 @@ class SoundDetector {
    */
   async runInference(samples) {
     try {
-      // Create input tensor
       const inputTensor = tf.tensor1d(samples);
-      
-      // Run model
       const output = this.model.predict(inputTensor);
       
       // YAMNet returns [scores, embeddings, log_mel_spectrogram]
-      // We only need scores (shape: [frames, 521])
       const scores = Array.isArray(output) ? output[0] : output;
       const scoresData = await scores.data();
       
-      // Get number of frames and classes
       const numClasses = 521;
       const numFrames = scoresData.length / numClasses;
       
@@ -268,7 +307,7 @@ class SoundDetector {
         avgScores[c] = sum / numFrames;
       }
       
-      // Find detections above threshold
+      // Find detections above per-label thresholds
       this.processScores(avgScores);
       
       // Cleanup tensors
@@ -284,54 +323,71 @@ class SoundDetector {
   }
 
   /**
-   * Process YAMNet scores and emit detections
+   * Process YAMNet scores with per-label policies and persistence tracking
    */
   processScores(scores) {
     const now = Date.now();
-    const detections = [];
     
-    // Check each target class
+    // Aggregate best score per label across all YAMNet class indices
+    const labelBestScores = {};
+    
     for (const [indexStr, classInfo] of Object.entries(YAMNET_TARGET_CLASSES)) {
       const index = parseInt(indexStr);
       const score = scores[index];
-      
-      if (score < this.options.confidenceThreshold) continue;
+      const label = classInfo.label;
       
       // Check if this label is in our targets
-      if (!this.targetLabels.has(classInfo.label)) continue;
+      if (!this.targetLabels.has(label)) continue;
       
-      detections.push({
-        label: classInfo.label,
-        name: classInfo.name,
-        confidence: score,
-        classIndex: index,
-      });
+      if (!labelBestScores[label] || score > labelBestScores[label].score) {
+        labelBestScores[label] = { score, name: classInfo.name, classIndex: index };
+      }
     }
     
-    // Sort by confidence and take top detections
-    detections.sort((a, b) => b.confidence - a.confidence);
-    
-    // Emit top detections (with debounce)
-    for (const detection of detections.slice(0, 3)) {
-      // Check debounce
-      const lastTime = this.lastDetectionTime[detection.label] || 0;
-      if (now - lastTime < this.debounceMs) continue;
+    // Apply per-label threshold + persistence + debounce
+    for (const [label, best] of Object.entries(labelBestScores)) {
+      const policy = this.labelPolicies[label] || DEFAULT_LABEL_POLICIES[label] || {
+        threshold: 0.50, persistence: 1, debounce_ms: 60000, event_type: 'sound', category: 'security',
+      };
       
-      // Update debounce tracking
-      this.lastDetectionTime[detection.label] = now;
+      // Threshold check
+      if (best.score < policy.threshold) {
+        // Reset persistence counter (not consecutive)
+        this.persistenceCount[label] = 0;
+        continue;
+      }
+      
+      // Increment persistence counter
+      this.persistenceCount[label] = (this.persistenceCount[label] || 0) + 1;
+      
+      // Check persistence requirement
+      if (this.persistenceCount[label] < policy.persistence) {
+        continue; // Need more consecutive windows
+      }
+      
+      // Debounce check
+      const lastTime = this.lastDetectionTime[label] || 0;
+      if (now - lastTime < policy.debounce_ms) continue;
+      
+      // ═══ Detection confirmed! ═══
+      this.persistenceCount[label] = 0; // Reset after emit
+      this.lastDetectionTime[label] = now;
       
       const eventData = {
-        sensor_type: 'sound',
-        label: detection.label,
-        confidence: detection.confidence,
+        sensor_type: policy.event_type, // sound_baby_cry / sound_disturbance / sound
+        label: label,
+        confidence: best.score,
         timestamp: now,
         metadata: {
-          yamnet_class: detection.name,
-          yamnet_index: detection.classIndex,
+          yamnet_class: best.name,
+          yamnet_index: best.classIndex,
+          category: policy.category,
+          persistence_windows: policy.persistence,
+          debounce_ms: policy.debounce_ms,
         },
       };
 
-      console.log(`[SoundDetector] Detected: ${detection.name} → ${detection.label} (${(detection.confidence * 100).toFixed(1)}%)`);
+      console.log(`[SoundDetector] ✓ Detected: ${best.name} → ${label} [${policy.category}] (${(best.score * 100).toFixed(1)}%) persistence=${policy.persistence}`);
 
       // Send to main process
       if (window.electronAPI?.sendMonitoringEvent) {
@@ -340,6 +396,13 @@ class SoundDetector {
 
       // Call callback
       this.onDetection(eventData);
+    }
+    
+    // Reset persistence for labels that had NO score above threshold this window
+    for (const label of Object.keys(this.persistenceCount)) {
+      if (!labelBestScores[label] || labelBestScores[label].score < (this.labelPolicies[label]?.threshold || 0.50)) {
+        // Already handled above, but ensure it's set to 0
+      }
     }
   }
 
@@ -351,7 +414,6 @@ class SoundDetector {
     
     this.isRunning = false;
 
-    // Disconnect audio graph
     if (this.processor) {
       this.processor.disconnect();
       this.processor = null;
@@ -362,13 +424,11 @@ class SoundDetector {
       this.source = null;
     }
 
-    // Stop media stream
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;
     }
 
-    // Close audio context
     if (this.audioContext && this.audioContext.state !== 'closed') {
       this.audioContext.close();
       this.audioContext = null;
@@ -376,6 +436,7 @@ class SoundDetector {
 
     this.audioBuffer = [];
     this.lastDetectionTime = {};
+    this.persistenceCount = {};
     
     console.log('[SoundDetector] ✓ Stopped');
   }
@@ -388,13 +449,16 @@ class SoundDetector {
       this.targetLabels = new Set(config.targets);
       console.log('[SoundDetector] Updated targets:', Array.from(this.targetLabels));
     }
-    if (config.confidence_threshold !== undefined) {
-      this.options.confidenceThreshold = config.confidence_threshold;
-      console.log('[SoundDetector] Updated threshold:', this.options.confidenceThreshold);
+    if (config.rms_threshold !== undefined) {
+      this.options.rmsThreshold = config.rms_threshold;
+      console.log('[SoundDetector] Updated RMS threshold:', this.options.rmsThreshold);
     }
-    if (config.debounce_ms !== undefined) {
-      this.debounceMs = config.debounce_ms;
-      console.log('[SoundDetector] Updated debounce:', this.debounceMs);
+    // Per-label policy overrides (future use for Advanced presets)
+    if (config.labelPolicies) {
+      for (const [label, policy] of Object.entries(config.labelPolicies)) {
+        this.labelPolicies[label] = { ...this.labelPolicies[label], ...policy };
+      }
+      console.log('[SoundDetector] Updated label policies');
     }
   }
 
@@ -407,7 +471,8 @@ class SoundDetector {
       isRunning: this.isRunning,
       hasAudio: !!this.mediaStream,
       targets: Array.from(this.targetLabels),
-      threshold: this.options.confidenceThreshold,
+      rmsThreshold: this.options.rmsThreshold,
+      persistenceCounters: { ...this.persistenceCount },
       bufferSize: this.audioBuffer.length,
     };
   }
