@@ -188,6 +188,60 @@ serve(async (req) => {
     let aiSummary = '';
     let aiConfidence = 0;
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // BABY CRY: Server-side rate limiting (max 1 notification per 3 minutes)
+    // This is IN ADDITION to the client-side 180s debounce
+    // ═══════════════════════════════════════════════════════════════════════════
+    const BABY_CRY_COOLDOWN_MS = 180000; // 3 minutes
+    if (event_type === 'sound_baby_cry') {
+      const { data: recentBabyCry } = await supabase
+        .from('monitoring_events')
+        .select('id, created_at')
+        .eq('device_id', device_id)
+        .eq('event_type', 'sound_baby_cry')
+        .eq('ai_is_real', true)
+        .gte('created_at', new Date(Date.now() - BABY_CRY_COOLDOWN_MS).toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recentBabyCry) {
+        console.log(`[events-report] Baby cry rate-limited - recent event ${recentBabyCry.id} exists within ${BABY_CRY_COOLDOWN_MS}ms`);
+        // Still record the event but mark as throttled and skip AI + notification
+        await supabase
+          .from('monitoring_events')
+          .update({
+            ai_validated: true,
+            ai_is_real: true,
+            ai_summary: userLanguage === 'he' ? 'אירוע בכי תינוק נוסף - מוגבל בקצב' : 'Additional baby cry event - rate limited',
+            ai_confidence: 0.5,
+            ai_validated_at: new Date().toISOString(),
+            metadata: {
+              ...metadata,
+              original_timestamp: timestamp,
+              rate_limited: true,
+              rate_limit_reason: 'baby_cry_cooldown',
+              recent_event_id: recentBabyCry.id,
+            },
+          })
+          .eq('id', eventRecord.id);
+
+        return new Response(JSON.stringify({
+          success: true,
+          event_id: eventRecord.id,
+          ai_validated: true,
+          ai_is_real: true,
+          ai_confidence: 0.5,
+          severity: 'info',
+          notification_sent: false,
+          rate_limited: true,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     try {
       const aiResult = await validateWithAI({
         eventType: event_type,
@@ -195,12 +249,33 @@ serve(async (req) => {
         snapshotUrl,
         snapshot, // Pass base64 for vision
         apiKey: LOVABLE_API_KEY,
-        language: userLanguage, // Pass user language preference
+        language: userLanguage,
+        metadata, // Pass metadata for audio_context and motion correlation
       });
 
       aiIsReal = aiResult.isReal;
       aiSummary = aiResult.summary;
       aiConfidence = aiResult.confidence;
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // BABY CRY: Motion correlation confidence boost (+0.15)
+      // If motion was detected within ±10s, boost the AI confidence
+      // ═══════════════════════════════════════════════════════════════════════
+      if (event_type === 'sound_baby_cry' && metadata?.motion_correlated) {
+        const boost = 0.15;
+        const boostedConfidence = Math.min(1.0, aiConfidence + boost);
+        console.log(`[events-report] Baby cry + motion correlation boost: ${aiConfidence.toFixed(2)} → ${boostedConfidence.toFixed(2)}`);
+        aiConfidence = boostedConfidence;
+        
+        // If AI said not real but motion-correlated with decent confidence, reconsider
+        if (!aiIsReal && aiConfidence >= 0.55) {
+          aiIsReal = true;
+          aiSummary += (userLanguage === 'he' 
+            ? ' (אומת עם תנועה מתואמת)' 
+            : ' (Corroborated by correlated motion)');
+          console.log('[events-report] Baby cry upgraded to REAL due to motion correlation');
+        }
+      }
 
       console.log(`[events-report] AI validation: isReal=${aiIsReal}, confidence=${aiConfidence}`);
 
@@ -213,7 +288,12 @@ serve(async (req) => {
           ai_summary: aiSummary,
           ai_confidence: aiConfidence,
           ai_validated_at: new Date().toISOString(),
-          severity: aiIsReal ? severity : 'low', // Downgrade false positives
+          severity: aiIsReal ? severity : 'low',
+          metadata: {
+            ...metadata,
+            original_timestamp: timestamp,
+            ...(metadata?.motion_correlated ? { motion_boost_applied: true } : {}),
+          },
         })
         .eq('id', eventRecord.id);
 
@@ -466,6 +546,7 @@ interface AIValidationParams {
   snapshot: string | null;
   apiKey: string;
   language: string; // 'he' or 'en'
+  metadata?: Record<string, any>; // For audio_context and motion correlation
 }
 
 interface AIValidationResult {
@@ -475,7 +556,7 @@ interface AIValidationResult {
 }
 
 async function validateWithAI(params: AIValidationParams): Promise<AIValidationResult> {
-  const { eventType, labels, snapshot, apiKey, language } = params;
+  const { eventType, labels, snapshot, apiKey, language, metadata } = params;
 
   const isHebrew = language === 'he';
   const summaryLanguage = isHebrew ? 'Hebrew' : 'English';
@@ -559,34 +640,56 @@ Respond in JSON format:
       }
     ];
   } else if (eventType === 'sound_baby_cry') {
-    // Baby cry - informational, not security
+    // Baby cry - STRICT secondary AI verification (similar to motion pipeline)
     const labelsText = labels.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
+    
+    // Build enhanced context from audio_context metadata
+    const audioCtx = metadata?.audio_context;
+    const motionCorrelated = metadata?.motion_correlated;
+    
+    let contextDetails = `Detected sounds: ${labelsText}.`;
+    if (audioCtx) {
+      contextDetails += `\nScore history across ${audioCtx.consecutive_windows} consecutive windows: avg=${(audioCtx.avg_score * 100).toFixed(1)}%, peak=${(audioCtx.peak_score * 100).toFixed(1)}%.`;
+      if (audioCtx.score_history?.length > 0) {
+        contextDetails += `\nRaw scores: [${audioCtx.score_history.map((s: number) => (s * 100).toFixed(0) + '%').join(', ')}]`;
+      }
+    }
+    if (motionCorrelated) {
+      const cm = metadata.correlated_motion;
+      contextDetails += `\nMOTION CORRELATION: ${cm?.label} detected ${cm?.delta_ms}ms before/after this sound (confidence: ${(cm?.confidence * 100).toFixed(0)}%).`;
+    }
     
     messages = [
       {
         role: 'system',
-        content: `You are a home assistant AI analyzing audio detection events.
-Your job is to determine if baby crying is genuinely detected.
+        content: `You are a home assistant AI performing SECONDARY VERIFICATION of baby cry audio detection.
+The primary detector (YAMNet) has already triggered with sufficient persistence. Your job is to evaluate the detection quality and determine if this is genuinely a baby crying.
 
-Rules:
-- This is an INFORMATIONAL event, NOT a security event
-- Confirm or deny the detection quality
-- Use caring, non-alarming language (never say "alert" or "warning")
-- Confidence >= 60% over multiple windows = likely real
+VERIFICATION CRITERIA:
+- Average confidence >= 60% across multiple windows = LIKELY REAL
+- Peak confidence >= 75% = STRONG indicator
+- Consistent scores across windows (low variance) = MORE reliable
+- If motion was also detected nearby (within 10 seconds), this INCREASES reliability
+- Single low-confidence detection = possible FALSE POSITIVE
+- Scores below 50% with high variance = likely FALSE POSITIVE
 
-IMPORTANT: Your summary MUST be written in ${summaryLanguage}. Keep it brief (1 sentence).
-Use soft wording like "${isHebrew ? 'זוהה בכי תינוק' : 'Baby crying detected'}".
+IMPORTANT RULES:
+- This is INFORMATIONAL, NOT a security event
+- Use caring, non-alarming language (NEVER say "alert", "warning", or "danger")
+- If unsure, lean toward is_real=false to avoid false notifications
+- Your summary MUST be in ${summaryLanguage}. Keep it to 1 sentence.
+- Use soft wording: "${isHebrew ? 'זוהה בכי תינוק' : 'Baby crying detected'}"
 
-Respond in JSON format:
+Respond in JSON:
 {
   "is_real": boolean,
   "confidence": number (0-1),
-  "summary": "Brief explanation in ${summaryLanguage}"
+  "summary": "Brief caring explanation in ${summaryLanguage}"
 }`
       },
       {
         role: 'user',
-        content: `Audio event detected. Classified sounds: ${labelsText}. Is this a real baby cry detection?`
+        content: `Secondary verification request for baby cry detection.\n\n${contextDetails}\n\nBased on the score pattern and context, is this genuinely a baby crying?`
       }
     ];
   } else if (eventType === 'sound_disturbance') {

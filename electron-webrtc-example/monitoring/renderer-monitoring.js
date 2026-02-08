@@ -1,9 +1,10 @@
 /**
  * Renderer Monitoring Controller
  * ===============================
- * VERSION: 1.1.0 (2026-02-08)
+ * VERSION: 1.2.0 (2026-02-08)
  * 
  * CHANGELOG:
+ * - v1.2.0: Motion correlation for baby cry events (±10s cross-sensor boost)
  * - v1.1.0: CRITICAL FIX - Camera only activates when motion is enabled (sound-only = no camera)
  * - v1.0.0: Production release with motion/sound detection integration
  * - v0.1.0: Initial implementation
@@ -28,6 +29,10 @@ class RendererMonitoringController {
     this.videoElement = null;
     this.isMonitoring = false;
     this.config = null;
+    
+    // Cross-sensor correlation: track recent motion events for baby cry boost
+    this.recentMotionEvents = []; // { timestamp, label, confidence }
+    this.MOTION_CORRELATION_WINDOW_MS = 10000; // ±10 seconds
     
     // Status tracking
     this.status = {
@@ -291,9 +296,41 @@ class RendererMonitoringController {
   handleDetection(event) {
     console.log('[RendererMonitoring] Detection:', event.sensor_type, event.label, `${(event.confidence * 100).toFixed(1)}%`);
     
+    const now = Date.now();
+    
+    // Track motion events for cross-sensor correlation
+    if (event.sensor_type === 'motion') {
+      this.recentMotionEvents.push({
+        timestamp: now,
+        label: event.label,
+        confidence: event.confidence,
+      });
+      // Prune old entries (keep last 30s)
+      this.recentMotionEvents = this.recentMotionEvents.filter(
+        e => now - e.timestamp < 30000
+      );
+    }
+    
     // Capture snapshot for motion events
     if (event.sensor_type === 'motion' && this.videoElement) {
       event.snapshot = this.captureSnapshot();
+    }
+    
+    // Cross-sensor correlation: if baby cry, check for recent motion
+    if (event.sensor_type === 'sound_baby_cry') {
+      const correlatedMotion = this.recentMotionEvents.find(
+        m => Math.abs(now - m.timestamp) <= this.MOTION_CORRELATION_WINDOW_MS
+      );
+      if (correlatedMotion) {
+        event.metadata = event.metadata || {};
+        event.metadata.motion_correlated = true;
+        event.metadata.correlated_motion = {
+          label: correlatedMotion.label,
+          confidence: correlatedMotion.confidence,
+          delta_ms: now - correlatedMotion.timestamp,
+        };
+        console.log(`[RendererMonitoring] Baby cry + motion correlation: ${correlatedMotion.label} (${(correlatedMotion.confidence * 100).toFixed(0)}%) ${now - correlatedMotion.timestamp}ms ago`);
+      }
     }
     
     // Send to main process

@@ -1,9 +1,11 @@
 /**
  * Sound Detector - TensorFlow.js + YAMNet Integration
  * ====================================================
- * VERSION: 0.3.0 (2026-02-08)
+ * VERSION: 0.4.0 (2026-02-08)
  * 
  * CHANGELOG:
+ * - v0.4.0: Baby cry AI verification pipeline - score history collection,
+ *           audio_context metadata for secondary AI validation
  * - v0.3.0: Per-label thresholds, persistence tracking, RMS pre-filter,
  *           distinct event types (sound_baby_cry / sound_disturbance / sound)
  * - v0.2.0: Initial YAMNet integration with flat thresholds
@@ -140,7 +142,12 @@ class SoundDetector {
     // Persistence tracking per label (consecutive window count above threshold)
     this.persistenceCount = {};
     
-    console.log('[SoundDetector] Created v0.3.0 with per-label policies');
+    // Score history per label (for AI verification context)
+    // Stores last N scores for labels that require secondary AI verification
+    this.scoreHistory = {};
+    this.maxScoreHistory = 10; // Keep last 10 inference windows
+    
+    console.log('[SoundDetector] Created v0.4.0 with AI verification pipeline');
     console.log('[SoundDetector] Targets:', Array.from(this.targetLabels));
     console.log('[SoundDetector] RMS threshold:', this.options.rmsThreshold);
   }
@@ -357,8 +364,15 @@ class SoundDetector {
         continue;
       }
       
-      // Increment persistence counter
+      // Increment persistence counter and record score history
       this.persistenceCount[label] = (this.persistenceCount[label] || 0) + 1;
+      
+      // Track score history for labels needing AI verification
+      if (!this.scoreHistory[label]) this.scoreHistory[label] = [];
+      this.scoreHistory[label].push(best.score);
+      if (this.scoreHistory[label].length > this.maxScoreHistory) {
+        this.scoreHistory[label].shift();
+      }
       
       // Check persistence requirement
       if (this.persistenceCount[label] < policy.persistence) {
@@ -370,8 +384,22 @@ class SoundDetector {
       if (now - lastTime < policy.debounce_ms) continue;
       
       // ═══ Detection confirmed! ═══
+      const scoreHist = this.scoreHistory[label] || [];
       this.persistenceCount[label] = 0; // Reset after emit
       this.lastDetectionTime[label] = now;
+      
+      // Build audio context for AI verification (baby_cry and informational sounds)
+      const audioContext = policy.category === 'informational' ? {
+        score_history: scoreHist.slice(-this.maxScoreHistory),
+        avg_score: scoreHist.length > 0 
+          ? scoreHist.reduce((a, b) => a + b, 0) / scoreHist.length 
+          : best.score,
+        peak_score: scoreHist.length > 0 
+          ? Math.max(...scoreHist) 
+          : best.score,
+        consecutive_windows: policy.persistence,
+        requires_ai_verification: true,
+      } : null;
       
       const eventData = {
         sensor_type: policy.event_type, // sound_baby_cry / sound_disturbance / sound
@@ -384,6 +412,7 @@ class SoundDetector {
           category: policy.category,
           persistence_windows: policy.persistence,
           debounce_ms: policy.debounce_ms,
+          ...(audioContext ? { audio_context: audioContext } : {}),
         },
       };
 
@@ -437,6 +466,7 @@ class SoundDetector {
     this.audioBuffer = [];
     this.lastDetectionTime = {};
     this.persistenceCount = {};
+    this.scoreHistory = {};
     
     console.log('[SoundDetector] ✓ Stopped');
   }
