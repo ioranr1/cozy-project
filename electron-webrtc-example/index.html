@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.6.0 (2026-02-08)
+  VERSION: 2.7.0 (2026-02-08)
   ============================================================
   
   CHANGELOG:
+  - v2.7.0: Added sensor status indicator (camera/mic icons) in success screen
   - v2.6.0: CRITICAL FIX - Camera/Sound separation: camera only activates when motion is enabled
   - v2.5.2: Changed debounce to 60s default for security best practice
   - v2.3.2: CRITICAL FIX - Camera initialization with progressive fallbacks + clean-start sequence
@@ -379,6 +380,46 @@
         margin-right: 0;
         margin-left: 8px;
       }
+
+      /* Sensor status indicator */
+      .sensor-status {
+        display: none;
+        justify-content: center;
+        gap: 16px;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: rgba(30, 41, 59, 0.7);
+        border: 1px solid rgba(71, 85, 105, 0.4);
+        margin-bottom: 16px;
+      }
+
+      .sensor-status.active {
+        display: flex;
+      }
+
+      .sensor-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .sensor-item.on {
+        color: #4ade80;
+      }
+
+      .sensor-item.off {
+        color: #64748b;
+      }
+
+      .sensor-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #4ade80;
+        animation: pulse 1.5s infinite;
+      }
     </style>
   </head>
   <body>
@@ -419,6 +460,16 @@
         <div class="success-title" id="success-title">Connected Successfully</div>
         <div class="success-subtitle" id="success-subtitle">Your camera is now linked to your account</div>
 
+        <!-- Sensor Status Indicator (camera/mic) -->
+        <div id="sensor-status" class="sensor-status">
+          <div class="sensor-item off" id="sensor-camera">
+            📷 <span id="sensor-camera-label">Camera</span>
+          </div>
+          <div class="sensor-item off" id="sensor-mic">
+            🎤 <span id="sensor-mic-label">Mic</span>
+          </div>
+        </div>
+
         <!-- Away Mode Status -->
         <div id="away-mode-indicator" class="info-box" style="display: none; background: rgba(34, 197, 94, 0.15); border-color: rgba(34, 197, 94, 0.4);">
           <div class="info-box-title" style="color: #86efac;"><span>🏠</span> <span id="away-mode-title">Away Mode Active</span></div>
@@ -454,7 +505,26 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-08-v2.6.0");
+      console.log("[UI] index.html build: electron-index-2026-02-08-v2.7.0");
+      
+      // ============================================================
+      // Sensor Status Indicator - update UI for camera/mic
+      // ============================================================
+      function updateSensorIndicator({ motion, sound }) {
+        const container = document.getElementById('sensor-status');
+        const cameraEl = document.getElementById('sensor-camera');
+        const micEl = document.getElementById('sensor-mic');
+        if (!container || !cameraEl || !micEl) return;
+
+        const isActive = motion || sound;
+        container.classList.toggle('active', isActive);
+
+        cameraEl.className = 'sensor-item ' + (motion ? 'on' : 'off');
+        cameraEl.innerHTML = (motion ? '📷 ' : '📷 ') + '<span>' + (motion ? (document.documentElement.dir === 'rtl' ? 'מצלמה ✓' : 'Camera ✓') : (document.documentElement.dir === 'rtl' ? 'מצלמה' : 'Camera')) + '</span>' + (motion ? ' <span class="sensor-dot"></span>' : '');
+
+        micEl.className = 'sensor-item ' + (sound ? 'on' : 'off');
+        micEl.innerHTML = (sound ? '🎤 ' : '🎤 ') + '<span>' + (sound ? (document.documentElement.dir === 'rtl' ? 'מיקרופון ✓' : 'Mic ✓') : (document.documentElement.dir === 'rtl' ? 'מיקרופון' : 'Mic')) + '</span>' + (sound ? ' <span class="sensor-dot"></span>' : '');
+      }
     </script>
 
     <!-- WebRTC logic (start/stop via IPC) -->
@@ -466,7 +536,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-08-v2.6.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-08-v2.7.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -909,6 +979,8 @@
             window.electronAPI?.notifyMonitoringStarted?.({ motion: motionStarted, sound: soundStarted });
             console.log('[Monitoring] ✓ Sent monitoring-started ACK (motion:', motionStarted, ', sound:', soundStarted, ')');
             
+            // Update sensor status indicator in UI
+            updateSensorIndicator({ motion: motionStarted, sound: soundStarted });
           } catch (error) {
             console.error('[Monitoring] ✗ Start failed:', error);
             console.error('[Monitoring] Error name:', error.name);
@@ -949,6 +1021,7 @@
           }
           
           window.electronAPI?.notifyMonitoringStopped?.();
+          updateSensorIndicator({ motion: false, sound: false });
           console.log('[Monitoring] ✓ Monitoring stopped');
         }
         

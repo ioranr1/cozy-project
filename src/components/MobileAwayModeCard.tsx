@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, forwardRef } from 'react';
 import { Home, HomeIcon, Loader2, Plug, Monitor, AlertCircle, CheckCircle, WifiOff, Moon, AlertTriangle, Camera, CameraOff } from 'lucide-react';
+import { SensorStatusIndicator } from '@/components/SensorStatusIndicator';
 import { Switch } from '@/components/ui/switch';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -583,41 +584,22 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
         </div>
       )}
 
-      {/* CAMERA/SECURITY STATUS INDICATOR - Shows if security system is actively monitoring */}
+      {/* SENSOR STATUS INDICATOR - Shows active sensors (camera/mic) */}
       {isAway && !isPending && !showError && (
         <div className="space-y-2">
           {/* Away mode active */}
           <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg">
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            <span className="text-amber-400 text-xs">
+            <span className="text-amber-400 text-xs flex-1">
               {t.activeMessage}
             </span>
+            <SensorStatusIndicator
+              motionEnabled={securityStatus.motion_enabled}
+              soundEnabled={securityStatus.sound_enabled}
+              securityEnabled={securityStatus.security_enabled}
+              isArmed={securityStatus.security_enabled}
+            />
           </div>
-          
-          {/* Camera/Security Status - CRITICAL for user to know if camera is working */}
-          {securityStatus.security_enabled && securityStatus.motion_enabled ? (
-            <div className="flex items-center gap-2 px-3 py-2 bg-green-500/15 border border-green-500/30 rounded-lg">
-              <Camera className="w-4 h-4 text-green-400" />
-              <span className="text-green-400 text-xs font-medium">
-                {t.cameraActive}
-              </span>
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse ml-auto" />
-            </div>
-          ) : securityStatus.security_enabled && !securityStatus.motion_enabled ? (
-            <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/15 border border-orange-500/30 rounded-lg">
-              <CameraOff className="w-4 h-4 text-orange-400" />
-              <span className="text-orange-400 text-xs font-medium">
-                {t.cameraInactive}
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-2 bg-slate-500/15 border border-slate-500/30 rounded-lg">
-              <CameraOff className="w-4 h-4 text-slate-400" />
-              <span className="text-slate-400 text-xs">
-                {t.cameraInactive}
-              </span>
-            </div>
-          )}
         </div>
       )}
 
