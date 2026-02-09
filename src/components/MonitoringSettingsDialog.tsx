@@ -84,8 +84,10 @@ interface MonitoringSettingsDialogProps {
   onSettingsChange: (settings: MonitoringSettings) => void;
   onConfirm: () => void;
   onDeactivate?: () => void;
+  onUpdateSettings?: () => void;
   isLoading?: boolean;
   isArmed?: boolean;
+  settingsChanged?: boolean;
   cameraStatus?: 'active' | 'inactive' | 'loading';
 }
 
@@ -107,8 +109,10 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
   onSettingsChange,
   onConfirm,
   onDeactivate,
+  onUpdateSettings,
   isLoading = false,
   isArmed = false,
+  settingsChanged = false,
   cameraStatus = 'inactive',
 }) => {
   const { language, isRTL } = useLanguage();
@@ -130,6 +134,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     soundTargetsLabel: language === 'he' ? 'סוגי קולות לזיהוי' : 'Sound types to detect',
     activate: language === 'he' ? 'הפעל ניטור' : 'Activate Monitoring',
     deactivate: language === 'he' ? 'כבה ניטור' : 'Deactivate Monitoring',
+    updateSettings: language === 'he' ? 'עדכן הגדרות' : 'Update Settings',
     cancel: language === 'he' ? 'ביטול' : 'Cancel',
     close: language === 'he' ? 'סגור' : 'Close',
     on: language === 'he' ? 'פעיל' : 'On',
@@ -389,14 +394,28 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
         <DialogFooter className="flex gap-2 sm:gap-2">
           {isArmed ? (
             <>
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800"
-                disabled={isLoading}
-              >
-                {t.close}
-              </Button>
+              {settingsChanged && onUpdateSettings ? (
+                <Button
+                  onClick={onUpdateSettings}
+                  disabled={isLoading || (!settings.motionEnabled && !settings.soundEnabled)}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isLoading ? (
+                    <span className="animate-spin">⏳</span>
+                  ) : (
+                    t.updateSettings
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-800"
+                  disabled={isLoading}
+                >
+                  {t.close}
+                </Button>
+              )}
               <Button
                 onClick={onDeactivate}
                 disabled={isLoading}
