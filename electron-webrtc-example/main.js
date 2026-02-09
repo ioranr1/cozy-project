@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.3.2 (2026-02-09)
+ * VERSION: 2.3.3 (2026-02-09)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1648,11 +1648,19 @@ app.whenReady().then(async () => {
     monitoringManager.setClipRecorder(clipRecorder);
   }
 
-  // If we have a stored device, start subscriptions
+  // If we have a stored device, start subscriptions and show success screen
   if (deviceId) {
     subscribeToCommands();
     subscribeToRtcSessions();
     subscribeToDeviceStatus();
+
+    // CRITICAL FIX: When auto-login with stored session, tell renderer to show
+    // the success screen instead of the pairing screen. Without this, the UI
+    // stays on the hidden pairing screen → black/empty window.
+    mainWindow.webContents.on('did-finish-load', () => {
+      console.log('[Main] Auto-login: sending show-success-screen to renderer');
+      mainWindow.webContents.send('show-success-screen');
+    });
   }
 
   app.on('activate', () => {
