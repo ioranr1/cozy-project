@@ -21,80 +21,35 @@
  * The detector applies these automatically - users only pick which sounds to detect.
  */
 const SOUND_LABEL_POLICIES = {
-  // ── A) Informational / Family (non-security) ──────────────────────────────
+  // ── A) Family - Baby crying only (max sensitivity) ─────────────────────────
   baby_crying: {
     category: 'informational',
     event_type: 'sound_baby_cry',
-    threshold: 0.60,
-    persistence: 3,       // consecutive windows required
+    threshold: 0.30,
+    persistence: 1,
     debounce_ms: 180000,  // 3 minutes
     severity: 'info',
-    whatsapp_default: false, // WhatsApp only if user explicitly enables
+    whatsapp_default: true,
   },
 
-  // ── B) Disturbance (home noises) ───────────────────────────────────────────
-  door_knock: {
-    category: 'disturbance',
-    event_type: 'sound_disturbance',
-    threshold: 0.50,
-    persistence: 2,
-    debounce_ms: 60000,   // 1 minute
-    severity: 'medium',
-    whatsapp_default: false,
-  },
+  // ── B) Home Noises - Dog barking only (max sensitivity) ────────────────────
   dog_barking: {
     category: 'disturbance',
     event_type: 'sound_disturbance',
-    threshold: 0.50,
-    persistence: 2,
-    debounce_ms: 120000,  // 2 minutes
+    threshold: 0.25,
+    persistence: 1,
+    debounce_ms: 60000,   // 1 minute
     severity: 'medium',
-    whatsapp_default: false,
-  },
-  scream: {
-    category: 'disturbance',
-    event_type: 'sound_disturbance',
-    threshold: 0.45,
-    persistence: 2,
-    debounce_ms: 60000,
-    severity: 'medium',
-    whatsapp_default: false,
+    whatsapp_default: true,
   },
 
-  // ── C) Security ────────────────────────────────────────────────────────────
-  glass_breaking: {
+  // ── C) Security - Help calls / screaming only (max sensitivity) ────────────
+  scream: {
     category: 'security',
     event_type: 'sound',
-    threshold: 0.45,
+    threshold: 0.25,
     persistence: 1,
     debounce_ms: 30000,
-    severity: 'high',
-    whatsapp_default: true,
-  },
-  alarm: {
-    category: 'security',
-    event_type: 'sound',
-    threshold: 0.50,
-    persistence: 1,
-    debounce_ms: 30000,
-    severity: 'high',
-    whatsapp_default: true,
-  },
-  gunshot: {
-    category: 'security',
-    event_type: 'sound',
-    threshold: 0.40,
-    persistence: 1,
-    debounce_ms: 30000,
-    severity: 'critical',
-    whatsapp_default: true,
-  },
-  siren: {
-    category: 'security',
-    event_type: 'sound',
-    threshold: 0.50,
-    persistence: 1,
-    debounce_ms: 60000,
     severity: 'high',
     whatsapp_default: true,
   },
@@ -123,7 +78,7 @@ const MOTION_SENSOR_DEFAULTS = {
  */
 const SOUND_SENSOR_DEFAULTS = {
   enabled: false,
-  targets: ['glass_breaking', 'alarm', 'gunshot', 'scream', 'siren'],
+  targets: ['scream'],
   // Global fallback (overridden by per-label policies)
   confidence_threshold: 0.5,
   debounce_ms: 60000,

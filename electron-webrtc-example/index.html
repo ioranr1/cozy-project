@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.10.0 (2026-02-09)
+   VERSION: 2.11.0 (2026-02-09)
    ============================================================
    
    CHANGELOG:
@@ -629,16 +629,12 @@
         };
         
         const SOUND_LABEL_POLICIES = {
-          baby_crying:    { threshold: 0.60, persistence: 3, debounce_ms: 180000, event_type: 'sound_baby_cry',   category: 'informational' },
-          door_knock:     { threshold: 0.50, persistence: 2, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
-          dog_barking:    { threshold: 0.50, persistence: 2, debounce_ms: 120000, event_type: 'sound_disturbance', category: 'disturbance' },
-          scream:         { threshold: 0.45, persistence: 2, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
-          glass_breaking: { threshold: 0.45, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
-          alarm:          { threshold: 0.50, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
-          gunshot:        { threshold: 0.40, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
-          explosion:      { threshold: 0.40, persistence: 1, debounce_ms: 30000,  event_type: 'sound',            category: 'security' },
-          siren:          { threshold: 0.50, persistence: 1, debounce_ms: 60000,  event_type: 'sound',            category: 'security' },
-          door_sound:     { threshold: 0.50, persistence: 2, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
+          // Family - baby crying only (max sensitivity)
+          baby_crying:    { threshold: 0.30, persistence: 1, debounce_ms: 180000, event_type: 'sound_baby_cry',    category: 'informational' },
+          // Home Noises - dog barking only (max sensitivity)
+          dog_barking:    { threshold: 0.25, persistence: 1, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
+          // Security - help calls / screaming only (max sensitivity)
+          scream:         { threshold: 0.25, persistence: 1, debounce_ms: 30000,  event_type: 'sound',             category: 'security' },
         };
         
         let soundTargetLabels = new Set();
