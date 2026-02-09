@@ -40,7 +40,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [securityEnabled, setSecurityEnabled] = useState(false); // True when Electron confirms camera is active
   const [monitoringSettings, setMonitoringSettings] = useState<MonitoringSettings>({
-    motionEnabled: true,
+    motionEnabled: false,
     soundEnabled: false,
     soundTargets: [...DEFAULT_SOUND_TARGETS],
   });
@@ -175,7 +175,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
             device_id: deviceId,
             is_armed: false,
             last_command: 'STANDBY',
-            motion_enabled: true,
+            motion_enabled: false,
             sound_enabled: false,
           });
         
@@ -299,7 +299,12 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     }
 
     if (checked) {
-      // Opening - show settings dialog
+      // Opening - reset sensors to OFF so user explicitly chooses what to monitor
+      setMonitoringSettings(prev => ({
+        ...prev,
+        motionEnabled: false,
+        soundEnabled: false,
+      }));
       setShowSettingsDialog(true);
     } else {
       // Closing - directly disarm
