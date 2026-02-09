@@ -1,7 +1,7 @@
 /**
  * Monitoring Configuration Defaults & Schemas
  * ============================================
- * VERSION: 0.2.0 (2026-02-08)
+ * VERSION: 0.3.0 (2026-02-09)
  * 
  * CHANGELOG:
  * - v0.2.0: Added per-category sound policies (informational/disturbance/security)
