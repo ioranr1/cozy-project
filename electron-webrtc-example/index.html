@@ -1,11 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.8.3 (2026-02-09)
+   VERSION: 2.9.0 (2026-02-09)
    ============================================================
    
    CHANGELOG:
-   - v2.8.3: FIX - YAMNet loads from local models/yamnet/ (all CDNs return 403)
+   - v2.9.0: ARCH - YAMNet loads via local HTTP server (main.js serves models)
    - v2.8.2: FIX - YAMNet model URL fallback chain (GCS direct → Kaggle)
    - v2.8.1: FIX - YAMNet model URL updated from TFHub (403) to Kaggle CDN
    - v2.8.0: CRITICAL - Inline YAMNet sound detection integration (was placeholder only)
@@ -540,7 +540,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.8.3";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.9.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -860,11 +860,14 @@
             console.log('[Sound] TF.js backend:', tf.getBackend());
             
             console.log('[Sound] Loading YAMNet model...');
-            // All CDNs (TFHub, Kaggle, GCS) return 403
-            // Load from local models/yamnet/ directory
-            const localModelPath = './monitoring/models/yamnet/model.json';
-            console.log(`[Sound] Loading from local: ${localModelPath}`);
-            soundModel = await tf.loadGraphModel(localModelPath);
+            // Load from local HTTP server (main.js serves monitoring/models/)
+            const port = await window.electronAPI?.getModelServerPort?.();
+            if (!port) {
+              throw new Error('Local model server not running. Ensure YAMNet files exist in monitoring/models/yamnet/');
+            }
+            const localModelUrl = `http://127.0.0.1:${port}/yamnet/model.json`;
+            console.log(`[Sound] Loading from: ${localModelUrl}`);
+            soundModel = await tf.loadGraphModel(localModelUrl);
             
             const dummy = tf.zeros([15600]);
             const warmup = soundModel.predict(dummy);
@@ -1361,28 +1364,41 @@
             }
             
             // ============================================================
-            // SOUND: Uses microphone only, no camera needed
+            // SOUND: Independent, non-blocking subsystem
+            // Sound failure must NEVER block ACK or affect motion
             // ============================================================
+            let soundError = null;
             if (soundEnabled) {
-              console.log('[Monitoring] Sound enabled - starting YAMNet microphone detection...');
-              const soundOk = await startSoundDetection(config);
-              if (soundOk) {
-                soundStarted = true;
-                console.log('[Monitoring] ✓ Sound detection started (YAMNet + microphone)');
-              } else {
-                console.error('[Monitoring] ✗ Sound detection failed to start');
+              try {
+                console.log('[Monitoring] Sound enabled - starting YAMNet microphone detection...');
+                const soundOk = await startSoundDetection(config);
+                if (soundOk) {
+                  soundStarted = true;
+                  console.log('[Monitoring] ✓ Sound detection started (YAMNet + microphone)');
+                } else {
+                  soundError = 'Sound detection failed to start (model or microphone unavailable)';
+                  console.error('[Monitoring] ✗ Sound detection failed to start');
+                }
+              } catch (soundErr) {
+                soundError = soundErr.message || 'Unknown sound error';
+                console.error('[Monitoring] ✗ Sound detection threw error (non-blocking):', soundErr);
               }
             }
             
-            // Mark monitoring as active
+            // Mark monitoring as active - ALWAYS, even if sound failed
             isMonitoring = true;
             monitoringStartedAt = Date.now();
             console.log('[Monitoring] ✓ Grace period started (10s)');
             
-            // Send ACK to main
+            // CRITICAL: ACK is ALWAYS sent, regardless of sound status
+            const ackPayload = {
+              motion: motionStarted,
+              sound: soundStarted,
+              errors: soundError ? { sound: soundError } : undefined,
+            };
             console.log('[Monitoring] Sending ACK to main process...');
-            window.electronAPI?.notifyMonitoringStarted?.({ motion: motionStarted, sound: soundStarted });
-            console.log('[Monitoring] ✓ Sent monitoring-started ACK (motion:', motionStarted, ', sound:', soundStarted, ')');
+            window.electronAPI?.notifyMonitoringStarted?.(ackPayload);
+            console.log('[Monitoring] ✓ Sent monitoring-started ACK:', JSON.stringify(ackPayload));
             
             // Update sensor status indicator in UI
             updateSensorIndicator({ motion: motionStarted, sound: soundStarted });
@@ -1394,7 +1410,13 @@
             const bilingual = buildMonitoringErrorMessage(error);
             console.error('[Monitoring] Full error:', bilingual);
             
-            window.electronAPI?.notifyMonitoringError?.(bilingual);
+            // CRITICAL: Even on total failure, send ACK not error
+            // to prevent main process timeout
+            window.electronAPI?.notifyMonitoringStarted?.({
+              motion: false,
+              sound: false,
+              errors: { system: bilingual },
+            });
           }
         }
         
