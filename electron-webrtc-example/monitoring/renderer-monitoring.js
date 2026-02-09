@@ -1,7 +1,7 @@
 /**
  * Renderer Monitoring Controller
  * ===============================
- * VERSION: 1.2.0 (2026-02-08)
+ * VERSION: 1.3.0 (2026-02-09)
  * 
  * CHANGELOG:
  * - v1.2.0: Motion correlation for baby cry events (±10s cross-sensor boost)
@@ -21,6 +21,7 @@
 
 const MotionDetector = require('./detectors/motion-detector');
 const SoundDetector = require('./detectors/sound-detector');
+const { SOUND_LABEL_POLICIES } = require('./monitoring-config');
 
 class RendererMonitoringController {
   constructor() {
@@ -65,6 +66,7 @@ class RendererMonitoringController {
       // Initialize sound detector
       this.soundDetector = new SoundDetector({
         onDetection: (event) => this.handleDetection(event),
+        labelPolicies: SOUND_LABEL_POLICIES,
       });
       
       const soundOk = await this.soundDetector.initialize();
@@ -159,9 +161,10 @@ class RendererMonitoringController {
       // Start sound detector if enabled (uses microphone, NOT camera)
       if (soundEnabled && this.status.soundReady) {
         this.soundDetector.updateConfig({
-          targets: config?.sensors?.sound?.targets || ['glass_breaking', 'baby_crying', 'alarm', 'gunshot', 'scream'],
+          targets: config?.sensors?.sound?.targets || ['scream'],
           confidence_threshold: config?.sensors?.sound?.confidence_threshold || 0.6,
           debounce_ms: config?.sensors?.sound?.debounce_ms || 60000,
+          labelPolicies: SOUND_LABEL_POLICIES,
         });
         
         await this.soundDetector.start();
@@ -269,6 +272,7 @@ class RendererMonitoringController {
           targets: soundConfig.targets,
           confidence_threshold: soundConfig.confidence_threshold,
           debounce_ms: soundConfig.debounce_ms,
+          labelPolicies: SOUND_LABEL_POLICIES,
         });
         this.soundDetector.start();
         this.status.soundRunning = true;
@@ -282,6 +286,7 @@ class RendererMonitoringController {
           targets: soundConfig.targets,
           confidence_threshold: soundConfig.confidence_threshold,
           debounce_ms: soundConfig.debounce_ms,
+          labelPolicies: SOUND_LABEL_POLICIES,
         });
       }
     }
