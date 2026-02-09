@@ -105,6 +105,27 @@ serve(async (req) => {
       });
     }
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // GUARD: Reject events if device is no longer armed (race-condition shield)
+    // ═══════════════════════════════════════════════════════════════════════════
+    const { data: deviceStatus } = await supabase
+      .from('device_status')
+      .select('is_armed')
+      .eq('device_id', device_id)
+      .maybeSingle();
+
+    if (deviceStatus && !deviceStatus.is_armed) {
+      console.log(`[events-report] REJECTED - device ${device_id} is not armed, discarding ${event_type} event`);
+      return new Response(JSON.stringify({
+        success: false,
+        reason: 'device_not_armed',
+        message: 'Device monitoring is disabled',
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Determine severity from labels
     let severity = 'low';
     for (const labelObj of labels) {

@@ -426,11 +426,13 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     setShowSettingsDialog(false); // Close dialog immediately
 
     try {
-      // Step 1: Update device_status
+      // Step 1: Update device_status - MUST disable sensors to stop Electron immediately
       const { error: statusError } = await supabase
         .from('device_status')
         .update({
           is_armed: false,
+          motion_enabled: false,
+          sound_enabled: false,
           last_command: 'DISARM',
           last_command_at: new Date().toISOString(),
         })
