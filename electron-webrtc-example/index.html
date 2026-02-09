@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.8.2 (2026-02-09)
+   VERSION: 2.8.3 (2026-02-09)
    ============================================================
    
    CHANGELOG:
+   - v2.8.3: FIX - YAMNet loads from local models/yamnet/ (all CDNs return 403)
    - v2.8.2: FIX - YAMNet model URL fallback chain (GCS direct → Kaggle)
    - v2.8.1: FIX - YAMNet model URL updated from TFHub (403) to Kaggle CDN
    - v2.8.0: CRITICAL - Inline YAMNet sound detection integration (was placeholder only)
@@ -539,7 +540,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.8.2";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.8.3";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -859,25 +860,11 @@
             console.log('[Sound] TF.js backend:', tf.getBackend());
             
             console.log('[Sound] Loading YAMNet model...');
-            // Both TFHub and Kaggle return 403 - use direct GCS storage URL
-            const yamnetUrls = [
-              'https://storage.googleapis.com/tfhub-modules/google/tfjs-model/yamnet/tfjs/1/model.json',
-              'https://www.kaggle.com/models/google/yamnet/TfJs/tfjs/1',
-            ];
-            let loaded = false;
-            for (const url of yamnetUrls) {
-              try {
-                const isKaggle = url.includes('kaggle.com');
-                console.log(`[Sound] Trying: ${url}`);
-                soundModel = await tf.loadGraphModel(url, isKaggle ? { fromTFHub: true } : {});
-                loaded = true;
-                console.log(`[Sound] ✓ Loaded from: ${url}`);
-                break;
-              } catch (urlErr) {
-                console.warn(`[Sound] ✗ Failed: ${url}`, urlErr.message);
-              }
-            }
-            if (!loaded) throw new Error('All YAMNet URLs failed');
+            // All CDNs (TFHub, Kaggle, GCS) return 403
+            // Load from local models/yamnet/ directory
+            const localModelPath = './monitoring/models/yamnet/model.json';
+            console.log(`[Sound] Loading from local: ${localModelPath}`);
+            soundModel = await tf.loadGraphModel(localModelPath);
             
             const dummy = tf.zeros([15600]);
             const warmup = soundModel.predict(dummy);
