@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Shield, ShieldOff, Loader2, Settings } from 'lucide-react';
 import { SensorStatusIndicator } from '@/components/SensorStatusIndicator';
 import { Switch } from '@/components/ui/switch';
@@ -43,12 +43,14 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     showSettingsDialogRef.current = open;
     setShowSettingsDialog(open);
   }, []);
-  const [securityEnabled, setSecurityEnabled] = useState(false); // True when Electron confirms camera is active
+  const [securityEnabled, setSecurityEnabled] = useState(false);
   const [monitoringSettings, setMonitoringSettings] = useState<MonitoringSettings>({
     motionEnabled: false,
     soundEnabled: false,
     soundTargets: [...DEFAULT_SOUND_TARGETS],
   });
+  // Track the DB-stored settings to detect changes while armed
+  const armedSettingsRef = useRef<{ motionEnabled: boolean; soundEnabled: boolean } | null>(null);
 
   // Get profile ID and selected device dynamically
   const profileId = useMemo(() => {
@@ -166,11 +168,17 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         const config = configData?.config as Record<string, any> | null;
         const soundTargets = config?.sensors?.sound?.targets as SoundTarget[] | undefined;
         
+        const motionVal = status.motion_enabled ?? true;
+        const soundVal = status.sound_enabled ?? false;
         setMonitoringSettings({
-          motionEnabled: status.motion_enabled ?? true,
-          soundEnabled: status.sound_enabled ?? false,
+          motionEnabled: motionVal,
+          soundEnabled: soundVal,
           soundTargets: soundTargets && soundTargets.length > 0 ? soundTargets : [...DEFAULT_SOUND_TARGETS],
         });
+        // Store armed settings for change detection
+        if (status.is_armed) {
+          armedSettingsRef.current = { motionEnabled: motionVal, soundEnabled: soundVal };
+        }
       } else {
         // No status record exists - create one
         console.log('[SecurityArmToggle] No status found, creating initial record');
@@ -478,6 +486,96 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     }
   };
 
+  // Update settings while system is armed (without deactivating)
+  const handleUpdateSettings = async () => {
+    if (!deviceId) return;
+
+    setIsUpdating(true);
+    try {
+      // Update device_status with new sensor settings
+      const { error: statusError } = await supabase
+        .from('device_status')
+        .update({
+          motion_enabled: monitoringSettings.motionEnabled,
+          sound_enabled: monitoringSettings.soundEnabled,
+          last_command: 'UPDATE_SENSORS',
+          last_command_at: new Date().toISOString(),
+        })
+        .eq('device_id', deviceId);
+
+      if (statusError) {
+        console.error('[SecurityArmToggle] Error updating sensor settings:', statusError);
+        toast.error(language === 'he' ? 'שגיאה בעדכון הגדרות' : 'Failed to update settings');
+        return;
+      }
+
+      // Update monitoring_config
+      if (profileId) {
+        await supabase
+          .from('monitoring_config')
+          .upsert({
+            device_id: deviceId,
+            profile_id: profileId,
+            config: {
+              monitoring_enabled: true,
+              ai_validation_enabled: true,
+              notification_cooldown_ms: 60000,
+              sensors: {
+                motion: {
+                  enabled: monitoringSettings.motionEnabled,
+                  targets: ['person', 'animal', 'vehicle'],
+                  confidence_threshold: 0.7,
+                  debounce_ms: 3000,
+                },
+                sound: {
+                  enabled: monitoringSettings.soundEnabled,
+                  targets: monitoringSettings.soundTargets,
+                  confidence_threshold: 0.6,
+                  debounce_ms: 2000,
+                },
+              },
+            },
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'device_id' });
+      }
+
+      // Send command so Electron reloads config
+      const commandId = await sendMonitoringCommand('SET_MONITORING:ON');
+      if (!commandId) {
+        console.warn('[SecurityArmToggle] Failed to send reload command');
+      }
+
+      // Update ref
+      armedSettingsRef.current = {
+        motionEnabled: monitoringSettings.motionEnabled,
+        soundEnabled: monitoringSettings.soundEnabled,
+      };
+
+      setShowSettingsDialogWrapped(false);
+
+      const sensors = [];
+      if (monitoringSettings.motionEnabled) sensors.push(language === 'he' ? 'תנועה' : 'Motion');
+      if (monitoringSettings.soundEnabled) sensors.push(language === 'he' ? 'קול' : 'Sound');
+
+      toast.success(
+        language === 'he'
+          ? `🛡️ הגדרות עודכנו • ${sensors.join(' + ')}`
+          : `🛡️ Settings updated • ${sensors.join(' + ')}`
+      );
+    } catch (err) {
+      console.error('[SecurityArmToggle] Unexpected error:', err);
+      toast.error(language === 'he' ? 'שגיאה בלתי צפויה' : 'Unexpected error');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Detect if settings changed while armed
+  const settingsChanged = isArmed && armedSettingsRef.current != null && (
+    armedSettingsRef.current.motionEnabled !== monitoringSettings.motionEnabled ||
+    armedSettingsRef.current.soundEnabled !== monitoringSettings.soundEnabled
+  );
+
   // Build sensor status text
   const getSensorStatusText = () => {
     if (!isArmed) {
@@ -608,6 +706,8 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         onSettingsChange={setMonitoringSettings}
         onConfirm={handleConfirmActivation}
         onDeactivate={handleDisarm}
+        onUpdateSettings={handleUpdateSettings}
+        settingsChanged={settingsChanged}
         isLoading={isUpdating}
         isArmed={isArmed}
         cameraStatus={
