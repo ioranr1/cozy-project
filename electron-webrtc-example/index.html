@@ -871,7 +871,12 @@
             
             const dummy = tf.zeros([15600]);
             const warmup = soundModel.predict(dummy);
-            warmup.dispose();
+            // warmup may be a single tensor or an array of tensors
+            if (Array.isArray(warmup)) {
+              warmup.forEach(t => t.dispose());
+            } else {
+              warmup.dispose();
+            }
             dummy.dispose();
             
             isSoundModelReady = true;
