@@ -38,6 +38,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const showSettingsDialogRef = React.useRef(false);
+  const setShowSettingsDialogWrapped = useCallback((open: boolean) => {
+    showSettingsDialogRef.current = open;
+    setShowSettingsDialog(open);
+  }, []);
   const [securityEnabled, setSecurityEnabled] = useState(false); // True when Electron confirms camera is active
   const [monitoringSettings, setMonitoringSettings] = useState<MonitoringSettings>({
     motionEnabled: false,
@@ -215,11 +220,15 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           const newStatus = payload.new as DeviceStatus;
           setIsArmed(newStatus.is_armed);
           setSecurityEnabled(newStatus.security_enabled ?? false);
-          setMonitoringSettings(prev => ({
-            motionEnabled: newStatus.motion_enabled ?? true,
-            soundEnabled: newStatus.sound_enabled ?? false,
-            soundTargets: prev.soundTargets,
-          }));
+          // Only sync sensor settings from DB when dialog is CLOSED
+          // Otherwise we'd overwrite the user's in-progress selections
+          if (!showSettingsDialogRef.current) {
+            setMonitoringSettings(prev => ({
+              motionEnabled: newStatus.motion_enabled ?? true,
+              soundEnabled: newStatus.sound_enabled ?? false,
+              soundTargets: prev.soundTargets,
+            }));
+          }
         }
       )
       .subscribe((status) => {
@@ -231,6 +240,13 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       supabase.removeChannel(channel);
     };
   }, [fetchStatus, deviceId]);
+
+  // Re-sync sensor settings from DB when dialog closes (catches any missed Realtime updates)
+  useEffect(() => {
+    if (!showSettingsDialog && deviceId) {
+      fetchStatus();
+    }
+  }, [showSettingsDialog, deviceId, fetchStatus]);
 
   // Check and activate Away Mode if needed
   const ensureAwayModeActive = async (): Promise<boolean> => {
@@ -305,7 +321,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         motionEnabled: false,
         soundEnabled: false,
       }));
-      setShowSettingsDialog(true);
+      setShowSettingsDialogWrapped(true);
     } else {
       // Closing - directly disarm
       handleDisarm();
@@ -394,7 +410,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
 
       console.log('[SecurityArmToggle] ✅ SET_MONITORING:ON command sent', { commandId });
       setIsArmed(true);
-      setShowSettingsDialog(false);
+      setShowSettingsDialogWrapped(false);
 
       // Build toast message based on active sensors
       const sensors = [];
@@ -423,7 +439,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     if (!deviceId) return;
 
     setIsUpdating(true);
-    setShowSettingsDialog(false); // Close dialog immediately
+    setShowSettingsDialogWrapped(false); // Close dialog immediately
 
     try {
       // Step 1: Update device_status - MUST disable sensors to stop Electron immediately
@@ -527,7 +543,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           {/* Settings Button (only when armed) */}
           {isArmed && (
             <button
-              onClick={() => setShowSettingsDialog(true)}
+              onClick={() => setShowSettingsDialogWrapped(true)}
               className="p-2 rounded-lg bg-slate-700/50 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
               aria-label={language === 'he' ? 'הגדרות ניטור' : 'Monitoring settings'}
             >
@@ -587,7 +603,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       {/* Monitoring Settings Dialog */}
       <MonitoringSettingsDialog
         open={showSettingsDialog}
-        onOpenChange={setShowSettingsDialog}
+        onOpenChange={setShowSettingsDialogWrapped}
         settings={monitoringSettings}
         onSettingsChange={setMonitoringSettings}
         onConfirm={handleConfirmActivation}
