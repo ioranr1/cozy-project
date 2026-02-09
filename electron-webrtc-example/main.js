@@ -2,8 +2,8 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.3.1 (2026-02-07)
- * 
+ * VERSION: 2.3.2 (2026-02-09)
+ *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
  *
@@ -25,6 +25,7 @@ const { exec } = require('child_process');
 const Store = require('electron-store');
 const { createClient } = require('@supabase/supabase-js');
 const { EventEmitter } = require('events');
+const http = require('http');
 
 // CRITICAL FIX: Import AwayManager to replace old Away Mode implementation
 const AwayManager = require('./away/away-manager');
@@ -73,6 +74,10 @@ const monitoringIpcEvents = new EventEmitter();
 
 // Heartbeat interval
 let heartbeatInterval = null;
+
+// Local model server for YAMNet (sound detection)
+let localModelServer = null;
+let localModelPort = 0;
 
 // Auto-Away guard (prevents infinite retries)
 let autoAwayAttempts = 0;
@@ -209,6 +214,71 @@ function t(key) {
 }
 
 // =============================================================================
+// LOCAL MODEL SERVER (serves YAMNet files for sound detection)
+// =============================================================================
+
+function startLocalModelServer() {
+  return new Promise((resolve) => {
+    const modelsDir = path.join(__dirname, 'monitoring', 'models');
+    
+    if (!fs.existsSync(modelsDir)) {
+      console.warn('[ModelServer] Models directory not found:', modelsDir);
+      resolve(0);
+      return;
+    }
+
+    const MIME_TYPES = {
+      '.json': 'application/json',
+      '.bin': 'application/octet-stream',
+    };
+
+    localModelServer = http.createServer((req, res) => {
+      // CORS headers for renderer
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      
+      const safePath = path.normalize(req.url).replace(/^(\.\.[\/\\])+/, '');
+      const filePath = path.join(modelsDir, safePath);
+      
+      // Security: ensure file is within modelsDir
+      if (!filePath.startsWith(modelsDir)) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+
+      if (!fs.existsSync(filePath)) {
+        console.warn(`[ModelServer] 404: ${req.url}`);
+        res.writeHead(404);
+        res.end('Not Found');
+        return;
+      }
+
+      const ext = path.extname(filePath);
+      const mimeType = MIME_TYPES[ext] || 'application/octet-stream';
+      
+      const stat = fs.statSync(filePath);
+      res.writeHead(200, {
+        'Content-Type': mimeType,
+        'Content-Length': stat.size,
+      });
+      fs.createReadStream(filePath).pipe(res);
+    });
+
+    localModelServer.listen(0, '127.0.0.1', () => {
+      localModelPort = localModelServer.address().port;
+      console.log(`[ModelServer] ✓ Serving models on http://127.0.0.1:${localModelPort}/`);
+      resolve(localModelPort);
+    });
+
+    localModelServer.on('error', (err) => {
+      console.error('[ModelServer] Failed to start:', err);
+      resolve(0);
+    });
+  });
+}
+
+// =============================================================================
 // WINDOW CREATION
 // =============================================================================
 
@@ -225,8 +295,6 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       // CRITICAL: Keep monitoring/detection running while window is hidden/minimized to Tray.
-      // Without this, Chromium may throttle/stop timers/animation frames, causing motion detection
-      // to run only when the window is visible (and then "burst" events on show).
       backgroundThrottling: false
     },
     icon: getIconPath()
@@ -1488,6 +1556,11 @@ function setupIpcHandlers() {
     return ensureClipsPath();
   });
 
+  // Model server port for renderer (YAMNet sound detection)
+  ipcMain.handle('get-model-server-port', () => {
+    return localModelPort;
+  });
+
   // Open clips folder in OS file explorer
   ipcMain.handle('open-clips-folder', () => {
     ensureClipsPath();
@@ -1547,12 +1620,14 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-03-v2.2.5-monitoring-debug');
+console.log('[Main] BUILD ID: main-js-2026-02-09-v2.3.2-local-model-server');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
 app.whenReady().then(async () => {
-  console.log('[Main] app.whenReady() - Setting up IPC handlers...');
+  console.log('[Main] app.whenReady() - Starting local model server...');
+  await startLocalModelServer();
+  console.log('[Main] Setting up IPC handlers...');
   setupIpcHandlers();
   console.log('[Main] IPC handlers registered. Creating window...');
   createWindow();

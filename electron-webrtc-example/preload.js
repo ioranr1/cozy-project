@@ -274,6 +274,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyMonitoringStarted: (status) => {
     ipcRenderer.send('monitoring-started', status);
   },
+
+  /**
+   * Get local model server port for YAMNet loading
+   * @returns {Promise<number>}
+   */
+  getModelServerPort: () => ipcRenderer.invoke('get-model-server-port'),
   
   /**
    * Notify main that monitoring stopped
