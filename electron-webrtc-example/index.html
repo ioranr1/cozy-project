@@ -1,11 +1,12 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-  VERSION: 2.8.0 (2026-02-08)
-  ============================================================
-  
-  CHANGELOG:
-  - v2.8.0: CRITICAL - Inline YAMNet sound detection integration (was placeholder only)
+   VERSION: 2.8.1 (2026-02-09)
+   ============================================================
+   
+   CHANGELOG:
+   - v2.8.1: FIX - YAMNet model URL updated from TFHub (403) to Kaggle CDN
+   - v2.8.0: CRITICAL - Inline YAMNet sound detection integration (was placeholder only)
   - v2.7.0: Added sensor status indicator (camera/mic icons) in success screen
   - v2.6.0: CRITICAL FIX - Camera/Sound separation: camera only activates when motion is enabled
   - v2.5.2: Changed debounce to 60s default for security best practice
@@ -537,7 +538,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-08-v2.8.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.8.1";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -857,8 +858,10 @@
             console.log('[Sound] TF.js backend:', tf.getBackend());
             
             console.log('[Sound] Loading YAMNet model...');
+            // TFHub returns 403 since 2025 migration to Kaggle
+            // Use direct GCS storage URL instead
             soundModel = await tf.loadGraphModel(
-              'https://tfhub.dev/google/tfjs-model/yamnet/tfjs/1',
+              'https://www.kaggle.com/models/google/yamnet/TfJs/tfjs/1',
               { fromTFHub: true }
             );
             
