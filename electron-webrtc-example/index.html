@@ -540,7 +540,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.9.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.10.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -912,8 +912,11 @@
               audio: {
                 sampleRate: SOUND_SAMPLE_RATE,
                 channelCount: 1,
-                echoCancellation: true,
-                noiseSuppression: true,
+                // CRITICAL: Disable all audio processing for security monitoring!
+                // noiseSuppression SUPPRESSES screams/loud sounds - exactly what we need to detect.
+                // echoCancellation can also interfere with detection accuracy.
+                echoCancellation: false,
+                noiseSuppression: false,
                 autoGainControl: true,
               }
             });
@@ -1020,6 +1023,14 @@
             if (!labelBestScores[label] || score > labelBestScores[label].score) {
               labelBestScores[label] = { score, name: classInfo.name, classIndex: index };
             }
+          }
+          
+          // DEBUG: Log best scores for active targets (every inference window)
+          const debugScores = Object.entries(labelBestScores)
+            .map(([label, best]) => `${label}:${(best.score * 100).toFixed(1)}%`)
+            .join(' | ');
+          if (debugScores) {
+            console.log(`[Sound] Scores: ${debugScores}`);
           }
           
           for (const [label, best] of Object.entries(labelBestScores)) {
