@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.8.1 (2026-02-09)
+   VERSION: 2.8.2 (2026-02-09)
    ============================================================
    
    CHANGELOG:
+   - v2.8.2: FIX - YAMNet model URL fallback chain (GCS direct → Kaggle)
    - v2.8.1: FIX - YAMNet model URL updated from TFHub (403) to Kaggle CDN
    - v2.8.0: CRITICAL - Inline YAMNet sound detection integration (was placeholder only)
   - v2.7.0: Added sensor status indicator (camera/mic icons) in success screen
@@ -538,7 +539,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.8.1";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.8.2";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -858,12 +859,25 @@
             console.log('[Sound] TF.js backend:', tf.getBackend());
             
             console.log('[Sound] Loading YAMNet model...');
-            // TFHub returns 403 since 2025 migration to Kaggle
-            // Use direct GCS storage URL instead
-            soundModel = await tf.loadGraphModel(
+            // Both TFHub and Kaggle return 403 - use direct GCS storage URL
+            const yamnetUrls = [
+              'https://storage.googleapis.com/tfhub-modules/google/tfjs-model/yamnet/tfjs/1/model.json',
               'https://www.kaggle.com/models/google/yamnet/TfJs/tfjs/1',
-              { fromTFHub: true }
-            );
+            ];
+            let loaded = false;
+            for (const url of yamnetUrls) {
+              try {
+                const isKaggle = url.includes('kaggle.com');
+                console.log(`[Sound] Trying: ${url}`);
+                soundModel = await tf.loadGraphModel(url, isKaggle ? { fromTFHub: true } : {});
+                loaded = true;
+                console.log(`[Sound] ✓ Loaded from: ${url}`);
+                break;
+              } catch (urlErr) {
+                console.warn(`[Sound] ✗ Failed: ${url}`, urlErr.message);
+              }
+            }
+            if (!loaded) throw new Error('All YAMNet URLs failed');
             
             const dummy = tf.zeros([15600]);
             const warmup = soundModel.predict(dummy);
