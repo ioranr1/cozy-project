@@ -1,12 +1,13 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.3.8 (2026-02-06)
+ * VERSION: 0.3.9 (2026-02-10)
  * 
  * CHANGELOG:
+ * - v0.3.9: CRITICAL FIX - Detect "Render frame disposed" before IPC send
+ *           Add frame availability check with retry + window reload fallback
+ *           Prevents silent IPC failures that cause 60s monitoring start timeouts
  * - v0.3.5: CRITICAL FIX - Add sensor preflight check to skip camera if all sensors disabled
- *           Add explicit logging for all enable/disable state transitions
- * - v0.3.4: CRITICAL FIX - Always update security_enabled=false in DB before early return in disable()
  *           Fixes bug where UI showed "active" but camera LED was off
  * - v0.3.3: Pass device_id and device_auth_token to renderer for event reporting
  * - v0.3.2: Force reload config from DB on enable()
@@ -56,7 +57,7 @@ class MonitoringManager {
     this.pendingEvents = [];
     this.eventQueueTimer = null;
     
-    console.log('[MonitoringManager] Initialized (v0.3.0)');
+    console.log('[MonitoringManager] Initialized (v0.3.9)');
   }
 
   // ===========================================================================
@@ -248,6 +249,16 @@ class MonitoringManager {
         return { success: false, error: 'Main window destroyed' };
       }
 
+      // CRITICAL FIX v0.3.9: Check if webContents/render frame is available
+      // "Render frame was disposed before WebFrameMain could be accessed" causes
+      // silent IPC send failures → ACK never arrives → 60s timeout
+      const frameReady = await this._ensureFrameReady();
+      if (!frameReady) {
+        console.error('[MonitoringManager] ❌ Render frame not available after retries');
+        this.isStarting = false;
+        return { success: false, error: 'Render frame not available - try restarting the app' };
+      }
+
       // Include device credentials for event reporting
       const configWithCredentials = {
         ...this.config,
@@ -259,8 +270,15 @@ class MonitoringManager {
       console.log('[MonitoringManager] device_id:', this.deviceId);
       console.log('[MonitoringManager] device_auth_token present:', !!this.deviceAuthToken);
       
-      this.mainWindow.webContents.send('start-monitoring', configWithCredentials);
-      console.log('[MonitoringManager] ✓ Config sent to renderer');
+      // CRITICAL FIX v0.3.9: Wrap send() in try-catch to detect frame errors
+      try {
+        this.mainWindow.webContents.send('start-monitoring', configWithCredentials);
+        console.log('[MonitoringManager] ✓ Config sent to renderer');
+      } catch (sendError) {
+        console.error('[MonitoringManager] ❌ IPC send failed:', sendError.message);
+        this.isStarting = false;
+        return { success: false, error: `IPC send failed: ${sendError.message}` };
+      }
 
       // IMPORTANT (SSOT): Do NOT set isActive or update DB here.
       // The renderer will attempt getUserMedia + start detectors.
@@ -273,6 +291,77 @@ class MonitoringManager {
       this.isActive = false;
       return { success: false, error: error.message || 'Enable failed' };
     }
+  }
+
+  // ===========================================================================
+  // FRAME AVAILABILITY CHECK (v0.3.9)
+  // ===========================================================================
+
+  /**
+   * Ensure the render frame is ready to receive IPC messages.
+   * Retries up to 3 times with 2s delay.
+   * 
+   * Background: Electron's webContents.send() can silently fail if the render
+   * frame is disposed (e.g., window minimized to tray, GC'd frame).
+   * This causes the monitoring ACK to never arrive → 60s timeout.
+   */
+  async _ensureFrameReady(maxRetries = 3, retryDelayMs = 2000) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+          console.error(`[MonitoringManager] Frame check #${attempt}: Window destroyed`);
+          return false;
+        }
+
+        const wc = this.mainWindow.webContents;
+        
+        if (wc.isCrashed()) {
+          console.error(`[MonitoringManager] Frame check #${attempt}: WebContents crashed`);
+          return false;
+        }
+
+        // Check if the main frame is available
+        // This prevents "Render frame was disposed" silent IPC failures
+        try {
+          const mainFrame = wc.mainFrame;
+          if (!mainFrame) {
+            throw new Error('mainFrame is null');
+          }
+          const frameUrl = mainFrame.url;
+          console.log(`[MonitoringManager] Frame check #${attempt}: ✓ Frame ready (url: ${frameUrl ? 'loaded' : 'empty'})`);
+          return true;
+        } catch (frameError) {
+          console.warn(`[MonitoringManager] Frame check #${attempt}: Frame not ready - ${frameError.message}`);
+          
+          if (attempt < maxRetries) {
+            if (this.mainWindow.isMinimized()) {
+              console.log(`[MonitoringManager] Frame check #${attempt}: Window minimized, restoring...`);
+              this.mainWindow.restore();
+            }
+            
+            // On last retry attempt, try reloading the page
+            if (attempt === maxRetries - 1) {
+              console.log(`[MonitoringManager] Frame check #${attempt}: Attempting page reload...`);
+              try {
+                wc.reload();
+                await new Promise(r => setTimeout(r, 3000));
+              } catch (reloadErr) {
+                console.error(`[MonitoringManager] Reload failed:`, reloadErr.message);
+              }
+            } else {
+              await new Promise(r => setTimeout(r, retryDelayMs));
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`[MonitoringManager] Frame check #${attempt}: Unexpected error:`, err.message);
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, retryDelayMs));
+        }
+      }
+    }
+    
+    return false;
   }
 
   /**
