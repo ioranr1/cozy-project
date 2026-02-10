@@ -362,9 +362,16 @@ const Events: React.FC = () => {
 
                       {/* Time & Copy */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <div className="flex items-center gap-1 text-white/40 text-sm">
-                          <Clock className="w-3 h-3" />
-                          <span>{formatTimeAgo(event.created_at)}</span>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex items-center gap-1 text-white/40 text-sm">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatTimeAgo(event.created_at)}</span>
+                          </div>
+                          <span className="text-white/30 text-[11px] font-mono leading-tight">
+                            {new Date(event.created_at).toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                            {' '}
+                            {new Date(event.created_at).toLocaleTimeString(language === 'he' ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
                         </div>
                         <Button
                           variant="ghost"
