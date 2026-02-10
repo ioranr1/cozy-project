@@ -540,7 +540,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.11.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-10-v2.12.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -838,6 +838,7 @@
         // SOUND: Load TensorFlow.js + YAMNet
         // ============================================================
         async function loadYAMNet() {
+          const loadStartMs = performance.now();
           try {
             console.log('[Sound] Loading TensorFlow.js...');
             
@@ -865,6 +866,10 @@
             console.log(`[Sound] Loading from: ${localModelUrl}`);
             soundModel = await tf.loadGraphModel(localModelUrl);
             
+            // ═══ CHECK 1: Model loaded confirmation with timing ═══
+            const loadDurationMs = Math.round(performance.now() - loadStartMs);
+            console.log(`[Sound] ✅ CHECK1: YAMNet model loaded OK in ${loadDurationMs}ms from ${localModelUrl}`);
+            
             const dummy = tf.zeros([15600]);
             const warmup = soundModel.predict(dummy);
             // warmup may be a single tensor or an array of tensors
@@ -879,7 +884,9 @@
             console.log('[Sound] ✓ YAMNet model loaded and warmed up');
             return true;
           } catch (error) {
-            console.error('[Sound] ✗ YAMNet initialization failed:', error);
+            const loadDurationMs = Math.round(performance.now() - loadStartMs);
+            console.error(`[Sound] ✗ CHECK1 FAIL: YAMNet initialization failed after ${loadDurationMs}ms:`, error);
+            console.error(`[Sound] ✗ Model URL attempted: ${error._modelUrl || 'unknown'}`);
             isSoundModelReady = false;
             return false;
           }
@@ -904,7 +911,28 @@
           
           const targets = config?.sensors?.sound?.targets || ['glass_breaking', 'baby_crying', 'alarm', 'gunshot', 'scream'];
           soundTargetLabels = new Set(targets);
-          console.log('[Sound] Target labels:', Array.from(soundTargetLabels));
+          
+          // ═══ CHECK 3: Label mapping verification ═══
+          console.log('[Sound] ═══════════════════════════════════════════════════');
+          console.log('[Sound] CHECK3: Active label mappings:');
+          for (const target of soundTargetLabels) {
+            const yamnetIndices = [];
+            for (const [idx, info] of Object.entries(YAMNET_TARGET_CLASSES)) {
+              if (info.label === target) yamnetIndices.push(`${idx}(${info.name})`);
+            }
+            const policy = SOUND_LABEL_POLICIES[target];
+            if (yamnetIndices.length === 0) {
+              console.error(`[Sound] ✗ CHECK3 FAIL: target "${target}" has NO YAMNet class mapping! Will never trigger.`);
+            } else {
+              console.log(`[Sound]   ${target} → YAMNet indices: [${yamnetIndices.join(', ')}]`);
+              if (policy) {
+                console.log(`[Sound]   ${target} → threshold=${policy.threshold}, persistence=${policy.persistence}, debounce=${policy.debounce_ms}ms, event_type=${policy.event_type}`);
+              } else {
+                console.warn(`[Sound]   ${target} → NO POLICY (using fallback threshold=0.50)`);
+              }
+            }
+          }
+          console.log('[Sound] ═══════════════════════════════════════════════════');
           
           try {
             console.log('[Sound] Starting microphone capture...');
@@ -912,9 +940,6 @@
               audio: {
                 sampleRate: SOUND_SAMPLE_RATE,
                 channelCount: 1,
-                // CRITICAL: Disable all audio processing for security monitoring!
-                // noiseSuppression SUPPRESSES screams/loud sounds - exactly what we need to detect.
-                // echoCancellation can also interfere with detection accuracy.
                 echoCancellation: false,
                 noiseSuppression: false,
                 autoGainControl: true,
@@ -924,6 +949,25 @@
             soundAudioContext = new AudioContext({ sampleRate: SOUND_SAMPLE_RATE });
             soundSource = soundAudioContext.createMediaStreamSource(soundMediaStream);
             soundProcessor = soundAudioContext.createScriptProcessor(4096, 1, 1);
+            
+            // ═══ CHECK 4: Audio pipeline verification ═══
+            const micTrack = soundMediaStream.getAudioTracks()[0];
+            const micSettings = micTrack?.getSettings() || {};
+            console.log('[Sound] ═══════════════════════════════════════════════════');
+            console.log('[Sound] CHECK4: Audio pipeline info:');
+            console.log(`[Sound]   Mic track label: ${micTrack?.label || 'unknown'}`);
+            console.log(`[Sound]   Mic sampleRate (settings): ${micSettings.sampleRate || 'N/A'}`);
+            console.log(`[Sound]   AudioContext sampleRate: ${soundAudioContext.sampleRate}`);
+            console.log(`[Sound]   Target sampleRate: ${SOUND_SAMPLE_RATE}`);
+            console.log(`[Sound]   Resample needed: ${soundAudioContext.sampleRate !== SOUND_SAMPLE_RATE ? 'YES ⚠️' : 'NO (matched)'}`);
+            console.log(`[Sound]   Channel count: 1 (mono)`);
+            console.log(`[Sound]   Buffer size per inference: ${SOUND_SAMPLES_NEEDED} samples (${SOUND_FRAME_LENGTH}s)`);
+            console.log(`[Sound]   ScriptProcessor bufferSize: 4096`);
+            console.log(`[Sound]   echoCancellation: false, noiseSuppression: false`);
+            if (soundAudioContext.sampleRate !== SOUND_SAMPLE_RATE) {
+              console.warn(`[Sound] ⚠️ CHECK4 WARNING: AudioContext at ${soundAudioContext.sampleRate}Hz, not ${SOUND_SAMPLE_RATE}Hz! Model expects 16kHz. Scores may be unreliable.`);
+            }
+            console.log('[Sound] ═══════════════════════════════════════════════════');
             
             soundProcessor.onaudioprocess = (event) => {
               if (!isSoundRunning) return;
@@ -973,6 +1017,10 @@
         // ============================================================
         // SOUND: Run YAMNet inference
         // ============================================================
+        // ═══ CHECK 2: Top-5 debug counter (throttle to ~1 log per second) ═══
+        let _soundDebugCounter = 0;
+        const SOUND_DEBUG_INTERVAL = 1; // Log every N-th inference
+        
         async function runSoundInference(samples) {
           try {
             const inputTensor = tf.tensor1d(samples);
@@ -991,6 +1039,22 @@
                 sum += scoresData[f * numClasses + c];
               }
               avgScores[c] = sum / numFrames;
+            }
+            
+            // ═══ CHECK 2: Top-5 YAMNet scores (all 521 classes) ═══
+            _soundDebugCounter++;
+            if (_soundDebugCounter % SOUND_DEBUG_INTERVAL === 0) {
+              // Compute RMS of this window for reference
+              const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
+              
+              // Get Top-5 across ALL classes (not just our targets)
+              const allScored = [];
+              for (let i = 0; i < numClasses; i++) {
+                allScored.push({ index: i, score: avgScores[i] });
+              }
+              allScored.sort((a, b) => b.score - a.score);
+              const top5 = allScored.slice(0, 5).map(s => `${s.index}:${(s.score * 100).toFixed(1)}%`).join(', ');
+              console.log(`[Sound] CHECK2 Top5: [${top5}] | rms=${rms.toFixed(4)}`);
             }
             
             processSoundScores(avgScores);
@@ -1036,7 +1100,15 @@
           for (const [label, best] of Object.entries(labelBestScores)) {
             const policy = SOUND_LABEL_POLICIES[label] || { threshold: 0.50, persistence: 1, debounce_ms: 60000, event_type: 'sound', category: 'security' };
             
-            if (best.score < policy.threshold) {
+            // ═══ CHECK 5: Threshold & event gating log ═══
+            const passes = best.score >= policy.threshold;
+            const currentPersistence = soundPersistenceCount[label] || 0;
+            
+            if (best.score >= policy.threshold * 0.5) { // Log when score is at least 50% of threshold (approaching)
+              console.log(`[Sound] CHECK5: ${label} score=${(best.score * 100).toFixed(1)}% threshold=${(policy.threshold * 100).toFixed(0)}% passes=${passes} persistence=${currentPersistence + (passes ? 1 : 0)}/${policy.persistence}`);
+            }
+            
+            if (!passes) {
               soundPersistenceCount[label] = 0;
               continue;
             }
@@ -1047,17 +1119,30 @@
             soundScoreHistory[label].push(best.score);
             if (soundScoreHistory[label].length > 10) soundScoreHistory[label].shift();
             
-            if (soundPersistenceCount[label] < policy.persistence) continue;
+            if (soundPersistenceCount[label] < policy.persistence) {
+              console.log(`[Sound] CHECK5: ${label} persistence ${soundPersistenceCount[label]}/${policy.persistence} - waiting for more consecutive windows`);
+              continue;
+            }
             
+            // ═══ CHECK 7: Cooldown check ═══
             const lastTime = soundLastDetectionTime[label] || 0;
-            if (now - lastTime < policy.debounce_ms) continue;
+            if (now - lastTime < policy.debounce_ms) {
+              const cooldownEnds = new Date(lastTime + policy.debounce_ms).toISOString();
+              console.log(`[Sound] CHECK7: Cooldown active for ${label} until ${cooldownEnds} (${Math.round((policy.debounce_ms - (now - lastTime)) / 1000)}s remaining), skipping alert`);
+              soundPersistenceCount[label] = 0;
+              continue;
+            }
             
             // ═══ Sound Detection confirmed! ═══
             const scoreHist = soundScoreHistory[label] || [];
             soundPersistenceCount[label] = 0;
             soundLastDetectionTime[label] = now;
             
-            console.log(`[Sound] ✓ DETECTED: ${best.name} → ${label} [${policy.category}] (${(best.score * 100).toFixed(1)}%) persistence=${policy.persistence}`);
+            // ═══ CHECK 6: Trigger confirmation ═══
+            console.log(`[Sound] ═══════════════════════════════════════════════════`);
+            console.log(`[Sound] CHECK6: 🚨 SOUND EVENT TRIGGERED: mode=${label} confidence=${(best.score * 100).toFixed(1)}% yamnet_class="${best.name}" idx=${best.classIndex}`);
+            console.log(`[Sound] CHECK6: Alert dispatching via sound pipeline: type=${policy.event_type} category=${policy.category}`);
+            console.log(`[Sound] ═══════════════════════════════════════════════════`);
             
             const audioCtxMeta = policy.category === 'informational' ? {
               score_history: scoreHist.slice(-10),
@@ -1079,6 +1164,9 @@
                 ...(audioCtxMeta ? { audio_context: audioCtxMeta } : {}),
               },
             });
+            
+            // ═══ CHECK 6 continued: Confirm dispatch ═══
+            console.log(`[Sound] CHECK6: ✓ Alert dispatched to server + IPC`);
             
             window.electronAPI?.sendMonitoringEvent?.({
               sensor_type: policy.event_type,
