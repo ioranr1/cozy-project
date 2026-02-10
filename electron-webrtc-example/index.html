@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.13.0 (2026-02-10)
+   VERSION: 2.14.0 (2026-02-10)
    ============================================================
    
    CHANGELOG:
@@ -544,7 +544,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-10-v2.12.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-10-v2.14.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -579,7 +579,7 @@
         let monitoringStartedAt = null;
         
         // ============================================================
-        // SOUND DETECTION STATE (YAMNet)
+        // SOUND DETECTION STATE (YAMNet) - Single Mode v3.0.0
         // ============================================================
         let soundModel = null;
         let soundAudioContext = null;
@@ -598,11 +598,19 @@
         let soundScoreHistory = {};
         let isProcessingSoundEvent = false;
         
-        // YAMNet target class indices
+        // ═══ SINGLE MODE: Only one sound mode active at a time ═══
+        let currentSoundMode = null; // 'baby_cry' | 'dog_bark' | 'help'
+        let currentSoundTargetLabel = null; // YAMNet label: 'baby_crying' | 'dog_barking' | 'scream'
+        
+        // MVP thresholds (intentionally low to prove E2E, tune later)
+        const SOUND_MODE_CONFIG = {
+          baby_cry: { yamnet_label: 'baby_crying', threshold: 0.12, persistence: 1, debounce_ms: 30000 },
+          dog_bark: { yamnet_label: 'dog_barking', threshold: 0.15, persistence: 1, debounce_ms: 60000 },
+          help:     { yamnet_label: 'scream',      threshold: 0.15, persistence: 2, debounce_ms: 15000 },
+        };
+        
+        // YAMNet target class indices (only 3 active sound categories)
         const YAMNET_TARGET_CLASSES = {
-          441: { label: 'glass_breaking', name: 'Shatter' },
-          442: { label: 'glass_breaking', name: 'Splinter' },
-          443: { label: 'glass_breaking', name: 'Crash' },
           22: { label: 'baby_crying', name: 'Crying, sobbing' },
           23: { label: 'baby_crying', name: 'Baby cry, infant cry' },
           24: { label: 'baby_crying', name: 'Whimper' },
@@ -610,38 +618,10 @@
           68: { label: 'dog_barking', name: 'Yip' },
           69: { label: 'dog_barking', name: 'Howl' },
           70: { label: 'dog_barking', name: 'Growling' },
-          389: { label: 'alarm', name: 'Smoke detector, smoke alarm' },
-          390: { label: 'alarm', name: 'Fire alarm' },
-          392: { label: 'alarm', name: 'Buzzer' },
-          394: { label: 'alarm', name: 'Alarm clock' },
-          427: { label: 'gunshot', name: 'Gunshot, gunfire' },
-          428: { label: 'gunshot', name: 'Machine gun' },
-          429: { label: 'gunshot', name: 'Fusillade' },
-          426: { label: 'explosion', name: 'Explosion' },
           20: { label: 'scream', name: 'Screaming' },
           21: { label: 'scream', name: 'Wail, moan' },
           19: { label: 'scream', name: 'Shout' },
-          321: { label: 'door_knock', name: 'Knock' },
-          322: { label: 'door_knock', name: 'Tap' },
-          323: { label: 'door_sound', name: 'Door' },
-          324: { label: 'door_sound', name: 'Doorbell' },
-          396: { label: 'siren', name: 'Siren' },
-          397: { label: 'siren', name: 'Civil defense siren' },
-          398: { label: 'siren', name: 'Ambulance (siren)' },
-          399: { label: 'siren', name: 'Fire engine, fire truck (siren)' },
-          400: { label: 'siren', name: 'Police car (siren)' },
         };
-        
-        const SOUND_LABEL_POLICIES = {
-          // Family - baby crying only (max sensitivity)
-          baby_crying:    { threshold: 0.30, persistence: 1, debounce_ms: 180000, event_type: 'sound_baby_cry',    category: 'informational' },
-          // Home Noises - dog barking only (max sensitivity)
-          dog_barking:    { threshold: 0.25, persistence: 1, debounce_ms: 60000,  event_type: 'sound_disturbance', category: 'disturbance' },
-          // Security - help calls / screaming only (max sensitivity)
-          scream:         { threshold: 0.25, persistence: 1, debounce_ms: 30000,  event_type: 'sound',             category: 'security' },
-        };
-        
-        let soundTargetLabels = new Set();
         
         // Label mapping from COCO to our categories
         const LABEL_MAPPING = {
@@ -802,7 +782,7 @@
           
           try {
             isProcessingSoundEvent = true;
-            console.log(`[Monitoring] 🔊 Sending sound event: ${eventData.label} (${(eventData.confidence * 100).toFixed(0)}%)`);
+            console.log(`[Monitoring] 🔊 Sending sound event: mode=${currentSoundMode} (${(eventData.confidence * 100).toFixed(0)}%)`);
             
             const response = await fetch(EVENTS_REPORT_ENDPOINT, {
               method: 'POST',
@@ -812,11 +792,17 @@
               },
               body: JSON.stringify({
                 device_id: deviceId,
-                event_type: eventData.event_type || 'sound',
-                labels: [{ label: eventData.label, confidence: eventData.confidence }],
+                event_type: 'sound',
+                labels: [{ label: currentSoundMode, confidence: eventData.confidence }],
                 snapshot: null,
                 timestamp: Date.now(),
-                metadata: eventData.metadata || {},
+                metadata: {
+                  sound_mode: currentSoundMode,
+                  yamnet_index: eventData.metadata?.yamnet_index,
+                  yamnet_score: eventData.confidence,
+                  yamnet_class: eventData.metadata?.yamnet_class,
+                  ...(eventData.metadata || {}),
+                },
               }),
             });
             
@@ -913,29 +899,34 @@
             }
           }
           
-          const targets = config?.sensors?.sound?.targets || ['glass_breaking', 'baby_crying', 'alarm', 'gunshot', 'scream'];
-          soundTargetLabels = new Set(targets);
-          
-          // ═══ CHECK 3: Label mapping verification ═══
-          console.log('[Sound] ═══════════════════════════════════════════════════');
-          console.log('[Sound] CHECK3: Active label mappings:');
-          for (const target of soundTargetLabels) {
-            const yamnetIndices = [];
-            for (const [idx, info] of Object.entries(YAMNET_TARGET_CLASSES)) {
-              if (info.label === target) yamnetIndices.push(`${idx}(${info.name})`);
-            }
-            const policy = SOUND_LABEL_POLICIES[target];
-            if (yamnetIndices.length === 0) {
-              console.error(`[Sound] ✗ CHECK3 FAIL: target "${target}" has NO YAMNet class mapping! Will never trigger.`);
-            } else {
-              console.log(`[Sound]   ${target} → YAMNet indices: [${yamnetIndices.join(', ')}]`);
-              if (policy) {
-                console.log(`[Sound]   ${target} → threshold=${policy.threshold}, persistence=${policy.persistence}, debounce=${policy.debounce_ms}ms, event_type=${policy.event_type}`);
-              } else {
-                console.warn(`[Sound]   ${target} → NO POLICY (using fallback threshold=0.50)`);
-              }
-            }
+          // ═══ SINGLE MODE: Resolve mode from config ═══
+          let mode = config?.sensors?.sound?.mode;
+          if (!mode) {
+            // Backward compat: derive from targets array
+            const targets = config?.sensors?.sound?.targets || ['scream'];
+            const targetToMode = { 'baby_crying': 'baby_cry', 'dog_barking': 'dog_bark', 'scream': 'help' };
+            mode = targetToMode[targets[0]] || 'help';
           }
+          
+          const modeConfig = SOUND_MODE_CONFIG[mode];
+          if (!modeConfig) {
+            console.error(`[Sound] Unknown sound mode: "${mode}". Valid: baby_cry, dog_bark, help`);
+            return false;
+          }
+          
+          currentSoundMode = mode;
+          currentSoundTargetLabel = modeConfig.yamnet_label;
+          
+          console.log('[Sound] ═══════════════════════════════════════════════════');
+          console.log(`[Sound] Sound mode selected: ${currentSoundMode}, target label: ${currentSoundTargetLabel}`);
+          console.log(`[Sound] Threshold: ${modeConfig.threshold}, Persistence: ${modeConfig.persistence}, Debounce: ${modeConfig.debounce_ms}ms`);
+          
+          // Show YAMNet class mappings for active label
+          const yamnetIndices = [];
+          for (const [idx, info] of Object.entries(YAMNET_TARGET_CLASSES)) {
+            if (info.label === currentSoundTargetLabel) yamnetIndices.push(`${idx}(${info.name})`);
+          }
+          console.log(`[Sound] YAMNet indices: [${yamnetIndices.join(', ')}]`);
           console.log('[Sound] ═══════════════════════════════════════════════════');
           
           try {
@@ -954,24 +945,11 @@
             soundSource = soundAudioContext.createMediaStreamSource(soundMediaStream);
             soundProcessor = soundAudioContext.createScriptProcessor(4096, 1, 1);
             
-            // ═══ CHECK 4: Audio pipeline verification ═══
             const micTrack = soundMediaStream.getAudioTracks()[0];
-            const micSettings = micTrack?.getSettings() || {};
-            console.log('[Sound] ═══════════════════════════════════════════════════');
-            console.log('[Sound] CHECK4: Audio pipeline info:');
-            console.log(`[Sound]   Mic track label: ${micTrack?.label || 'unknown'}`);
-            console.log(`[Sound]   Mic sampleRate (settings): ${micSettings.sampleRate || 'N/A'}`);
-            console.log(`[Sound]   AudioContext sampleRate: ${soundAudioContext.sampleRate}`);
-            console.log(`[Sound]   Target sampleRate: ${SOUND_SAMPLE_RATE}`);
-            console.log(`[Sound]   Resample needed: ${soundAudioContext.sampleRate !== SOUND_SAMPLE_RATE ? 'YES ⚠️' : 'NO (matched)'}`);
-            console.log(`[Sound]   Channel count: 1 (mono)`);
-            console.log(`[Sound]   Buffer size per inference: ${SOUND_SAMPLES_NEEDED} samples (${SOUND_FRAME_LENGTH}s)`);
-            console.log(`[Sound]   ScriptProcessor bufferSize: 4096`);
-            console.log(`[Sound]   echoCancellation: false, noiseSuppression: false`);
+            console.log(`[Sound] Mic: ${micTrack?.label || 'unknown'}, AudioCtx: ${soundAudioContext.sampleRate}Hz`);
             if (soundAudioContext.sampleRate !== SOUND_SAMPLE_RATE) {
-              console.warn(`[Sound] ⚠️ CHECK4 WARNING: AudioContext at ${soundAudioContext.sampleRate}Hz, not ${SOUND_SAMPLE_RATE}Hz! Model expects 16kHz. Scores may be unreliable.`);
+              console.warn(`[Sound] ⚠️ Sample rate mismatch! Expected ${SOUND_SAMPLE_RATE}Hz, got ${soundAudioContext.sampleRate}Hz`);
             }
-            console.log('[Sound] ═══════════════════════════════════════════════════');
             
             soundProcessor.onaudioprocess = (event) => {
               if (!isSoundRunning) return;
@@ -988,7 +966,7 @@
             soundScoreHistory = {};
             soundLastDetectionTime = {};
             
-            console.log('[Sound] ✓ Microphone capture started, inference running');
+            console.log('[Sound] ✓ Single-mode inference started');
             return true;
           } catch (error) {
             console.error('[Sound] Failed to start microphone:', error);
@@ -1021,9 +999,7 @@
         // ============================================================
         // SOUND: Run YAMNet inference
         // ============================================================
-        // ═══ CHECK 2: Top-5 debug counter (throttle to ~1 log per second) ═══
         let _soundDebugCounter = 0;
-        const SOUND_DEBUG_INTERVAL = 1; // Log every N-th inference
         
         async function runSoundInference(samples) {
           try {
@@ -1045,21 +1021,31 @@
               avgScores[c] = sum / numFrames;
             }
             
-            // ═══ CHECK 2: Top-5 YAMNet scores (all 521 classes) ═══
+            // ═══ DEBUG: 1/sec - RMS, target score, threshold, pass/fail, Top-3 ═══
             _soundDebugCounter++;
-            if (_soundDebugCounter % SOUND_DEBUG_INTERVAL === 0) {
-              // Compute RMS of this window for reference
-              const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
-              
-              // Get Top-5 across ALL classes (not just our targets)
-              const allScored = [];
-              for (let i = 0; i < numClasses; i++) {
-                allScored.push({ index: i, score: avgScores[i] });
+            const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
+            
+            // Best score for current target label
+            let targetScore = 0;
+            for (const [indexStr, classInfo] of Object.entries(YAMNET_TARGET_CLASSES)) {
+              if (classInfo.label === currentSoundTargetLabel) {
+                const s = avgScores[parseInt(indexStr)];
+                if (s > targetScore) targetScore = s;
               }
-              allScored.sort((a, b) => b.score - a.score);
-              const top5 = allScored.slice(0, 5).map(s => `${s.index}:${(s.score * 100).toFixed(1)}%`).join(', ');
-              console.log(`[Sound] CHECK2 Top5: [${top5}] | rms=${rms.toFixed(4)}`);
             }
+            
+            const modeConfig = SOUND_MODE_CONFIG[currentSoundMode];
+            const passes = targetScore >= modeConfig.threshold;
+            
+            // Top-3 across ALL 521 classes
+            const allScored = [];
+            for (let i = 0; i < numClasses; i++) {
+              allScored.push({ index: i, score: avgScores[i] });
+            }
+            allScored.sort((a, b) => b.score - a.score);
+            const top3 = allScored.slice(0, 3).map(s => `${s.index}:${(s.score * 100).toFixed(1)}%`).join(', ');
+            
+            console.log(`[Sound] DBG rms=${rms.toFixed(4)} | ${currentSoundMode}(${currentSoundTargetLabel})=${(targetScore * 100).toFixed(1)}% thr=${(modeConfig.threshold * 100).toFixed(0)}% ${passes ? '✓PASS' : '✗FAIL'} | Top3=[${top3}]`);
             
             processSoundScores(avgScores);
             
@@ -1079,107 +1065,91 @@
         // ============================================================
         function processSoundScores(scores) {
           const now = Date.now();
-          const labelBestScores = {};
+          const modeConfig = SOUND_MODE_CONFIG[currentSoundMode];
+          if (!modeConfig) return;
+          
+          const targetLabel = currentSoundTargetLabel;
+          
+          // Find best score for active target label
+          let bestScore = 0;
+          let bestName = '';
+          let bestIndex = -1;
           
           for (const [indexStr, classInfo] of Object.entries(YAMNET_TARGET_CLASSES)) {
+            if (classInfo.label !== targetLabel) continue;
             const index = parseInt(indexStr);
             const score = scores[index];
-            const label = classInfo.label;
-            
-            if (!soundTargetLabels.has(label)) continue;
-            
-            if (!labelBestScores[label] || score > labelBestScores[label].score) {
-              labelBestScores[label] = { score, name: classInfo.name, classIndex: index };
+            if (score > bestScore) {
+              bestScore = score;
+              bestName = classInfo.name;
+              bestIndex = index;
             }
           }
           
-          // DEBUG: Log best scores for active targets (every inference window)
-          const debugScores = Object.entries(labelBestScores)
-            .map(([label, best]) => `${label}:${(best.score * 100).toFixed(1)}%`)
-            .join(' | ');
-          if (debugScores) {
-            console.log(`[Sound] Scores: ${debugScores}`);
+          // Threshold check
+          if (bestScore < modeConfig.threshold) {
+            soundPersistenceCount[targetLabel] = 0;
+            return;
           }
           
-          for (const [label, best] of Object.entries(labelBestScores)) {
-            const policy = SOUND_LABEL_POLICIES[label] || { threshold: 0.50, persistence: 1, debounce_ms: 60000, event_type: 'sound', category: 'security' };
-            
-            // ═══ CHECK 5: Threshold & event gating log ═══
-            const passes = best.score >= policy.threshold;
-            const currentPersistence = soundPersistenceCount[label] || 0;
-            
-            if (best.score >= policy.threshold * 0.5) { // Log when score is at least 50% of threshold (approaching)
-              console.log(`[Sound] CHECK5: ${label} score=${(best.score * 100).toFixed(1)}% threshold=${(policy.threshold * 100).toFixed(0)}% passes=${passes} persistence=${currentPersistence + (passes ? 1 : 0)}/${policy.persistence}`);
-            }
-            
-            if (!passes) {
-              soundPersistenceCount[label] = 0;
-              continue;
-            }
-            
-            soundPersistenceCount[label] = (soundPersistenceCount[label] || 0) + 1;
-            
-            if (!soundScoreHistory[label]) soundScoreHistory[label] = [];
-            soundScoreHistory[label].push(best.score);
-            if (soundScoreHistory[label].length > 10) soundScoreHistory[label].shift();
-            
-            if (soundPersistenceCount[label] < policy.persistence) {
-              console.log(`[Sound] CHECK5: ${label} persistence ${soundPersistenceCount[label]}/${policy.persistence} - waiting for more consecutive windows`);
-              continue;
-            }
-            
-            // ═══ CHECK 7: Cooldown check ═══
-            const lastTime = soundLastDetectionTime[label] || 0;
-            if (now - lastTime < policy.debounce_ms) {
-              const cooldownEnds = new Date(lastTime + policy.debounce_ms).toISOString();
-              console.log(`[Sound] CHECK7: Cooldown active for ${label} until ${cooldownEnds} (${Math.round((policy.debounce_ms - (now - lastTime)) / 1000)}s remaining), skipping alert`);
-              soundPersistenceCount[label] = 0;
-              continue;
-            }
-            
-            // ═══ Sound Detection confirmed! ═══
-            const scoreHist = soundScoreHistory[label] || [];
-            soundPersistenceCount[label] = 0;
-            soundLastDetectionTime[label] = now;
-            
-            // ═══ CHECK 6: Trigger confirmation ═══
-            console.log(`[Sound] ═══════════════════════════════════════════════════`);
-            console.log(`[Sound] CHECK6: 🚨 SOUND EVENT TRIGGERED: mode=${label} confidence=${(best.score * 100).toFixed(1)}% yamnet_class="${best.name}" idx=${best.classIndex}`);
-            console.log(`[Sound] CHECK6: Alert dispatching via sound pipeline: type=${policy.event_type} category=${policy.category}`);
-            console.log(`[Sound] ═══════════════════════════════════════════════════`);
-            
-            const audioCtxMeta = policy.category === 'informational' ? {
-              score_history: scoreHist.slice(-10),
-              avg_score: scoreHist.length > 0 ? scoreHist.reduce((a, b) => a + b, 0) / scoreHist.length : best.score,
-              peak_score: scoreHist.length > 0 ? Math.max(...scoreHist) : best.score,
-              consecutive_windows: policy.persistence,
-              requires_ai_verification: true,
-            } : null;
-            
-            sendSoundEventToServer({
-              label: label,
-              confidence: best.score,
-              event_type: policy.event_type,
-              metadata: {
-                yamnet_class: best.name,
-                yamnet_index: best.classIndex,
-                category: policy.category,
-                persistence_windows: policy.persistence,
-                ...(audioCtxMeta ? { audio_context: audioCtxMeta } : {}),
-              },
-            });
-            
-            // ═══ CHECK 6 continued: Confirm dispatch ═══
-            console.log(`[Sound] CHECK6: ✓ Alert dispatched to server + IPC`);
-            
-            window.electronAPI?.sendMonitoringEvent?.({
-              sensor_type: policy.event_type,
-              label: label,
-              confidence: best.score,
-              timestamp: now,
-              metadata: { yamnet_class: best.name, category: policy.category },
-            });
+          // Persistence tracking
+          soundPersistenceCount[targetLabel] = (soundPersistenceCount[targetLabel] || 0) + 1;
+          
+          if (!soundScoreHistory[targetLabel]) soundScoreHistory[targetLabel] = [];
+          soundScoreHistory[targetLabel].push(bestScore);
+          if (soundScoreHistory[targetLabel].length > 10) soundScoreHistory[targetLabel].shift();
+          
+          if (soundPersistenceCount[targetLabel] < modeConfig.persistence) {
+            console.log(`[Sound] Persistence ${soundPersistenceCount[targetLabel]}/${modeConfig.persistence} for ${currentSoundMode} - waiting`);
+            return;
           }
+          
+          // Cooldown/debounce check
+          const lastTime = soundLastDetectionTime[targetLabel] || 0;
+          if (now - lastTime < modeConfig.debounce_ms) {
+            const cooldownEnds = new Date(lastTime + modeConfig.debounce_ms).toISOString();
+            const remaining = Math.round((modeConfig.debounce_ms - (now - lastTime)) / 1000);
+            console.log(`[Sound] Cooldown active until ${cooldownEnds} (${remaining}s remaining), skipping`);
+            soundPersistenceCount[targetLabel] = 0;
+            return;
+          }
+          
+          // ═══ DETECTED! ═══
+          const scoreHist = soundScoreHistory[targetLabel] || [];
+          soundPersistenceCount[targetLabel] = 0;
+          soundLastDetectionTime[targetLabel] = now;
+          
+          console.log(`[Sound] ═══════════════════════════════════════════════════`);
+          console.log(`[Sound] 🚨 DETECTED: mode=${currentSoundMode} confidence=${(bestScore * 100).toFixed(1)}% yamnet="${bestName}" idx=${bestIndex}`);
+          console.log(`[Sound] Sending sound event to server...`);
+          console.log(`[Sound] ═══════════════════════════════════════════════════`);
+          
+          const audioCtxMeta = {
+            score_history: scoreHist.slice(-10),
+            avg_score: scoreHist.length > 0 ? scoreHist.reduce((a, b) => a + b, 0) / scoreHist.length : bestScore,
+            peak_score: scoreHist.length > 0 ? Math.max(...scoreHist) : bestScore,
+            consecutive_windows: modeConfig.persistence,
+          };
+          
+          sendSoundEventToServer({
+            label: currentSoundMode,
+            confidence: bestScore,
+            metadata: {
+              yamnet_class: bestName,
+              yamnet_index: bestIndex,
+              sound_mode: currentSoundMode,
+              audio_context: audioCtxMeta,
+            },
+          });
+          
+          // Also notify main process via IPC
+          window.electronAPI?.sendMonitoringEvent?.({
+            sensor_type: 'sound',
+            label: currentSoundMode,
+            confidence: bestScore,
+            timestamp: now,
+            metadata: { yamnet_class: bestName, sound_mode: currentSoundMode },
+          });
         }
         
         // ============================================================

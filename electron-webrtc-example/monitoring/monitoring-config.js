@@ -21,38 +21,48 @@
  * The detector applies these automatically - users only pick which sounds to detect.
  */
 const SOUND_LABEL_POLICIES = {
-  // ── A) Family - Baby crying only (max sensitivity) ─────────────────────────
+  // ── A) Family - Baby crying (MVP threshold) ────────────────────────────────
   baby_crying: {
     category: 'informational',
-    event_type: 'sound_baby_cry',
-    threshold: 0.30,
+    event_type: 'sound',
+    threshold: 0.12,
     persistence: 1,
-    debounce_ms: 180000,  // 3 minutes
+    debounce_ms: 30000,   // 30 seconds
     severity: 'info',
     whatsapp_default: true,
   },
 
-  // ── B) Home Noises - Dog barking only (max sensitivity) ────────────────────
+  // ── B) Home Noises - Dog barking (MVP threshold) ──────────────────────────
   dog_barking: {
     category: 'disturbance',
-    event_type: 'sound_disturbance',
-    threshold: 0.25,
+    event_type: 'sound',
+    threshold: 0.15,
     persistence: 1,
-    debounce_ms: 60000,   // 1 minute
+    debounce_ms: 60000,   // 60 seconds
     severity: 'medium',
     whatsapp_default: true,
   },
 
-  // ── C) Security - Help calls / screaming only (max sensitivity) ────────────
+  // ── C) Security - Help calls / screaming (MVP threshold) ──────────────────
   scream: {
     category: 'security',
     event_type: 'sound',
-    threshold: 0.25,
-    persistence: 1,
-    debounce_ms: 30000,
+    threshold: 0.15,
+    persistence: 2,
+    debounce_ms: 15000,   // 15 seconds
     severity: 'high',
     whatsapp_default: true,
   },
+};
+
+/**
+ * Single-mode sound configuration (maps mode → YAMNet label + thresholds)
+ * Used by Electron renderer for single-mode detection.
+ */
+const SOUND_MODE_CONFIG = {
+  baby_cry: { yamnet_label: 'baby_crying', threshold: 0.12, persistence: 1, debounce_ms: 30000 },
+  dog_bark: { yamnet_label: 'dog_barking', threshold: 0.15, persistence: 1, debounce_ms: 60000 },
+  help:     { yamnet_label: 'scream',      threshold: 0.15, persistence: 2, debounce_ms: 15000 },
 };
 
 // =============================================================================
@@ -78,14 +88,13 @@ const MOTION_SENSOR_DEFAULTS = {
  */
 const SOUND_SENSOR_DEFAULTS = {
   enabled: false,
-  targets: ['scream'],
-  // Global fallback (overridden by per-label policies)
-  confidence_threshold: 0.5,
-  debounce_ms: 60000,
+  mode: 'help',  // Single mode: baby_cry | dog_bark | help
+  targets: ['scream'], // Legacy (deprecated, use mode)
+  confidence_threshold: 0.15,
+  debounce_ms: 15000,
   // YAMNet specific settings
   sample_rate: 16000,
   frame_length_ms: 960,
-  // RMS gate: skip near-silence frames
   rms_threshold: 0.01,
 };
 
@@ -209,6 +218,7 @@ module.exports = {
   
   // Per-label policies
   SOUND_LABEL_POLICIES,
+  SOUND_MODE_CONFIG,
   
   // Labels
   MOTION_LABELS,
