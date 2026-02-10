@@ -1,12 +1,12 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.3.9 (2026-02-10)
+ * VERSION: 0.4.0 (2026-02-10)
  * 
  * CHANGELOG:
- * - v0.3.9: CRITICAL FIX - Detect "Render frame disposed" before IPC send
- *           Add frame availability check with retry + window reload fallback
- *           Prevents silent IPC failures that cause 60s monitoring start timeouts
+ * - v0.4.0: CRITICAL FIX - Recover from WebContents crash (isCrashed=true)
+ *           Instead of giving up, reload the page and retry frame check
+ *           Fixes START→STOP→START cycle where renderer crashes between cycles
  * - v0.3.5: CRITICAL FIX - Add sensor preflight check to skip camera if all sensors disabled
  *           Fixes bug where UI showed "active" but camera LED was off
  * - v0.3.3: Pass device_id and device_auth_token to renderer for event reporting
@@ -57,7 +57,7 @@ class MonitoringManager {
     this.pendingEvents = [];
     this.eventQueueTimer = null;
     
-    console.log('[MonitoringManager] Initialized (v0.3.9)');
+    console.log('[MonitoringManager] Initialized (v0.4.0)');
   }
 
   // ===========================================================================
@@ -305,7 +305,7 @@ class MonitoringManager {
    * frame is disposed (e.g., window minimized to tray, GC'd frame).
    * This causes the monitoring ACK to never arrive → 60s timeout.
    */
-  async _ensureFrameReady(maxRetries = 3, retryDelayMs = 2000) {
+  async _ensureFrameReady(maxRetries = 4, retryDelayMs = 2000) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         if (!this.mainWindow || this.mainWindow.isDestroyed()) {
@@ -314,14 +314,30 @@ class MonitoringManager {
         }
 
         const wc = this.mainWindow.webContents;
-        
+
+        // v0.4.0: If crashed, attempt reload+recovery instead of giving up
         if (wc.isCrashed()) {
-          console.error(`[MonitoringManager] Frame check #${attempt}: WebContents crashed`);
-          return false;
+          console.warn(`[MonitoringManager] Frame check #${attempt}: WebContents crashed — attempting reload recovery...`);
+          try {
+            wc.reload();
+            // Wait for reload to complete via did-finish-load or timeout
+            await new Promise((resolve) => {
+              const timer = setTimeout(resolve, 5000);
+              wc.once('did-finish-load', () => { clearTimeout(timer); resolve(); });
+            });
+            console.log(`[MonitoringManager] Frame check #${attempt}: Reload after crash completed`);
+            // Continue to frame check below (don't return yet)
+          } catch (reloadErr) {
+            console.error(`[MonitoringManager] Frame check #${attempt}: Reload after crash failed:`, reloadErr.message);
+            if (attempt < maxRetries) {
+              await new Promise(r => setTimeout(r, retryDelayMs));
+              continue;
+            }
+            return false;
+          }
         }
 
         // Check if the main frame is available
-        // This prevents "Render frame was disposed" silent IPC failures
         try {
           const mainFrame = wc.mainFrame;
           if (!mainFrame) {
@@ -339,12 +355,15 @@ class MonitoringManager {
               this.mainWindow.restore();
             }
             
-            // On last retry attempt, try reloading the page
+            // Attempt reload on second-to-last retry
             if (attempt === maxRetries - 1) {
               console.log(`[MonitoringManager] Frame check #${attempt}: Attempting page reload...`);
               try {
                 wc.reload();
-                await new Promise(r => setTimeout(r, 3000));
+                await new Promise((resolve) => {
+                  const timer = setTimeout(resolve, 5000);
+                  wc.once('did-finish-load', () => { clearTimeout(timer); resolve(); });
+                });
               } catch (reloadErr) {
                 console.error(`[MonitoringManager] Reload failed:`, reloadErr.message);
               }
