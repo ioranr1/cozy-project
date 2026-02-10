@@ -305,6 +305,16 @@ function createWindow() {
   // CRITICAL FIX: Set main window reference in AwayManager
   awayManager.setMainWindow(mainWindow);
 
+  // FIX: Black screen after closing DevTools (F12) on frameless windows
+  // Chromium bug: closing DevTools on frame:false windows causes render
+  // surface to go black. Force a resize cycle to trigger repaint.
+  mainWindow.webContents.on('devtools-closed', () => {
+    console.log('[App] DevTools closed — forcing repaint to prevent black screen');
+    const [w, h] = mainWindow.getSize();
+    mainWindow.setSize(w + 1, h + 1);
+    setTimeout(() => mainWindow.setSize(w, h), 50);
+  });
+
   // Intercept close to hide to tray
   mainWindow.on('close', (event) => {
     if (trayAvailable && !app.isQuitting) {
