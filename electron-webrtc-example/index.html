@@ -1,10 +1,12 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.12.0 (2026-02-10)
+   VERSION: 2.13.0 (2026-02-10)
    ============================================================
    
    CHANGELOG:
+   - v2.13.0: CRITICAL FIX - Camera retry with backoff on NotReadableError (busy from clip recording)
+              + Complete structural isolation: motion failure never blocks sound, sound failure never blocks motion
    - v2.12.0: DEBUG - 8-layer sound diagnostic system (CHECK1-CHECK8)
    - v2.11.0: FIX - Disabled noiseSuppression/echoCancellation for security audio
    - v2.9.0: ARCH - YAMNet loads via local HTTP server (main.js serves models)
@@ -1347,6 +1349,50 @@
             return null;
           }
         }
+
+        /**
+         * v2.13.0: Camera acquisition with retry + backoff
+         * Handles NotReadableError when camera is busy (e.g., clip recording in progress)
+         * Retries up to MAX_RETRIES times with increasing delays
+         */
+        async function acquireCameraWithRetry(maxRetries = 4, baseDelayMs = 3000) {
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            console.log(`[Monitoring] 📷 Camera acquisition attempt ${attempt}/${maxRetries}...`);
+            
+            let stream = await tryGetUserMedia(
+              { video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: false },
+              `preferred 640x480@15 (attempt ${attempt})`
+            );
+            
+            if (!stream) {
+              stream = await tryGetUserMedia(
+                { video: { width: { max: 1280 }, height: { max: 720 } }, audio: false },
+                `relaxed max 1280x720 (attempt ${attempt})`
+              );
+            }
+            
+            if (!stream) {
+              stream = await tryGetUserMedia(
+                { video: true, audio: false },
+                `minimal video:true (attempt ${attempt})`
+              );
+            }
+            
+            if (stream) {
+              console.log(`[Monitoring] ✓ Camera acquired on attempt ${attempt}`);
+              return stream;
+            }
+            
+            if (attempt < maxRetries) {
+              const delay = baseDelayMs * attempt; // 3s, 6s, 9s, 12s
+              console.warn(`[Monitoring] ⏳ Camera busy - retrying in ${delay/1000}s (clip recording may be active)...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+          
+          console.error(`[Monitoring] ✗ All ${maxRetries} camera acquisition attempts failed`);
+          return null;
+        }
         
         // ============================================================
         // Build bilingual error message
@@ -1398,34 +1444,16 @@
             // MOTION: Only activate camera if motion detection is enabled
             // ============================================================
             if (motionEnabled) {
-              console.log('[Monitoring] Motion enabled - requesting camera access...');
+              console.log('[Monitoring] Motion enabled - requesting camera access with retry...');
               
-              // Progressive fallback for camera constraints
-              monitoringStream = await tryGetUserMedia(
-                { video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } }, audio: false },
-                'preferred 640x480@15'
-              );
+              // v2.13.0: Use retry mechanism for camera busy scenarios (clip recording)
+              monitoringStream = await acquireCameraWithRetry(4, 3000);
               
               if (!monitoringStream) {
-                monitoringStream = await tryGetUserMedia(
-                  { video: { width: { max: 1280 }, height: { max: 720 } }, audio: false },
-                  'relaxed max 1280x720'
-                );
-              }
-              
-              if (!monitoringStream) {
-                monitoringStream = await tryGetUserMedia(
-                  { video: true, audio: false },
-                  'minimal video:true'
-                );
-              }
-              
-              if (!monitoringStream) {
-                console.error('[Monitoring] ✗ All camera attempts failed');
-                // Don't throw - sound detection can still work without camera
-                if (!soundEnabled) {
-                  throw new Error('Camera unavailable and sound not enabled');
-                }
+                console.error('[Monitoring] ✗ Camera unavailable after all retries');
+                // STRUCTURAL ISOLATION: Camera failure does NOT throw
+                // Motion simply won't start, but system continues
+                console.warn('[Monitoring] ⚠️ Motion detection SKIPPED - camera unavailable');
               } else {
                 console.log('[Monitoring] ✓ Camera acquired - LED should be ON now');
                 
@@ -1487,16 +1515,27 @@
               }
             }
             
-            // Mark monitoring as active - ALWAYS, even if sound failed
-            isMonitoring = true;
-            monitoringStartedAt = Date.now();
-            console.log('[Monitoring] ✓ Grace period started (10s)');
+            // v2.13.0: Mark monitoring active if ANY sensor started
+            // Even if camera failed, sound can still work (and vice versa)
+            const anySensorStarted = motionStarted || soundStarted;
+            isMonitoring = anySensorStarted;
+            if (anySensorStarted) {
+              monitoringStartedAt = Date.now();
+              console.log('[Monitoring] ✓ Grace period started (10s)');
+            } else {
+              console.warn('[Monitoring] ⚠️ No sensors started - monitoring inactive');
+            }
             
-            // CRITICAL: ACK is ALWAYS sent, regardless of sound status
+            // Build comprehensive error report
+            const errors = {};
+            if (motionEnabled && !motionStarted) errors.motion = 'Camera unavailable after retries';
+            if (soundError) errors.sound = soundError;
+            
+            // CRITICAL: ACK is ALWAYS sent, regardless of individual sensor status
             const ackPayload = {
               motion: motionStarted,
               sound: soundStarted,
-              errors: soundError ? { sound: soundError } : undefined,
+              errors: Object.keys(errors).length > 0 ? errors : undefined,
             };
             console.log('[Monitoring] Sending ACK to main process...');
             window.electronAPI?.notifyMonitoringStarted?.(ackPayload);
