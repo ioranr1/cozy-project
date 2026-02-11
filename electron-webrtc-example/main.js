@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.5.0 (2026-02-11)
+ * VERSION: 2.6.0 (2026-02-11)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -26,12 +26,15 @@ const crashDumpsDir = app.getPath('crashDumps');
 crashReporter.start({ uploadToServer: false, compress: false });
 console.log(`[CrashDumps] Crash dumps directory: ${crashDumpsDir}`);
 
-// v2.4.0: Disable hardware acceleration on Windows (diagnostic for black screen)
+// v2.6.0: Aggressively disable ALL GPU paths to prevent ACCESS_VIOLATION crashes
 // Must be called before app.whenReady()
-if (process.platform === 'win32') {
-  app.disableHardwareAcceleration();
-  console.log('[App] ⚠️ Hardware acceleration DISABLED (Windows diagnostic mode)');
-}
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('disable-gpu-compositing');
+app.commandLine.appendSwitch('disable-gpu-sandbox');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('disable-gpu-rasterization');
+console.log('[App] ⚠️ ALL GPU paths DISABLED (crash prevention v2.6.0)');
 const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
@@ -62,7 +65,7 @@ function writeCrashLog(entry) {
 }
 
 // Write startup marker
-writeCrashLog(`=== APP START v2.5.0 === pid=${process.pid} platform=${process.platform} arch=${process.arch}`);
+writeCrashLog(`=== APP START v2.6.0 === pid=${process.pid} platform=${process.platform} arch=${process.arch}`);
 
 // =============================================================================
 // CONFIGURATION
@@ -374,65 +377,30 @@ function showRecoveryScreen(reason, details) {
   
   console.log(`[Recovery] Showing recovery screen: reason=${reason} details=${details}`);
   
-  const html = `
-    <html>
-    <head><meta charset="UTF-8"><style>
-      body { 
-        font-family: -apple-system, sans-serif; 
-        background: #0f172a; color: #e2e8f0; 
-        display: flex; justify-content: center; align-items: center; 
-        height: 100vh; margin: 0; 
-      }
-      .box { 
-        text-align: center; padding: 40px; 
-        background: rgba(30,41,59,0.9); border-radius: 16px; 
-        border: 1px solid rgba(71,85,105,0.5); max-width: 380px;
-      }
-      h2 { color: #f97316; margin-bottom: 12px; }
-      p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
-      .code { font-family: monospace; font-size: 12px; color: #64748b; margin-bottom: 20px; }
-      button { 
-        padding: 12px 32px; border: none; border-radius: 8px; 
-        background: #3b82f6; color: white; font-size: 16px; cursor: pointer; 
-      }
-      button:hover { background: #2563eb; }
-    </style></head>
-    <body>
-      <div class="box">
-        <h2>⚠️ Recovery</h2>
-        <p>The application encountered an issue and needs to reload.</p>
-        <div class="code">Reason: ${reason}<br>${details || ''}</div>
-        <button onclick="location.reload()">Reload Application</button>
-      </div>
-    </body>
-    </html>
+  // v2.6.0: Use executeJavaScript instead of data:text/html URL (blocked by Electron security)
+  const escapedReason = String(reason).replace(/'/g, "\\'").replace(/\n/g, ' ');
+  const escapedDetails = String(details || '').replace(/'/g, "\\'").replace(/\n/g, ' ');
+  
+  const js = `
+    try {
+      document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#0f172a;font-family:-apple-system,sans-serif;">' +
+        '<div style="text-align:center;padding:40px;background:rgba(30,41,59,0.9);border-radius:16px;border:1px solid rgba(71,85,105,0.5);max-width:380px;">' +
+        '<h2 style="color:#f97316;margin-bottom:12px;">⚠️ Recovery</h2>' +
+        '<p style="color:#94a3b8;font-size:14px;margin-bottom:20px;">The application encountered an issue and needs to reload.</p>' +
+        '<div style="font-family:monospace;font-size:12px;color:#64748b;margin-bottom:20px;">Reason: ${escapedReason}<br>${escapedDetails}</div>' +
+        '<button onclick="location.reload()" style="padding:12px 32px;border:none;border-radius:8px;background:#3b82f6;color:white;font-size:16px;cursor:pointer;">Reload Application</button>' +
+        '</div></div>';
+      document.body.style.margin = '0';
+    } catch(e) {
+      console.error('[Recovery] DOM injection failed:', e);
+    }
   `;
   
   try {
-    mainWindow.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    
-    // After reload via button, restore correct screen
-    mainWindow.webContents.once('did-finish-load', () => {
-      const url = mainWindow.webContents.getURL();
-      // If they clicked reload button and it loaded index.html
-      if (url.includes('index.html') && deviceId) {
-        console.log('[Recovery] Page reloaded — sending show-success-screen');
-        mainWindow.webContents.send('show-success-screen');
-        
-        // Re-start monitoring if it was active
-        if (monitoringManager && monitoringManager.isActive) {
-          monitoringManager.isActive = false;
-          monitoringManager.isStarting = false;
-          setTimeout(async () => {
-            try {
-              const result = await monitoringManager.enable();
-              console.log('[Recovery] Monitoring re-start:', result);
-            } catch (err) {
-              console.error('[Recovery] Monitoring re-start failed:', err);
-            }
-          }, 2000);
-        }
-      }
+    mainWindow.webContents.executeJavaScript(js).catch(e => {
+      console.error('[Recovery] executeJavaScript failed:', e.message);
+      // Last resort: try reload
+      try { mainWindow.webContents.reload(); } catch (_) {}
     });
   } catch (e) {
     console.error('[Recovery] Failed to show recovery screen:', e);

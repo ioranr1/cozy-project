@@ -389,6 +389,7 @@ class MonitoringManager {
   onRendererStarted(status) {
     this.isStarting = false;
     this.isActive = true;
+    this._lastStartedStatus = status; // v0.4.2: Track for crash diagnostics
     console.log('[MonitoringManager] ✓ Renderer confirmed monitoring started', status);
   }
 

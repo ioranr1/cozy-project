@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.18.0 (2026-02-11)
+   VERSION: 2.19.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
@@ -673,7 +673,7 @@
             objectDetector = await ObjectDetector.createFromOptions(wasmFileset, {
               baseOptions: {
                 modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
-                delegate: 'GPU',
+                delegate: 'CPU', // v2.19.0: Changed from GPU to CPU to prevent ACCESS_VIOLATION crashes
               },
               runningMode: 'VIDEO',
               maxResults: 5,
@@ -853,17 +853,40 @@
         async function loadYAMNet() {
           const loadStartMs = performance.now();
           try {
-            console.log('[Sound] Loading TensorFlow.js (CPU-only)...');
+            console.log('[Sound] Loading TensorFlow.js (CPU-only, WebGL DISABLED)...');
             
             if (typeof tf === 'undefined') {
-              // Load ONLY CPU backend - prevents WebGL/GPU initialization that causes ACCESS_VIOLATION crashes
-              // Order matters: core first, then cpu backend
-              const tfScripts = [
-                'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.17.0/dist/tf-core.min.js',
+              // v2.19.0: Load TF.js with COMPLETE WebGL prevention
+              // Step 1: Load core FIRST
+              await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.17.0/dist/tf-core.min.js';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+              });
+              console.log('[Sound] ✓ tfjs-core loaded');
+              
+              // Step 2: IMMEDIATELY disable ALL WebGL probing BEFORE any other TF.js module loads
+              // This prevents native GPU access that causes ACCESS_VIOLATION (0xC0000005)
+              try {
+                tf.env().set('WEBGL_VERSION', 0);
+                tf.env().set('HAS_WEBGL', false);
+                tf.env().set('WEBGL_CPU_FORWARD', false);
+                tf.env().set('WEBGL_PACK', false);
+                tf.env().set('WEBGL_RENDER_FLOAT32_CAPABLE', false);
+                tf.env().set('WEBGL_FLUSH_THRESHOLD', -1);
+                console.log('[Sound] ✓ WebGL env flags DISABLED (crash prevention)');
+              } catch (envErr) {
+                console.warn('[Sound] ⚠️ Could not set all WebGL env flags:', envErr.message);
+              }
+              
+              // Step 3: Now load CPU backend and converter (safe - no GPU probing)
+              const remainingScripts = [
                 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@4.17.0/dist/tf-backend-cpu.min.js',
                 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.17.0/dist/tf-converter.min.js'
               ];
-              for (const src of tfScripts) {
+              for (const src of remainingScripts) {
                 await new Promise((resolve, reject) => {
                   const script = document.createElement('script');
                   script.src = src;
@@ -872,7 +895,13 @@
                   document.head.appendChild(script);
                 });
               }
-              console.log('[Sound] ✓ TensorFlow.js (CPU-only) loaded');
+              console.log('[Sound] ✓ TensorFlow.js (CPU-only, WebGL blocked) loaded');
+            } else {
+              // TF already loaded - ensure WebGL is still disabled
+              try {
+                tf.env().set('WEBGL_VERSION', 0);
+                tf.env().set('HAS_WEBGL', false);
+              } catch (_) {}
             }
             
             await tf.setBackend('cpu');
