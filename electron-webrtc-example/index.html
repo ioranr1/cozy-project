@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.21.0 (2026-02-11)
+   VERSION: 2.22.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
@@ -513,7 +513,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-11-v2.21.0");
+      console.log("[UI] index.html build: electron-index-2026-02-11-v2.22.0");
       
       // ============================================================
       // Sensor Status Indicator - update UI for camera/mic
@@ -557,7 +557,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.21.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.22.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -599,12 +599,21 @@
         let soundMediaStream = null;
         let soundProcessor = null;
         let soundSource = null;
+        let soundSilentGain = null; // v2.22.0 Bonus B: GainNode(0) to prevent audio feedback
         let isSoundRunning = false;
         let isSoundModelReady = false;
-        let _isSoundModelLoading = false; // v2.21.0: Lock to prevent concurrent model loads
-        let soundAudioBuffer = [];
+        let _isSoundModelLoading = false;
+        let _inferenceInFlight = false; // v2.22.0 Fix 1: Single-flight inference lock
+        let _inferenceDropCount = 0;    // v2.22.0 Fix 1: Track dropped frames
+        
+        // v2.22.0 Bonus A: Ring buffer instead of push(...chunk) — avoids GC pressure
+        const SOUND_RING_BUFFER_SIZE = 32000; // ~2 seconds at 16kHz
+        let soundRingBuffer = new Float32Array(SOUND_RING_BUFFER_SIZE);
+        let soundRingWriteIdx = 0;
+        let soundRingAvailable = 0;
+        
         const SOUND_SAMPLE_RATE = 16000;
-        const SOUND_FRAME_LENGTH = 0.975; // ~1 second per inference
+        const SOUND_FRAME_LENGTH = 0.975;
         const SOUND_SAMPLES_NEEDED = Math.floor(SOUND_SAMPLE_RATE * SOUND_FRAME_LENGTH);
         const SOUND_RMS_THRESHOLD = 0.001;
         let soundLastDetectionTime = {};
@@ -618,15 +627,8 @@
         let _soundAudioDiagInterval = null;
         let _rmsSkipLogTimer = 0;
         
-        // v2.21.0: Diagnostic isolation phases (Steps 1-5)
-        // Set via IPC config: config.sensors.sound.debug_phase = 1|2|3|4|5
-        // Phase 0 (default): Normal operation with all guards
-        // Phase 1: Mic only — no TFJS, no model, just getUserMedia for 20s
-        // Phase 2: Mic + model load — no inference
-        // Phase 3: Full pipeline with 800ms delay between mic and inference
-        // Phase 4: Full pipeline with double-start guards (default behavior now)
-        // Phase 5: Mic + raw RMS only — no TFJS at all
-        const SOUND_MIC_TO_INFERENCE_DELAY_MS = 800; // Step 3: delay between mic open and inference start
+        // v2.21.0: Diagnostic isolation phases
+        const SOUND_MIC_TO_INFERENCE_DELAY_MS = 800;
         
         // ═══ SINGLE MODE: Only one sound mode active at a time ═══
         let currentSoundMode = null; // 'baby_cry' | 'dog_bark' | 'help'
@@ -929,9 +931,18 @@
               } catch (_) {}
             }
             
+            // v2.22.0 Fix 2: Explicit backend verification — FORCE cpu, never webgl
+            const backendBefore = typeof tf !== 'undefined' ? tf.getBackend() : 'N/A';
+            console.log(`[Sound] TF.js backend BEFORE setBackend: "${backendBefore}"`);
             await tf.setBackend('cpu');
             await tf.ready();
-            console.log('[Sound] TF.js backend:', tf.getBackend());
+            const backendAfter = tf.getBackend();
+            console.log(`[Sound] TF.js backend AFTER setBackend('cpu'): "${backendAfter}"`);
+            if (backendAfter !== 'cpu') {
+              console.error(`[Sound] ✗ CRITICAL: Backend is "${backendAfter}" instead of "cpu"! Aborting to prevent crash.`);
+              _isSoundModelLoading = false;
+              return false;
+            }
             
             console.log('[Sound] Loading YAMNet model...');
             // Load from local HTTP server (main.js serves monitoring/models/)
@@ -986,7 +997,7 @@
           // This prevents orphaned AudioContexts / streams from previous crashed sessions
           if (soundAudioContext || soundMediaStream || soundProcessor) {
             console.warn('[Sound] ⚠️ Stale resources detected — cleaning up before start');
-            stopSoundDetection();
+            await stopSoundDetection();
           }
           
           const debugPhase = config?.sensors?.sound?.debug_phase || 0;
@@ -1019,7 +1030,11 @@
               };
               
               soundSource.connect(soundProcessor);
-              soundProcessor.connect(soundAudioContext.destination);
+              // v2.22.0 Bonus B: Connect via silent GainNode to prevent audio feedback
+              soundSilentGain = soundAudioContext.createGain();
+              soundSilentGain.gain.value = 0;
+              soundProcessor.connect(soundSilentGain);
+              soundSilentGain.connect(soundAudioContext.destination);
               await soundAudioContext.resume();
               
               isSoundRunning = true;
@@ -1150,7 +1165,7 @@
               // Re-check after delay — might have been stopped during wait
               if (!soundMediaStream || soundMediaStream.getAudioTracks()[0]?.readyState !== 'live') {
                 console.warn('[Sound] Mic track died during delay — aborting');
-                stopSoundDetection();
+                await stopSoundDetection();
                 return false;
               }
             }
@@ -1167,7 +1182,11 @@
             };
             
             soundSource.connect(soundProcessor);
-            soundProcessor.connect(soundAudioContext.destination);
+            // v2.22.0 Bonus B: Connect via silent GainNode to prevent audio feedback
+            soundSilentGain = soundAudioContext.createGain();
+            soundSilentGain.gain.value = 0;
+            soundProcessor.connect(soundSilentGain);
+            soundSilentGain.connect(soundAudioContext.destination);
             
             console.log(`[Sound] AudioContext state BEFORE resume: ${soundAudioContext.state}`);
             await soundAudioContext.resume();
@@ -1206,30 +1225,52 @@
           } catch (error) {
             console.error('[Sound] Failed to start microphone:', error);
             // v2.21.0: Clean up partial resources on failure
-            stopSoundDetection();
+            await stopSoundDetection();
             return false;
           }
         }
         
         // ============================================================
         // SOUND: Process audio chunk → accumulate → infer
+        // v2.22.0 Bonus A: Ring buffer (no push(...chunk), no GC pressure)
+        // v2.22.0 Fix 1: Drop frames if inference still in flight
         // ============================================================
         function processSoundChunk(chunk) {
-          soundAudioBuffer.push(...chunk);
+          // Write chunk into ring buffer
+          for (let i = 0; i < chunk.length; i++) {
+            soundRingBuffer[soundRingWriteIdx] = chunk[i];
+            soundRingWriteIdx = (soundRingWriteIdx + 1) % SOUND_RING_BUFFER_SIZE;
+          }
+          soundRingAvailable = Math.min(soundRingAvailable + chunk.length, SOUND_RING_BUFFER_SIZE);
           
-          // v2.17.0 Step 2: One-time log when buffer first reaches threshold
-          if (!_bufferReachedLogged && soundAudioBuffer.length >= SOUND_SAMPLES_NEEDED) {
+          if (!_bufferReachedLogged && soundRingAvailable >= SOUND_SAMPLES_NEEDED) {
             _bufferReachedLogged = true;
-            console.log(`[Sound][DBG] buffer reached samplesNeeded=${SOUND_SAMPLES_NEEDED} (actual=${soundAudioBuffer.length})`);
+            console.log(`[Sound][DBG] ring buffer reached samplesNeeded=${SOUND_SAMPLES_NEEDED} (available=${soundRingAvailable})`);
           }
           
-          if (soundAudioBuffer.length >= SOUND_SAMPLES_NEEDED) {
-            const samples = new Float32Array(soundAudioBuffer.slice(0, SOUND_SAMPLES_NEEDED));
-            soundAudioBuffer = soundAudioBuffer.slice(SOUND_SAMPLES_NEEDED);
+          if (soundRingAvailable >= SOUND_SAMPLES_NEEDED) {
+            // v2.22.0 Fix 1: Single-flight — drop frame if inference is running
+            if (_inferenceInFlight) {
+              _inferenceDropCount++;
+              if (_inferenceDropCount <= 3 || _inferenceDropCount % 10 === 0) {
+                console.log(`[Sound] DROP_FRAME #${_inferenceDropCount} — inference in flight, skipping window`);
+              }
+              // Consume the samples anyway to avoid stale data buildup
+              soundRingAvailable -= SOUND_SAMPLES_NEEDED;
+              return;
+            }
+            
+            // Read samples from ring buffer
+            const samples = new Float32Array(SOUND_SAMPLES_NEEDED);
+            let readIdx = (soundRingWriteIdx - soundRingAvailable + SOUND_RING_BUFFER_SIZE) % SOUND_RING_BUFFER_SIZE;
+            for (let i = 0; i < SOUND_SAMPLES_NEEDED; i++) {
+              samples[i] = soundRingBuffer[readIdx];
+              readIdx = (readIdx + 1) % SOUND_RING_BUFFER_SIZE;
+            }
+            soundRingAvailable -= SOUND_SAMPLES_NEEDED;
             
             const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
             if (rms < SOUND_RMS_THRESHOLD) {
-              // Step 5: Log RMS skip (throttled to once per second)
               const nowMs = Date.now();
               if (nowMs - _rmsSkipLogTimer > 1000) {
                 _rmsSkipLogTimer = nowMs;
@@ -1251,7 +1292,9 @@
         let _soundDebugCounter = 0;
         
         async function runSoundInference(samples) {
-          inferenceCount++; // Step 2
+          // v2.22.0 Fix 1: Single-flight lock with try/finally
+          _inferenceInFlight = true;
+          inferenceCount++;
           
           try {
             const inputTensor = tf.tensor1d(samples);
@@ -1272,11 +1315,9 @@
               avgScores[c] = sum / numFrames;
             }
             
-            // ═══ ENHANCED DEBUG: Steps 2-4 ═══
             _soundDebugCounter++;
             const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
             
-            // Step 4: Best score for current target with explicit indices
             let targetScore = 0;
             const targetIndices = [];
             for (const [indexStr, classInfo] of Object.entries(YAMNET_TARGET_CLASSES)) {
@@ -1291,7 +1332,6 @@
             const modeConfig = SOUND_MODE_CONFIG[currentSoundMode];
             const passes = targetScore >= modeConfig.threshold;
             
-            // Step 3: Top-3 across ALL 521 classes (raw indices + scores)
             const allScored = [];
             for (let i = 0; i < numClasses; i++) {
               allScored.push({ index: i, score: avgScores[i] });
@@ -1318,6 +1358,9 @@
             }
           } catch (error) {
             console.error('[Sound] Inference error:', error);
+          } finally {
+            // v2.22.0 Fix 1: ALWAYS release lock, even on error
+            _inferenceInFlight = false;
           }
         }
         
@@ -1416,11 +1459,13 @@
         }
         
         // ============================================================
-        // SOUND: Stop sound detection  (v2.21.0 — hardened cleanup)
+        // SOUND: Stop sound detection  (v2.22.0 — async + await close)
         // ============================================================
-        function stopSoundDetection() {
+        async function stopSoundDetection() {
           console.log('[Sound] Stopping... isSoundRunning=' + isSoundRunning);
           isSoundRunning = false;
+          _inferenceInFlight = false; // v2.22.0: Reset inference lock
+          _inferenceDropCount = 0;
           
           // Clean up diagnostic interval
           if (_soundAudioDiagInterval) {
@@ -1428,13 +1473,17 @@
             _soundAudioDiagInterval = null;
           }
           
-          // v2.21.0: Wrap each disconnect in try/catch to prevent cascading failures
+          // Disconnect audio graph nodes (order: processor → source → gain)
           try { if (soundProcessor) { soundProcessor.onaudioprocess = null; soundProcessor.disconnect(); } } catch (_) {}
           soundProcessor = null;
+          
+          try { if (soundSilentGain) { soundSilentGain.disconnect(); } } catch (_) {}
+          soundSilentGain = null;
           
           try { if (soundSource) { soundSource.disconnect(); } } catch (_) {}
           soundSource = null;
           
+          // Stop mic tracks
           if (soundMediaStream) {
             soundMediaStream.getTracks().forEach(track => {
               try { track.stop(); console.log('[Sound] Stopped mic track:', track.label); } catch (_) {}
@@ -1442,17 +1491,23 @@
             soundMediaStream = null;
           }
           
+          // v2.22.0 Fix 3: AWAIT audioContext.close() to prevent orphaned contexts
           if (soundAudioContext) {
             try {
               if (soundAudioContext.state !== 'closed') {
-                soundAudioContext.close();
+                await soundAudioContext.close();
+                console.log('[Sound] ✓ AudioContext closed (awaited)');
               }
-            } catch (_) {}
+            } catch (e) {
+              console.warn('[Sound] AudioContext close error (non-fatal):', e.message);
+            }
             soundAudioContext = null;
           }
           
-          // v2.21.0: Full state reset
-          soundAudioBuffer = [];
+          // Full state reset
+          soundRingBuffer = new Float32Array(SOUND_RING_BUFFER_SIZE);
+          soundRingWriteIdx = 0;
+          soundRingAvailable = 0;
           soundPersistenceCount = {};
           soundScoreHistory = {};
           soundLastDetectionTime = {};
@@ -1824,9 +1879,13 @@
                       console.log('[Sound] CANARY: Attempting ScriptProcessor reconnect...');
                       soundSource.disconnect();
                       soundProcessor.disconnect();
+                      if (soundSilentGain) try { soundSilentGain.disconnect(); } catch(_){}
                       soundSource.connect(soundProcessor);
-                      soundProcessor.connect(soundAudioContext.destination);
-                      console.log('[Sound] CANARY: Reconnected ScriptProcessor');
+                      soundSilentGain = soundAudioContext.createGain();
+                      soundSilentGain.gain.value = 0;
+                      soundProcessor.connect(soundSilentGain);
+                      soundSilentGain.connect(soundAudioContext.destination);
+                      console.log('[Sound] CANARY: Reconnected ScriptProcessor via GainNode(0)');
                     }
                   } catch (e) {
                     console.error('[Sound] CANARY: Reconnect failed:', e);
