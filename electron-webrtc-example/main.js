@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.3.7 (2026-02-11)
+ * VERSION: 2.3.8 (2026-02-11)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -283,23 +283,27 @@ function startLocalModelServer() {
 // =============================================================================
 
 /**
- * Force persistent repaint cycles on the main window to recover from
- * Chromium compositor black-screen bug on frameless windows.
- * v2.3.7: Runs 6 cycles over ~2.5 seconds instead of a single shot,
- * because long-idle windows often need multiple compositor kicks.
+ * Force window repaint to recover from Chromium compositor black-screen bug.
+ * v2.3.8: Two-phase approach:
+ *   Phase 1: Quick invalidate + resize cycle (instant fix for short idle)
+ *   Phase 2: If still black after 1.5s, reload the page (nuclear fix for long idle)
+ * The reload preserves auto-login state since device credentials are in electron-store.
  */
 let _repaintTimer = null;
+let _lastHideTime = 0; // Track when window was hidden
+
 function forceWindowRepaint() {
   if (!mainWindow || mainWindow.isDestroyed?.()) return;
 
-  // Clear any previous repaint loop to avoid stacking
-  if (_repaintTimer) { clearInterval(_repaintTimer); _repaintTimer = null; }
+  // Clear any previous repaint timer
+  if (_repaintTimer) { clearTimeout(_repaintTimer); _repaintTimer = null; }
 
-  const doRepaintCycle = () => {
-    if (!mainWindow || mainWindow.isDestroyed?.()) {
-      if (_repaintTimer) { clearInterval(_repaintTimer); _repaintTimer = null; }
-      return;
-    }
+  const idleMs = _lastHideTime > 0 ? (Date.now() - _lastHideTime) : 0;
+  console.log(`[App] forceWindowRepaint — idle=${Math.round(idleMs / 1000)}s`);
+
+  // Phase 1: Quick compositor kick (works for short idle < ~2 min)
+  const doQuickRepaint = () => {
+    if (!mainWindow || mainWindow.isDestroyed?.()) return;
     try { mainWindow.webContents.invalidate(); } catch (_) {}
     const [w, h] = mainWindow.getSize();
     mainWindow.setSize(w + 1, h + 1);
@@ -310,20 +314,28 @@ function forceWindowRepaint() {
     }, 60);
   };
 
-  // Immediate first cycle
-  doRepaintCycle();
+  doQuickRepaint();
 
-  // Then repeat every 500ms for 5 more cycles (total ~2.5s coverage)
-  let remaining = 5;
-  _repaintTimer = setInterval(() => {
-    if (remaining <= 0 || !mainWindow || mainWindow.isDestroyed?.()) {
-      clearInterval(_repaintTimer);
-      _repaintTimer = null;
-      return;
-    }
-    doRepaintCycle();
-    remaining--;
-  }, 500);
+  // Phase 2: If idle was long (>60s), schedule a page reload as nuclear fix
+  // For short idle, do a second quick repaint as backup
+  if (idleMs > 60000) {
+    console.log('[App] Long idle detected — scheduling page reload in 1s');
+    _repaintTimer = setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed?.()) return;
+      console.log('[App] Reloading page to fix compositor (long idle recovery)');
+      mainWindow.webContents.reload();
+    }, 1000);
+  } else {
+    // Short idle — just do a few more quick repaints
+    let remaining = 3;
+    const interval = setInterval(() => {
+      if (remaining-- <= 0 || !mainWindow || mainWindow.isDestroyed?.()) {
+        clearInterval(interval);
+        return;
+      }
+      doQuickRepaint();
+    }, 400);
+  }
 }
 
 // =============================================================================
@@ -365,6 +377,7 @@ function createWindow() {
     if (trayAvailable && !app.isQuitting) {
       event.preventDefault();
       mainWindow.hide();
+      _lastHideTime = Date.now(); // v2.3.8: Track hide time for repaint strategy
     }
   });
 
@@ -373,6 +386,7 @@ function createWindow() {
     if (trayAvailable) {
       event.preventDefault();
       mainWindow.hide();
+      _lastHideTime = Date.now(); // v2.3.8: Track hide time for repaint strategy
     }
   });
 
