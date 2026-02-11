@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.4.0 (2026-02-11)
+ * VERSION: 2.5.0 (2026-02-11)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -19,7 +19,12 @@
  *   macOS: uses built-in pmset
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, crashReporter } = require('electron');
+
+// v2.5.0: Enable crash dumps - MUST be before app.whenReady()
+const crashDumpsDir = app.getPath('crashDumps');
+crashReporter.start({ uploadToServer: false, compress: false });
+console.log(`[CrashDumps] Crash dumps directory: ${crashDumpsDir}`);
 
 // v2.4.0: Disable hardware acceleration on Windows (diagnostic for black screen)
 // Must be called before app.whenReady()
@@ -40,6 +45,24 @@ const AwayManager = require('./away/away-manager');
 // NEW: Import Monitoring system
 const MonitoringManager = require('./monitoring/monitoring-manager');
 const fs = require('fs');
+
+// =============================================================================
+// v2.5.0: CRASH LOG FILE (persistent - survives renderer crashes)
+// =============================================================================
+const crashLogPath = path.join(app.getPath('userData'), 'crash-diagnostics.log');
+console.log(`[CrashLog] Writing crash diagnostics to: ${crashLogPath}`);
+
+function writeCrashLog(entry) {
+  try {
+    const line = `[${new Date().toISOString()}] ${typeof entry === 'string' ? entry : JSON.stringify(entry)}\n`;
+    fs.appendFileSync(crashLogPath, line, 'utf8');
+  } catch (e) {
+    console.error('[CrashLog] Failed to write:', e.message);
+  }
+}
+
+// Write startup marker
+writeCrashLog(`=== APP START v2.5.0 === pid=${process.pid} platform=${process.platform} arch=${process.arch}`);
 
 // =============================================================================
 // CONFIGURATION
@@ -457,23 +480,75 @@ function createWindow() {
     }
   });
 
-  // Renderer process crashed or killed
+  // Renderer process crashed or killed - v2.5.0: Full diagnostic capture
   mainWindow.webContents.on('render-process-gone', (event, details) => {
+    const diagSnapshot = {
+      timestamp: new Date().toISOString(),
+      reason: details.reason,
+      exitCode: details.exitCode,
+      serviceName: details.serviceName || 'N/A',
+      devToolsOpen: mainWindow.webContents.isDevToolsOpened(),
+      monitoringActive: monitoringManager?.isActive || false,
+      monitoringMotion: monitoringManager?._lastStartedStatus?.motion || false,
+      monitoringSound: monitoringManager?._lastStartedStatus?.sound || false,
+      liveViewActive: liveViewState?.isActive || false,
+      liveViewSessionId: liveViewState?.currentSessionId || null,
+      hwAccelDisabled: process.platform === 'win32',
+      processMemory: null,
+      crashDumpsDir: crashDumpsDir,
+    };
+
+    try { diagSnapshot.processMemory = process.memoryUsage(); } catch (_) {}
+
     console.error('[CRASH] ═══════════════════════════════════════════════════');
     console.error('[CRASH] 💀 Renderer process gone!');
     console.error('[CRASH] reason:', details.reason);
     console.error('[CRASH] exitCode:', details.exitCode);
-    console.error('[CRASH] timestamp:', new Date().toISOString());
+    console.error('[CRASH] serviceName:', details.serviceName || 'N/A');
+    console.error('[CRASH] timestamp:', diagSnapshot.timestamp);
+    console.error('[CRASH] DevTools open:', diagSnapshot.devToolsOpen);
+    console.error('[CRASH] Monitoring active:', diagSnapshot.monitoringActive);
+    console.error('[CRASH] Motion enabled:', diagSnapshot.monitoringMotion);
+    console.error('[CRASH] Sound enabled:', diagSnapshot.monitoringSound);
+    console.error('[CRASH] Live View active:', diagSnapshot.liveViewActive);
+    console.error('[CRASH] HW Accel disabled:', diagSnapshot.hwAccelDisabled);
+    console.error('[CRASH] Main process memory:', JSON.stringify(diagSnapshot.processMemory));
+    console.error('[CRASH] Crash dumps dir:', crashDumpsDir);
     console.error('[CRASH] ═══════════════════════════════════════════════════');
+
+    // Write to persistent file
+    writeCrashLog({ type: 'RENDERER_CRASH', ...diagSnapshot });
+
+    // Check for new crash dumps
+    try {
+      const dumps = fs.readdirSync(crashDumpsDir).filter(f => f.endsWith('.dmp'));
+      if (dumps.length > 0) {
+        const latest = dumps.sort().reverse()[0];
+        const dumpPath = path.join(crashDumpsDir, latest);
+        const stat = fs.statSync(dumpPath);
+        console.error(`[CRASH] Latest dump: ${dumpPath} (${Math.round(stat.size / 1024)}KB, ${stat.mtime.toISOString()})`);
+        writeCrashLog({ type: 'CRASH_DUMP', file: latest, path: dumpPath, sizeKB: Math.round(stat.size / 1024) });
+      } else {
+        console.error('[CRASH] No .dmp files found in crash dumps dir');
+      }
+    } catch (e) {
+      console.error('[CRASH] Could not read crash dumps dir:', e.message);
+    }
+
     showRecoveryScreen('crash', details.reason);
   });
 
-  // Renderer became unresponsive (hung)
+  // Renderer became unresponsive (hung) - v2.5.0: enhanced
   mainWindow.webContents.on('unresponsive', () => {
+    const ts = new Date().toISOString();
     console.error('[HANG] ═══════════════════════════════════════════════════');
     console.error('[HANG] ⏳ Renderer is UNRESPONSIVE!');
-    console.error('[HANG] timestamp:', new Date().toISOString());
+    console.error('[HANG] timestamp:', ts);
+    console.error('[HANG] DevTools open:', mainWindow.webContents.isDevToolsOpened());
+    console.error('[HANG] Monitoring active:', monitoringManager?.isActive || false);
+    console.error('[HANG] Live View active:', liveViewState?.isActive || false);
     console.error('[HANG] ═══════════════════════════════════════════════════');
+    writeCrashLog({ type: 'HANG', timestamp: ts, monitoring: monitoringManager?.isActive, liveView: liveViewState?.isActive });
     showRecoveryScreen('unresponsive', 'Renderer hung');
   });
 
@@ -1766,6 +1841,12 @@ function setupIpcHandlers() {
   // Model server port for renderer (YAMNet sound detection)
   ipcMain.handle('get-model-server-port', () => {
     return localModelPort;
+  });
+
+  // v2.5.0: Renderer error reports (guardrails - persistent log)
+  ipcMain.on('renderer-error-report', (event, data) => {
+    console.warn(`[GUARDRAIL] Renderer ${data.type}: ${data.message} ${data.filename ? `at ${data.filename}:${data.lineno}` : ''}`);
+    writeCrashLog({ type: 'RENDERER_ERROR', ...data });
   });
 
   // Open clips folder in OS file explorer

@@ -360,10 +360,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Open the local clips folder in the OS file explorer
    * @returns {Promise<void>}
    */
-  openClipsFolder: () => ipcRenderer.invoke('open-clips-folder')
+  openClipsFolder: () => ipcRenderer.invoke('open-clips-folder'),
+
+  // -------------------------------------------------------------------------
+  // v2.5.0: Renderer Error Reporting (guardrails)
+  // -------------------------------------------------------------------------
+  
+  /**
+   * Report a renderer error to main process for persistent logging
+   * @param {string} type - 'error' or 'rejection'
+   * @param {string} message
+   * @param {string} [filename]
+   * @param {number} [lineno]
+   */
+  reportRendererError: (type, message, filename, lineno) => {
+    ipcRenderer.send('renderer-error-report', { type, message, filename, lineno });
+  }
 });
 
 // BUILD STAMP (debug)
-const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-07-open-clips-01';
+const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-11-crash-diag-01';
 console.log('[Preload] electronAPI exposed to renderer');
 console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);

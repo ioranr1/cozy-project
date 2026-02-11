@@ -540,11 +540,24 @@
 
     <script>
       // ============================================================
+      // v2.5.0: RENDERER GUARDRAILS - catch errors before they crash
+      // ============================================================
+      window.addEventListener('error', (event) => {
+        console.error('[GUARDRAIL] Uncaught error:', event.message, 'at', event.filename + ':' + event.lineno);
+        try { window.electronAPI?.reportRendererError?.('error', event.message, event.filename, event.lineno); } catch (_) {}
+      });
+      window.addEventListener('unhandledrejection', (event) => {
+        const reason = event.reason?.message || event.reason || 'unknown';
+        console.error('[GUARDRAIL] Unhandled promise rejection:', reason);
+        try { window.electronAPI?.reportRendererError?.('rejection', String(reason)); } catch (_) {}
+      });
+      
+      // ============================================================
       // BUILD ID (debug)
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.16.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.18.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
