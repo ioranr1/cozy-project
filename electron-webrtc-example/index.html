@@ -853,8 +853,10 @@
               console.log('[Sound] ✓ TensorFlow.js loaded');
             }
             
+            // Force CPU backend to prevent GPU/WebGL ACCESS_VIOLATION crashes
+            await tf.setBackend('cpu');
             await tf.ready();
-            console.log('[Sound] TF.js backend:', tf.getBackend());
+            console.log('[Sound] TF.js backend forced to:', tf.getBackend());
             
             console.log('[Sound] Loading YAMNet model...');
             // Load from local HTTP server (main.js serves monitoring/models/)
