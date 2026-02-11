@@ -1,7 +1,7 @@
 /**
  * Monitoring Configuration Defaults & Schemas
  * ============================================
- * VERSION: 0.3.0 (2026-02-09)
+ * VERSION: 0.4.0 (2026-02-11)
  * 
  * CHANGELOG:
  * - v0.2.0: Added per-category sound policies (informational/disturbance/security)
@@ -172,6 +172,15 @@ function validateSensorConfig(config, sensorType) {
 }
 
 function mergeWithDefaults(partialConfig = {}) {
+  const soundPartial = partialConfig.sensors?.sound || {};
+  
+  // Derive mode from targets if mode is not explicitly set
+  let soundMode = soundPartial.mode;
+  if (!soundMode && Array.isArray(soundPartial.targets) && soundPartial.targets.length > 0) {
+    const targetToMode = { 'baby_crying': 'baby_cry', 'dog_barking': 'dog_bark', 'scream': 'help' };
+    soundMode = targetToMode[soundPartial.targets[0]] || 'help';
+  }
+
   return {
     monitoring_enabled: partialConfig.monitoring_enabled ?? DEFAULT_MONITORING_CONFIG.monitoring_enabled,
     sensors: {
@@ -181,7 +190,8 @@ function mergeWithDefaults(partialConfig = {}) {
       },
       sound: {
         ...SOUND_SENSOR_DEFAULTS,
-        ...(partialConfig.sensors?.sound || {}),
+        ...soundPartial,
+        ...(soundMode ? { mode: soundMode } : {}),
       },
     },
     notification_cooldown_ms: partialConfig.notification_cooldown_ms ?? DEFAULT_MONITORING_CONFIG.notification_cooldown_ms,
