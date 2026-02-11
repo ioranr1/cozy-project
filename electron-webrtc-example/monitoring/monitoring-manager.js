@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.4.1 (2026-02-11)
+ * VERSION: 0.4.2 (2026-02-11)
  * 
  * CHANGELOG:
  * - v0.4.0: CRITICAL FIX - Recover from WebContents crash (isCrashed=true)
