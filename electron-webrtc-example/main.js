@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.3.6 (2026-02-11)
+ * VERSION: 2.3.7 (2026-02-11)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -283,42 +283,47 @@ function startLocalModelServer() {
 // =============================================================================
 
 /**
- * Force a resize cycle on the main window to trigger Chromium repaint.
- * Fixes black screen on frameless windows after: DevTools close, tray restore.
+ * Force persistent repaint cycles on the main window to recover from
+ * Chromium compositor black-screen bug on frameless windows.
+ * v2.3.7: Runs 6 cycles over ~2.5 seconds instead of a single shot,
+ * because long-idle windows often need multiple compositor kicks.
  */
+let _repaintTimer = null;
 function forceWindowRepaint() {
   if (!mainWindow || mainWindow.isDestroyed?.()) return;
-  
-  // Step 1: Invalidate Chromium render surface (forces compositor refresh)
-  try {
-    mainWindow.webContents.invalidate();
-  } catch (_) { /* noop */ }
 
-  // Step 2: Resize cycle to force layout recalculation
-  const [w, h] = mainWindow.getSize();
-  mainWindow.setSize(w + 1, h + 1);
-  setTimeout(() => {
-    if (!mainWindow || mainWindow.isDestroyed?.()) return;
-    mainWindow.setSize(w, h);
-    
-    // Step 3: Second invalidate after resize completes for reliability
-    try {
-      mainWindow.webContents.invalidate();
-    } catch (_) { /* noop */ }
-  }, 80);
+  // Clear any previous repaint loop to avoid stacking
+  if (_repaintTimer) { clearInterval(_repaintTimer); _repaintTimer = null; }
 
-  // Step 4: Safety net — delayed second repaint cycle for long-idle windows
-  setTimeout(() => {
-    if (!mainWindow || mainWindow.isDestroyed?.()) return;
-    try {
-      mainWindow.webContents.invalidate();
-    } catch (_) { /* noop */ }
-    mainWindow.setSize(w + 1, h);
+  const doRepaintCycle = () => {
+    if (!mainWindow || mainWindow.isDestroyed?.()) {
+      if (_repaintTimer) { clearInterval(_repaintTimer); _repaintTimer = null; }
+      return;
+    }
+    try { mainWindow.webContents.invalidate(); } catch (_) {}
+    const [w, h] = mainWindow.getSize();
+    mainWindow.setSize(w + 1, h + 1);
     setTimeout(() => {
       if (!mainWindow || mainWindow.isDestroyed?.()) return;
       mainWindow.setSize(w, h);
-    }, 50);
-  }, 300);
+      try { mainWindow.webContents.invalidate(); } catch (_) {}
+    }, 60);
+  };
+
+  // Immediate first cycle
+  doRepaintCycle();
+
+  // Then repeat every 500ms for 5 more cycles (total ~2.5s coverage)
+  let remaining = 5;
+  _repaintTimer = setInterval(() => {
+    if (remaining <= 0 || !mainWindow || mainWindow.isDestroyed?.()) {
+      clearInterval(_repaintTimer);
+      _repaintTimer = null;
+      return;
+    }
+    doRepaintCycle();
+    remaining--;
+  }, 500);
 }
 
 // =============================================================================
