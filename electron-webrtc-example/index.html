@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.14.0 (2026-02-10)
+   VERSION: 2.15.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
@@ -1187,11 +1187,18 @@
         const DETECTION_INTERVAL_MS = 200; // 5 FPS
         let detectionLoopTimer = null;
         
+        let _detectionTickCount = 0;
+        
         function runDetectionLoop() {
           // IMPORTANT: Do NOT rely on requestAnimationFrame.
           // When the Electron window is hidden/minimized to Tray, Chromium may stop/throttle rAF,
           // which makes motion detection only run when the window is visible.
-          if (!detectionLoopActive || !objectDetector || !videoElement) return;
+          if (!detectionLoopActive || !objectDetector || !videoElement) {
+            console.warn('[Monitoring] runDetectionLoop ABORTED - missing:', {
+              detectionLoopActive, objectDetector: !!objectDetector, videoElement: !!videoElement
+            });
+            return;
+          }
 
           if (detectionLoopTimer) {
             clearTimeout(detectionLoopTimer);
@@ -1205,14 +1212,25 @@
 
             if (now - lastFrameTime >= DETECTION_INTERVAL_MS) {
               lastFrameTime = now;
+              _detectionTickCount++;
+
+              // Periodic heartbeat log every 60 ticks (~12 seconds at 5 FPS)
+              if (_detectionTickCount % 60 === 0) {
+                console.log(`[Monitoring] 💓 Detection heartbeat: ${_detectionTickCount} ticks, video.readyState=${videoElement.readyState}, paused=${videoElement.paused}`);
+              }
 
               if (videoElement.readyState >= 2 && !videoElement.paused) {
                 try {
                   const detections = objectDetector.detectForVideo(videoElement, now);
                   processDetections(detections.detections);
                 } catch (e) {
-                  // Ignore frame errors
+                  if (!window._lastDetectError || (now - window._lastDetectError > 30000)) {
+                    console.error('[Monitoring] ✗ detectForVideo error:', e.message || e);
+                    window._lastDetectError = now;
+                  }
                 }
+              } else if (_detectionTickCount % 60 === 1) {
+                console.warn(`[Monitoring] ⚠️ Video not ready: readyState=${videoElement.readyState}, paused=${videoElement.paused}`);
               }
             }
 
