@@ -1,9 +1,10 @@
 /**
  * Electron Preload Script - Complete Implementation
  * ==================================================
- * VERSION: 2.0.2 (2026-02-07)
+ * VERSION: 2.5.0 (2026-02-11)
  * 
  * CHANGELOG:
+ *  - 2.5.0: Added reportRendererError IPC for crash diagnostics guardrails
  *  - 2.0.2: Added openClipsFolder IPC channel to open local clips folder in OS file explorer
  *  - 2.0.1: Added onStartClipRecording IPC channel for clip recording from Renderer
  * 
