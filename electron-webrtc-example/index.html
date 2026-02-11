@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.16.0 (2026-02-11)
+   VERSION: 2.16.1 (2026-02-11)
    ============================================================
    
    CHANGELOG:
@@ -1579,6 +1579,34 @@
             console.log('[Monitoring] Sending ACK to main process...');
             window.electronAPI?.notifyMonitoringStarted?.(ackPayload);
             console.log('[Monitoring] ✓ Sent monitoring-started ACK:', JSON.stringify(ackPayload));
+            
+            // v2.16.1: Canary diagnostic — fires 3s after ACK regardless of isSoundRunning
+            if (soundStarted) {
+              setTimeout(() => {
+                console.log(`[Sound] CANARY (3s post-ACK) isSoundRunning=${isSoundRunning} | audioProcessCount=${audioProcessCount} | inferenceCount=${inferenceCount} | ctxState=${soundAudioContext?.state || 'null'} | diagIntervalActive=${!!_soundAudioDiagInterval} | bufLen=${soundAudioBuffer?.length ?? 'null'}`);
+                if (audioProcessCount === 0) {
+                  console.warn('[Sound] ⚠️ CANARY: onaudioprocess never fired! ScriptProcessor may be disconnected.');
+                  // Attempt reconnect
+                  try {
+                    if (soundSource && soundProcessor && soundAudioContext) {
+                      console.log('[Sound] CANARY: Attempting ScriptProcessor reconnect...');
+                      soundSource.disconnect();
+                      soundProcessor.disconnect();
+                      soundSource.connect(soundProcessor);
+                      soundProcessor.connect(soundAudioContext.destination);
+                      console.log('[Sound] CANARY: Reconnected ScriptProcessor');
+                    }
+                  } catch (e) {
+                    console.error('[Sound] CANARY: Reconnect failed:', e);
+                  }
+                }
+              }, 3000);
+              
+              // Second canary at 6s to check if reconnect worked
+              setTimeout(() => {
+                console.log(`[Sound] CANARY2 (6s post-ACK) isSoundRunning=${isSoundRunning} | audioProcessCount=${audioProcessCount} | inferenceCount=${inferenceCount}`);
+              }, 6000);
+            }
             
             // Update sensor status indicator in UI
             updateSensorIndicator({ motion: motionStarted, sound: soundStarted });
