@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.16.1 (2026-02-11)
+   VERSION: 2.17.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
@@ -592,14 +592,16 @@
         const SOUND_SAMPLE_RATE = 16000;
         const SOUND_FRAME_LENGTH = 0.975; // ~1 second per inference
         const SOUND_SAMPLES_NEEDED = Math.floor(SOUND_SAMPLE_RATE * SOUND_FRAME_LENGTH);
-        const SOUND_RMS_THRESHOLD = 0.003; // DEBUG: reduced from 0.01 for diagnostics (Step 5)
+        const SOUND_RMS_THRESHOLD = 0.001; // v2.17.0: DEBUG lowered from 0.003 to eliminate false silence filtering
         let soundLastDetectionTime = {};
         let soundPersistenceCount = {};
         let soundScoreHistory = {};
         let isProcessingSoundEvent = false;
-        let audioProcessCount = 0;    // Step 1: onaudioprocess call counter
-        let inferenceCount = 0;       // Step 2: inference run counter
-        let _soundAudioDiagInterval = null; // Step 1: periodic diagnostic timer
+        let audioProcessCount = 0;
+        let inferenceCount = 0;
+        let lastAudioProcessTs = 0;       // v2.17.0: timestamp of last onaudioprocess
+        let _bufferReachedLogged = false;  // v2.17.0: one-time buffer threshold log
+        let _soundAudioDiagInterval = null;
         let _rmsSkipLogTimer = 0;     // Step 5: throttle RMS skip logs
         
         // ═══ SINGLE MODE: Only one sound mode active at a time ═══
@@ -961,7 +963,12 @@
             
             soundProcessor.onaudioprocess = (event) => {
               if (!isSoundRunning) return;
-              audioProcessCount++; // Step 1
+              audioProcessCount++;
+              lastAudioProcessTs = Date.now();
+              // v2.17.0 Step 1: Log first 3 calls to prove onaudioprocess fires
+              if (audioProcessCount <= 3) {
+                console.log(`[Sound][DBG] onaudioprocess FIRED #${audioProcessCount}`);
+              }
               const inputData = event.inputBuffer.getChannelData(0);
               processSoundChunk(new Float32Array(inputData));
             };
@@ -981,8 +988,10 @@
             soundLastDetectionTime = {};
             audioProcessCount = 0;
             inferenceCount = 0;
+            lastAudioProcessTs = 0;
+            _bufferReachedLogged = false;
             
-            // Step 1: Diagnostic interval — audio pipeline health every 2 seconds
+            // v2.17.0 Step 1: Diagnostic interval — audio pipeline health every 2 seconds
             if (_soundAudioDiagInterval) clearInterval(_soundAudioDiagInterval);
             _soundAudioDiagInterval = setInterval(() => {
               if (!isSoundRunning) {
@@ -990,7 +999,16 @@
                 _soundAudioDiagInterval = null;
                 return;
               }
-              console.log(`[Sound] DIAG audioProcessCount=${audioProcessCount} | ctxState=${soundAudioContext?.state || 'null'} | bufLen=${soundAudioBuffer.length} | inferenceCount=${inferenceCount}`);
+              const dtSinceLast = lastAudioProcessTs > 0 ? (Date.now() - lastAudioProcessTs) : -1;
+              console.log(`[Sound][DBG] audioProcessCount=${audioProcessCount} dtSinceLast=${dtSinceLast}ms ctx=${soundAudioContext?.state || 'null'} buffer=${soundAudioBuffer.length} inferenceCount=${inferenceCount}`);
+            }, 2000);
+            
+            // v2.17.0 Step 1: Redundant verification at 1s and 2s post-start
+            setTimeout(() => {
+              console.log(`[Sound][DBG] VERIFY (1s) audioProcessCount=${audioProcessCount} ctx=${soundAudioContext?.state || 'null'}`);
+            }, 1000);
+            setTimeout(() => {
+              console.log(`[Sound][DBG] VERIFY (2s) audioProcessCount=${audioProcessCount} ctx=${soundAudioContext?.state || 'null'}`);
             }, 2000);
             
             console.log('[Sound] ✓ Single-mode inference started');
@@ -1006,6 +1024,12 @@
         // ============================================================
         function processSoundChunk(chunk) {
           soundAudioBuffer.push(...chunk);
+          
+          // v2.17.0 Step 2: One-time log when buffer first reaches threshold
+          if (!_bufferReachedLogged && soundAudioBuffer.length >= SOUND_SAMPLES_NEEDED) {
+            _bufferReachedLogged = true;
+            console.log(`[Sound][DBG] buffer reached samplesNeeded=${SOUND_SAMPLES_NEEDED} (actual=${soundAudioBuffer.length})`);
+          }
           
           if (soundAudioBuffer.length >= SOUND_SAMPLES_NEEDED) {
             const samples = new Float32Array(soundAudioBuffer.slice(0, SOUND_SAMPLES_NEEDED));
@@ -1139,6 +1163,8 @@
           
           // Persistence tracking
           soundPersistenceCount[targetLabel] = (soundPersistenceCount[targetLabel] || 0) + 1;
+          // v2.17.0 Step 5: Log persistence rising
+          console.log(`[Sound][DBG] ${currentSoundMode} persistence now = ${soundPersistenceCount[targetLabel]} (score=${(bestScore * 100).toFixed(1)}%)`);
           
           if (!soundScoreHistory[targetLabel]) soundScoreHistory[targetLabel] = [];
           soundScoreHistory[targetLabel].push(bestScore);
@@ -1606,6 +1632,11 @@
               setTimeout(() => {
                 console.log(`[Sound] CANARY2 (6s post-ACK) isSoundRunning=${isSoundRunning} | audioProcessCount=${audioProcessCount} | inferenceCount=${inferenceCount}`);
               }, 6000);
+              
+              // v2.17.0: Third canary at 10s — full pipeline state dump
+              setTimeout(() => {
+                console.log(`[Sound] CANARY3 (10s post-ACK) isSoundRunning=${isSoundRunning} | audioProcessCount=${audioProcessCount} | inferenceCount=${inferenceCount} | ctxState=${soundAudioContext?.state || 'null'} | bufLen=${soundAudioBuffer?.length ?? 'null'} | dtSinceLast=${lastAudioProcessTs > 0 ? (Date.now() - lastAudioProcessTs) + 'ms' : 'never'}`);
+              }, 10000);
             }
             
             // Update sensor status indicator in UI
