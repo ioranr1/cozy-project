@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.22.0 (2026-02-11)
+   VERSION: 2.23.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
@@ -513,7 +513,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-11-v2.22.0");
+      console.log("[UI] index.html build: electron-index-2026-02-11-v2.23.0");
       
       // ============================================================
       // Sensor Status Indicator - update UI for camera/mic
@@ -557,7 +557,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.22.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.23.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -1009,9 +1009,8 @@
           if (debugPhase === 1 || debugPhase === 5) {
             console.log(`[Sound] PHASE ${debugPhase}: Mic-only test (NO TFJS, NO model)`);
             try {
-              soundMediaStream = await navigator.mediaDevices.getUserMedia({
-                audio: { sampleRate: SOUND_SAMPLE_RATE, channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true }
-              });
+              // v2.23.0: Minimal constraints — avoid sampleRate/processing flags that cause driver crashes on Windows
+              soundMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
               const micTrack = soundMediaStream.getAudioTracks()[0];
               console.log(`[Sound] PHASE ${debugPhase}: ✓ Mic opened: ${micTrack?.label || 'unknown'}`);
               
@@ -1060,9 +1059,8 @@
           if (debugPhase === 2) {
             console.log('[Sound] PHASE 2: Mic + model load (NO inference)');
             try {
-              soundMediaStream = await navigator.mediaDevices.getUserMedia({
-                audio: { sampleRate: SOUND_SAMPLE_RATE, channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true }
-              });
+              // v2.23.0: Minimal constraints
+              soundMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
               console.log('[Sound] PHASE 2: ✓ Mic opened');
               
               if (!isSoundModelReady) {
@@ -1130,15 +1128,9 @@
           
           try {
             console.log('[Sound] Opening microphone...');
-            soundMediaStream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                sampleRate: SOUND_SAMPLE_RATE,
-                channelCount: 1,
-                echoCancellation: false,
-                noiseSuppression: false,
-                autoGainControl: true,
-              }
-            });
+            // v2.23.0: Minimal constraints — sampleRate/echoCancellation/noiseSuppression
+            // caused ACCESS_VIOLATION crashes on some Windows audio drivers
+            soundMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
             // ═══ STEP 4: Ensure no stale AudioContext exists ═══
             if (soundAudioContext) {
@@ -1193,7 +1185,6 @@
             console.log(`[Sound] AudioContext state AFTER resume: ${soundAudioContext.state}`);
             
             isSoundRunning = true;
-            soundAudioBuffer = [];
             soundPersistenceCount = {};
             soundScoreHistory = {};
             soundLastDetectionTime = {};
@@ -1210,7 +1201,7 @@
                 return;
               }
               const dtSinceLast = lastAudioProcessTs > 0 ? (Date.now() - lastAudioProcessTs) : -1;
-              console.log(`[Sound][DBG] audioProcessCount=${audioProcessCount} dtSinceLast=${dtSinceLast}ms ctx=${soundAudioContext?.state || 'null'} buffer=${soundAudioBuffer.length} inferenceCount=${inferenceCount}`);
+              console.log(`[Sound][DBG] audioProcessCount=${audioProcessCount} dtSinceLast=${dtSinceLast}ms ctx=${soundAudioContext?.state || 'null'} ringAvail=${soundRingAvailable} inferenceCount=${inferenceCount}`);
             }, 2000);
             
             setTimeout(() => {
@@ -1870,7 +1861,7 @@
             // v2.16.1: Canary diagnostic — fires 3s after ACK regardless of isSoundRunning
             if (soundStarted) {
               setTimeout(() => {
-                console.log(`[Sound] CANARY (3s post-ACK) isSoundRunning=${isSoundRunning} | audioProcessCount=${audioProcessCount} | inferenceCount=${inferenceCount} | ctxState=${soundAudioContext?.state || 'null'} | diagIntervalActive=${!!_soundAudioDiagInterval} | bufLen=${soundAudioBuffer?.length ?? 'null'}`);
+                console.log(`[Sound] CANARY (3s post-ACK) isSoundRunning=${isSoundRunning} | audioProcessCount=${audioProcessCount} | inferenceCount=${inferenceCount} | ctxState=${soundAudioContext?.state || 'null'} | diagIntervalActive=${!!_soundAudioDiagInterval} | ringAvail=${soundRingAvailable}`);
                 if (audioProcessCount === 0) {
                   console.warn('[Sound] ⚠️ CANARY: onaudioprocess never fired! ScriptProcessor may be disconnected.');
                   // Attempt reconnect
@@ -1900,7 +1891,7 @@
               
               // v2.17.0: Third canary at 10s — full pipeline state dump
               setTimeout(() => {
-                console.log(`[Sound] CANARY3 (10s post-ACK) isSoundRunning=${isSoundRunning} | audioProcessCount=${audioProcessCount} | inferenceCount=${inferenceCount} | ctxState=${soundAudioContext?.state || 'null'} | bufLen=${soundAudioBuffer?.length ?? 'null'} | dtSinceLast=${lastAudioProcessTs > 0 ? (Date.now() - lastAudioProcessTs) + 'ms' : 'never'}`);
+                console.log(`[Sound] CANARY3 (10s post-ACK) isSoundRunning=${isSoundRunning} | audioProcessCount=${audioProcessCount} | inferenceCount=${inferenceCount} | ctxState=${soundAudioContext?.state || 'null'} | ringAvail=${soundRingAvailable} | dtSinceLast=${lastAudioProcessTs > 0 ? (Date.now() - lastAudioProcessTs) + 'ms' : 'never'}`);
               }, 10000);
             }
             
