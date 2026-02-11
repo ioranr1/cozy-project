@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.3.4 (2026-02-10)
+ * VERSION: 2.3.5 (2026-02-11)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -279,6 +279,24 @@ function startLocalModelServer() {
 }
 
 // =============================================================================
+// REPAINT FIX (Chromium frameless window black screen bug)
+// =============================================================================
+
+/**
+ * Force a resize cycle on the main window to trigger Chromium repaint.
+ * Fixes black screen on frameless windows after: DevTools close, tray restore.
+ */
+function forceWindowRepaint() {
+  if (!mainWindow || mainWindow.isDestroyed?.()) return;
+  const [w, h] = mainWindow.getSize();
+  mainWindow.setSize(w + 1, h + 1);
+  setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed?.()) return;
+    mainWindow.setSize(w, h);
+  }, 50);
+}
+
+// =============================================================================
 // WINDOW CREATION
 // =============================================================================
 
@@ -305,14 +323,11 @@ function createWindow() {
   // CRITICAL FIX: Set main window reference in AwayManager
   awayManager.setMainWindow(mainWindow);
 
-  // FIX: Black screen after closing DevTools (F12) on frameless windows
-  // Chromium bug: closing DevTools on frame:false windows causes render
-  // surface to go black. Force a resize cycle to trigger repaint.
+  // FIX: Black screen after closing DevTools (F12) or restoring from tray
+  // Chromium bug: frameless windows lose render surface. Force resize to repaint.
   mainWindow.webContents.on('devtools-closed', () => {
     console.log('[App] DevTools closed — forcing repaint to prevent black screen');
-    const [w, h] = mainWindow.getSize();
-    mainWindow.setSize(w + 1, h + 1);
-    setTimeout(() => mainWindow.setSize(w, h), 50);
+    forceWindowRepaint();
   });
 
   // Intercept close to hide to tray
@@ -383,6 +398,9 @@ function initTray() {
       if (mainWindow) {
         mainWindow.show();
         mainWindow.focus();
+        // FIX: Black screen after restoring frameless window from tray
+        // Same Chromium repaint bug as DevTools close
+        forceWindowRepaint();
       }
     });
 
@@ -403,7 +421,7 @@ function updateTrayMenu() {
   const contextMenu = Menu.buildFromTemplate([
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
     { type: 'separator' },
-    { label: t('showWindow'), click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { label: t('showWindow'), click: () => { mainWindow?.show(); mainWindow?.focus(); forceWindowRepaint(); } },
     { type: 'separator' },
     { label: t('quit'), click: () => { app.isQuitting = true; app.quit(); } }
   ]);
