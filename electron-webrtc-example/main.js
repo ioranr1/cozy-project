@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.3.8 (2026-02-11)
+ * VERSION: 2.3.9 (2026-02-11)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -320,9 +320,31 @@ function forceWindowRepaint() {
   // For short idle, do a second quick repaint as backup
   if (idleMs > 60000) {
     console.log('[App] Long idle detected — scheduling page reload in 1s');
+    // v2.3.9: Track if monitoring was active BEFORE reload
+    const wasMonitoringActive = monitoringManager && monitoringManager.isActive;
     _repaintTimer = setTimeout(() => {
       if (!mainWindow || mainWindow.isDestroyed?.()) return;
       console.log('[App] Reloading page to fix compositor (long idle recovery)');
+      
+      // v2.3.9: After reload completes, re-start monitoring if it was active
+      if (wasMonitoringActive) {
+        mainWindow.webContents.once('did-finish-load', async () => {
+          console.log('[App] Page reloaded after long idle — re-starting monitoring...');
+          // Reset manager state so enable() will actually send IPC again
+          monitoringManager.isActive = false;
+          monitoringManager.isStarting = false;
+          // Small delay to let renderer register IPC listeners
+          setTimeout(async () => {
+            try {
+              const result = await monitoringManager.enable();
+              console.log('[App] Monitoring re-start after reload:', result);
+            } catch (err) {
+              console.error('[App] Failed to re-start monitoring after reload:', err);
+            }
+          }, 2000);
+        });
+      }
+      
       mainWindow.webContents.reload();
     }, 1000);
   } else {
