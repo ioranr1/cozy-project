@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.20.0 (2026-02-11)
+   VERSION: 2.21.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
@@ -513,7 +513,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-11-v2.20.0");
+      console.log("[UI] index.html build: electron-index-2026-02-11-v2.21.0");
       
       // ============================================================
       // Sensor Status Indicator - update UI for camera/mic
@@ -557,7 +557,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.20.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.21.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -601,21 +601,32 @@
         let soundSource = null;
         let isSoundRunning = false;
         let isSoundModelReady = false;
+        let _isSoundModelLoading = false; // v2.21.0: Lock to prevent concurrent model loads
         let soundAudioBuffer = [];
         const SOUND_SAMPLE_RATE = 16000;
         const SOUND_FRAME_LENGTH = 0.975; // ~1 second per inference
         const SOUND_SAMPLES_NEEDED = Math.floor(SOUND_SAMPLE_RATE * SOUND_FRAME_LENGTH);
-        const SOUND_RMS_THRESHOLD = 0.001; // v2.17.0: DEBUG lowered from 0.003 to eliminate false silence filtering
+        const SOUND_RMS_THRESHOLD = 0.001;
         let soundLastDetectionTime = {};
         let soundPersistenceCount = {};
         let soundScoreHistory = {};
         let isProcessingSoundEvent = false;
         let audioProcessCount = 0;
         let inferenceCount = 0;
-        let lastAudioProcessTs = 0;       // v2.17.0: timestamp of last onaudioprocess
-        let _bufferReachedLogged = false;  // v2.17.0: one-time buffer threshold log
+        let lastAudioProcessTs = 0;
+        let _bufferReachedLogged = false;
         let _soundAudioDiagInterval = null;
-        let _rmsSkipLogTimer = 0;     // Step 5: throttle RMS skip logs
+        let _rmsSkipLogTimer = 0;
+        
+        // v2.21.0: Diagnostic isolation phases (Steps 1-5)
+        // Set via IPC config: config.sensors.sound.debug_phase = 1|2|3|4|5
+        // Phase 0 (default): Normal operation with all guards
+        // Phase 1: Mic only — no TFJS, no model, just getUserMedia for 20s
+        // Phase 2: Mic + model load — no inference
+        // Phase 3: Full pipeline with 800ms delay between mic and inference
+        // Phase 4: Full pipeline with double-start guards (default behavior now)
+        // Phase 5: Mic + raw RMS only — no TFJS at all
+        const SOUND_MIC_TO_INFERENCE_DELAY_MS = 800; // Step 3: delay between mic open and inference start
         
         // ═══ SINGLE MODE: Only one sound mode active at a time ═══
         let currentSoundMode = null; // 'baby_cry' | 'dog_bark' | 'help'
@@ -851,6 +862,20 @@
         // SOUND: Load TensorFlow.js + YAMNet
         // ============================================================
         async function loadYAMNet() {
+          // v2.21.0 Step 4: Prevent concurrent model loads
+          if (_isSoundModelLoading) {
+            console.warn('[Sound] ⚠️ Model already loading — skipping duplicate loadYAMNet() call');
+            // Wait for the existing load to finish
+            while (_isSoundModelLoading) {
+              await new Promise(r => setTimeout(r, 200));
+            }
+            return isSoundModelReady;
+          }
+          if (isSoundModelReady && soundModel) {
+            console.log('[Sound] Model already loaded — reusing');
+            return true;
+          }
+          _isSoundModelLoading = true;
           const loadStartMs = performance.now();
           try {
             console.log('[Sound] Loading TensorFlow.js (CPU-only, WebGL DISABLED)...');
@@ -933,6 +958,7 @@
             dummy.dispose();
             
             isSoundModelReady = true;
+            _isSoundModelLoading = false;
             console.log('[Sound] ✓ YAMNet model loaded and warmed up');
             return true;
           } catch (error) {
@@ -940,19 +966,118 @@
             console.error(`[Sound] ✗ CHECK1 FAIL: YAMNet initialization failed after ${loadDurationMs}ms:`, error);
             console.error(`[Sound] ✗ Model URL attempted: ${error._modelUrl || 'unknown'}`);
             isSoundModelReady = false;
+            _isSoundModelLoading = false;
             return false;
           }
         }
         
         // ============================================================
         // SOUND: Start microphone capture + inference
+        // v2.21.0: 5-step crash isolation system
         // ============================================================
         async function startSoundDetection(config) {
+          // ═══ STEP 4: Absolute double-start prevention ═══
           if (isSoundRunning) {
-            console.log('[Sound] Already running');
+            console.warn('[Sound] ⚠️ DOUBLE-START BLOCKED — isSoundRunning=true, ignoring duplicate start');
             return true;
           }
           
+          // v2.21.0: Force-cleanup any leftover resources before starting
+          // This prevents orphaned AudioContexts / streams from previous crashed sessions
+          if (soundAudioContext || soundMediaStream || soundProcessor) {
+            console.warn('[Sound] ⚠️ Stale resources detected — cleaning up before start');
+            stopSoundDetection();
+          }
+          
+          const debugPhase = config?.sensors?.sound?.debug_phase || 0;
+          console.log(`[Sound] ═══════════════════════════════════════════════════`);
+          console.log(`[Sound] startSoundDetection v2.21.0 — debug_phase=${debugPhase}`);
+          console.log(`[Sound] ═══════════════════════════════════════════════════`);
+          
+          // ═══ STEP 1 / STEP 5: Mic-only isolation (no TFJS) ═══
+          if (debugPhase === 1 || debugPhase === 5) {
+            console.log(`[Sound] PHASE ${debugPhase}: Mic-only test (NO TFJS, NO model)`);
+            try {
+              soundMediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: { sampleRate: SOUND_SAMPLE_RATE, channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true }
+              });
+              const micTrack = soundMediaStream.getAudioTracks()[0];
+              console.log(`[Sound] PHASE ${debugPhase}: ✓ Mic opened: ${micTrack?.label || 'unknown'}`);
+              
+              soundAudioContext = new AudioContext({ sampleRate: SOUND_SAMPLE_RATE });
+              soundSource = soundAudioContext.createMediaStreamSource(soundMediaStream);
+              soundProcessor = soundAudioContext.createScriptProcessor(4096, 1, 1);
+              
+              let rmsCount = 0;
+              soundProcessor.onaudioprocess = (event) => {
+                rmsCount++;
+                const data = event.inputBuffer.getChannelData(0);
+                const rms = Math.sqrt(data.reduce((sum, s) => sum + s * s, 0) / data.length);
+                if (rmsCount <= 5 || rmsCount % 20 === 0) {
+                  console.log(`[Sound] PHASE ${debugPhase}: RMS #${rmsCount} = ${rms.toFixed(6)}`);
+                }
+              };
+              
+              soundSource.connect(soundProcessor);
+              soundProcessor.connect(soundAudioContext.destination);
+              await soundAudioContext.resume();
+              
+              isSoundRunning = true;
+              console.log(`[Sound] PHASE ${debugPhase}: ✓ Audio pipeline running — will auto-stop in 20s`);
+              
+              // Auto-stop after 20 seconds for diagnostic
+              setTimeout(() => {
+                if (isSoundRunning) {
+                  console.log(`[Sound] PHASE ${debugPhase}: 20s elapsed — auto-stopping diagnostic`);
+                  console.log(`[Sound] PHASE ${debugPhase}: ✅ NO CRASH — mic is stable. rmsCount=${rmsCount}`);
+                  stopSoundDetection();
+                }
+              }, 20000);
+              
+              return true;
+            } catch (error) {
+              console.error(`[Sound] PHASE ${debugPhase}: ✗ Mic failed:`, error);
+              return false;
+            }
+          }
+          
+          // ═══ STEP 2: Mic + model load only (no inference) ═══
+          if (debugPhase === 2) {
+            console.log('[Sound] PHASE 2: Mic + model load (NO inference)');
+            try {
+              soundMediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: { sampleRate: SOUND_SAMPLE_RATE, channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true }
+              });
+              console.log('[Sound] PHASE 2: ✓ Mic opened');
+              
+              if (!isSoundModelReady) {
+                console.log('[Sound] PHASE 2: Loading YAMNet model...');
+                const loaded = await loadYAMNet();
+                console.log(`[Sound] PHASE 2: Model load result: ${loaded}`);
+                if (!loaded) {
+                  console.error('[Sound] PHASE 2: ✗ MODEL LOAD CAUSED ISSUE or failed');
+                }
+              }
+              
+              isSoundRunning = true;
+              console.log('[Sound] PHASE 2: ✓ Mic open + model loaded — NO inference running');
+              console.log('[Sound] PHASE 2: If no crash after 20s → model load is safe');
+              
+              setTimeout(() => {
+                if (isSoundRunning) {
+                  console.log('[Sound] PHASE 2: ✅ 20s elapsed — NO CRASH — model load is safe');
+                  stopSoundDetection();
+                }
+              }, 20000);
+              
+              return true;
+            } catch (error) {
+              console.error('[Sound] PHASE 2: ✗ Failed:', error);
+              return false;
+            }
+          }
+          
+          // ═══ Normal operation (phase 0, 3, 4) with all guards ═══
           if (!isSoundModelReady) {
             const loaded = await loadYAMNet();
             if (!loaded) {
@@ -964,7 +1089,6 @@
           // ═══ SINGLE MODE: Resolve mode from config ═══
           let mode = config?.sensors?.sound?.mode;
           if (!mode) {
-            // Backward compat: derive from targets array
             const targets = config?.sensors?.sound?.targets || ['scream'];
             const targetToMode = { 'baby_crying': 'baby_cry', 'dog_barking': 'dog_bark', 'scream': 'help' };
             mode = targetToMode[targets[0]] || 'help';
@@ -980,10 +1104,8 @@
           currentSoundTargetLabel = modeConfig.yamnet_label;
           
           console.log('[Sound] ═══════════════════════════════════════════════════');
-          console.log(`[Sound] Sound mode selected: ${currentSoundMode}, target label: ${currentSoundTargetLabel}`);
+          console.log(`[Sound] Sound mode: ${currentSoundMode}, target: ${currentSoundTargetLabel}`);
           console.log(`[Sound] Threshold: ${modeConfig.threshold}, Persistence: ${modeConfig.persistence}, Debounce: ${modeConfig.debounce_ms}ms`);
-          
-          // Show YAMNet class mappings for active label
           const yamnetIndices = [];
           for (const [idx, info] of Object.entries(YAMNET_TARGET_CLASSES)) {
             if (info.label === currentSoundTargetLabel) yamnetIndices.push(`${idx}(${info.name})`);
@@ -992,7 +1114,7 @@
           console.log('[Sound] ═══════════════════════════════════════════════════');
           
           try {
-            console.log('[Sound] Starting microphone capture...');
+            console.log('[Sound] Opening microphone...');
             soundMediaStream = await navigator.mediaDevices.getUserMedia({
               audio: {
                 sampleRate: SOUND_SAMPLE_RATE,
@@ -1002,6 +1124,13 @@
                 autoGainControl: true,
               }
             });
+            
+            // ═══ STEP 4: Ensure no stale AudioContext exists ═══
+            if (soundAudioContext) {
+              console.warn('[Sound] ⚠️ Closing orphaned AudioContext before creating new one');
+              try { soundAudioContext.close(); } catch (_) {}
+              soundAudioContext = null;
+            }
             
             soundAudioContext = new AudioContext({ sampleRate: SOUND_SAMPLE_RATE });
             soundSource = soundAudioContext.createMediaStreamSource(soundMediaStream);
@@ -1013,11 +1142,23 @@
               console.warn(`[Sound] ⚠️ Sample rate mismatch! Expected ${SOUND_SAMPLE_RATE}Hz, got ${soundAudioContext.sampleRate}Hz`);
             }
             
+            // ═══ STEP 3: Delay before connecting inference pipeline ═══
+            const delayMs = (debugPhase === 3) ? SOUND_MIC_TO_INFERENCE_DELAY_MS : 0;
+            if (delayMs > 0) {
+              console.log(`[Sound] PHASE 3: Waiting ${delayMs}ms before connecting inference...`);
+              await new Promise(r => setTimeout(r, delayMs));
+              // Re-check after delay — might have been stopped during wait
+              if (!soundMediaStream || soundMediaStream.getAudioTracks()[0]?.readyState !== 'live') {
+                console.warn('[Sound] Mic track died during delay — aborting');
+                stopSoundDetection();
+                return false;
+              }
+            }
+            
             soundProcessor.onaudioprocess = (event) => {
               if (!isSoundRunning) return;
               audioProcessCount++;
               lastAudioProcessTs = Date.now();
-              // v2.17.0 Step 1: Log first 3 calls to prove onaudioprocess fires
               if (audioProcessCount <= 3) {
                 console.log(`[Sound][DBG] onaudioprocess FIRED #${audioProcessCount}`);
               }
@@ -1028,7 +1169,6 @@
             soundSource.connect(soundProcessor);
             soundProcessor.connect(soundAudioContext.destination);
             
-            // Step 1: Explicitly resume AudioContext (may be suspended by Chrome autoplay policy)
             console.log(`[Sound] AudioContext state BEFORE resume: ${soundAudioContext.state}`);
             await soundAudioContext.resume();
             console.log(`[Sound] AudioContext state AFTER resume: ${soundAudioContext.state}`);
@@ -1043,7 +1183,6 @@
             lastAudioProcessTs = 0;
             _bufferReachedLogged = false;
             
-            // v2.17.0 Step 1: Diagnostic interval — audio pipeline health every 2 seconds
             if (_soundAudioDiagInterval) clearInterval(_soundAudioDiagInterval);
             _soundAudioDiagInterval = setInterval(() => {
               if (!isSoundRunning) {
@@ -1055,7 +1194,6 @@
               console.log(`[Sound][DBG] audioProcessCount=${audioProcessCount} dtSinceLast=${dtSinceLast}ms ctx=${soundAudioContext?.state || 'null'} buffer=${soundAudioBuffer.length} inferenceCount=${inferenceCount}`);
             }, 2000);
             
-            // v2.17.0 Step 1: Redundant verification at 1s and 2s post-start
             setTimeout(() => {
               console.log(`[Sound][DBG] VERIFY (1s) audioProcessCount=${audioProcessCount} ctx=${soundAudioContext?.state || 'null'}`);
             }, 1000);
@@ -1067,6 +1205,8 @@
             return true;
           } catch (error) {
             console.error('[Sound] Failed to start microphone:', error);
+            // v2.21.0: Clean up partial resources on failure
+            stopSoundDetection();
             return false;
           }
         }
@@ -1276,10 +1416,10 @@
         }
         
         // ============================================================
-        // SOUND: Stop sound detection
+        // SOUND: Stop sound detection  (v2.21.0 — hardened cleanup)
         // ============================================================
         function stopSoundDetection() {
-          console.log('[Sound] Stopping...');
+          console.log('[Sound] Stopping... isSoundRunning=' + isSoundRunning);
           isSoundRunning = false;
           
           // Clean up diagnostic interval
@@ -1288,25 +1428,39 @@
             _soundAudioDiagInterval = null;
           }
           
-          if (soundProcessor) { soundProcessor.disconnect(); soundProcessor = null; }
-          if (soundSource) { soundSource.disconnect(); soundSource = null; }
+          // v2.21.0: Wrap each disconnect in try/catch to prevent cascading failures
+          try { if (soundProcessor) { soundProcessor.onaudioprocess = null; soundProcessor.disconnect(); } } catch (_) {}
+          soundProcessor = null;
+          
+          try { if (soundSource) { soundSource.disconnect(); } } catch (_) {}
+          soundSource = null;
+          
           if (soundMediaStream) {
             soundMediaStream.getTracks().forEach(track => {
-              track.stop();
-              console.log('[Sound] Stopped mic track:', track.label);
+              try { track.stop(); console.log('[Sound] Stopped mic track:', track.label); } catch (_) {}
             });
             soundMediaStream = null;
           }
-          if (soundAudioContext && soundAudioContext.state !== 'closed') {
-            soundAudioContext.close();
+          
+          if (soundAudioContext) {
+            try {
+              if (soundAudioContext.state !== 'closed') {
+                soundAudioContext.close();
+              }
+            } catch (_) {}
             soundAudioContext = null;
           }
           
+          // v2.21.0: Full state reset
           soundAudioBuffer = [];
           soundPersistenceCount = {};
           soundScoreHistory = {};
           soundLastDetectionTime = {};
-          console.log('[Sound] ✓ Stopped');
+          audioProcessCount = 0;
+          inferenceCount = 0;
+          lastAudioProcessTs = 0;
+          _bufferReachedLogged = false;
+          console.log('[Sound] ✓ Stopped — all resources released and state reset');
         }
         
         // ============================================================
