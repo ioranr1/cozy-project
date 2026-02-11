@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.23.0 (2026-02-11)
+   VERSION: 2.24.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
+   - v2.24.0: ADD - Phase 6 (model-only, no mic) A/B isolation test for crash diagnosis
    - v2.13.0: CRITICAL FIX - Camera retry with backoff on NotReadableError (busy from clip recording)
               + Complete structural isolation: motion failure never blocks sound, sound failure never blocks motion
    - v2.12.0: DEBUG - 8-layer sound diagnostic system (CHECK1-CHECK8)
@@ -513,7 +514,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-11-v2.23.0");
+      console.log("[UI] index.html build: electron-index-2026-02-11-v2.24.0");
       
       // ============================================================
       // Sensor Status Indicator - update UI for camera/mic
@@ -557,7 +558,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.23.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.24.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -1086,6 +1087,72 @@
               return true;
             } catch (error) {
               console.error('[Sound] PHASE 2: ✗ Failed:', error);
+              return false;
+            }
+          }
+          
+          // ═══ PHASE 6 (v2.24.0): Model-only isolation — NO mic, NO audio pipeline ═══
+          // Purpose: If this crashes → the model/TFJS is the problem (not the mic)
+          //          If this survives 20s → the crash is in the audio pipeline
+          if (debugPhase === 6) {
+            console.log('[Sound] PHASE 6: Model load + warmup ONLY (NO mic, NO AudioContext)');
+            try {
+              if (!isSoundModelReady) {
+                console.log('[Sound] PHASE 6: Loading YAMNet model...');
+                const loaded = await loadYAMNet();
+                console.log(`[Sound] PHASE 6: Model load result: ${loaded}`);
+                if (!loaded) {
+                  console.error('[Sound] PHASE 6: ✗ MODEL LOAD FAILED');
+                  return false;
+                }
+              }
+              
+              // Run 5 warmup inferences with synthetic audio data (no mic)
+              console.log('[Sound] PHASE 6: Running 5 synthetic inferences...');
+              for (let i = 0; i < 5; i++) {
+                const fakeSamples = tf.zeros([15600]);
+                const output = soundModel.predict(fakeSamples);
+                if (Array.isArray(output)) { output.forEach(t => t.dispose()); } else { output.dispose(); }
+                fakeSamples.dispose();
+                console.log(`[Sound] PHASE 6: Synthetic inference #${i + 1}/5 OK`);
+                // Small delay between inferences to simulate real timing
+                await new Promise(r => setTimeout(r, 500));
+              }
+              
+              isSoundRunning = true;
+              console.log('[Sound] PHASE 6: ✓ Model loaded + 5 inferences completed — NO mic involved');
+              console.log('[Sound] PHASE 6: Waiting 20s to confirm stability...');
+              
+              // Run periodic synthetic inferences for 20s to stress-test model
+              let phase6InferCount = 0;
+              const phase6Interval = setInterval(async () => {
+                if (!isSoundRunning) { clearInterval(phase6Interval); return; }
+                try {
+                  const fakeSamples = tf.zeros([15600]);
+                  const output = soundModel.predict(fakeSamples);
+                  if (Array.isArray(output)) { output.forEach(t => t.dispose()); } else { output.dispose(); }
+                  fakeSamples.dispose();
+                  phase6InferCount++;
+                  if (phase6InferCount % 5 === 0) {
+                    console.log(`[Sound] PHASE 6: Synthetic inference #${phase6InferCount} OK, tfMemory=${JSON.stringify(tf.memory())}`);
+                  }
+                } catch (err) {
+                  console.error(`[Sound] PHASE 6: Inference FAILED at #${phase6InferCount}:`, err);
+                  clearInterval(phase6Interval);
+                }
+              }, 1000); // ~1 inference/sec
+              
+              setTimeout(() => {
+                clearInterval(phase6Interval);
+                if (isSoundRunning) {
+                  console.log(`[Sound] PHASE 6: ✅ 20s elapsed — NO CRASH — model is stable (${phase6InferCount} inferences). Problem is in audio pipeline.`);
+                  stopSoundDetection();
+                }
+              }, 20000);
+              
+              return true;
+            } catch (error) {
+              console.error('[Sound] PHASE 6: ✗ Failed:', error);
               return false;
             }
           }
