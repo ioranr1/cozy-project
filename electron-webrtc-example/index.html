@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.19.0 (2026-02-11)
+   VERSION: 2.20.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
@@ -513,7 +513,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-11-v2.16.0");
+      console.log("[UI] index.html build: electron-index-2026-02-11-v2.20.0");
       
       // ============================================================
       // Sensor Status Indicator - update UI for camera/mic
@@ -557,7 +557,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.18.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.20.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -1854,10 +1854,11 @@
           console.log('[Monitoring] ✓ onStartClipRecording listener registered');
         }
         
-        // Pre-load MediaPipe in background
-        loadMediaPipe().then(success => {
-          console.log('[Monitoring] MediaPipe pre-load:', success ? 'ready' : 'failed');
-        });
+        // v2.20.0: MediaPipe is NO LONGER pre-loaded on startup.
+        // It will be loaded on-demand only when motion detection is actually enabled.
+        // This prevents ACCESS_VIOLATION (0xC0000005) crashes during sound-only monitoring,
+        // because MediaPipe WASM initialization can trigger GPU probing even with CPU delegate.
+        console.log('[Monitoring] MediaPipe deferred — will load on first motion-enable request');
         
         console.log('[Monitoring] ✓ Monitoring system initialized');
       })();
