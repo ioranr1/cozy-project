@@ -440,9 +440,14 @@ class MonitoringManager {
         return { success: true };
       }
 
-      // Send stop command to renderer
+      // Send stop command to renderer (v0.4.1: guard against destroyed webContents)
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('stop-monitoring');
+        const wc = this.mainWindow.webContents;
+        if (wc && !wc.isDestroyed()) {
+          wc.send('stop-monitoring');
+        } else {
+          console.warn('[MonitoringManager] webContents destroyed, skipping stop-monitoring IPC');
+        }
       }
 
       this.isActive = false;
