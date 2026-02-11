@@ -21,6 +21,7 @@ import { AwayModeCard } from '@/components/AwayModeCard';
 import { MobileAwayModeCard } from '@/components/MobileAwayModeCard';
 import { SecurityModeComingSoon } from '@/components/SecurityModeComingSoon';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { SoundDebugPanel } from '@/components/SoundDebugPanel';
 
 
 interface UserProfile {
@@ -489,6 +490,9 @@ const Dashboard: React.FC = () => {
 
           {/* Security Arm Toggle - Main Control - DISABLED when offline */}
           <SecurityArmToggle disabled={laptopStatus !== 'online'} />
+
+          {/* Sound Debug Panel - Crash Isolation Tests */}
+          <SoundDebugPanel />
 
           {/* Away Mode Card - Only visible when feature flag is ON - DISABLED when offline */}
           {featureFlags.away_mode && (
