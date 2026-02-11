@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.3.5 (2026-02-11)
+ * VERSION: 2.3.6 (2026-02-11)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -288,12 +288,37 @@ function startLocalModelServer() {
  */
 function forceWindowRepaint() {
   if (!mainWindow || mainWindow.isDestroyed?.()) return;
+  
+  // Step 1: Invalidate Chromium render surface (forces compositor refresh)
+  try {
+    mainWindow.webContents.invalidate();
+  } catch (_) { /* noop */ }
+
+  // Step 2: Resize cycle to force layout recalculation
   const [w, h] = mainWindow.getSize();
   mainWindow.setSize(w + 1, h + 1);
   setTimeout(() => {
     if (!mainWindow || mainWindow.isDestroyed?.()) return;
     mainWindow.setSize(w, h);
-  }, 50);
+    
+    // Step 3: Second invalidate after resize completes for reliability
+    try {
+      mainWindow.webContents.invalidate();
+    } catch (_) { /* noop */ }
+  }, 80);
+
+  // Step 4: Safety net — delayed second repaint cycle for long-idle windows
+  setTimeout(() => {
+    if (!mainWindow || mainWindow.isDestroyed?.()) return;
+    try {
+      mainWindow.webContents.invalidate();
+    } catch (_) { /* noop */ }
+    mainWindow.setSize(w + 1, h);
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed?.()) return;
+      mainWindow.setSize(w, h);
+    }, 50);
+  }, 300);
 }
 
 // =============================================================================
