@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.15.0 (2026-02-11)
+   VERSION: 2.16.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
@@ -513,7 +513,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-08-v2.7.0");
+      console.log("[UI] index.html build: electron-index-2026-02-11-v2.16.0");
       
       // ============================================================
       // Sensor Status Indicator - update UI for camera/mic
@@ -544,7 +544,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-10-v2.14.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.16.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -592,11 +592,15 @@
         const SOUND_SAMPLE_RATE = 16000;
         const SOUND_FRAME_LENGTH = 0.975; // ~1 second per inference
         const SOUND_SAMPLES_NEEDED = Math.floor(SOUND_SAMPLE_RATE * SOUND_FRAME_LENGTH);
-        const SOUND_RMS_THRESHOLD = 0.01;
+        const SOUND_RMS_THRESHOLD = 0.003; // DEBUG: reduced from 0.01 for diagnostics (Step 5)
         let soundLastDetectionTime = {};
         let soundPersistenceCount = {};
         let soundScoreHistory = {};
         let isProcessingSoundEvent = false;
+        let audioProcessCount = 0;    // Step 1: onaudioprocess call counter
+        let inferenceCount = 0;       // Step 2: inference run counter
+        let _soundAudioDiagInterval = null; // Step 1: periodic diagnostic timer
+        let _rmsSkipLogTimer = 0;     // Step 5: throttle RMS skip logs
         
         // ═══ SINGLE MODE: Only one sound mode active at a time ═══
         let currentSoundMode = null; // 'baby_cry' | 'dog_bark' | 'help'
@@ -782,7 +786,9 @@
           
           try {
             isProcessingSoundEvent = true;
-            console.log(`[Monitoring] 🔊 Sending sound event: mode=${currentSoundMode} (${(eventData.confidence * 100).toFixed(0)}%)`);
+            
+            // Step 6: Explicit SENDING log before fetch
+            console.log(`[Sound] SENDING SOUND EVENT - event_type=sound, sound_mode=${currentSoundMode}, label=${currentSoundTargetLabel}, confidence=${(eventData.confidence * 100).toFixed(1)}%`);
             
             const response = await fetch(EVENTS_REPORT_ENDPOINT, {
               method: 'POST',
@@ -806,16 +812,18 @@
               }),
             });
             
+            // Step 6: Log HTTP response status + body
             if (!response.ok) {
               const errorText = await response.text();
-              console.error('[Monitoring] Sound event report failed:', response.status, errorText);
+              console.error(`[Sound] events-report FAILED: HTTP ${response.status} — ${errorText}`);
             } else {
               const result = await response.json();
-              console.log('[Monitoring] ✓ Sound event reported:', JSON.stringify({
+              console.log(`[Sound] events-report OK: HTTP ${response.status} — ${JSON.stringify({
                 event_id: result.event_id,
                 ai_is_real: result.ai_is_real,
+                ai_confidence: result.ai_confidence,
                 notification_sent: result.notification_sent,
-              }));
+              })}`);
             }
           } catch (error) {
             console.error('[Monitoring] Sound event send error:', error);
@@ -953,6 +961,7 @@
             
             soundProcessor.onaudioprocess = (event) => {
               if (!isSoundRunning) return;
+              audioProcessCount++; // Step 1
               const inputData = event.inputBuffer.getChannelData(0);
               processSoundChunk(new Float32Array(inputData));
             };
@@ -960,11 +969,29 @@
             soundSource.connect(soundProcessor);
             soundProcessor.connect(soundAudioContext.destination);
             
+            // Step 1: Explicitly resume AudioContext (may be suspended by Chrome autoplay policy)
+            console.log(`[Sound] AudioContext state BEFORE resume: ${soundAudioContext.state}`);
+            await soundAudioContext.resume();
+            console.log(`[Sound] AudioContext state AFTER resume: ${soundAudioContext.state}`);
+            
             isSoundRunning = true;
             soundAudioBuffer = [];
             soundPersistenceCount = {};
             soundScoreHistory = {};
             soundLastDetectionTime = {};
+            audioProcessCount = 0;
+            inferenceCount = 0;
+            
+            // Step 1: Diagnostic interval — audio pipeline health every 2 seconds
+            if (_soundAudioDiagInterval) clearInterval(_soundAudioDiagInterval);
+            _soundAudioDiagInterval = setInterval(() => {
+              if (!isSoundRunning) {
+                clearInterval(_soundAudioDiagInterval);
+                _soundAudioDiagInterval = null;
+                return;
+              }
+              console.log(`[Sound] DIAG audioProcessCount=${audioProcessCount} | ctxState=${soundAudioContext?.state || 'null'} | bufLen=${soundAudioBuffer.length} | inferenceCount=${inferenceCount}`);
+            }, 2000);
             
             console.log('[Sound] ✓ Single-mode inference started');
             return true;
@@ -986,6 +1013,12 @@
             
             const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
             if (rms < SOUND_RMS_THRESHOLD) {
+              // Step 5: Log RMS skip (throttled to once per second)
+              const nowMs = Date.now();
+              if (nowMs - _rmsSkipLogTimer > 1000) {
+                _rmsSkipLogTimer = nowMs;
+                console.log(`[Sound] RMS_SKIP rms=${rms.toFixed(6)} < threshold=${SOUND_RMS_THRESHOLD} — inference skipped`);
+              }
               for (const label of Object.keys(soundPersistenceCount)) {
                 soundPersistenceCount[label] = 0;
               }
@@ -1002,6 +1035,8 @@
         let _soundDebugCounter = 0;
         
         async function runSoundInference(samples) {
+          inferenceCount++; // Step 2
+          
           try {
             const inputTensor = tf.tensor1d(samples);
             const output = soundModel.predict(inputTensor);
@@ -1021,15 +1056,18 @@
               avgScores[c] = sum / numFrames;
             }
             
-            // ═══ DEBUG: 1/sec - RMS, target score, threshold, pass/fail, Top-3 ═══
+            // ═══ ENHANCED DEBUG: Steps 2-4 ═══
             _soundDebugCounter++;
             const rms = Math.sqrt(samples.reduce((sum, s) => sum + s * s, 0) / samples.length);
             
-            // Best score for current target label
+            // Step 4: Best score for current target with explicit indices
             let targetScore = 0;
+            const targetIndices = [];
             for (const [indexStr, classInfo] of Object.entries(YAMNET_TARGET_CLASSES)) {
               if (classInfo.label === currentSoundTargetLabel) {
-                const s = avgScores[parseInt(indexStr)];
+                const idx = parseInt(indexStr);
+                targetIndices.push(idx);
+                const s = avgScores[idx];
                 if (s > targetScore) targetScore = s;
               }
             }
@@ -1037,15 +1075,22 @@
             const modeConfig = SOUND_MODE_CONFIG[currentSoundMode];
             const passes = targetScore >= modeConfig.threshold;
             
-            // Top-3 across ALL 521 classes
+            // Step 3: Top-3 across ALL 521 classes (raw indices + scores)
             const allScored = [];
             for (let i = 0; i < numClasses; i++) {
               allScored.push({ index: i, score: avgScores[i] });
             }
             allScored.sort((a, b) => b.score - a.score);
-            const top3 = allScored.slice(0, 3).map(s => `${s.index}:${(s.score * 100).toFixed(1)}%`).join(', ');
+            const top3 = allScored.slice(0, 3).map(s => `idx${s.index}:${(s.score * 100).toFixed(1)}%`).join(', ');
+            const globalMaxScore = allScored[0]?.score || 0;
             
-            console.log(`[Sound] DBG rms=${rms.toFixed(4)} | ${currentSoundMode}(${currentSoundTargetLabel})=${(targetScore * 100).toFixed(1)}% thr=${(modeConfig.threshold * 100).toFixed(0)}% ${passes ? '✓PASS' : '✗FAIL'} | Top3=[${top3}]`);
+            // Step 2: Every 5 inferences log summary
+            if (inferenceCount % 5 === 0) {
+              console.log(`[Sound] INFERENCE_SUMMARY #${inferenceCount} | rms=${rms.toFixed(4)} | globalMaxIdx=${allScored[0]?.index} globalMax=${(globalMaxScore * 100).toFixed(1)}%`);
+            }
+            
+            // Step 4: Target validation with explicit indices
+            console.log(`[Sound] DBG #${inferenceCount} rms=${rms.toFixed(4)} | mode=${currentSoundMode} label=${currentSoundTargetLabel} targetIdx=[${targetIndices.join(',')}] bestTarget=${(targetScore * 100).toFixed(1)}% thr=${(modeConfig.threshold * 100).toFixed(0)}% ${passes ? '✓PASS' : '✗FAIL'} | Top3=[${top3}]`);
             
             processSoundScores(avgScores);
             
@@ -1119,9 +1164,9 @@
           soundPersistenceCount[targetLabel] = 0;
           soundLastDetectionTime[targetLabel] = now;
           
+          // Step 6: Clear single-line DETECTED log with all relevant fields
           console.log(`[Sound] ═══════════════════════════════════════════════════`);
-          console.log(`[Sound] 🚨 DETECTED: mode=${currentSoundMode} confidence=${(bestScore * 100).toFixed(1)}% yamnet="${bestName}" idx=${bestIndex}`);
-          console.log(`[Sound] Sending sound event to server...`);
+          console.log(`[Sound] 🚨 SOUND DETECTED - mode=${currentSoundMode}, label=${currentSoundTargetLabel}, score=${(bestScore * 100).toFixed(1)}%, threshold=${(modeConfig.threshold * 100).toFixed(0)}%, persistence=${modeConfig.persistence}, debounce=${modeConfig.debounce_ms / 1000}s`);
           console.log(`[Sound] ═══════════════════════════════════════════════════`);
           
           const audioCtxMeta = {
@@ -1158,6 +1203,12 @@
         function stopSoundDetection() {
           console.log('[Sound] Stopping...');
           isSoundRunning = false;
+          
+          // Clean up diagnostic interval
+          if (_soundAudioDiagInterval) {
+            clearInterval(_soundAudioDiagInterval);
+            _soundAudioDiagInterval = null;
+          }
           
           if (soundProcessor) { soundProcessor.disconnect(); soundProcessor = null; }
           if (soundSource) { soundSource.disconnect(); soundSource = null; }
