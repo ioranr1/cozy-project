@@ -57,7 +57,7 @@ class MonitoringManager {
     this.pendingEvents = [];
     this.eventQueueTimer = null;
     
-    console.log('[MonitoringManager] Initialized (v0.4.0)');
+    console.log('[MonitoringManager] Initialized (v0.4.2)');
   }
 
   // ===========================================================================
