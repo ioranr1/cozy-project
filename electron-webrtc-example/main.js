@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.3.9 (2026-02-11)
+ * VERSION: 2.4.0 (2026-02-11)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -20,6 +20,13 @@
  */
 
 const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor } = require('electron');
+
+// v2.4.0: Disable hardware acceleration on Windows (diagnostic for black screen)
+// Must be called before app.whenReady()
+if (process.platform === 'win32') {
+  app.disableHardwareAcceleration();
+  console.log('[App] ⚠️ Hardware acceleration DISABLED (Windows diagnostic mode)');
+}
 const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
@@ -301,7 +308,7 @@ function forceWindowRepaint() {
   const idleMs = _lastHideTime > 0 ? (Date.now() - _lastHideTime) : 0;
   console.log(`[App] forceWindowRepaint — idle=${Math.round(idleMs / 1000)}s`);
 
-  // Phase 1: Quick compositor kick (works for short idle < ~2 min)
+  // Quick compositor kick (works for short idle)
   const doQuickRepaint = () => {
     if (!mainWindow || mainWindow.isDestroyed?.()) return;
     try { mainWindow.webContents.invalidate(); } catch (_) {}
@@ -316,47 +323,96 @@ function forceWindowRepaint() {
 
   doQuickRepaint();
 
-  // Phase 2: If idle was long (>60s), schedule a page reload as nuclear fix
-  // For short idle, do a second quick repaint as backup
+  // v2.4.0: DISABLED nuclear reload — always use quick repaint only.
+  // This is a diagnostic measure to determine if the black screen is caused
+  // by the reload itself rather than a Chromium compositor bug.
+  // For long idle, do multiple quick repaints instead of reload.
   if (idleMs > 60000) {
-    console.log('[App] Long idle detected — scheduling page reload in 1s');
-    // v2.3.9: Track if monitoring was active BEFORE reload
-    const wasMonitoringActive = monitoringManager && monitoringManager.isActive;
-    _repaintTimer = setTimeout(() => {
-      if (!mainWindow || mainWindow.isDestroyed?.()) return;
-      console.log('[App] Reloading page to fix compositor (long idle recovery)');
-      
-      // v2.3.9: After reload completes, re-start monitoring if it was active
-      if (wasMonitoringActive) {
-        mainWindow.webContents.once('did-finish-load', async () => {
-          console.log('[App] Page reloaded after long idle — re-starting monitoring...');
-          // Reset manager state so enable() will actually send IPC again
+    console.log('[App] Long idle detected — using quick repaints ONLY (nuclear reload DISABLED v2.4.0)');
+  }
+  
+  // Multiple quick repaints with delay
+  let remaining = 4;
+  const interval = setInterval(() => {
+    if (remaining-- <= 0 || !mainWindow || mainWindow.isDestroyed?.()) {
+      clearInterval(interval);
+      return;
+    }
+    doQuickRepaint();
+  }, 400);
+}
+
+// =============================================================================
+// v2.4.0: RECOVERY SCREEN (shown on crash/hang/load-fail instead of black)
+// =============================================================================
+
+function showRecoveryScreen(reason, details) {
+  if (!mainWindow || mainWindow.isDestroyed?.()) return;
+  
+  console.log(`[Recovery] Showing recovery screen: reason=${reason} details=${details}`);
+  
+  const html = `
+    <html>
+    <head><meta charset="UTF-8"><style>
+      body { 
+        font-family: -apple-system, sans-serif; 
+        background: #0f172a; color: #e2e8f0; 
+        display: flex; justify-content: center; align-items: center; 
+        height: 100vh; margin: 0; 
+      }
+      .box { 
+        text-align: center; padding: 40px; 
+        background: rgba(30,41,59,0.9); border-radius: 16px; 
+        border: 1px solid rgba(71,85,105,0.5); max-width: 380px;
+      }
+      h2 { color: #f97316; margin-bottom: 12px; }
+      p { color: #94a3b8; font-size: 14px; margin-bottom: 20px; }
+      .code { font-family: monospace; font-size: 12px; color: #64748b; margin-bottom: 20px; }
+      button { 
+        padding: 12px 32px; border: none; border-radius: 8px; 
+        background: #3b82f6; color: white; font-size: 16px; cursor: pointer; 
+      }
+      button:hover { background: #2563eb; }
+    </style></head>
+    <body>
+      <div class="box">
+        <h2>⚠️ Recovery</h2>
+        <p>The application encountered an issue and needs to reload.</p>
+        <div class="code">Reason: ${reason}<br>${details || ''}</div>
+        <button onclick="location.reload()">Reload Application</button>
+      </div>
+    </body>
+    </html>
+  `;
+  
+  try {
+    mainWindow.webContents.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+    
+    // After reload via button, restore correct screen
+    mainWindow.webContents.once('did-finish-load', () => {
+      const url = mainWindow.webContents.getURL();
+      // If they clicked reload button and it loaded index.html
+      if (url.includes('index.html') && deviceId) {
+        console.log('[Recovery] Page reloaded — sending show-success-screen');
+        mainWindow.webContents.send('show-success-screen');
+        
+        // Re-start monitoring if it was active
+        if (monitoringManager && monitoringManager.isActive) {
           monitoringManager.isActive = false;
           monitoringManager.isStarting = false;
-          // Small delay to let renderer register IPC listeners
           setTimeout(async () => {
             try {
               const result = await monitoringManager.enable();
-              console.log('[App] Monitoring re-start after reload:', result);
+              console.log('[Recovery] Monitoring re-start:', result);
             } catch (err) {
-              console.error('[App] Failed to re-start monitoring after reload:', err);
+              console.error('[Recovery] Monitoring re-start failed:', err);
             }
           }, 2000);
-        });
+        }
       }
-      
-      mainWindow.webContents.reload();
-    }, 1000);
-  } else {
-    // Short idle — just do a few more quick repaints
-    let remaining = 3;
-    const interval = setInterval(() => {
-      if (remaining-- <= 0 || !mainWindow || mainWindow.isDestroyed?.()) {
-        clearInterval(interval);
-        return;
-      }
-      doQuickRepaint();
-    }, 400);
+    });
+  } catch (e) {
+    console.error('[Recovery] Failed to show recovery screen:', e);
   }
 }
 
@@ -387,10 +443,67 @@ function createWindow() {
   // CRITICAL FIX: Set main window reference in AwayManager
   awayManager.setMainWindow(mainWindow);
 
+  // =========================================================================
+  // v2.4.0: RENDERER CRASH & HANG MONITORING
+  // =========================================================================
+
+  // Forward renderer console to main process log
+  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+    const lvl = levels[level] || 'LOG';
+    // Only forward warnings and errors to avoid noise
+    if (level >= 2) {
+      console.log(`[Renderer][${lvl}] ${message}`);
+    }
+  });
+
+  // Renderer process crashed or killed
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[CRASH] ═══════════════════════════════════════════════════');
+    console.error('[CRASH] 💀 Renderer process gone!');
+    console.error('[CRASH] reason:', details.reason);
+    console.error('[CRASH] exitCode:', details.exitCode);
+    console.error('[CRASH] timestamp:', new Date().toISOString());
+    console.error('[CRASH] ═══════════════════════════════════════════════════');
+    showRecoveryScreen('crash', details.reason);
+  });
+
+  // Renderer became unresponsive (hung)
+  mainWindow.webContents.on('unresponsive', () => {
+    console.error('[HANG] ═══════════════════════════════════════════════════');
+    console.error('[HANG] ⏳ Renderer is UNRESPONSIVE!');
+    console.error('[HANG] timestamp:', new Date().toISOString());
+    console.error('[HANG] ═══════════════════════════════════════════════════');
+    showRecoveryScreen('unresponsive', 'Renderer hung');
+  });
+
+  // Renderer became responsive again
+  mainWindow.webContents.on('responsive', () => {
+    console.log('[HANG] ✅ Renderer became responsive again at', new Date().toISOString());
+  });
+
+  // Page failed to load
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    console.error('[LOAD] ═══════════════════════════════════════════════════');
+    console.error('[LOAD] ❌ did-fail-load!');
+    console.error('[LOAD] errorCode:', errorCode);
+    console.error('[LOAD] description:', errorDescription);
+    console.error('[LOAD] URL:', validatedURL);
+    console.error('[LOAD] timestamp:', new Date().toISOString());
+    console.error('[LOAD] ═══════════════════════════════════════════════════');
+    showRecoveryScreen('load-failed', errorDescription);
+  });
+
   // FIX: Black screen after closing DevTools (F12) or restoring from tray
   // Chromium bug: frameless windows lose render surface. Force resize to repaint.
   mainWindow.webContents.on('devtools-closed', () => {
     console.log('[App] DevTools closed — forcing repaint to prevent black screen');
+    forceWindowRepaint();
+  });
+
+  // v2.4.0: Also handle devtools-opened — compositor kick
+  mainWindow.webContents.on('devtools-opened', () => {
+    console.log('[App] DevTools opened — forcing repaint to prevent black screen');
     forceWindowRepaint();
   });
 
@@ -399,7 +512,7 @@ function createWindow() {
     if (trayAvailable && !app.isQuitting) {
       event.preventDefault();
       mainWindow.hide();
-      _lastHideTime = Date.now(); // v2.3.8: Track hide time for repaint strategy
+      _lastHideTime = Date.now();
     }
   });
 
@@ -408,7 +521,7 @@ function createWindow() {
     if (trayAvailable) {
       event.preventDefault();
       mainWindow.hide();
-      _lastHideTime = Date.now(); // v2.3.8: Track hide time for repaint strategy
+      _lastHideTime = Date.now();
     }
   });
 
@@ -1714,7 +1827,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-09-v2.3.2-local-model-server');
+console.log('[Main] BUILD ID: main-js-2026-02-11-v2.4.0-crash-hardening');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
