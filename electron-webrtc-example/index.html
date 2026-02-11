@@ -1,11 +1,12 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.24.0 (2026-02-11)
+   VERSION: 2.25.0 (2026-02-11)
    ============================================================
    
    CHANGELOG:
-   - v2.24.0: ADD - Phase 6 (model-only, no mic) A/B isolation test for crash diagnosis
+    - v2.25.0: FIX - Sound pipeline crash hardening: no sampleRate on AudioContext, MediaStreamDestination instead of destination, minimal getUserMedia constraints
+    - v2.24.0: ADD - Phase 6 (model-only, no mic) A/B isolation test for crash diagnosis
    - v2.13.0: CRITICAL FIX - Camera retry with backoff on NotReadableError (busy from clip recording)
               + Complete structural isolation: motion failure never blocks sound, sound failure never blocks motion
    - v2.12.0: DEBUG - 8-layer sound diagnostic system (CHECK1-CHECK8)
@@ -514,7 +515,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-11-v2.24.0");
+      console.log("[UI] index.html build: electron-index-2026-02-11-v2.25.0");
       
       // ============================================================
       // Sensor Status Indicator - update UI for camera/mic
@@ -558,7 +559,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.24.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-11-v2.25.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -1010,12 +1011,16 @@
           if (debugPhase === 1 || debugPhase === 5) {
             console.log(`[Sound] PHASE ${debugPhase}: Mic-only test (NO TFJS, NO model)`);
             try {
-              // v2.23.0: Minimal constraints — avoid sampleRate/processing flags that cause driver crashes on Windows
-              soundMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+              // v2.25.0: Minimal constraints — single channel, no DSP flags, no sampleRate
+              soundMediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+              });
               const micTrack = soundMediaStream.getAudioTracks()[0];
               console.log(`[Sound] PHASE ${debugPhase}: ✓ Mic opened: ${micTrack?.label || 'unknown'}`);
               
-              soundAudioContext = new AudioContext({ sampleRate: SOUND_SAMPLE_RATE });
+              // v2.25.0: No sampleRate — let the OS choose a stable rate
+              soundAudioContext = new AudioContext();
+              console.log(`[Sound] PHASE ${debugPhase}: AudioContext sampleRate=${soundAudioContext.sampleRate}Hz (OS default)`);
               soundSource = soundAudioContext.createMediaStreamSource(soundMediaStream);
               soundProcessor = soundAudioContext.createScriptProcessor(4096, 1, 1);
               
@@ -1030,11 +1035,10 @@
               };
               
               soundSource.connect(soundProcessor);
-              // v2.22.0 Bonus B: Connect via silent GainNode to prevent audio feedback
-              soundSilentGain = soundAudioContext.createGain();
-              soundSilentGain.gain.value = 0;
-              soundProcessor.connect(soundSilentGain);
-              soundSilentGain.connect(soundAudioContext.destination);
+              // v2.25.0: Connect to MediaStreamDestination instead of audioContext.destination
+              // This keeps the audio graph alive without touching the output device driver
+              const silentDest = soundAudioContext.createMediaStreamDestination();
+              soundProcessor.connect(silentDest);
               await soundAudioContext.resume();
               
               isSoundRunning = true;
@@ -1195,9 +1199,10 @@
           
           try {
             console.log('[Sound] Opening microphone...');
-            // v2.23.0: Minimal constraints — sampleRate/echoCancellation/noiseSuppression
-            // caused ACCESS_VIOLATION crashes on some Windows audio drivers
-            soundMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // v2.25.0: Minimal constraints — single channel, no DSP flags, no sampleRate
+            soundMediaStream = await navigator.mediaDevices.getUserMedia({
+              audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+            });
             
             // ═══ STEP 4: Ensure no stale AudioContext exists ═══
             if (soundAudioContext) {
@@ -1206,7 +1211,8 @@
               soundAudioContext = null;
             }
             
-            soundAudioContext = new AudioContext({ sampleRate: SOUND_SAMPLE_RATE });
+            // v2.25.0: No sampleRate — let the OS choose a stable rate
+            soundAudioContext = new AudioContext();
             soundSource = soundAudioContext.createMediaStreamSource(soundMediaStream);
             soundProcessor = soundAudioContext.createScriptProcessor(4096, 1, 1);
             
@@ -1241,11 +1247,10 @@
             };
             
             soundSource.connect(soundProcessor);
-            // v2.22.0 Bonus B: Connect via silent GainNode to prevent audio feedback
-            soundSilentGain = soundAudioContext.createGain();
-            soundSilentGain.gain.value = 0;
-            soundProcessor.connect(soundSilentGain);
-            soundSilentGain.connect(soundAudioContext.destination);
+            // v2.25.0: Connect to MediaStreamDestination instead of audioContext.destination
+            // This keeps the audio graph alive without touching the output device driver
+            const silentDest = soundAudioContext.createMediaStreamDestination();
+            soundProcessor.connect(silentDest);
             
             console.log(`[Sound] AudioContext state BEFORE resume: ${soundAudioContext.state}`);
             await soundAudioContext.resume();
@@ -1939,11 +1944,10 @@
                       soundProcessor.disconnect();
                       if (soundSilentGain) try { soundSilentGain.disconnect(); } catch(_){}
                       soundSource.connect(soundProcessor);
-                      soundSilentGain = soundAudioContext.createGain();
-                      soundSilentGain.gain.value = 0;
-                      soundProcessor.connect(soundSilentGain);
-                      soundSilentGain.connect(soundAudioContext.destination);
-                      console.log('[Sound] CANARY: Reconnected ScriptProcessor via GainNode(0)');
+                      // v2.25.0: Reconnect to MediaStreamDestination (not destination)
+                      const canaryDest = soundAudioContext.createMediaStreamDestination();
+                      soundProcessor.connect(canaryDest);
+                      console.log('[Sound] CANARY: Reconnected ScriptProcessor via MediaStreamDestination');
                     }
                   } catch (e) {
                     console.error('[Sound] CANARY: Reconnect failed:', e);
