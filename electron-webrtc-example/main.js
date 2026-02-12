@@ -448,7 +448,7 @@ function createWindow() {
   // =========================================================================
   // Ensure getUserMedia never shows permission dialogs or gets blocked silently
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowed = ['media', 'mediaKeySystem'];
+    const allowed = ['media', 'mediaKeySystem', 'clipboard-read', 'clipboard-write', 'clipboard-sanitized-write'];
     if (allowed.includes(permission)) {
       console.log(`[Permissions] ✓ GRANTED: ${permission}`);
       callback(true);
@@ -459,12 +459,10 @@ function createWindow() {
   });
 
   session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-    if (permission === 'media') {
-      return true;
-    }
-    return false;
+    const allowed = ['media', 'clipboard-read', 'clipboard-write', 'clipboard-sanitized-write'];
+    return allowed.includes(permission);
   });
-  console.log('[Permissions] ✓ Deterministic media permission handlers installed (v2.7.0)');
+  console.log('[Permissions] ✓ Deterministic permission handlers installed (v2.7.1 — media + clipboard)');
 
   // =========================================================================
   // v2.4.0: RENDERER CRASH & HANG MONITORING
