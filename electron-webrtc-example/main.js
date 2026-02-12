@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.7.1 (2026-02-12)
+ * VERSION: 2.7.2 (2026-02-12)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -36,13 +36,25 @@ app.commandLine.appendSwitch('disable-software-rasterizer');
 app.commandLine.appendSwitch('disable-gpu-rasterization');
 console.log('[App] ⚠️ ALL GPU paths DISABLED (crash prevention v2.6.0)');
 
-// v2.7.1: AudioServiceOutOfProcess fallback — set to true if Step A still crashes with DSP-off constraints
+// v2.7.2: AudioServiceOutOfProcess fallback — forces audio into browser process
 const ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX = true;
 if (ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX) {
   app.commandLine.appendSwitch('disable-features', 'AudioServiceOutOfProcess');
-  console.log('[App] ⚠️ AudioServiceOutOfProcess DISABLED (mic crash fallback v2.7.1)');
+  console.log('[App] ⚠️ AudioServiceOutOfProcess DISABLED (mic crash fallback v2.7.2)');
 } else {
   console.log('[App] AudioServiceOutOfProcess fallback is OFF');
+}
+
+// v2.7.2: FAKE MEDIA TEST — uses Chromium's built-in fake device for driver isolation
+// If fake media does NOT crash but real media does → the crash is in the real audio driver
+// If fake media ALSO crashes → the crash is in Electron/Chromium sandbox/audio service
+const ENABLE_FAKE_MEDIA_TEST = false; // ← Toggle to true for diagnostic, then back to false
+if (ENABLE_FAKE_MEDIA_TEST) {
+  app.commandLine.appendSwitch('use-fake-device-for-media-stream');
+  app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+  console.log('[App] 🧪 FAKE_MEDIA_TEST enabled: true — using synthetic audio/video devices');
+} else {
+  console.log('[App] 🧪 FAKE_MEDIA_TEST enabled: false — using real hardware devices');
 }
 const path = require('path');
 const { exec } = require('child_process');
@@ -74,7 +86,7 @@ function writeCrashLog(entry) {
 }
 
 // Write startup marker
-writeCrashLog(`=== APP START v2.7.1 === pid=${process.pid} platform=${process.platform} arch=${process.arch} audioServiceFix=${ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX}`);
+writeCrashLog(`=== APP START v2.7.2 === pid=${process.pid} platform=${process.platform} arch=${process.arch} audioServiceFix=${ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX} fakeMedia=${ENABLE_FAKE_MEDIA_TEST}`);
 
 // =============================================================================
 // CONFIGURATION
@@ -444,7 +456,7 @@ function createWindow() {
   awayManager.setMainWindow(mainWindow);
 
   // =========================================================================
-  // v2.7.1: DETERMINISTIC MEDIA + CLIPBOARD PERMISSION HANDLERS
+  // v2.7.2: DETERMINISTIC MEDIA + CLIPBOARD PERMISSION HANDLERS
   // =========================================================================
   // Ensure getUserMedia never shows permission dialogs or gets blocked silently
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {

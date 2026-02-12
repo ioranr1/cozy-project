@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.25.3 (2026-02-12)
+   VERSION: 2.25.4 (2026-02-12)
    ============================================================
    
    CHANGELOG:
+    - v2.25.4: FIX - Specific deviceId targeting for mic acquisition (bypasses OS default device selection), device enumeration logging, fallback to next device on failure
     - v2.25.3: FIX - Step A uses explicit DSP-off constraints (echoCancellation/noiseSuppression/autoGainControl:false, sampleRate:16000), main.js permission handlers + AudioServiceOutOfProcess fallback flag
     - v2.25.2: FIX - Phase 1 crash at getUserMedia: warm up with enumerateDevices + 1s delay before bare getUserMedia({audio:true}), no constraint object
     - v2.25.1: FIX - Phase 1 split into Step A (getUserMedia only) → Step B (AudioContext after 2s delay) → Step C (graph) for crash isolation
@@ -1012,37 +1013,68 @@
           
           // ═══ STEP 1 / STEP 5: Mic-only isolation (no TFJS) ═══
           if (debugPhase === 1 || debugPhase === 5) {
-            console.log(`[Sound] PHASE ${debugPhase}: Mic-only test v2.25.3 (DSP-off constraints)`);
+            console.log(`[Sound] PHASE ${debugPhase}: Mic-only test v2.25.4 (specific deviceId + DSP-off)`);
             try {
-              // v2.25.3: STEP A0 — enumerate devices to warm up the media subsystem
-              console.log(`[Sound] PHASE ${debugPhase}: Step A0 — enumerateDevices (warm-up)...`);
+              // v2.25.4: Enumerate devices and pick specific deviceId
+              console.log(`[Sound] PHASE ${debugPhase}: Step A0 — enumerateDevices...`);
               const devices = await navigator.mediaDevices.enumerateDevices();
-              const audioInputs = devices.filter(d => d.kind === 'audioinput');
-              console.log(`[Sound] PHASE ${debugPhase}: ✓ Step A0 PASSED — found ${audioInputs.length} audio input(s): ${audioInputs.map(d => d.label || d.deviceId).join(', ')}`);
+              const audioInputs = devices.filter(d => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications');
+              console.log(`[Sound] PHASE ${debugPhase}: ✓ Step A0 — found ${audioInputs.length} real audio input(s):`);
+              audioInputs.forEach((d, i) => {
+                console.log(`[Sound]   [${i}] label="${d.label || '?'}" deviceId_len=${d.deviceId.length} groupId_len=${d.groupId?.length || 0}`);
+              });
+              
+              // Also log default/communications entries
+              const specialInputs = devices.filter(d => d.kind === 'audioinput' && (d.deviceId === 'default' || d.deviceId === 'communications'));
+              specialInputs.forEach(d => {
+                console.log(`[Sound]   [special] label="${d.label || '?'}" deviceId="${d.deviceId}"`);
+              });
               
               console.log(`[Sound] PHASE ${debugPhase}: Step A0 — waiting 1s for driver stabilization...`);
               await new Promise(resolve => setTimeout(resolve, 1000));
               
-              // v2.25.3: STEP A — explicit DSP-off constraints
-              // Disabling echoCancellation/noiseSuppression/autoGainControl bypasses Windows APO driver paths
-              // sampleRate:16000 forces a simple resample path instead of native rate negotiation
-              const micConstraints = {
-                audio: {
-                  echoCancellation: false,
-                  noiseSuppression: false,
-                  autoGainControl: false,
-                  channelCount: 1,
-                  sampleRate: 16000
+              // v2.25.4: Try each specific device until one works
+              let micAcquired = false;
+              const devicesToTry = audioInputs.length > 0 ? audioInputs : [null]; // null = fallback to default
+              
+              for (let i = 0; i < devicesToTry.length; i++) {
+                const targetDevice = devicesToTry[i];
+                const deviceLabel = targetDevice ? (targetDevice.label || `device_${i}`) : 'OS_DEFAULT';
+                
+                const micConstraints = {
+                  audio: {
+                    ...(targetDevice ? { deviceId: { exact: targetDevice.deviceId } } : {}),
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    channelCount: 1,
+                    sampleRate: 16000
+                  }
+                };
+                
+                console.log(`[Sound] PHASE ${debugPhase}: Step A — trying device [${i}]: "${deviceLabel}" with DSP-off constraints`);
+                try {
+                  soundMediaStream = await navigator.mediaDevices.getUserMedia(micConstraints);
+                  const micTrack = soundMediaStream.getAudioTracks()[0];
+                  const settings = micTrack?.getSettings?.() || {};
+                  console.log(`[Sound] PHASE ${debugPhase}: ✓ Step A PASSED — Mic opened: "${micTrack?.label || 'unknown'}", readyState=${micTrack?.readyState}, sampleRate=${settings.sampleRate || 'N/A'}, channelCount=${settings.channelCount || 'N/A'}, deviceId_len=${settings.deviceId?.length || 0}`);
+                  micAcquired = true;
+                  break;
+                } catch (devErr) {
+                  console.warn(`[Sound] PHASE ${debugPhase}: ✗ Device [${i}] "${deviceLabel}" failed: ${devErr.name} — ${devErr.message}`);
+                  if (soundMediaStream) {
+                    soundMediaStream.getTracks().forEach(t => { try { t.stop(); } catch(_){} });
+                    soundMediaStream = null;
+                  }
                 }
-              };
-              console.log(`[Sound] PHASE ${debugPhase}: Step A — calling getUserMedia with DSP-off constraints:`, JSON.stringify(micConstraints));
-              soundMediaStream = await navigator.mediaDevices.getUserMedia(micConstraints);
-              const micTrack = soundMediaStream.getAudioTracks()[0];
-              const settings = micTrack?.getSettings?.() || {};
-              console.log(`[Sound] PHASE ${debugPhase}: ✓ Step A PASSED — Mic opened: ${micTrack?.label || 'unknown'}, readyState=${micTrack?.readyState}, sampleRate=${settings.sampleRate || 'N/A'}, channelCount=${settings.channelCount || 'N/A'}`);
+              }
+              
+              if (!micAcquired) {
+                console.error(`[Sound] PHASE ${debugPhase}: ✗ ALL devices failed`);
+                return false;
+              }
               
               // v2.25.1: STEP B — wait 2 seconds, then create AudioContext
-              // Delay lets Electron's audio subsystem stabilize after getUserMedia
               console.log(`[Sound] PHASE ${debugPhase}: Step B — waiting 2s before AudioContext...`);
               await new Promise(resolve => setTimeout(resolve, 2000));
               
@@ -1055,8 +1087,7 @@
               soundAudioContext = new AudioContext();
               console.log(`[Sound] PHASE ${debugPhase}: ✓ Step B PASSED — AudioContext created, sampleRate=${soundAudioContext.sampleRate}Hz`);
               
-              // v2.25.1: STEP C — connect graph with AudioWorkletNode if available, else ScriptProcessor
-              // Use silent MediaStreamDestination (never touch destination)
+              // STEP C — connect graph with ScriptProcessor + silent MediaStreamDestination
               soundSource = soundAudioContext.createMediaStreamSource(soundMediaStream);
               soundProcessor = soundAudioContext.createScriptProcessor(4096, 1, 1);
               
@@ -1231,22 +1262,55 @@
           console.log('[Sound] ═══════════════════════════════════════════════════');
           
             try {
-              // v2.25.3: Warm up media subsystem before getUserMedia
+              // v2.25.4: Warm up + enumerate devices for specific deviceId targeting
               console.log('[Sound] Warming up media subsystem (enumerateDevices)...');
-              await navigator.mediaDevices.enumerateDevices();
+              const allDevices = await navigator.mediaDevices.enumerateDevices();
+              const audioInputs = allDevices.filter(d => d.kind === 'audioinput' && d.deviceId && d.deviceId !== 'default' && d.deviceId !== 'communications');
+              console.log(`[Sound] Found ${audioInputs.length} real audio input(s)`);
+              audioInputs.forEach((d, i) => {
+                console.log(`[Sound]   [${i}] label="${d.label || '?'}" deviceId_len=${d.deviceId.length}`);
+              });
               await new Promise(resolve => setTimeout(resolve, 1000));
               
-              // v2.25.3: DSP-off constraints (same as Phase 1 Step A)
-              console.log('[Sound] Opening microphone (DSP-off constraints, sampleRate:16000)...');
-              soundMediaStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                  echoCancellation: false,
-                  noiseSuppression: false,
-                  autoGainControl: false,
-                  channelCount: 1,
-                  sampleRate: 16000
+              // v2.25.4: Try specific deviceId first, then fallback
+              let micAcquired = false;
+              const devicesToTry = audioInputs.length > 0 ? audioInputs : [null];
+              
+              for (let i = 0; i < devicesToTry.length; i++) {
+                const targetDevice = devicesToTry[i];
+                const deviceLabel = targetDevice ? (targetDevice.label || `device_${i}`) : 'OS_DEFAULT';
+                
+                const micConstraints = {
+                  audio: {
+                    ...(targetDevice ? { deviceId: { exact: targetDevice.deviceId } } : {}),
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false,
+                    channelCount: 1,
+                    sampleRate: 16000
+                  }
+                };
+                
+                console.log(`[Sound] Trying device [${i}]: "${deviceLabel}" (DSP-off, sampleRate:16000)...`);
+                try {
+                  soundMediaStream = await navigator.mediaDevices.getUserMedia(micConstraints);
+                  const micTrack = soundMediaStream.getAudioTracks()[0];
+                  console.log(`[Sound] ✓ Mic acquired: "${micTrack?.label || 'unknown'}" readyState=${micTrack?.readyState}`);
+                  micAcquired = true;
+                  break;
+                } catch (devErr) {
+                  console.warn(`[Sound] ✗ Device [${i}] "${deviceLabel}" failed: ${devErr.name} — ${devErr.message}`);
+                  if (soundMediaStream) {
+                    soundMediaStream.getTracks().forEach(t => { try { t.stop(); } catch(_){} });
+                    soundMediaStream = null;
+                  }
                 }
-              });
+              }
+              
+              if (!micAcquired) {
+                console.error('[Sound] ✗ ALL audio devices failed — cannot start sound detection');
+                return false;
+              }
             
             // ═══ STEP 4: Ensure no stale AudioContext exists ═══
             if (soundAudioContext) {
