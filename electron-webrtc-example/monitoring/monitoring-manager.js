@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.4.2 (2026-02-11)
+ * VERSION: 0.4.3 (2026-02-12)
  * 
  * CHANGELOG:
  * - v0.4.0: CRITICAL FIX - Recover from WebContents crash (isCrashed=true)
@@ -25,12 +25,13 @@ const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config
 const EVENTS_REPORT_ENDPOINT = 'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/events-report';
 
 class MonitoringManager {
-  constructor({ supabase }) {
+  constructor({ supabase, forceDisableSound = false }) {
     this.supabase = supabase;
     this.mainWindow = null;
     this.deviceId = null;
     this.profileId = null;
     this.deviceAuthToken = null; // For authenticating with edge functions
+    this.forceDisableSound = forceDisableSound; // v0.4.3: Block sound at IPC level
     
     // State
     this.isActive = false;
@@ -57,7 +58,7 @@ class MonitoringManager {
     this.pendingEvents = [];
     this.eventQueueTimer = null;
     
-    console.log('[MonitoringManager] Initialized (v0.4.2)');
+    console.log(`[MonitoringManager] Initialized (v0.4.3) forceDisableSound=${forceDisableSound}`);
   }
 
   // ===========================================================================
@@ -221,12 +222,23 @@ class MonitoringManager {
       await this.loadConfig();
       
       const motionEnabled = this.config?.sensors?.motion?.enabled ?? false;
-      const soundEnabled = this.config?.sensors?.sound?.enabled ?? false;
+      let soundEnabled = this.config?.sensors?.sound?.enabled ?? false;
+      
+      // v0.4.3: Override sound if force-disabled
+      if (this.forceDisableSound && soundEnabled) {
+        console.warn('[MonitoringManager] 🔇 FORCE_DISABLE_SOUND — overriding sound_enabled to false');
+        soundEnabled = false;
+        // Also override in config so renderer gets the right value
+        if (this.config?.sensors?.sound) {
+          this.config.sensors.sound.enabled = false;
+        }
+      }
       
       console.log('[MonitoringManager] Config loaded for enable:', {
         monitoring_enabled: this.config?.monitoring_enabled,
         motion_enabled: motionEnabled,
         sound_enabled: soundEnabled,
+        forceDisableSound: this.forceDisableSound,
       });
 
       // CRITICAL: Sensor preflight check - skip camera if ALL sensors disabled
