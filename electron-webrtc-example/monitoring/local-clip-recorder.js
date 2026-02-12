@@ -1,7 +1,7 @@
 /**
  * Local Clip Recorder - MediaRecorder Integration
  * ================================================
- * VERSION: 0.2.0 (2026-01-31)
+ * VERSION: 0.2.1 (2026-02-12)
  * 
  * Records short video clips after validated security events.
  * Saves clips locally and manages retention.
