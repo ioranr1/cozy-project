@@ -175,9 +175,13 @@ class LocalClipRecorder {
         type: this.getSupportedMimeType() 
       });
 
-      // Generate filename
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `${this.currentEventId}_${timestamp}.${this.config.video_format}`;
+      // Generate filename with readable date-time (YYYY-MM-DD_HH-mm-ss)
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const timeStr = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+      const shortId = (this.currentEventId || 'unknown').substring(0, 8);
+      const filename = `clip_${dateStr}_${timeStr}_${shortId}.${this.config.video_format}`;
 
       // Convert blob to base64 for IPC transfer
       const arrayBuffer = await blob.arrayBuffer();
