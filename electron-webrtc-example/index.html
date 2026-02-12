@@ -506,7 +506,7 @@
         <div class="action-buttons">
           <button class="minimize-btn" id="minimize-btn" type="button">🔽 <span id="minimize-text">Minimize to Background</span></button>
           <div>
-            <button class="close-btn" id="exit-btn" type="button">⛔ <span id="exit-text">Exit Application</span></button>
+            <button class="close-btn" id="exit-btn" type="button" onclick="console.log('[EXIT] onclick fired'); if(window.electronAPI?.exitApp){window.electronAPI.exitApp()}else{console.error('[EXIT] electronAPI.exitApp not available')}">⛔ <span id="exit-text">Exit Application</span></button>
             <div class="warning-text" id="exit-warning">Warning: Exiting will stop the camera service</div>
           </div>
         </div>
