@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.7.2 (2026-02-12)
+ * VERSION: 2.7.3 (2026-02-12)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -35,6 +35,10 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-software-rasterizer');
 app.commandLine.appendSwitch('disable-gpu-rasterization');
 console.log('[App] ⚠️ ALL GPU paths DISABLED (crash prevention v2.6.0)');
+
+// v2.7.3: Disable Chromium sandbox — isolates whether sandbox causes ACCESS_VIOLATION
+app.commandLine.appendSwitch('no-sandbox');
+console.log('[App] ⚠️ Sandbox DISABLED (crash isolation v2.7.3)');
 
 // v2.7.2: AudioServiceOutOfProcess fallback — forces audio into browser process
 const ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX = true;
