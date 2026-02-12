@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.6.0 (2026-02-11)
+ * VERSION: 2.7.0 (2026-02-12)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -19,7 +19,7 @@
  *   macOS: uses built-in pmset
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, crashReporter } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, crashReporter, session } = require('electron');
 
 // v2.5.0: Enable crash dumps - MUST be before app.whenReady()
 const crashDumpsDir = app.getPath('crashDumps');
@@ -35,6 +35,15 @@ app.commandLine.appendSwitch('disable-gpu-sandbox');
 app.commandLine.appendSwitch('disable-software-rasterizer');
 app.commandLine.appendSwitch('disable-gpu-rasterization');
 console.log('[App] ⚠️ ALL GPU paths DISABLED (crash prevention v2.6.0)');
+
+// v2.7.0: AudioServiceOutOfProcess fallback — set to true if Step A still crashes with DSP-off constraints
+const ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX = true;
+if (ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX) {
+  app.commandLine.appendSwitch('disable-features', 'AudioServiceOutOfProcess');
+  console.log('[App] ⚠️ AudioServiceOutOfProcess DISABLED (mic crash fallback v2.7.0)');
+} else {
+  console.log('[App] AudioServiceOutOfProcess fallback is OFF');
+}
 const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
@@ -65,7 +74,7 @@ function writeCrashLog(entry) {
 }
 
 // Write startup marker
-writeCrashLog(`=== APP START v2.6.0 === pid=${process.pid} platform=${process.platform} arch=${process.arch}`);
+writeCrashLog(`=== APP START v2.7.0 === pid=${process.pid} platform=${process.platform} arch=${process.arch} audioServiceFix=${ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX}`);
 
 // =============================================================================
 // CONFIGURATION
@@ -433,6 +442,29 @@ function createWindow() {
   
   // CRITICAL FIX: Set main window reference in AwayManager
   awayManager.setMainWindow(mainWindow);
+
+  // =========================================================================
+  // v2.7.0: DETERMINISTIC MEDIA PERMISSION HANDLERS
+  // =========================================================================
+  // Ensure getUserMedia never shows permission dialogs or gets blocked silently
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    const allowed = ['media', 'mediaKeySystem'];
+    if (allowed.includes(permission)) {
+      console.log(`[Permissions] ✓ GRANTED: ${permission}`);
+      callback(true);
+    } else {
+      console.log(`[Permissions] ✗ DENIED: ${permission}`);
+      callback(false);
+    }
+  });
+
+  session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+    if (permission === 'media') {
+      return true;
+    }
+    return false;
+  });
+  console.log('[Permissions] ✓ Deterministic media permission handlers installed (v2.7.0)');
 
   // =========================================================================
   // v2.4.0: RENDERER CRASH & HANG MONITORING
