@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.7.3 (2026-02-12)
+ * VERSION: 2.7.4 (2026-02-12)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -53,6 +53,14 @@ if (ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX) {
 // If fake media does NOT crash but real media does → the crash is in the real audio driver
 // If fake media ALSO crashes → the crash is in Electron/Chromium sandbox/audio service
 const ENABLE_FAKE_MEDIA_TEST = false; // ← Toggle to true for diagnostic, then back to false
+
+// v2.7.4: FORCE_DISABLE_SOUND — completely blocks sound pipeline at IPC level
+// AudioContext/ScriptProcessor causes ACCESS_VIOLATION even with fake media + no-sandbox
+// Toggle to true to test if monitoring is stable WITHOUT any audio processing
+const FORCE_DISABLE_SOUND = true; // ← Set to true to block all audio in renderer
+if (FORCE_DISABLE_SOUND) {
+  console.log('[App] 🔇 FORCE_DISABLE_SOUND=true — sound pipeline will be blocked at IPC level');
+}
 if (ENABLE_FAKE_MEDIA_TEST) {
   app.commandLine.appendSwitch('use-fake-device-for-media-stream');
   app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
@@ -90,7 +98,7 @@ function writeCrashLog(entry) {
 }
 
 // Write startup marker
-writeCrashLog(`=== APP START v2.7.2 === pid=${process.pid} platform=${process.platform} arch=${process.arch} audioServiceFix=${ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX} fakeMedia=${ENABLE_FAKE_MEDIA_TEST}`);
+writeCrashLog(`=== APP START v2.7.4 === pid=${process.pid} platform=${process.platform} arch=${process.arch} audioServiceFix=${ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX} fakeMedia=${ENABLE_FAKE_MEDIA_TEST} forceDisableSound=${FORCE_DISABLE_SOUND}`);
 
 // =============================================================================
 // CONFIGURATION
@@ -106,7 +114,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const awayManager = new AwayManager({ supabase });
 
 // Initialize MonitoringManager
-const monitoringManager = new MonitoringManager({ supabase });
+const monitoringManager = new MonitoringManager({ supabase, forceDisableSound: FORCE_DISABLE_SOUND });
 
 // Clips folder path (initialized on startup)
 let clipsPath = null;
