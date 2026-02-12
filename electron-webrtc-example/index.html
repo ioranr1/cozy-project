@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.25.0 (2026-02-11)
+   VERSION: 2.25.1 (2026-02-12)
    ============================================================
    
    CHANGELOG:
+    - v2.25.1: FIX - Phase 1 split into Step A (getUserMedia only) → Step B (AudioContext after 2s delay) → Step C (graph) for crash isolation
     - v2.25.0: FIX - Sound pipeline crash hardening: no sampleRate on AudioContext, MediaStreamDestination instead of destination, minimal getUserMedia constraints
     - v2.24.0: ADD - Phase 6 (model-only, no mic) A/B isolation test for crash diagnosis
    - v2.13.0: CRITICAL FIX - Camera retry with backoff on NotReadableError (busy from clip recording)
@@ -1009,18 +1010,33 @@
           
           // ═══ STEP 1 / STEP 5: Mic-only isolation (no TFJS) ═══
           if (debugPhase === 1 || debugPhase === 5) {
-            console.log(`[Sound] PHASE ${debugPhase}: Mic-only test (NO TFJS, NO model)`);
+            console.log(`[Sound] PHASE ${debugPhase}: Mic-only test v2.25.1 (NO AudioContext, NO TFJS)`);
             try {
-              // v2.25.0: Minimal constraints — single channel, no DSP flags, no sampleRate
+              // v2.25.1: STEP A — just getUserMedia, NO AudioContext at all
+              // If this crashes, the problem is getUserMedia itself in Electron
+              console.log(`[Sound] PHASE ${debugPhase}: Step A — calling getUserMedia...`);
               soundMediaStream = await navigator.mediaDevices.getUserMedia({
                 audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
               });
               const micTrack = soundMediaStream.getAudioTracks()[0];
-              console.log(`[Sound] PHASE ${debugPhase}: ✓ Mic opened: ${micTrack?.label || 'unknown'}`);
+              console.log(`[Sound] PHASE ${debugPhase}: ✓ Step A PASSED — Mic opened: ${micTrack?.label || 'unknown'}, readyState=${micTrack?.readyState}`);
               
-              // v2.25.0: No sampleRate — let the OS choose a stable rate
+              // v2.25.1: STEP B — wait 2 seconds, then create AudioContext
+              // Delay lets Electron's audio subsystem stabilize after getUserMedia
+              console.log(`[Sound] PHASE ${debugPhase}: Step B — waiting 2s before AudioContext...`);
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              
+              if (!soundMediaStream || soundMediaStream.getAudioTracks()[0]?.readyState !== 'live') {
+                console.error(`[Sound] PHASE ${debugPhase}: ✗ Mic track died during wait`);
+                return false;
+              }
+              console.log(`[Sound] PHASE ${debugPhase}: Step B — track still live, creating AudioContext...`);
+              
               soundAudioContext = new AudioContext();
-              console.log(`[Sound] PHASE ${debugPhase}: AudioContext sampleRate=${soundAudioContext.sampleRate}Hz (OS default)`);
+              console.log(`[Sound] PHASE ${debugPhase}: ✓ Step B PASSED — AudioContext created, sampleRate=${soundAudioContext.sampleRate}Hz`);
+              
+              // v2.25.1: STEP C — connect graph with AudioWorkletNode if available, else ScriptProcessor
+              // Use silent MediaStreamDestination (never touch destination)
               soundSource = soundAudioContext.createMediaStreamSource(soundMediaStream);
               soundProcessor = soundAudioContext.createScriptProcessor(4096, 1, 1);
               
@@ -1035,16 +1051,13 @@
               };
               
               soundSource.connect(soundProcessor);
-              // v2.25.0: Connect to MediaStreamDestination instead of audioContext.destination
-              // This keeps the audio graph alive without touching the output device driver
               const silentDest = soundAudioContext.createMediaStreamDestination();
               soundProcessor.connect(silentDest);
               await soundAudioContext.resume();
               
               isSoundRunning = true;
-              console.log(`[Sound] PHASE ${debugPhase}: ✓ Audio pipeline running — will auto-stop in 20s`);
+              console.log(`[Sound] PHASE ${debugPhase}: ✓ Step C PASSED — Audio pipeline running, will auto-stop in 20s`);
               
-              // Auto-stop after 20 seconds for diagnostic
               setTimeout(() => {
                 if (isSoundRunning) {
                   console.log(`[Sound] PHASE ${debugPhase}: 20s elapsed — auto-stopping diagnostic`);
