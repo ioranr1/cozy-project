@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.10.0 (2026-02-09)
+   VERSION: 2.11.0 (2026-02-12)
    ============================================================
    
    CHANGELOG:
@@ -1927,6 +1927,242 @@
       }
 
       // User Returned Modal removed - Away Mode controlled manually from Dashboard
+
+      // ============================================================
+      // SOUND DETECTION (ISOLATED - AudioWorklet based)
+      // Does NOT interact with camera, motion, WebRTC, or Live View
+      // VERSION: 1.0.0
+      // ============================================================
+      (function() {
+        'use strict';
+        
+        // Sound detection state (completely isolated)
+        let soundAudioContext = null;
+        let soundStream = null;
+        let soundWorkletNode = null;
+        let soundConfig = null;
+        let isSoundActive = false;
+        
+        // Threshold detection state
+        let soundAboveThresholdSince = 0;
+        let soundLastEventTime = 0;
+        
+        // Debug panel state
+        let soundDebugEnabled = false;
+        let lastSoundRms = 0;
+        let lastSoundPeak = 0;
+        
+        /**
+         * Start sound detection - called via IPC from main process
+         */
+        async function startSoundDetection(payload) {
+          if (isSoundActive) {
+            console.log('[Sound] Already active, ignoring start');
+            return;
+          }
+          
+          soundConfig = payload.config || {};
+          const rmsThreshold = soundConfig.rms_threshold || 0.02;
+          const sustainedMs = soundConfig.sustained_ms || 500;
+          const debounceMs = soundConfig.debounce_ms || 60000;
+          
+          console.log('[Sound] SOUND_INIT: Starting sound detection...');
+          console.log('[Sound] Config:', { rmsThreshold, sustainedMs, debounceMs });
+          
+          try {
+            // Step 1: Open microphone
+            console.log('[Sound] Requesting microphone access...');
+            soundStream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+              },
+              video: false,
+            });
+            console.log('[Sound] SOUND_PERMISSION_GRANTED');
+            
+            // Step 2: Create AudioContext
+            soundAudioContext = new AudioContext({ sampleRate: 44100 });
+            console.log('[Sound] AudioContext created, sampleRate:', soundAudioContext.sampleRate);
+            
+            // Step 3: Load AudioWorklet
+            const workletUrl = new URL('./sound/worklets/level-processor.js', window.location.href).href;
+            await soundAudioContext.audioWorklet.addModule(workletUrl);
+            console.log('[Sound] SOUND_WORKLET_LOADED');
+            
+            // Step 4: Connect audio graph
+            const source = soundAudioContext.createMediaStreamSource(soundStream);
+            soundWorkletNode = new AudioWorkletNode(soundAudioContext, 'level-processor');
+            
+            // Handle messages from worklet
+            soundWorkletNode.port.onmessage = (event) => {
+              if (event.data.type === 'level') {
+                const { rms, peak, timestamp } = event.data;
+                lastSoundRms = rms;
+                lastSoundPeak = peak;
+                
+                // Update debug panel if visible
+                updateSoundDebugPanel(rms, peak);
+                
+                // Send level to main process (throttled by worklet already)
+                if (window.electronAPI?.sendSoundLevel) {
+                  window.electronAPI.sendSoundLevel({ rms, peak, timestamp });
+                }
+                
+                // Threshold detection with hysteresis
+                const now = Date.now();
+                
+                if (rms >= rmsThreshold) {
+                  if (soundAboveThresholdSince === 0) {
+                    soundAboveThresholdSince = now;
+                  }
+                  
+                  const duration = now - soundAboveThresholdSince;
+                  
+                  if (duration >= sustainedMs) {
+                    // Check debounce
+                    if (now - soundLastEventTime >= debounceMs) {
+                      soundLastEventTime = now;
+                      soundAboveThresholdSince = 0; // Reset
+                      
+                      console.log('[Sound] SOUND_EVENT_TRIGGERED: RMS=' + rms.toFixed(4) + 
+                        ', Peak=' + peak.toFixed(4) + ', Duration=' + duration + 'ms');
+                      
+                      // Send event to main process
+                      if (window.electronAPI?.sendSoundEvent) {
+                        window.electronAPI.sendSoundEvent({
+                          rms,
+                          peak,
+                          duration_ms: duration,
+                          timestamp: now,
+                        });
+                      }
+                    }
+                  }
+                } else {
+                  // Below threshold - reset sustained timer (hysteresis)
+                  soundAboveThresholdSince = 0;
+                }
+              }
+            };
+            
+            // Connect: source → worklet (→ nowhere, no output needed)
+            source.connect(soundWorkletNode);
+            // DO NOT connect to destination - we don't want to play back audio
+            
+            isSoundActive = true;
+            
+            // Notify main process
+            if (window.electronAPI?.notifySoundStarted) {
+              window.electronAPI.notifySoundStarted({ active: true, sampleRate: soundAudioContext.sampleRate });
+            }
+            
+            console.log('[Sound] ✓ Sound detection active');
+            
+          } catch (error) {
+            console.error('[Sound] SOUND_PERMISSION_DENIED or init failed:', error.message || error);
+            console.log('[Sound] SOUND_DISABLED_FALLBACK: Continuing without sound');
+            
+            // Cleanup partial init
+            stopSoundDetection();
+            
+            // Notify main of failure
+            if (window.electronAPI?.notifySoundError) {
+              window.electronAPI.notifySoundError(error.message || 'Sound init failed');
+            }
+          }
+        }
+        
+        /**
+         * Stop sound detection - cleanup all resources
+         */
+        function stopSoundDetection() {
+          console.log('[Sound] Stopping sound detection...');
+          
+          try {
+            // Stop worklet
+            if (soundWorkletNode) {
+              soundWorkletNode.port.postMessage({ type: 'stop' });
+              soundWorkletNode.disconnect();
+              soundWorkletNode = null;
+            }
+            
+            // Close AudioContext
+            if (soundAudioContext && soundAudioContext.state !== 'closed') {
+              soundAudioContext.close().catch(() => {});
+              soundAudioContext = null;
+            }
+            
+            // Stop microphone stream
+            if (soundStream) {
+              soundStream.getTracks().forEach(track => track.stop());
+              soundStream = null;
+            }
+          } catch (e) {
+            console.warn('[Sound] Cleanup error:', e?.message);
+          }
+          
+          isSoundActive = false;
+          soundAboveThresholdSince = 0;
+          soundConfig = null;
+          lastSoundRms = 0;
+          lastSoundPeak = 0;
+          
+          // Notify main
+          if (window.electronAPI?.notifySoundStopped) {
+            window.electronAPI.notifySoundStopped();
+          }
+          
+          console.log('[Sound] ✓ Sound detection stopped, resources released');
+        }
+        
+        /**
+         * Update debug panel (if visible)
+         */
+        function updateSoundDebugPanel(rms, peak) {
+          const rmsEl = document.getElementById('sound-debug-rms');
+          const peakEl = document.getElementById('sound-debug-peak');
+          const barEl = document.getElementById('sound-debug-bar');
+          const statusEl = document.getElementById('sound-debug-status');
+          
+          if (!rmsEl) return; // Debug panel not in DOM
+          
+          rmsEl.textContent = rms.toFixed(4);
+          peakEl.textContent = peak.toFixed(4);
+          statusEl.textContent = isSoundActive ? '🟢 Active' : '🔴 Stopped';
+          
+          if (barEl) {
+            const pct = Math.min(100, rms * 1000); // Scale for visibility
+            barEl.style.width = pct + '%';
+            barEl.style.backgroundColor = rms >= (soundConfig?.rms_threshold || 0.02) ? '#ef4444' : '#22c55e';
+          }
+        }
+        
+        // ============================================================
+        // IPC Listeners (connect to preload bridges)
+        // ============================================================
+        if (window.electronAPI) {
+          window.electronAPI.onSoundStart?.((payload) => {
+            console.log('[Sound] Received start command from main');
+            startSoundDetection(payload);
+          });
+          
+          window.electronAPI.onSoundStop?.(() => {
+            console.log('[Sound] Received stop command from main');
+            stopSoundDetection();
+          });
+        }
+        
+        // Expose debug API on window (for manual testing in DevTools)
+        window.__soundDetection = {
+          start: () => startSoundDetection({ config: { rms_threshold: 0.02, sustained_ms: 500, debounce_ms: 10000 } }),
+          stop: () => stopSoundDetection(),
+          getStatus: () => ({ active: isSoundActive, rms: lastSoundRms, peak: lastSoundPeak, config: soundConfig }),
+        };
+        
+        console.log('[Sound] Module loaded. Use window.__soundDetection.start() to test manually.');
+      })();
 
       // ============================================================
       // INIT
