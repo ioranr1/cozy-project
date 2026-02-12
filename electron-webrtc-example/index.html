@@ -1,10 +1,11 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.25.1 (2026-02-12)
+   VERSION: 2.25.2 (2026-02-12)
    ============================================================
    
    CHANGELOG:
+    - v2.25.2: FIX - Phase 1 crash at getUserMedia: warm up with enumerateDevices + 1s delay before bare getUserMedia({audio:true}), no constraint object
     - v2.25.1: FIX - Phase 1 split into Step A (getUserMedia only) → Step B (AudioContext after 2s delay) → Step C (graph) for crash isolation
     - v2.25.0: FIX - Sound pipeline crash hardening: no sampleRate on AudioContext, MediaStreamDestination instead of destination, minimal getUserMedia constraints
     - v2.24.0: ADD - Phase 6 (model-only, no mic) A/B isolation test for crash diagnosis
@@ -1010,14 +1011,24 @@
           
           // ═══ STEP 1 / STEP 5: Mic-only isolation (no TFJS) ═══
           if (debugPhase === 1 || debugPhase === 5) {
-            console.log(`[Sound] PHASE ${debugPhase}: Mic-only test v2.25.1 (NO AudioContext, NO TFJS)`);
+            console.log(`[Sound] PHASE ${debugPhase}: Mic-only test v2.25.2 (warm-up + bare getUserMedia)`);
             try {
-              // v2.25.1: STEP A — just getUserMedia, NO AudioContext at all
-              // If this crashes, the problem is getUserMedia itself in Electron
-              console.log(`[Sound] PHASE ${debugPhase}: Step A — calling getUserMedia...`);
-              soundMediaStream = await navigator.mediaDevices.getUserMedia({
-                audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-              });
+              // v2.25.2: STEP A0 — enumerate devices to warm up the media subsystem
+              // Some Windows audio drivers crash if getUserMedia is the FIRST media API call
+              console.log(`[Sound] PHASE ${debugPhase}: Step A0 — enumerateDevices (warm-up)...`);
+              const devices = await navigator.mediaDevices.enumerateDevices();
+              const audioInputs = devices.filter(d => d.kind === 'audioinput');
+              console.log(`[Sound] PHASE ${debugPhase}: ✓ Step A0 PASSED — found ${audioInputs.length} audio input(s): ${audioInputs.map(d => d.label || d.deviceId).join(', ')}`);
+              
+              // v2.25.2: Wait 1 second for driver to stabilize after enumeration
+              console.log(`[Sound] PHASE ${debugPhase}: Step A0 — waiting 1s for driver stabilization...`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              // v2.25.2: STEP A — bare getUserMedia with NO constraints object
+              // Passing { audio: { ... } } with explicit false flags can trigger DSP driver code paths
+              // Bare { audio: true } uses absolute minimum driver interaction
+              console.log(`[Sound] PHASE ${debugPhase}: Step A — calling getUserMedia({ audio: true })...`);
+              soundMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
               const micTrack = soundMediaStream.getAudioTracks()[0];
               console.log(`[Sound] PHASE ${debugPhase}: ✓ Step A PASSED — Mic opened: ${micTrack?.label || 'unknown'}, readyState=${micTrack?.readyState}`);
               
@@ -1210,12 +1221,14 @@
           console.log(`[Sound] YAMNet indices: [${yamnetIndices.join(', ')}]`);
           console.log('[Sound] ═══════════════════════════════════════════════════');
           
-          try {
-            console.log('[Sound] Opening microphone...');
-            // v2.25.0: Minimal constraints — single channel, no DSP flags, no sampleRate
-            soundMediaStream = await navigator.mediaDevices.getUserMedia({
-              audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-            });
+            try {
+              // v2.25.2: Warm up media subsystem before getUserMedia
+              console.log('[Sound] Warming up media subsystem (enumerateDevices)...');
+              await navigator.mediaDevices.enumerateDevices();
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              
+              console.log('[Sound] Opening microphone (bare { audio: true })...');
+              soundMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
             // ═══ STEP 4: Ensure no stale AudioContext exists ═══
             if (soundAudioContext) {
