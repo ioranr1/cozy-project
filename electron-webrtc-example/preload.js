@@ -1,7 +1,7 @@
 /**
  * Electron Preload Script - Complete Implementation
  * ==================================================
- * VERSION: 2.0.2 (2026-02-07)
+ * VERSION: 2.1.0 (2026-02-12)
  * 
  * CHANGELOG:
  *  - 2.0.2: Added openClipsFolder IPC channel to open local clips folder in OS file explorer
@@ -360,10 +360,79 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Open the local clips folder in the OS file explorer
    * @returns {Promise<void>}
    */
-  openClipsFolder: () => ipcRenderer.invoke('open-clips-folder')
+  openClipsFolder: () => ipcRenderer.invoke('open-clips-folder'),
+
+  // -------------------------------------------------------------------------
+  // Sound Detection (ISOLATED - does NOT interact with camera/motion/WebRTC)
+  // -------------------------------------------------------------------------
+  
+  /**
+   * Listen for start sound detection command
+   * @param {function(config: object)} callback
+   */
+  onSoundStart: (callback) => {
+    ipcRenderer.on('sound-start', (event, config) => {
+      callback(config);
+    });
+  },
+  
+  /**
+   * Listen for stop sound detection command
+   * @param {function()} callback
+   */
+  onSoundStop: (callback) => {
+    ipcRenderer.on('sound-stop', () => {
+      callback();
+    });
+  },
+  
+  /**
+   * Notify main that sound detection started
+   * @param {object} status
+   */
+  notifySoundStarted: (status) => {
+    ipcRenderer.send('sound-started', status);
+  },
+  
+  /**
+   * Notify main that sound detection stopped
+   */
+  notifySoundStopped: () => {
+    ipcRenderer.send('sound-stopped');
+  },
+  
+  /**
+   * Notify main of sound detection error
+   * @param {string} error
+   */
+  notifySoundError: (error) => {
+    ipcRenderer.send('sound-error', error);
+  },
+  
+  /**
+   * Send sound level data to main process
+   * @param {object} data - { rms, peak, timestamp }
+   */
+  sendSoundLevel: (data) => {
+    ipcRenderer.send('sound-level', data);
+  },
+  
+  /**
+   * Send sound event (threshold exceeded) to main process
+   * @param {object} event - { rms, peak, duration_ms, timestamp }
+   */
+  sendSoundEvent: (event) => {
+    ipcRenderer.send('sound-event', event);
+  },
+  
+  /**
+   * Get sound detection status
+   * @returns {Promise<object>}
+   */
+  getSoundStatus: () => ipcRenderer.invoke('get-sound-status'),
 });
 
 // BUILD STAMP (debug)
-const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-07-open-clips-01';
+const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-12-sound-detection-01';
 console.log('[Preload] electronAPI exposed to renderer');
 console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);
