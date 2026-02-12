@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.7.4 (2026-02-12)
+ * VERSION: 2.3.2 (2026-02-09)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -19,55 +19,7 @@
  *   macOS: uses built-in pmset
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, crashReporter, session } = require('electron');
-
-// v2.5.0: Enable crash dumps - MUST be before app.whenReady()
-const crashDumpsDir = app.getPath('crashDumps');
-crashReporter.start({ uploadToServer: false, compress: false });
-console.log(`[CrashDumps] Crash dumps directory: ${crashDumpsDir}`);
-
-// v2.6.0: Aggressively disable ALL GPU paths to prevent ACCESS_VIOLATION crashes
-// Must be called before app.whenReady()
-app.disableHardwareAcceleration();
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-gpu-compositing');
-app.commandLine.appendSwitch('disable-gpu-sandbox');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('disable-gpu-rasterization');
-console.log('[App] ⚠️ ALL GPU paths DISABLED (crash prevention v2.6.0)');
-
-// v2.7.3: Disable Chromium sandbox — isolates whether sandbox causes ACCESS_VIOLATION
-app.commandLine.appendSwitch('no-sandbox');
-console.log('[App] ⚠️ Sandbox DISABLED (crash isolation v2.7.3)');
-
-// v2.7.2: AudioServiceOutOfProcess fallback — forces audio into browser process
-const ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX = true;
-if (ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX) {
-  app.commandLine.appendSwitch('disable-features', 'AudioServiceOutOfProcess');
-  console.log('[App] ⚠️ AudioServiceOutOfProcess DISABLED (mic crash fallback v2.7.2)');
-} else {
-  console.log('[App] AudioServiceOutOfProcess fallback is OFF');
-}
-
-// v2.7.2: FAKE MEDIA TEST — uses Chromium's built-in fake device for driver isolation
-// If fake media does NOT crash but real media does → the crash is in the real audio driver
-// If fake media ALSO crashes → the crash is in Electron/Chromium sandbox/audio service
-const ENABLE_FAKE_MEDIA_TEST = false; // ← Toggle to true for diagnostic, then back to false
-
-// v2.7.4: FORCE_DISABLE_SOUND — completely blocks sound pipeline at IPC level
-// AudioContext/ScriptProcessor causes ACCESS_VIOLATION even with fake media + no-sandbox
-// Toggle to true to test if monitoring is stable WITHOUT any audio processing
-const FORCE_DISABLE_SOUND = true; // ← Set to true to block all audio in renderer
-if (FORCE_DISABLE_SOUND) {
-  console.log('[App] 🔇 FORCE_DISABLE_SOUND=true — sound pipeline will be blocked at IPC level');
-}
-if (ENABLE_FAKE_MEDIA_TEST) {
-  app.commandLine.appendSwitch('use-fake-device-for-media-stream');
-  app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
-  console.log('[App] 🧪 FAKE_MEDIA_TEST enabled: true — using synthetic audio/video devices');
-} else {
-  console.log('[App] 🧪 FAKE_MEDIA_TEST enabled: false — using real hardware devices');
-}
+const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
@@ -83,24 +35,6 @@ const MonitoringManager = require('./monitoring/monitoring-manager');
 const fs = require('fs');
 
 // =============================================================================
-// v2.5.0: CRASH LOG FILE (persistent - survives renderer crashes)
-// =============================================================================
-const crashLogPath = path.join(app.getPath('userData'), 'crash-diagnostics.log');
-console.log(`[CrashLog] Writing crash diagnostics to: ${crashLogPath}`);
-
-function writeCrashLog(entry) {
-  try {
-    const line = `[${new Date().toISOString()}] ${typeof entry === 'string' ? entry : JSON.stringify(entry)}\n`;
-    fs.appendFileSync(crashLogPath, line, 'utf8');
-  } catch (e) {
-    console.error('[CrashLog] Failed to write:', e.message);
-  }
-}
-
-// Write startup marker
-writeCrashLog(`=== APP START v2.7.4 === pid=${process.pid} platform=${process.platform} arch=${process.arch} audioServiceFix=${ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX} fakeMedia=${ENABLE_FAKE_MEDIA_TEST} forceDisableSound=${FORCE_DISABLE_SOUND}`);
-
-// =============================================================================
 // CONFIGURATION
 // =============================================================================
 
@@ -114,7 +48,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const awayManager = new AwayManager({ supabase });
 
 // Initialize MonitoringManager
-const monitoringManager = new MonitoringManager({ supabase, forceDisableSound: FORCE_DISABLE_SOUND });
+const monitoringManager = new MonitoringManager({ supabase });
 
 // Clips folder path (initialized on startup)
 let clipsPath = null;
@@ -345,102 +279,6 @@ function startLocalModelServer() {
 }
 
 // =============================================================================
-// REPAINT FIX (Chromium frameless window black screen bug)
-// =============================================================================
-
-/**
- * Force window repaint to recover from Chromium compositor black-screen bug.
- * v2.3.8: Two-phase approach:
- *   Phase 1: Quick invalidate + resize cycle (instant fix for short idle)
- *   Phase 2: If still black after 1.5s, reload the page (nuclear fix for long idle)
- * The reload preserves auto-login state since device credentials are in electron-store.
- */
-let _repaintTimer = null;
-let _lastHideTime = 0; // Track when window was hidden
-
-function forceWindowRepaint() {
-  if (!mainWindow || mainWindow.isDestroyed?.()) return;
-
-  // Clear any previous repaint timer
-  if (_repaintTimer) { clearTimeout(_repaintTimer); _repaintTimer = null; }
-
-  const idleMs = _lastHideTime > 0 ? (Date.now() - _lastHideTime) : 0;
-  console.log(`[App] forceWindowRepaint — idle=${Math.round(idleMs / 1000)}s`);
-
-  // Quick compositor kick (works for short idle)
-  const doQuickRepaint = () => {
-    if (!mainWindow || mainWindow.isDestroyed?.()) return;
-    try { mainWindow.webContents.invalidate(); } catch (_) {}
-    const [w, h] = mainWindow.getSize();
-    mainWindow.setSize(w + 1, h + 1);
-    setTimeout(() => {
-      if (!mainWindow || mainWindow.isDestroyed?.()) return;
-      mainWindow.setSize(w, h);
-      try { mainWindow.webContents.invalidate(); } catch (_) {}
-    }, 60);
-  };
-
-  doQuickRepaint();
-
-  // v2.4.0: DISABLED nuclear reload — always use quick repaint only.
-  // This is a diagnostic measure to determine if the black screen is caused
-  // by the reload itself rather than a Chromium compositor bug.
-  // For long idle, do multiple quick repaints instead of reload.
-  if (idleMs > 60000) {
-    console.log('[App] Long idle detected — using quick repaints ONLY (nuclear reload DISABLED v2.4.0)');
-  }
-  
-  // Multiple quick repaints with delay
-  let remaining = 4;
-  const interval = setInterval(() => {
-    if (remaining-- <= 0 || !mainWindow || mainWindow.isDestroyed?.()) {
-      clearInterval(interval);
-      return;
-    }
-    doQuickRepaint();
-  }, 400);
-}
-
-// =============================================================================
-// v2.4.0: RECOVERY SCREEN (shown on crash/hang/load-fail instead of black)
-// =============================================================================
-
-function showRecoveryScreen(reason, details) {
-  if (!mainWindow || mainWindow.isDestroyed?.()) return;
-  
-  console.log(`[Recovery] Showing recovery screen: reason=${reason} details=${details}`);
-  
-  // v2.6.0: Use executeJavaScript instead of data:text/html URL (blocked by Electron security)
-  const escapedReason = String(reason).replace(/'/g, "\\'").replace(/\n/g, ' ');
-  const escapedDetails = String(details || '').replace(/'/g, "\\'").replace(/\n/g, ' ');
-  
-  const js = `
-    try {
-      document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#0f172a;font-family:-apple-system,sans-serif;">' +
-        '<div style="text-align:center;padding:40px;background:rgba(30,41,59,0.9);border-radius:16px;border:1px solid rgba(71,85,105,0.5);max-width:380px;">' +
-        '<h2 style="color:#f97316;margin-bottom:12px;">⚠️ Recovery</h2>' +
-        '<p style="color:#94a3b8;font-size:14px;margin-bottom:20px;">The application encountered an issue and needs to reload.</p>' +
-        '<div style="font-family:monospace;font-size:12px;color:#64748b;margin-bottom:20px;">Reason: ${escapedReason}<br>${escapedDetails}</div>' +
-        '<button onclick="location.reload()" style="padding:12px 32px;border:none;border-radius:8px;background:#3b82f6;color:white;font-size:16px;cursor:pointer;">Reload Application</button>' +
-        '</div></div>';
-      document.body.style.margin = '0';
-    } catch(e) {
-      console.error('[Recovery] DOM injection failed:', e);
-    }
-  `;
-  
-  try {
-    mainWindow.webContents.executeJavaScript(js).catch(e => {
-      console.error('[Recovery] executeJavaScript failed:', e.message);
-      // Last resort: try reload
-      try { mainWindow.webContents.reload(); } catch (_) {}
-    });
-  } catch (e) {
-    console.error('[Recovery] Failed to show recovery screen:', e);
-  }
-}
-
-// =============================================================================
 // WINDOW CREATION
 // =============================================================================
 
@@ -467,149 +305,11 @@ function createWindow() {
   // CRITICAL FIX: Set main window reference in AwayManager
   awayManager.setMainWindow(mainWindow);
 
-  // =========================================================================
-  // v2.7.2: DETERMINISTIC MEDIA + CLIPBOARD PERMISSION HANDLERS
-  // =========================================================================
-  // Ensure getUserMedia never shows permission dialogs or gets blocked silently
-  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
-    const allowed = ['media', 'mediaKeySystem', 'clipboard-read', 'clipboard-write', 'clipboard-sanitized-write'];
-    if (allowed.includes(permission)) {
-      console.log(`[Permissions] ✓ GRANTED: ${permission}`);
-      callback(true);
-    } else {
-      console.log(`[Permissions] ✗ DENIED: ${permission}`);
-      callback(false);
-    }
-  });
-
-  session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
-    const allowed = ['media', 'clipboard-read', 'clipboard-write', 'clipboard-sanitized-write'];
-    return allowed.includes(permission);
-  });
-  console.log('[Permissions] ✓ Deterministic permission handlers installed (v2.7.1 — media + clipboard)');
-
-  // =========================================================================
-  // v2.4.0: RENDERER CRASH & HANG MONITORING
-  // =========================================================================
-
-  // Forward renderer console to main process log
-  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
-    const lvl = levels[level] || 'LOG';
-    // Only forward warnings and errors to avoid noise
-    if (level >= 2) {
-      console.log(`[Renderer][${lvl}] ${message}`);
-    }
-  });
-
-  // Renderer process crashed or killed - v2.5.0: Full diagnostic capture
-  mainWindow.webContents.on('render-process-gone', (event, details) => {
-    const diagSnapshot = {
-      timestamp: new Date().toISOString(),
-      reason: details.reason,
-      exitCode: details.exitCode,
-      serviceName: details.serviceName || 'N/A',
-      devToolsOpen: mainWindow.webContents.isDevToolsOpened(),
-      monitoringActive: monitoringManager?.isActive || false,
-      monitoringMotion: monitoringManager?._lastStartedStatus?.motion || false,
-      monitoringSound: monitoringManager?._lastStartedStatus?.sound || false,
-      liveViewActive: liveViewState?.isActive || false,
-      liveViewSessionId: liveViewState?.currentSessionId || null,
-      hwAccelDisabled: process.platform === 'win32',
-      processMemory: null,
-      crashDumpsDir: crashDumpsDir,
-    };
-
-    try { diagSnapshot.processMemory = process.memoryUsage(); } catch (_) {}
-
-    console.error('[CRASH] ═══════════════════════════════════════════════════');
-    console.error('[CRASH] 💀 Renderer process gone!');
-    console.error('[CRASH] reason:', details.reason);
-    console.error('[CRASH] exitCode:', details.exitCode);
-    console.error('[CRASH] serviceName:', details.serviceName || 'N/A');
-    console.error('[CRASH] timestamp:', diagSnapshot.timestamp);
-    console.error('[CRASH] DevTools open:', diagSnapshot.devToolsOpen);
-    console.error('[CRASH] Monitoring active:', diagSnapshot.monitoringActive);
-    console.error('[CRASH] Motion enabled:', diagSnapshot.monitoringMotion);
-    console.error('[CRASH] Sound enabled:', diagSnapshot.monitoringSound);
-    console.error('[CRASH] Live View active:', diagSnapshot.liveViewActive);
-    console.error('[CRASH] HW Accel disabled:', diagSnapshot.hwAccelDisabled);
-    console.error('[CRASH] Main process memory:', JSON.stringify(diagSnapshot.processMemory));
-    console.error('[CRASH] Crash dumps dir:', crashDumpsDir);
-    console.error('[CRASH] ═══════════════════════════════════════════════════');
-
-    // Write to persistent file
-    writeCrashLog({ type: 'RENDERER_CRASH', ...diagSnapshot });
-
-    // Check for new crash dumps
-    try {
-      const dumps = fs.readdirSync(crashDumpsDir).filter(f => f.endsWith('.dmp'));
-      if (dumps.length > 0) {
-        const latest = dumps.sort().reverse()[0];
-        const dumpPath = path.join(crashDumpsDir, latest);
-        const stat = fs.statSync(dumpPath);
-        console.error(`[CRASH] Latest dump: ${dumpPath} (${Math.round(stat.size / 1024)}KB, ${stat.mtime.toISOString()})`);
-        writeCrashLog({ type: 'CRASH_DUMP', file: latest, path: dumpPath, sizeKB: Math.round(stat.size / 1024) });
-      } else {
-        console.error('[CRASH] No .dmp files found in crash dumps dir');
-      }
-    } catch (e) {
-      console.error('[CRASH] Could not read crash dumps dir:', e.message);
-    }
-
-    showRecoveryScreen('crash', details.reason);
-  });
-
-  // Renderer became unresponsive (hung) - v2.5.0: enhanced
-  mainWindow.webContents.on('unresponsive', () => {
-    const ts = new Date().toISOString();
-    console.error('[HANG] ═══════════════════════════════════════════════════');
-    console.error('[HANG] ⏳ Renderer is UNRESPONSIVE!');
-    console.error('[HANG] timestamp:', ts);
-    console.error('[HANG] DevTools open:', mainWindow.webContents.isDevToolsOpened());
-    console.error('[HANG] Monitoring active:', monitoringManager?.isActive || false);
-    console.error('[HANG] Live View active:', liveViewState?.isActive || false);
-    console.error('[HANG] ═══════════════════════════════════════════════════');
-    writeCrashLog({ type: 'HANG', timestamp: ts, monitoring: monitoringManager?.isActive, liveView: liveViewState?.isActive });
-    showRecoveryScreen('unresponsive', 'Renderer hung');
-  });
-
-  // Renderer became responsive again
-  mainWindow.webContents.on('responsive', () => {
-    console.log('[HANG] ✅ Renderer became responsive again at', new Date().toISOString());
-  });
-
-  // Page failed to load
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    console.error('[LOAD] ═══════════════════════════════════════════════════');
-    console.error('[LOAD] ❌ did-fail-load!');
-    console.error('[LOAD] errorCode:', errorCode);
-    console.error('[LOAD] description:', errorDescription);
-    console.error('[LOAD] URL:', validatedURL);
-    console.error('[LOAD] timestamp:', new Date().toISOString());
-    console.error('[LOAD] ═══════════════════════════════════════════════════');
-    showRecoveryScreen('load-failed', errorDescription);
-  });
-
-  // FIX: Black screen after closing DevTools (F12) or restoring from tray
-  // Chromium bug: frameless windows lose render surface. Force resize to repaint.
-  mainWindow.webContents.on('devtools-closed', () => {
-    console.log('[App] DevTools closed — forcing repaint to prevent black screen');
-    forceWindowRepaint();
-  });
-
-  // v2.4.0: Also handle devtools-opened — compositor kick
-  mainWindow.webContents.on('devtools-opened', () => {
-    console.log('[App] DevTools opened — forcing repaint to prevent black screen');
-    forceWindowRepaint();
-  });
-
   // Intercept close to hide to tray
   mainWindow.on('close', (event) => {
     if (trayAvailable && !app.isQuitting) {
       event.preventDefault();
       mainWindow.hide();
-      _lastHideTime = Date.now();
     }
   });
 
@@ -618,7 +318,6 @@ function createWindow() {
     if (trayAvailable) {
       event.preventDefault();
       mainWindow.hide();
-      _lastHideTime = Date.now();
     }
   });
 
@@ -674,9 +373,6 @@ function initTray() {
       if (mainWindow) {
         mainWindow.show();
         mainWindow.focus();
-        // FIX: Black screen after restoring frameless window from tray
-        // Same Chromium repaint bug as DevTools close
-        forceWindowRepaint();
       }
     });
 
@@ -697,7 +393,7 @@ function updateTrayMenu() {
   const contextMenu = Menu.buildFromTemplate([
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
     { type: 'separator' },
-    { label: t('showWindow'), click: () => { mainWindow?.show(); mainWindow?.focus(); forceWindowRepaint(); } },
+    { label: t('showWindow'), click: () => { mainWindow?.show(); mainWindow?.focus(); } },
     { type: 'separator' },
     { label: t('quit'), click: () => { app.isQuitting = true; app.quit(); } }
   ]);
@@ -1865,12 +1561,6 @@ function setupIpcHandlers() {
     return localModelPort;
   });
 
-  // v2.5.0: Renderer error reports (guardrails - persistent log)
-  ipcMain.on('renderer-error-report', (event, data) => {
-    console.warn(`[GUARDRAIL] Renderer ${data.type}: ${data.message} ${data.filename ? `at ${data.filename}:${data.lineno}` : ''}`);
-    writeCrashLog({ type: 'RENDERER_ERROR', ...data });
-  });
-
   // Open clips folder in OS file explorer
   ipcMain.handle('open-clips-folder', () => {
     ensureClipsPath();
@@ -1930,7 +1620,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-11-v2.4.0-crash-hardening');
+console.log('[Main] BUILD ID: main-js-2026-02-09-v2.3.2-local-model-server');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
@@ -1958,19 +1648,11 @@ app.whenReady().then(async () => {
     monitoringManager.setClipRecorder(clipRecorder);
   }
 
-  // If we have a stored device, start subscriptions and show success screen
+  // If we have a stored device, start subscriptions
   if (deviceId) {
     subscribeToCommands();
     subscribeToRtcSessions();
     subscribeToDeviceStatus();
-
-    // CRITICAL FIX: When auto-login with stored session, tell renderer to show
-    // the success screen instead of the pairing screen. Without this, the UI
-    // stays on the hidden pairing screen → black/empty window.
-    mainWindow.webContents.on('did-finish-load', () => {
-      console.log('[Main] Auto-login: sending show-success-screen to renderer');
-      mainWindow.webContents.send('show-success-screen');
-    });
   }
 
   app.on('activate', () => {

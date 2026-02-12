@@ -13,19 +13,15 @@ const AI_GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const SEVERITY_MAP: Record<string, string> = {
   person: 'high',
   gunshot: 'critical',
-  scream: 'medium',
+  scream: 'medium',        // Disturbance category (was critical)
   glass_breaking: 'high',
   alarm: 'high',
   siren: 'high',
-  baby_crying: 'info',
+  baby_crying: 'info',     // Informational category
   animal: 'low',
   vehicle: 'low',
-  dog_barking: 'medium',
-  door_knock: 'medium',
-  // Sound single-mode labels (v2.14.0)
-  baby_cry: 'info',
-  dog_bark: 'medium',
-  help: 'high',
+  dog_barking: 'medium',   // Disturbance category (was low)
+  door_knock: 'medium',    // Disturbance category
 };
 
 // Event types that should NOT trigger WhatsApp by default
@@ -218,7 +214,7 @@ serve(async (req) => {
     // This is IN ADDITION to the client-side 180s debounce
     // ═══════════════════════════════════════════════════════════════════════════
     const BABY_CRY_COOLDOWN_MS = 180000; // 3 minutes
-    if (event_type === 'sound' && metadata?.sound_mode === 'baby_cry') {
+    if (event_type === 'sound_baby_cry') {
       const { data: recentBabyCry } = await supabase
         .from('monitoring_events')
         .select('id, created_at')
@@ -286,7 +282,7 @@ serve(async (req) => {
       // BABY CRY: Motion correlation confidence boost (+0.15)
       // If motion was detected within ±10s, boost the AI confidence
       // ═══════════════════════════════════════════════════════════════════════
-      if (event_type === 'sound' && metadata?.sound_mode === 'baby_cry' && metadata?.motion_correlated) {
+      if (event_type === 'sound_baby_cry' && metadata?.motion_correlated) {
         const boost = 0.15;
         const boostedConfidence = Math.min(1.0, aiConfidence + boost);
         console.log(`[events-report] Baby cry + motion correlation boost: ${aiConfidence.toFixed(2)} → ${boostedConfidence.toFixed(2)}`);
@@ -664,7 +660,7 @@ Respond in JSON format:
         content: `Motion detected. Classified objects: ${labelsText}. Note: No camera snapshot available for this detection. Based only on the motion detection labels, is this a real security concern?`
       }
     ];
-  } else if (eventType === 'sound' && metadata?.sound_mode === 'baby_cry') {
+  } else if (eventType === 'sound_baby_cry') {
     // Baby cry - STRICT secondary AI verification (similar to motion pipeline)
     const labelsText = labels.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
     
@@ -717,7 +713,7 @@ Respond in JSON:
         content: `Secondary verification request for baby cry detection.\n\n${contextDetails}\n\nBased on the score pattern and context, is this genuinely a baby crying?`
       }
     ];
-  } else if (eventType === 'sound' && metadata?.sound_mode === 'dog_bark') {
+  } else if (eventType === 'sound_disturbance') {
     // Home disturbance - moderate concern
     const labelsText = labels.map(l => `${l.label} (${(l.confidence * 100).toFixed(0)}%)`).join(', ');
     

@@ -15,9 +15,14 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 /** All available sound detection targets */
 export const ALL_SOUND_TARGETS = [
+  'glass_breaking',
   'baby_crying',
   'dog_barking',
+  'alarm',
+  'gunshot',
   'scream',
+  'siren',
+  'door_knock',
 ] as const;
 
 export type SoundTarget = typeof ALL_SOUND_TARGETS[number];
@@ -35,21 +40,21 @@ interface SoundCategoryInfo {
 const SOUND_CATEGORIES: SoundCategoryInfo[] = [
   {
     id: 'informational',
-    labelHe: '👶 משפחתי',
-    labelEn: '👶 Family',
+    labelHe: '👶 משפחתי (מידע)',
+    labelEn: '👶 Family (Info)',
     targets: ['baby_crying'],
   },
   {
     id: 'disturbance',
     labelHe: '🏠 רעשי בית',
     labelEn: '🏠 Home Noises',
-    targets: ['dog_barking'],
+    targets: ['door_knock', 'dog_barking', 'scream'],
   },
   {
     id: 'security',
     labelHe: '🔒 אבטחה',
     labelEn: '🔒 Security',
-    targets: ['scream'],
+    targets: ['glass_breaking', 'alarm', 'gunshot', 'siren'],
   },
 ];
 
@@ -87,9 +92,14 @@ interface MonitoringSettingsDialogProps {
 }
 
 const SOUND_TARGET_LABELS: Record<SoundTarget, { he: string; en: string; icon: string }> = {
+  glass_breaking: { he: 'שבירת זכוכית', en: 'Glass Breaking', icon: '🪟' },
   baby_crying:    { he: 'בכי תינוק', en: 'Baby Crying', icon: '👶' },
   dog_barking:    { he: 'נביחת כלב', en: 'Dog Barking', icon: '🐕' },
-  scream:         { he: 'קריאת עזרה (הצילו / Help)', en: 'Help Call (Help / הצילו)', icon: '🆘' },
+  alarm:          { he: 'אזעקה', en: 'Alarm', icon: '🚨' },
+  gunshot:        { he: 'ירי', en: 'Gunshot', icon: '💥' },
+  scream:         { he: 'צעקה / צעקת עזרה', en: 'Scream / Shout', icon: '😱' },
+  siren:          { he: 'סירנה', en: 'Siren', icon: '🚑' },
+  door_knock:     { he: 'דפיקה בדלת', en: 'Door Knock', icon: '🚪' },
 };
 
 export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> = ({

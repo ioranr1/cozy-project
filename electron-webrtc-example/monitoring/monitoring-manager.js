@@ -1,13 +1,12 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.4.3 (2026-02-12)
+ * VERSION: 0.3.8 (2026-02-06)
  * 
  * CHANGELOG:
- * - v0.4.0: CRITICAL FIX - Recover from WebContents crash (isCrashed=true)
- *           Instead of giving up, reload the page and retry frame check
- *           Fixes START→STOP→START cycle where renderer crashes between cycles
  * - v0.3.5: CRITICAL FIX - Add sensor preflight check to skip camera if all sensors disabled
+ *           Add explicit logging for all enable/disable state transitions
+ * - v0.3.4: CRITICAL FIX - Always update security_enabled=false in DB before early return in disable()
  *           Fixes bug where UI showed "active" but camera LED was off
  * - v0.3.3: Pass device_id and device_auth_token to renderer for event reporting
  * - v0.3.2: Force reload config from DB on enable()
@@ -25,13 +24,12 @@ const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config
 const EVENTS_REPORT_ENDPOINT = 'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/events-report';
 
 class MonitoringManager {
-  constructor({ supabase, forceDisableSound = false }) {
+  constructor({ supabase }) {
     this.supabase = supabase;
     this.mainWindow = null;
     this.deviceId = null;
     this.profileId = null;
     this.deviceAuthToken = null; // For authenticating with edge functions
-    this.forceDisableSound = forceDisableSound; // v0.4.3: Block sound at IPC level
     
     // State
     this.isActive = false;
@@ -58,7 +56,7 @@ class MonitoringManager {
     this.pendingEvents = [];
     this.eventQueueTimer = null;
     
-    console.log(`[MonitoringManager] Initialized (v0.4.3) forceDisableSound=${forceDisableSound}`);
+    console.log('[MonitoringManager] Initialized (v0.3.0)');
   }
 
   // ===========================================================================
@@ -222,23 +220,12 @@ class MonitoringManager {
       await this.loadConfig();
       
       const motionEnabled = this.config?.sensors?.motion?.enabled ?? false;
-      let soundEnabled = this.config?.sensors?.sound?.enabled ?? false;
-      
-      // v0.4.3: Override sound if force-disabled
-      if (this.forceDisableSound && soundEnabled) {
-        console.warn('[MonitoringManager] 🔇 FORCE_DISABLE_SOUND — overriding sound_enabled to false');
-        soundEnabled = false;
-        // Also override in config so renderer gets the right value
-        if (this.config?.sensors?.sound) {
-          this.config.sensors.sound.enabled = false;
-        }
-      }
+      const soundEnabled = this.config?.sensors?.sound?.enabled ?? false;
       
       console.log('[MonitoringManager] Config loaded for enable:', {
         monitoring_enabled: this.config?.monitoring_enabled,
         motion_enabled: motionEnabled,
         sound_enabled: soundEnabled,
-        forceDisableSound: this.forceDisableSound,
       });
 
       // CRITICAL: Sensor preflight check - skip camera if ALL sensors disabled
@@ -261,16 +248,6 @@ class MonitoringManager {
         return { success: false, error: 'Main window destroyed' };
       }
 
-      // CRITICAL FIX v0.3.9: Check if webContents/render frame is available
-      // "Render frame was disposed before WebFrameMain could be accessed" causes
-      // silent IPC send failures → ACK never arrives → 60s timeout
-      const frameReady = await this._ensureFrameReady();
-      if (!frameReady) {
-        console.error('[MonitoringManager] ❌ Render frame not available after retries');
-        this.isStarting = false;
-        return { success: false, error: 'Render frame not available - try restarting the app' };
-      }
-
       // Include device credentials for event reporting
       const configWithCredentials = {
         ...this.config,
@@ -282,15 +259,8 @@ class MonitoringManager {
       console.log('[MonitoringManager] device_id:', this.deviceId);
       console.log('[MonitoringManager] device_auth_token present:', !!this.deviceAuthToken);
       
-      // CRITICAL FIX v0.3.9: Wrap send() in try-catch to detect frame errors
-      try {
-        this.mainWindow.webContents.send('start-monitoring', configWithCredentials);
-        console.log('[MonitoringManager] ✓ Config sent to renderer');
-      } catch (sendError) {
-        console.error('[MonitoringManager] ❌ IPC send failed:', sendError.message);
-        this.isStarting = false;
-        return { success: false, error: `IPC send failed: ${sendError.message}` };
-      }
+      this.mainWindow.webContents.send('start-monitoring', configWithCredentials);
+      console.log('[MonitoringManager] ✓ Config sent to renderer');
 
       // IMPORTANT (SSOT): Do NOT set isActive or update DB here.
       // The renderer will attempt getUserMedia + start detectors.
@@ -305,103 +275,12 @@ class MonitoringManager {
     }
   }
 
-  // ===========================================================================
-  // FRAME AVAILABILITY CHECK (v0.3.9)
-  // ===========================================================================
-
-  /**
-   * Ensure the render frame is ready to receive IPC messages.
-   * Retries up to 3 times with 2s delay.
-   * 
-   * Background: Electron's webContents.send() can silently fail if the render
-   * frame is disposed (e.g., window minimized to tray, GC'd frame).
-   * This causes the monitoring ACK to never arrive → 60s timeout.
-   */
-  async _ensureFrameReady(maxRetries = 4, retryDelayMs = 2000) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        if (!this.mainWindow || this.mainWindow.isDestroyed()) {
-          console.error(`[MonitoringManager] Frame check #${attempt}: Window destroyed`);
-          return false;
-        }
-
-        const wc = this.mainWindow.webContents;
-
-        // v0.4.0: If crashed, attempt reload+recovery instead of giving up
-        if (wc.isCrashed()) {
-          console.warn(`[MonitoringManager] Frame check #${attempt}: WebContents crashed — attempting reload recovery...`);
-          try {
-            wc.reload();
-            // Wait for reload to complete via did-finish-load or timeout
-            await new Promise((resolve) => {
-              const timer = setTimeout(resolve, 5000);
-              wc.once('did-finish-load', () => { clearTimeout(timer); resolve(); });
-            });
-            console.log(`[MonitoringManager] Frame check #${attempt}: Reload after crash completed`);
-            // Continue to frame check below (don't return yet)
-          } catch (reloadErr) {
-            console.error(`[MonitoringManager] Frame check #${attempt}: Reload after crash failed:`, reloadErr.message);
-            if (attempt < maxRetries) {
-              await new Promise(r => setTimeout(r, retryDelayMs));
-              continue;
-            }
-            return false;
-          }
-        }
-
-        // Check if the main frame is available
-        try {
-          const mainFrame = wc.mainFrame;
-          if (!mainFrame) {
-            throw new Error('mainFrame is null');
-          }
-          const frameUrl = mainFrame.url;
-          console.log(`[MonitoringManager] Frame check #${attempt}: ✓ Frame ready (url: ${frameUrl ? 'loaded' : 'empty'})`);
-          return true;
-        } catch (frameError) {
-          console.warn(`[MonitoringManager] Frame check #${attempt}: Frame not ready - ${frameError.message}`);
-          
-          if (attempt < maxRetries) {
-            if (this.mainWindow.isMinimized()) {
-              console.log(`[MonitoringManager] Frame check #${attempt}: Window minimized, restoring...`);
-              this.mainWindow.restore();
-            }
-            
-            // Attempt reload on second-to-last retry
-            if (attempt === maxRetries - 1) {
-              console.log(`[MonitoringManager] Frame check #${attempt}: Attempting page reload...`);
-              try {
-                wc.reload();
-                await new Promise((resolve) => {
-                  const timer = setTimeout(resolve, 5000);
-                  wc.once('did-finish-load', () => { clearTimeout(timer); resolve(); });
-                });
-              } catch (reloadErr) {
-                console.error(`[MonitoringManager] Reload failed:`, reloadErr.message);
-              }
-            } else {
-              await new Promise(r => setTimeout(r, retryDelayMs));
-            }
-          }
-        }
-      } catch (err) {
-        console.error(`[MonitoringManager] Frame check #${attempt}: Unexpected error:`, err.message);
-        if (attempt < maxRetries) {
-          await new Promise(r => setTimeout(r, retryDelayMs));
-        }
-      }
-    }
-    
-    return false;
-  }
-
   /**
    * Called by main.js when renderer confirmed monitoring started.
    */
   onRendererStarted(status) {
     this.isStarting = false;
     this.isActive = true;
-    this._lastStartedStatus = status; // v0.4.2: Track for crash diagnostics
     console.log('[MonitoringManager] ✓ Renderer confirmed monitoring started', status);
   }
 
@@ -453,14 +332,9 @@ class MonitoringManager {
         return { success: true };
       }
 
-      // Send stop command to renderer (v0.4.1: guard against destroyed webContents)
+      // Send stop command to renderer
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        const wc = this.mainWindow.webContents;
-        if (wc && !wc.isDestroyed()) {
-          wc.send('stop-monitoring');
-        } else {
-          console.warn('[MonitoringManager] webContents destroyed, skipping stop-monitoring IPC');
-        }
+        this.mainWindow.webContents.send('stop-monitoring');
       }
 
       this.isActive = false;

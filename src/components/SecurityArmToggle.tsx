@@ -385,14 +385,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
                   enabled: monitoringSettings.motionEnabled,
                   targets: ['person', 'animal', 'vehicle'],
                   confidence_threshold: 0.7,
-                  debounce_ms: 60000,
+                  debounce_ms: 3000,
                 },
                 sound: {
                   enabled: monitoringSettings.soundEnabled,
                   targets: monitoringSettings.soundTargets,
-                  mode: monitoringSettings.soundTargets.includes('baby_crying') ? 'baby_cry'
-                      : monitoringSettings.soundTargets.includes('dog_barking') ? 'dog_bark'
-                      : 'help',
                   confidence_threshold: 0.6,
                   debounce_ms: 2000,
                 },
@@ -528,14 +525,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
                   enabled: monitoringSettings.motionEnabled,
                   targets: ['person', 'animal', 'vehicle'],
                   confidence_threshold: 0.7,
-                  debounce_ms: 60000,
+                  debounce_ms: 3000,
                 },
                 sound: {
                   enabled: monitoringSettings.soundEnabled,
                   targets: monitoringSettings.soundTargets,
-                  mode: monitoringSettings.soundTargets.includes('baby_crying') ? 'baby_cry'
-                      : monitoringSettings.soundTargets.includes('dog_barking') ? 'dog_bark'
-                      : 'help',
                   confidence_threshold: 0.6,
                   debounce_ms: 2000,
                 },

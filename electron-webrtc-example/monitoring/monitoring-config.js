@@ -1,7 +1,7 @@
 /**
  * Monitoring Configuration Defaults & Schemas
  * ============================================
- * VERSION: 0.4.0 (2026-02-11)
+ * VERSION: 0.2.0 (2026-02-08)
  * 
  * CHANGELOG:
  * - v0.2.0: Added per-category sound policies (informational/disturbance/security)
@@ -21,48 +21,83 @@
  * The detector applies these automatically - users only pick which sounds to detect.
  */
 const SOUND_LABEL_POLICIES = {
-  // ── A) Family - Baby crying (MVP threshold) ────────────────────────────────
+  // ── A) Informational / Family (non-security) ──────────────────────────────
   baby_crying: {
     category: 'informational',
-    event_type: 'sound',
-    threshold: 0.12,
-    persistence: 1,
-    debounce_ms: 30000,   // 30 seconds
+    event_type: 'sound_baby_cry',
+    threshold: 0.60,
+    persistence: 3,       // consecutive windows required
+    debounce_ms: 180000,  // 3 minutes
     severity: 'info',
-    whatsapp_default: true,
+    whatsapp_default: false, // WhatsApp only if user explicitly enables
   },
 
-  // ── B) Home Noises - Dog barking (MVP threshold) ──────────────────────────
+  // ── B) Disturbance (home noises) ───────────────────────────────────────────
+  door_knock: {
+    category: 'disturbance',
+    event_type: 'sound_disturbance',
+    threshold: 0.50,
+    persistence: 2,
+    debounce_ms: 60000,   // 1 minute
+    severity: 'medium',
+    whatsapp_default: false,
+  },
   dog_barking: {
     category: 'disturbance',
-    event_type: 'sound',
-    threshold: 0.15,
-    persistence: 1,
-    debounce_ms: 60000,   // 60 seconds
+    event_type: 'sound_disturbance',
+    threshold: 0.50,
+    persistence: 2,
+    debounce_ms: 120000,  // 2 minutes
     severity: 'medium',
-    whatsapp_default: true,
+    whatsapp_default: false,
+  },
+  scream: {
+    category: 'disturbance',
+    event_type: 'sound_disturbance',
+    threshold: 0.45,
+    persistence: 2,
+    debounce_ms: 60000,
+    severity: 'medium',
+    whatsapp_default: false,
   },
 
-  // ── C) Security - Help calls / screaming (MVP threshold) ──────────────────
-  scream: {
+  // ── C) Security ────────────────────────────────────────────────────────────
+  glass_breaking: {
     category: 'security',
     event_type: 'sound',
-    threshold: 0.15,
-    persistence: 2,
-    debounce_ms: 15000,   // 15 seconds
+    threshold: 0.45,
+    persistence: 1,
+    debounce_ms: 30000,
     severity: 'high',
     whatsapp_default: true,
   },
-};
-
-/**
- * Single-mode sound configuration (maps mode → YAMNet label + thresholds)
- * Used by Electron renderer for single-mode detection.
- */
-const SOUND_MODE_CONFIG = {
-  baby_cry: { yamnet_label: 'baby_crying', threshold: 0.12, persistence: 1, debounce_ms: 30000 },
-  dog_bark: { yamnet_label: 'dog_barking', threshold: 0.15, persistence: 1, debounce_ms: 60000 },
-  help:     { yamnet_label: 'scream',      threshold: 0.15, persistence: 2, debounce_ms: 15000 },
+  alarm: {
+    category: 'security',
+    event_type: 'sound',
+    threshold: 0.50,
+    persistence: 1,
+    debounce_ms: 30000,
+    severity: 'high',
+    whatsapp_default: true,
+  },
+  gunshot: {
+    category: 'security',
+    event_type: 'sound',
+    threshold: 0.40,
+    persistence: 1,
+    debounce_ms: 30000,
+    severity: 'critical',
+    whatsapp_default: true,
+  },
+  siren: {
+    category: 'security',
+    event_type: 'sound',
+    threshold: 0.50,
+    persistence: 1,
+    debounce_ms: 60000,
+    severity: 'high',
+    whatsapp_default: true,
+  },
 };
 
 // =============================================================================
@@ -88,13 +123,14 @@ const MOTION_SENSOR_DEFAULTS = {
  */
 const SOUND_SENSOR_DEFAULTS = {
   enabled: false,
-  mode: 'help',  // Single mode: baby_cry | dog_bark | help
-  targets: ['scream'], // Legacy (deprecated, use mode)
-  confidence_threshold: 0.15,
-  debounce_ms: 15000,
+  targets: ['glass_breaking', 'alarm', 'gunshot', 'scream', 'siren'],
+  // Global fallback (overridden by per-label policies)
+  confidence_threshold: 0.5,
+  debounce_ms: 60000,
   // YAMNet specific settings
   sample_rate: 16000,
   frame_length_ms: 960,
+  // RMS gate: skip near-silence frames
   rms_threshold: 0.01,
 };
 
@@ -172,15 +208,6 @@ function validateSensorConfig(config, sensorType) {
 }
 
 function mergeWithDefaults(partialConfig = {}) {
-  const soundPartial = partialConfig.sensors?.sound || {};
-  
-  // Derive mode from targets if mode is not explicitly set
-  let soundMode = soundPartial.mode;
-  if (!soundMode && Array.isArray(soundPartial.targets) && soundPartial.targets.length > 0) {
-    const targetToMode = { 'baby_crying': 'baby_cry', 'dog_barking': 'dog_bark', 'scream': 'help' };
-    soundMode = targetToMode[soundPartial.targets[0]] || 'help';
-  }
-
   return {
     monitoring_enabled: partialConfig.monitoring_enabled ?? DEFAULT_MONITORING_CONFIG.monitoring_enabled,
     sensors: {
@@ -190,8 +217,7 @@ function mergeWithDefaults(partialConfig = {}) {
       },
       sound: {
         ...SOUND_SENSOR_DEFAULTS,
-        ...soundPartial,
-        ...(soundMode ? { mode: soundMode } : {}),
+        ...(partialConfig.sensors?.sound || {}),
       },
     },
     notification_cooldown_ms: partialConfig.notification_cooldown_ms ?? DEFAULT_MONITORING_CONFIG.notification_cooldown_ms,
@@ -228,7 +254,6 @@ module.exports = {
   
   // Per-label policies
   SOUND_LABEL_POLICIES,
-  SOUND_MODE_CONFIG,
   
   // Labels
   MOTION_LABELS,

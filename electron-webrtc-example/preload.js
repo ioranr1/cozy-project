@@ -1,10 +1,9 @@
 /**
  * Electron Preload Script - Complete Implementation
  * ==================================================
- * VERSION: 2.5.0 (2026-02-11)
+ * VERSION: 2.0.2 (2026-02-07)
  * 
  * CHANGELOG:
- *  - 2.5.0: Added reportRendererError IPC for crash diagnostics guardrails
  *  - 2.0.2: Added openClipsFolder IPC channel to open local clips folder in OS file explorer
  *  - 2.0.1: Added onStartClipRecording IPC channel for clip recording from Renderer
  * 
@@ -361,25 +360,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Open the local clips folder in the OS file explorer
    * @returns {Promise<void>}
    */
-  openClipsFolder: () => ipcRenderer.invoke('open-clips-folder'),
-
-  // -------------------------------------------------------------------------
-  // v2.5.0: Renderer Error Reporting (guardrails)
-  // -------------------------------------------------------------------------
-  
-  /**
-   * Report a renderer error to main process for persistent logging
-   * @param {string} type - 'error' or 'rejection'
-   * @param {string} message
-   * @param {string} [filename]
-   * @param {number} [lineno]
-   */
-  reportRendererError: (type, message, filename, lineno) => {
-    ipcRenderer.send('renderer-error-report', { type, message, filename, lineno });
-  }
+  openClipsFolder: () => ipcRenderer.invoke('open-clips-folder')
 });
 
 // BUILD STAMP (debug)
-const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-11-crash-diag-01';
+const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-07-open-clips-01';
 console.log('[Preload] electronAPI exposed to renderer');
 console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);
