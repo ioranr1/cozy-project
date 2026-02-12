@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.7.0 (2026-02-12)
+ * VERSION: 2.7.1 (2026-02-12)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -36,11 +36,11 @@ app.commandLine.appendSwitch('disable-software-rasterizer');
 app.commandLine.appendSwitch('disable-gpu-rasterization');
 console.log('[App] ⚠️ ALL GPU paths DISABLED (crash prevention v2.6.0)');
 
-// v2.7.0: AudioServiceOutOfProcess fallback — set to true if Step A still crashes with DSP-off constraints
+// v2.7.1: AudioServiceOutOfProcess fallback — set to true if Step A still crashes with DSP-off constraints
 const ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX = true;
 if (ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX) {
   app.commandLine.appendSwitch('disable-features', 'AudioServiceOutOfProcess');
-  console.log('[App] ⚠️ AudioServiceOutOfProcess DISABLED (mic crash fallback v2.7.0)');
+  console.log('[App] ⚠️ AudioServiceOutOfProcess DISABLED (mic crash fallback v2.7.1)');
 } else {
   console.log('[App] AudioServiceOutOfProcess fallback is OFF');
 }
@@ -444,7 +444,7 @@ function createWindow() {
   awayManager.setMainWindow(mainWindow);
 
   // =========================================================================
-  // v2.7.0: DETERMINISTIC MEDIA PERMISSION HANDLERS
+  // v2.7.1: DETERMINISTIC MEDIA + CLIPBOARD PERMISSION HANDLERS
   // =========================================================================
   // Ensure getUserMedia never shows permission dialogs or gets blocked silently
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
