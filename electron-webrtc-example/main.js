@@ -74,7 +74,7 @@ function writeCrashLog(entry) {
 }
 
 // Write startup marker
-writeCrashLog(`=== APP START v2.7.0 === pid=${process.pid} platform=${process.platform} arch=${process.arch} audioServiceFix=${ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX}`);
+writeCrashLog(`=== APP START v2.7.1 === pid=${process.pid} platform=${process.platform} arch=${process.arch} audioServiceFix=${ENABLE_AUDIO_SERVICE_OUT_OF_PROCESS_FIX}`);
 
 // =============================================================================
 // CONFIGURATION
