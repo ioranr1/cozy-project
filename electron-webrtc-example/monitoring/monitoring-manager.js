@@ -1,9 +1,13 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.6.0 (2026-02-13)
+ * VERSION: 0.7.0 (2026-02-13)
  * 
  * CHANGELOG:
+ * - v0.7.0: CRITICAL FIX - Remove duplicate server reporting from manager.
+ *           The Renderer (index.html) is the SOLE reporter to events-report edge function.
+ *           Manager now only handles: clip recording trigger, debounce tracking, logging.
+ * - v0.6.0: Removed sound detection hardware activation
  * - v0.3.5: CRITICAL FIX - Add sensor preflight check to skip camera if all sensors disabled
  *           Add explicit logging for all enable/disable state transitions
  * - v0.3.4: CRITICAL FIX - Always update security_enabled=false in DB before early return in disable()
@@ -14,7 +18,7 @@
  * 
  * Manages monitoring state, configuration, and event handling.
  * Coordinates between detectors (renderer) and database (Supabase).
- * Sends events to edge function for AI validation and notifications.
+ * NOTE: Server event reporting is handled exclusively by the Renderer (index.html).
  * Triggers local clip recording for validated events.
  */
 
@@ -402,79 +406,14 @@ class MonitoringManager {
     // Update debounce tracking
     this.lastEventTime[sensor_type][label] = timestamp;
 
-    // Send event to edge function for AI validation and notifications
-    await this.reportEventToServer({
-      sensor_type,
-      label,
-      confidence,
-      timestamp,
-      metadata,
-      snapshot,
-    });
+    // NOTE: Server reporting is done by the Renderer (index.html) directly.
+    // The manager only logs and could trigger clip recording if needed via separate IPC.
+    console.log(`[MonitoringManager] Event accepted: ${sensor_type}/${label} (will be reported by renderer)`);
   }
 
-  /**
-   * Report event to edge function for AI validation and notifications
-   */
-  async reportEventToServer(eventData) {
-    if (!this.deviceId || !this.deviceAuthToken) {
-      console.warn('[MonitoringManager] Missing device ID or auth token, skipping server report');
-      return null;
-    }
-
-    const { sensor_type, label, confidence, timestamp, metadata, snapshot } = eventData;
-
-    try {
-      console.log(`[MonitoringManager] Reporting event to server...`);
-
-      const response = await fetch(EVENTS_REPORT_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-device-token': this.deviceAuthToken,
-        },
-        body: JSON.stringify({
-          device_id: this.deviceId,
-          event_type: sensor_type,
-          labels: [{ label, confidence }],
-          snapshot: snapshot || null,
-          timestamp,
-          metadata: metadata || {},
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[MonitoringManager] Server error: ${response.status} - ${errorText}`);
-        return null;
-      }
-
-      const result = await response.json();
-      
-      console.log(`[MonitoringManager] Server response:`, {
-        event_id: result.event_id,
-        ai_is_real: result.ai_is_real,
-        ai_confidence: result.ai_confidence,
-        notification_sent: result.notification_sent,
-      });
-
-      // If event is validated as real, trigger local clip recording via IPC
-      // CRITICAL: Recording must happen in the Renderer (where MediaRecorder + camera stream live)
-      if (result.ai_is_real && this.mainWindow && !this.mainWindow.isDestroyed()) {
-        const durationSeconds = this.config?.clips?.clip_duration_seconds || 10;
-        console.log(`[MonitoringManager] Triggering clip recording via IPC (event: ${result.event_id}, ${durationSeconds}s)...`);
-        this.mainWindow.webContents.send('start-clip-recording', {
-          eventId: result.event_id,
-          durationSeconds,
-        });
-      }
-
-      return result;
-    } catch (error) {
-      console.error('[MonitoringManager] Failed to report event:', error);
-      return null;
-    }
-  }
+  // NOTE: reportEventToServer() has been REMOVED in v0.7.0.
+  // The Renderer (index.html) is the sole reporter to the events-report edge function.
+  // This eliminates the duplicate reporting that caused snapshot-less events.
 
   // ===========================================================================
   // STATUS
