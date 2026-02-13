@@ -1,7 +1,12 @@
 /**
  * Events Report Edge Function
  * ============================
- * VERSION: 2.1.0 (2026-02-13)
+ * VERSION: 2.2.0 (2026-02-13)
+ * 
+ * Changes in 2.2.0:
+ * - Fixed snapshot race condition: when a debounced event has a snapshot but the
+ *   existing event doesn't, update the existing event with the snapshot and
+ *   trigger AI validation + WhatsApp notification.
  * 
  * Changes in 2.1.0:
  * - Added server-side debounce: rejects motion events if a recent event exists
@@ -234,7 +239,7 @@ serve(async (req) => {
       const debounceThreshold = new Date(Date.now() - SERVER_DEBOUNCE_MS).toISOString();
       const { data: recentEvent } = await supabase
         .from('monitoring_events')
-        .select('id, created_at')
+        .select('id, created_at, snapshot_url')
         .eq('device_id', device_id)
         .eq('event_type', 'motion')
         .gte('created_at', debounceThreshold)
@@ -243,6 +248,36 @@ serve(async (req) => {
         .maybeSingle();
 
       if (recentEvent) {
+        // If this request has a snapshot and the existing event doesn't, update it
+        if (snapshotUrl && !recentEvent.snapshot_url) {
+          console.log(`[events-report] SERVER DEBOUNCE - but updating snapshot on existing event ${recentEvent.id}`);
+          await supabase
+            .from('monitoring_events')
+            .update({ snapshot_url: snapshotUrl })
+            .eq('id', recentEvent.id);
+
+          // Now proceed with this event as if it's the original (for notification purposes)
+          // We rewrite eventRecord reference below, so we skip insert and reuse the existing event
+          // Return a special marker to trigger notification flow for the updated event
+          return await handleSnapshotUpdateAndNotify({
+            supabase,
+            eventId: recentEvent.id,
+            deviceId: device_id,
+            profileId: device.profile_id,
+            eventType: event_type,
+            labels,
+            severity,
+            snapshotUrl,
+            snapshot,
+            metadata,
+            timestamp,
+            LOVABLE_API_KEY,
+            WHATSAPP_ACCESS_TOKEN,
+            WHATSAPP_PHONE_NUMBER_ID,
+            corsHeaders,
+          });
+        }
+
         console.log(`[events-report] SERVER DEBOUNCE - motion event rejected for device ${device_id}, recent event ${recentEvent.id} at ${recentEvent.created_at}`);
         return new Response(JSON.stringify({
           success: false,
@@ -637,6 +672,149 @@ serve(async (req) => {
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// =============================================================================
+// handleSnapshotUpdateAndNotify
+// Called when a snapshot-bearing event hits server debounce but the existing
+// event has no snapshot. Updates the event with snapshot, runs AI, sends WhatsApp.
+// =============================================================================
+async function handleSnapshotUpdateAndNotify(opts: {
+  supabase: any;
+  eventId: string;
+  deviceId: string;
+  profileId: string;
+  eventType: string;
+  labels: any[];
+  severity: string;
+  snapshotUrl: string;
+  snapshot: string;
+  metadata: any;
+  timestamp: any;
+  LOVABLE_API_KEY: string;
+  WHATSAPP_ACCESS_TOKEN: string | undefined;
+  WHATSAPP_PHONE_NUMBER_ID: string | undefined;
+  corsHeaders: Record<string, string>;
+}): Promise<Response> {
+  const {
+    supabase, eventId, deviceId, profileId, eventType, labels, severity,
+    snapshotUrl, snapshot, metadata, timestamp,
+    LOVABLE_API_KEY, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, corsHeaders,
+  } = opts;
+
+  // Get profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('phone_number, country_code, full_name, preferred_language, phone_verified')
+    .eq('id', profileId)
+    .single();
+
+  const userLanguage = profile?.preferred_language || 'he';
+
+  // Re-run AI validation with the snapshot
+  let aiIsReal = true;
+  let aiSummary = '';
+  let aiConfidence = 0.5;
+
+  try {
+    const aiResult = await validateWithAI({
+      eventType,
+      labels,
+      snapshotUrl,
+      snapshot,
+      apiKey: LOVABLE_API_KEY,
+      language: userLanguage,
+      metadata,
+    });
+    aiIsReal = aiResult.isReal;
+    aiSummary = aiResult.summary;
+    aiConfidence = aiResult.confidence;
+    console.log(`[events-report] Snapshot-update AI re-validation: isReal=${aiIsReal}, confidence=${aiConfidence}`);
+  } catch (aiError) {
+    console.error('[events-report] Snapshot-update AI error:', aiError);
+    aiSummary = userLanguage === 'he' ? 'אימות AI לא זמין' : 'AI validation unavailable';
+  }
+
+  // Update event with AI results + snapshot
+  await supabase
+    .from('monitoring_events')
+    .update({
+      snapshot_url: snapshotUrl,
+      ai_validated: true,
+      ai_is_real: aiIsReal,
+      ai_summary: aiSummary,
+      ai_confidence: aiConfidence,
+      ai_validated_at: new Date().toISOString(),
+      severity: aiIsReal ? severity : 'low',
+    })
+    .eq('id', eventId);
+
+  // Send WhatsApp if real
+  if (aiIsReal && WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID && profile?.phone_verified) {
+    // Check throttle - any active unviewed event?
+    const { data: activeEvent } = await supabase
+      .from('monitoring_events')
+      .select('id')
+      .eq('device_id', deviceId)
+      .eq('notification_sent', true)
+      .eq('ai_is_real', true)
+      .is('viewed_at', null)
+      .neq('id', eventId) // exclude current event
+      .limit(1)
+      .maybeSingle();
+
+    if (!activeEvent?.id) {
+      const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
+      try {
+        const whatsappResult = await sendWhatsAppNotification({
+          phoneNumber: recipientPhone,
+          eventType,
+          labels,
+          severity,
+          aiSummary,
+          accessToken: WHATSAPP_ACCESS_TOKEN,
+          phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
+          language: userLanguage,
+          eventId,
+        });
+
+        console.log(`[events-report] WhatsApp sent for snapshot-updated event ${eventId}`);
+
+        await supabase
+          .from('monitoring_events')
+          .update({
+            notification_sent: true,
+            notification_sent_at: new Date().toISOString(),
+            notification_type: 'whatsapp',
+          })
+          .eq('id', eventId);
+
+        await supabase
+          .from('device_notification_state')
+          .upsert({
+            device_id: deviceId,
+            last_whatsapp_sent_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'device_id' });
+      } catch (waError) {
+        console.error('[events-report] Snapshot-update WhatsApp failed:', waError);
+      }
+    } else {
+      console.log(`[events-report] Snapshot-update throttled - active event exists for device ${deviceId}`);
+    }
+  }
+
+  return new Response(JSON.stringify({
+    success: true,
+    event_id: eventId,
+    snapshot_updated: true,
+    ai_is_real: aiIsReal,
+    ai_confidence: aiConfidence,
+    notification_sent: aiIsReal,
+  }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
 
 function getSeverityRank(severity: string): number {
   const ranks: Record<string, number> = {
