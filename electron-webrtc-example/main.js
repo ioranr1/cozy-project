@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.5.1 (2026-02-13)
+ * VERSION: 2.6.0 (2026-02-13)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -339,9 +339,14 @@ function createWindow() {
 // TRAY SETUP
 // =============================================================================
 
-// Cached nativeImage for tray – used as fallback if any setImage/setContextMenu
-// causes the icon to go blank on Windows.
+// Cached nativeImage for tray – set ONCE in initTray, never changed at runtime.
 let _cachedTrayIcon = null;
+
+// Throttle state for updateTrayMenu – prevents rapid rebuilds that cause
+// the Windows tray icon to flash black.
+let _lastTrayMenuHash = '';
+let _lastTrayMenuTime = 0;
+const TRAY_UPDATE_MIN_INTERVAL_MS = 1500; // minimum 1.5s between updates
 
 function getIconPath() {
   // On Windows, strongly prefer ICO (with proper multi-size + alpha).
@@ -478,7 +483,7 @@ function initTray() {
 
     tray = new Tray(icon);
     tray.setToolTip(t('trayTooltip'));
-    updateTrayMenu();
+    updateTrayMenu('initTray');
     trayAvailable = true;
 
     tray.on('click', () => {
@@ -495,12 +500,38 @@ function initTray() {
   }
 }
 
-function updateTrayMenu() {
+function updateTrayMenu(caller = 'unknown') {
   if (!tray) return;
 
+  const now = Date.now();
   const liveStatus = liveViewState.isActive ? t('trayStatusLive') : t('trayStatusIdle');
   const awayStatus = awayManager.getTrayStatus();
   const modeStatus = awayStatus.statusText;
+
+  // Build a hash of the menu content – skip rebuild if nothing changed
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}`;
+
+  if (menuHash === _lastTrayMenuHash && (now - _lastTrayMenuTime) < TRAY_UPDATE_MIN_INTERVAL_MS) {
+    // Content unchanged AND too soon – skip entirely
+    return;
+  }
+
+  // Throttle: even if content changed, don't rebuild faster than the interval
+  if (now - _lastTrayMenuTime < TRAY_UPDATE_MIN_INTERVAL_MS) {
+    // Schedule a deferred update so the change isn't lost
+    if (!updateTrayMenu._deferred) {
+      updateTrayMenu._deferred = setTimeout(() => {
+        updateTrayMenu._deferred = null;
+        updateTrayMenu(caller + '-deferred');
+      }, TRAY_UPDATE_MIN_INTERVAL_MS);
+    }
+    return;
+  }
+
+  _lastTrayMenuHash = menuHash;
+  _lastTrayMenuTime = now;
+
+  console.log(`[Tray] updateTrayMenu called by: ${caller} | hash: ${menuHash}`);
 
   const contextMenu = Menu.buildFromTemplate([
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
@@ -513,15 +544,10 @@ function updateTrayMenu() {
   tray.setContextMenu(contextMenu);
   tray.setToolTip(`${t('trayTooltip')} - ${liveStatus}`);
 
-  // SAFETY: After setContextMenu, verify the icon is still valid on Windows.
-  // Some Windows builds cause the icon to go blank after context menu rebuild.
-  if (process.platform === 'win32' && _cachedTrayIcon) {
-    try {
-      tray.setImage(_cachedTrayIcon);
-    } catch (e) {
-      console.warn('[Tray] Failed to re-apply cached icon:', e?.message);
-    }
-  }
+  // REMOVED: tray.setImage() after setContextMenu.
+  // The icon is set ONCE in initTray() and never touched again at runtime.
+  // Calling setImage during context menu rebuilds was causing the Windows
+  // tray icon to flash black.
 }
 
 // =============================================================================
@@ -1273,7 +1299,7 @@ async function startNewSession(session) {
   liveViewState.currentSessionId = session.id;
   liveViewState.isActive = false;
   liveViewState.offerSentForSessionId = null;
-  updateTrayMenu();
+  updateTrayMenu('live-view-start-reset');
 
   console.log('[RTC] Starting live view for session:', session.id);
   // Tell renderer to start WebRTC
@@ -1362,7 +1388,7 @@ async function handleStopLiveView() {
   liveViewState.isCleaningUp = true;
   liveViewState.isActive = false;
   liveViewState.currentSessionId = null;
-  updateTrayMenu();
+  updateTrayMenu('live-view-stop');
 
   // Tell renderer to stop WebRTC
   mainWindow?.webContents.send('stop-live-view');
@@ -1447,7 +1473,7 @@ function setupIpcHandlers() {
     liveViewState.isActive = true;
     liveViewState.currentSessionId = sessionId;
     liveViewState.offerSentForSessionId = sessionId;
-    updateTrayMenu();
+    updateTrayMenu('offer-sent');
     rtcIpcEvents.emit('offer-sent', sessionId);
   });
 
@@ -1461,7 +1487,7 @@ function setupIpcHandlers() {
     liveViewState.offerSentForSessionId = null;
     // If a start failed, we must allow immediate retries (don't stay in cleanup mode).
     liveViewState.isCleaningUp = false;
-    updateTrayMenu();
+    updateTrayMenu('rtc-start-failed');
 
     // Best-effort: ask renderer to stop in case it partially acquired hardware.
     try {
@@ -1478,7 +1504,7 @@ function setupIpcHandlers() {
     liveViewState.isActive = false;
     liveViewState.currentSessionId = null;
     liveViewState.offerSentForSessionId = null;
-    updateTrayMenu();
+    updateTrayMenu('rtc-ended');
   });
   
   // CRITICAL: Cleanup coordination signals from renderer
@@ -1621,7 +1647,7 @@ function setupIpcHandlers() {
   // Language
   ipcMain.handle('set-language', (lang) => {
     currentLanguage = lang;
-    updateTrayMenu();
+    updateTrayMenu('set-language');
   });
 
   // -------------------------------------------------------------------------
@@ -1800,7 +1826,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-13-v2.5.1-tray-icon-fix');
+console.log('[Main] BUILD ID: main-js-2026-02-13-v2.6.0-tray-throttle');
 console.log('[Main] SOUND_DETECTION_ENABLED:', SOUND_DETECTION_ENABLED);
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
