@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.8.3 (2026-02-13)
+ * VERSION: 2.8.4 (2026-02-13)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -517,17 +517,44 @@ function initTray() {
     }
     console.log(`[Tray:Diag] Non-zero bytes in first 1024: ${nonZeroCount} (0 = fully black/transparent)`);
 
-    // Resize to 16x16 for Windows system tray (256x256 renders as black)
-    const trayIcon = icon.resize({ width: 16, height: 16 });
+    // Resize to 16x16 for Windows system tray
+    let trayIcon = icon.resize({ width: 16, height: 16 });
     console.log(`[Tray:Diag] Resized icon to 16x16, isEmpty: ${trayIcon.isEmpty()}`);
     
-    // Check resized bitmap
+    // Check resized bitmap quality
     const resizedBmp = trayIcon.toBitmap();
     let resizedNonZero = 0;
     for (let i = 0; i < resizedBmp.length; i++) {
       if (resizedBmp[i] !== 0) resizedNonZero++;
     }
     console.log(`[Tray:Diag] Resized bitmap: ${resizedBmp.length} bytes, non-zero: ${resizedNonZero}`);
+
+    // CRITICAL FIX v2.8.4: If resized icon has too few non-zero bytes,
+    // the .ico is rendering as black. Use programmatic icon instead.
+    const MIN_NONZERO_THRESHOLD = 100; // 16x16 RGBA = 1024 bytes, need at least ~10%
+    if (resizedNonZero < MIN_NONZERO_THRESHOLD) {
+      console.warn(`[Tray] Resized icon is nearly black (${resizedNonZero} non-zero bytes). Switching to programmatic icon.`);
+      const size = 16;
+      const canvas = Buffer.alloc(size * size * 4);
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const cx = x - size / 2 + 0.5;
+          const cy = y - size / 2 + 0.5;
+          const dist = Math.sqrt(cx * cx + cy * cy);
+          const idx = (y * size + x) * 4;
+          if (dist < size / 2 - 1) {
+            canvas[idx] = 66;     // R
+            canvas[idx + 1] = 133; // G
+            canvas[idx + 2] = 244; // B
+            canvas[idx + 3] = 255; // A
+          } else {
+            canvas[idx + 3] = 0; // transparent
+          }
+        }
+      }
+      trayIcon = nativeImage.createFromBuffer(canvas, { width: size, height: size });
+      console.log(`[Tray] Programmatic fallback icon created (16x16 blue circle)`);
+    }
 
     // Cache the working icon for safety
     _cachedTrayIcon = trayIcon;
