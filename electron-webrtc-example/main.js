@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.8.4 (2026-02-13)
+ * VERSION: 2.14.0 (2026-02-13)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -32,7 +32,7 @@ const AwayManager = require('./away/away-manager');
 
 // NEW: Import Monitoring system
 const MonitoringManager = require('./monitoring/monitoring-manager');
-const SoundManager = require('./sound/sound-manager');
+// Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
 const LocalClipRecorder = require('./monitoring/local-clip-recorder');
 const fs = require('fs');
 
@@ -52,12 +52,7 @@ const awayManager = new AwayManager({ supabase });
 // Initialize MonitoringManager
 const monitoringManager = new MonitoringManager({ supabase });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SOUND DETECTION (ISOLATED - does NOT interact with camera/motion/WebRTC)
-// Feature flag: set to true to enable sound detection
-// ═══════════════════════════════════════════════════════════════════════════════
-const SOUND_DETECTION_ENABLED = false;
-const soundManager = new SoundManager({ supabase, featureEnabled: SOUND_DETECTION_ENABLED });
+// Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
 
 // Clips folder path (initialized on startup)
 let clipsPath = null;
@@ -1168,28 +1163,7 @@ async function handleCommand(command) {
         console.log('[Commands] ✅ Monitoring disabled');
         break;
 
-      // ═══════════════════════════════════════════════════════════════════════
-      // SOUND DETECTION (ISOLATED) - Does NOT affect camera/motion/WebRTC
-      // ═══════════════════════════════════════════════════════════════════════
-      case 'START_SOUND_DETECTION':
-        console.log('[Commands] Processing START_SOUND_DETECTION command');
-        const soundStartResult = await soundManager.start();
-        if (!soundStartResult.success) {
-          console.error('[Commands] ❌ Sound detection start failed:', soundStartResult.error);
-          throw new Error(soundStartResult.error || 'Sound detection start failed');
-        }
-        console.log('[Commands] ✅ Sound detection started');
-        break;
-
-      case 'STOP_SOUND_DETECTION':
-        console.log('[Commands] Processing STOP_SOUND_DETECTION command');
-        const soundStopResult = soundManager.stop();
-        if (!soundStopResult.success) {
-          console.error('[Commands] ❌ Sound detection stop failed:', soundStopResult.error);
-          throw new Error(soundStopResult.error || 'Sound detection stop failed');
-        }
-        console.log('[Commands] ✅ Sound detection stopped');
-        break;
+      // Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
 
 
 
@@ -1852,38 +1826,7 @@ function setupIpcHandlers() {
     console.log('[IPC] Monitoring status:', status);
   });
 
-  // =========================================================================
-  // Sound Detection IPC handlers (ISOLATED)
-  // =========================================================================
-
-  ipcMain.on('sound-started', (event, status) => {
-    console.log('[IPC] SOUND_WORKLET_LOADED:', status);
-    soundManager.onRendererStarted(status);
-  });
-
-  ipcMain.on('sound-stopped', (event) => {
-    console.log('[IPC] Sound stopped');
-    soundManager.onRendererStopped();
-  });
-
-  ipcMain.on('sound-error', (event, error) => {
-    console.error('[IPC] Sound error:', error);
-    soundManager.onRendererError(error);
-  });
-
-  ipcMain.on('sound-level', (event, data) => {
-    // High frequency - don't log unless debugging
-    soundManager.onRendererLevel(data);
-  });
-
-  ipcMain.on('sound-event', async (event, eventData) => {
-    console.log('[IPC] SOUND_EVENT_TRIGGERED:', eventData);
-    await soundManager.handleSoundEvent(eventData);
-  });
-
-  ipcMain.handle('get-sound-status', () => {
-    return soundManager.getStatus();
-  });
+  // Sound detection IPC handlers removed (v2.14.0) - replaced by Baby Monitor mode
 
   // -------------------------------------------------------------------------
   // Clip Recording IPC handlers
@@ -1996,10 +1939,7 @@ app.whenReady().then(async () => {
     });
     monitoringManager.setClipRecorder(clipRecorder);
 
-    // Initialize SoundManager (ISOLATED from monitoring)
-    soundManager.setDeviceId(deviceId);
-    soundManager.setDeviceAuthToken(monitoringManager.deviceAuthToken);
-    soundManager.setMainWindow(mainWindow);
+    // Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
   }
 
   // If we have a stored device, start subscriptions
