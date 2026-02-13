@@ -6,7 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useDevices } from '@/hooks/useDevices';
-import { MonitoringSettingsDialog, MonitoringSettings, DEFAULT_SOUND_TARGETS, SoundTarget } from '@/components/MonitoringSettingsDialog';
+import { MonitoringSettingsDialog, MonitoringSettings } from '@/components/MonitoringSettingsDialog';
 import { getSessionToken } from '@/hooks/useSession';
 
 interface DeviceStatus {
@@ -16,6 +16,7 @@ interface DeviceStatus {
   device_mode: string;
   motion_enabled: boolean;
   sound_enabled: boolean;
+  baby_monitor_enabled: boolean;
   security_enabled: boolean;
   last_command: string | null;
   updated_at: string;
@@ -26,12 +27,6 @@ export interface SecurityArmToggleProps {
   disabled?: boolean;
 }
 
-/**
- * Security/Monitoring Toggle Card
- * - When toggled ON: Opens settings dialog, ensures Away Mode is active
- * - Motion detection ON by default, Sound OFF by default
- * - Monitoring requires Away Mode to be active
- */
 export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className, disabled = false }) => {
   const { language, isRTL } = useLanguage();
   const [isArmed, setIsArmed] = useState(false);
@@ -46,13 +41,10 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
   const [securityEnabled, setSecurityEnabled] = useState(false);
   const [monitoringSettings, setMonitoringSettings] = useState<MonitoringSettings>({
     motionEnabled: false,
-    soundEnabled: false,
-    soundTargets: [...DEFAULT_SOUND_TARGETS],
+    babyMonitorEnabled: false,
   });
-  // Track the DB-stored settings to detect changes while armed
-  const armedSettingsRef = useRef<{ motionEnabled: boolean; soundEnabled: boolean } | null>(null);
+  const armedSettingsRef = useRef<{ motionEnabled: boolean; babyMonitorEnabled: boolean } | null>(null);
 
-  // Get profile ID and selected device dynamically
   const profileId = useMemo(() => {
     const stored = localStorage.getItem('userProfile');
     if (stored) {
@@ -105,7 +97,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     [deviceId, language]
   );
 
-  // Fetch initial status and sync commands
   const fetchStatus = useCallback(async () => {
     if (!deviceId) {
       setIsLoading(false);
@@ -127,12 +118,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       if (data) {
         const status = data as DeviceStatus;
         
-        // Check if is_armed but security_enabled is false - means command never reached Electron
-        // This can happen if state was set before the Edge Function logic was deployed
         if (status.is_armed && !status.security_enabled) {
-          console.log('[SecurityArmToggle] ⚠️ State mismatch detected: is_armed=true but security_enabled=false');
-          
-          // Check if SET_MONITORING:ON command exists
           const { data: cmdData } = await supabase
             .from('commands')
             .select('id')
@@ -142,8 +128,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
             .limit(1);
           
           if (!cmdData || cmdData.length === 0) {
-            console.log('[SecurityArmToggle] 🔄 No SET_MONITORING:ON found, resetting is_armed to false');
-            // Reset is_armed since the command was never sent
             await supabase
               .from('device_status')
               .update({ is_armed: false })
@@ -158,29 +142,16 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         
         setSecurityEnabled(status.security_enabled ?? false);
         
-        // Fetch sound targets from monitoring_config
-        const { data: configData } = await supabase
-          .from('monitoring_config')
-          .select('config')
-          .eq('device_id', deviceId)
-          .maybeSingle();
-        
-        const config = configData?.config as Record<string, any> | null;
-        const soundTargets = config?.sensors?.sound?.targets as SoundTarget[] | undefined;
-        
         const motionVal = status.motion_enabled ?? true;
-        const soundVal = status.sound_enabled ?? false;
+        const babyVal = status.baby_monitor_enabled ?? false;
         setMonitoringSettings({
           motionEnabled: motionVal,
-          soundEnabled: soundVal,
-          soundTargets: soundTargets && soundTargets.length > 0 ? soundTargets : [...DEFAULT_SOUND_TARGETS],
+          babyMonitorEnabled: babyVal,
         });
-        // Store armed settings for change detection
         if (status.is_armed) {
-          armedSettingsRef.current = { motionEnabled: motionVal, soundEnabled: soundVal };
+          armedSettingsRef.current = { motionEnabled: motionVal, babyMonitorEnabled: babyVal };
         }
       } else {
-        // No status record exists - create one
         console.log('[SecurityArmToggle] No status found, creating initial record');
         const { error: insertError } = await supabase
           .from('device_status')
@@ -190,6 +161,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
             last_command: 'STANDBY',
             motion_enabled: false,
             sound_enabled: false,
+            baby_monitor_enabled: false,
           });
         
         if (insertError) {
@@ -203,16 +175,12 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     }
   }, [deviceId]);
 
-  // Subscribe to realtime changes
   useEffect(() => {
     if (!deviceId) return;
 
     fetchStatus();
 
-    // Realtime subscription for status changes - unique channel name per device
     const channelName = `security_arm_status_${deviceId}`;
-    console.log('[SecurityArmToggle] Setting up Realtime subscription:', channelName);
-    
     const channel = supabase
       .channel(channelName)
       .on(
@@ -228,60 +196,41 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           const newStatus = payload.new as DeviceStatus;
           setIsArmed(newStatus.is_armed);
           setSecurityEnabled(newStatus.security_enabled ?? false);
-          // Only sync sensor settings from DB when dialog is CLOSED
-          // Otherwise we'd overwrite the user's in-progress selections
           if (!showSettingsDialogRef.current) {
             setMonitoringSettings(prev => ({
               motionEnabled: newStatus.motion_enabled ?? true,
-              soundEnabled: newStatus.sound_enabled ?? false,
-              soundTargets: prev.soundTargets,
+              babyMonitorEnabled: newStatus.baby_monitor_enabled ?? false,
             }));
           }
         }
       )
-      .subscribe((status) => {
-        console.log('[SecurityArmToggle] Subscription status:', status);
-      });
+      .subscribe();
 
     return () => {
-      console.log('[SecurityArmToggle] Cleaning up subscription');
       supabase.removeChannel(channel);
     };
   }, [fetchStatus, deviceId]);
 
-  // Re-sync sensor settings from DB when dialog closes (catches any missed Realtime updates)
   useEffect(() => {
     if (!showSettingsDialog && deviceId) {
       fetchStatus();
     }
   }, [showSettingsDialog, deviceId, fetchStatus]);
 
-  // Check and activate Away Mode if needed
   const ensureAwayModeActive = async (): Promise<boolean> => {
     if (!deviceId) return false;
 
     try {
-      // Check current device_mode
       const { data: statusData, error: statusError } = await supabase
         .from('device_status')
         .select('device_mode')
         .eq('device_id', deviceId)
         .maybeSingle();
 
-      if (statusError) {
-        console.error('[SecurityArmToggle] Error checking device_mode:', statusError);
-        return false;
-      }
+      if (statusError) return false;
 
-      // If already in AWAY mode, we're good
-      if (statusData?.device_mode === 'AWAY') {
-        console.log('[SecurityArmToggle] Away mode already active');
-        return true;
-      }
+      if (statusData?.device_mode === 'AWAY') return true;
 
-      // Need to activate Away Mode first
-      console.log('[SecurityArmToggle] Activating Away mode automatically...');
-      
       const { error: awayError } = await supabase
         .from('device_status')
         .update({
@@ -292,7 +241,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         .eq('device_id', deviceId);
 
       if (awayError) {
-        console.error('[SecurityArmToggle] Error activating Away mode:', awayError);
         toast.error(language === 'he' ? 'שגיאה בהפעלת מצב Away' : 'Failed to activate Away Mode');
         return false;
       }
@@ -302,75 +250,64 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           ? '🌙 מצב Away הופעל אוטומטית' 
           : '🌙 Away Mode activated automatically'
       );
-
       return true;
-    } catch (err) {
-      console.error('[SecurityArmToggle] Unexpected error ensuring Away mode:', err);
+    } catch {
       return false;
     }
   };
 
-  // Handle toggle click - opens dialog for activation
   const handleToggleClick = (checked: boolean) => {
     if (disabled) {
       toast.error(language === 'he' ? 'המחשב לא מחובר' : 'Computer offline');
       return;
     }
-
     if (!deviceId) {
       toast.error(language === 'he' ? 'לא נבחר מכשיר' : 'No device selected');
       return;
     }
-
     if (checked) {
-      // Opening - reset sensors to OFF so user explicitly chooses what to monitor
       setMonitoringSettings(prev => ({
         ...prev,
         motionEnabled: false,
-        soundEnabled: false,
+        babyMonitorEnabled: false,
       }));
       setShowSettingsDialogWrapped(true);
     } else {
-      // Closing - directly disarm
       handleDisarm();
     }
   };
 
-  // Confirm activation with settings
   const handleConfirmActivation = async () => {
     if (!deviceId) return;
 
     setIsUpdating(true);
 
     try {
-      // Step 1: Ensure Away Mode is active
       const awayOk = await ensureAwayModeActive();
       if (!awayOk) {
         setIsUpdating(false);
         return;
       }
 
-      // Step 2: Update device_status with armed state and sensor settings
       const { error: statusError } = await supabase
         .from('device_status')
         .update({
           is_armed: true,
           motion_enabled: monitoringSettings.motionEnabled,
-          sound_enabled: monitoringSettings.soundEnabled,
+          sound_enabled: false, // Sound detection removed
+          baby_monitor_enabled: monitoringSettings.babyMonitorEnabled,
           last_command: 'ARM',
           last_command_at: new Date().toISOString(),
         })
         .eq('device_id', deviceId);
 
       if (statusError) {
-        console.error('[SecurityArmToggle] Error updating status:', statusError);
         toast.error(language === 'he' ? 'שגיאה בהפעלת הניטור' : 'Failed to activate monitoring');
         return;
       }
 
-      // Step 2b: ALWAYS update monitoring_config so Electron reads correct sensor state
       if (profileId) {
-        const { error: configError } = await supabase
+        await supabase
           .from('monitoring_config')
           .upsert({
             device_id: deviceId,
@@ -379,7 +316,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
               monitoring_enabled: true,
               ai_validation_enabled: true,
               notification_cooldown_ms: 60000,
-              
+              baby_monitor_enabled: monitoringSettings.babyMonitorEnabled,
               sensors: {
                 motion: {
                   enabled: monitoringSettings.motionEnabled,
@@ -388,8 +325,8 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
                   debounce_ms: 3000,
                 },
                 sound: {
-                  enabled: monitoringSettings.soundEnabled,
-                  targets: monitoringSettings.soundTargets,
+                  enabled: false,
+                  targets: [],
                   confidence_threshold: 0.6,
                   debounce_ms: 2000,
                 },
@@ -397,36 +334,30 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
             },
             updated_at: new Date().toISOString(),
           }, { onConflict: 'device_id' });
+      }
 
-        if (configError) {
-          console.error('[SecurityArmToggle] Error updating monitoring_config:', configError);
+      // Only send monitoring command if motion is enabled (baby monitor uses existing WebRTC)
+      if (monitoringSettings.motionEnabled) {
+        const commandId = await sendMonitoringCommand('SET_MONITORING:ON');
+        if (!commandId) {
+          await supabase
+            .from('device_status')
+            .update({ is_armed: false })
+            .eq('device_id', deviceId);
+          toast.error(language === 'he' ? 'שגיאה בשליחת פקודה למכשיר' : 'Failed to send command to device');
+          return;
         }
       }
 
-      // Step 3: CRITICAL - Send SET_MONITORING:ON via Edge Function (RLS-safe)
-      const commandId = await sendMonitoringCommand('SET_MONITORING:ON');
-      if (!commandId) {
-        console.error('[SecurityArmToggle] Failed to send SET_MONITORING:ON');
-        // Revert status since command failed
-        await supabase
-          .from('device_status')
-          .update({ is_armed: false })
-          .eq('device_id', deviceId);
-        toast.error(language === 'he' ? 'שגיאה בשליחת פקודה למכשיר' : 'Failed to send command to device');
-        return;
-      }
-
-      console.log('[SecurityArmToggle] ✅ SET_MONITORING:ON command sent', { commandId });
       setIsArmed(true);
       setShowSettingsDialogWrapped(false);
 
-      // Build toast message based on active sensors
       const sensors = [];
       if (monitoringSettings.motionEnabled) {
         sensors.push(language === 'he' ? 'תנועה' : 'Motion');
       }
-      if (monitoringSettings.soundEnabled) {
-        sensors.push(language === 'he' ? 'קול' : 'Sound');
+      if (monitoringSettings.babyMonitorEnabled) {
+        sensors.push(language === 'he' ? 'ניטור תינוק' : 'Baby Monitor');
       }
 
       toast.success(
@@ -442,38 +373,33 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     }
   };
 
-  // Disarm monitoring
   const handleDisarm = async () => {
     if (!deviceId) return;
 
     setIsUpdating(true);
-    setShowSettingsDialogWrapped(false); // Close dialog immediately
+    setShowSettingsDialogWrapped(false);
 
     try {
-      // Step 1: Update device_status - MUST disable sensors to stop Electron immediately
       const { error: statusError } = await supabase
         .from('device_status')
         .update({
           is_armed: false,
           motion_enabled: false,
           sound_enabled: false,
+          baby_monitor_enabled: false,
           last_command: 'DISARM',
           last_command_at: new Date().toISOString(),
         })
         .eq('device_id', deviceId);
 
       if (statusError) {
-        console.error('[SecurityArmToggle] Error updating status:', statusError);
         toast.error(language === 'he' ? 'שגיאה בכיבוי הניטור' : 'Failed to disarm monitoring');
         return;
       }
 
-      // Step 2: CRITICAL - Send SET_MONITORING:OFF via Edge Function (RLS-safe)
       const commandId = await sendMonitoringCommand('SET_MONITORING:OFF');
       if (!commandId) {
         console.error('[SecurityArmToggle] Failed to send SET_MONITORING:OFF');
-      } else {
-        console.log('[SecurityArmToggle] ✅ SET_MONITORING:OFF command sent', { commandId });
       }
 
       setIsArmed(false);
@@ -486,30 +412,27 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     }
   };
 
-  // Update settings while system is armed (without deactivating)
   const handleUpdateSettings = async () => {
     if (!deviceId) return;
 
     setIsUpdating(true);
     try {
-      // Update device_status with new sensor settings
       const { error: statusError } = await supabase
         .from('device_status')
         .update({
           motion_enabled: monitoringSettings.motionEnabled,
-          sound_enabled: monitoringSettings.soundEnabled,
+          sound_enabled: false,
+          baby_monitor_enabled: monitoringSettings.babyMonitorEnabled,
           last_command: 'UPDATE_SENSORS',
           last_command_at: new Date().toISOString(),
         })
         .eq('device_id', deviceId);
 
       if (statusError) {
-        console.error('[SecurityArmToggle] Error updating sensor settings:', statusError);
         toast.error(language === 'he' ? 'שגיאה בעדכון הגדרות' : 'Failed to update settings');
         return;
       }
 
-      // Update monitoring_config
       if (profileId) {
         await supabase
           .from('monitoring_config')
@@ -520,6 +443,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
               monitoring_enabled: true,
               ai_validation_enabled: true,
               notification_cooldown_ms: 60000,
+              baby_monitor_enabled: monitoringSettings.babyMonitorEnabled,
               sensors: {
                 motion: {
                   enabled: monitoringSettings.motionEnabled,
@@ -528,8 +452,8 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
                   debounce_ms: 3000,
                 },
                 sound: {
-                  enabled: monitoringSettings.soundEnabled,
-                  targets: monitoringSettings.soundTargets,
+                  enabled: false,
+                  targets: [],
                   confidence_threshold: 0.6,
                   debounce_ms: 2000,
                 },
@@ -539,23 +463,23 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           }, { onConflict: 'device_id' });
       }
 
-      // Send command so Electron reloads config
-      const commandId = await sendMonitoringCommand('SET_MONITORING:ON');
-      if (!commandId) {
-        console.warn('[SecurityArmToggle] Failed to send reload command');
+      if (monitoringSettings.motionEnabled) {
+        const commandId = await sendMonitoringCommand('SET_MONITORING:ON');
+        if (!commandId) {
+          console.warn('[SecurityArmToggle] Failed to send reload command');
+        }
       }
 
-      // Update ref
       armedSettingsRef.current = {
         motionEnabled: monitoringSettings.motionEnabled,
-        soundEnabled: monitoringSettings.soundEnabled,
+        babyMonitorEnabled: monitoringSettings.babyMonitorEnabled,
       };
 
       setShowSettingsDialogWrapped(false);
 
       const sensors = [];
       if (monitoringSettings.motionEnabled) sensors.push(language === 'he' ? 'תנועה' : 'Motion');
-      if (monitoringSettings.soundEnabled) sensors.push(language === 'he' ? 'קול' : 'Sound');
+      if (monitoringSettings.babyMonitorEnabled) sensors.push(language === 'he' ? 'ניטור תינוק' : 'Baby Monitor');
 
       toast.success(
         language === 'he'
@@ -570,13 +494,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     }
   };
 
-  // Detect if settings changed while armed
   const settingsChanged = isArmed && armedSettingsRef.current != null && (
     armedSettingsRef.current.motionEnabled !== monitoringSettings.motionEnabled ||
-    armedSettingsRef.current.soundEnabled !== monitoringSettings.soundEnabled
+    armedSettingsRef.current.babyMonitorEnabled !== monitoringSettings.babyMonitorEnabled
   );
 
-  // Build sensor status text
   const getSensorStatusText = () => {
     if (!isArmed) {
       return language === 'he' ? 'מנוטרל • המתנה' : 'Disarmed • Standby';
@@ -586,8 +508,8 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     if (monitoringSettings.motionEnabled) {
       sensors.push(language === 'he' ? 'תנועה' : 'Motion');
     }
-    if (monitoringSettings.soundEnabled) {
-      sensors.push(language === 'he' ? 'קול' : 'Sound');
+    if (monitoringSettings.babyMonitorEnabled) {
+      sensors.push(language === 'he' ? 'ניטור תינוק' : 'Baby Monitor');
     }
 
     if (sensors.length === 0) {
@@ -615,7 +537,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           : 'from-slate-700/20 to-slate-800/20 border-slate-600/30'
       } border rounded-2xl p-5 transition-all duration-300 ${className}`}>
         <div className="flex items-center gap-4">
-          {/* Icon */}
           <div className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-300 ${
             isArmed 
               ? 'bg-gradient-to-br from-red-500 to-red-600 shadow-lg shadow-red-500/30' 
@@ -628,7 +549,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
             )}
           </div>
 
-          {/* Text */}
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-white">
               {language === 'he' ? 'מערכת אבטחה' : 'Security System'}
@@ -638,7 +558,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
             </p>
           </div>
 
-          {/* Settings Button (only when armed) */}
           {isArmed && (
             <button
               onClick={() => setShowSettingsDialogWrapped(true)}
@@ -649,7 +568,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
             </button>
           )}
 
-          {/* Toggle Switch */}
           <div className="flex flex-col items-center gap-1">
             {isUpdating ? (
               <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
@@ -671,7 +589,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           </div>
         </div>
 
-        {/* Status Bar */}
         {isArmed && (
           <div
             className={`mt-4 flex items-center gap-2 px-3 py-2 rounded-lg ${
@@ -690,7 +607,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
             </span>
             <SensorStatusIndicator
               motionEnabled={monitoringSettings.motionEnabled}
-              soundEnabled={monitoringSettings.soundEnabled}
+              babyMonitorEnabled={monitoringSettings.babyMonitorEnabled}
               securityEnabled={securityEnabled}
               isArmed={isArmed}
             />
@@ -698,7 +615,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         )}
       </div>
 
-      {/* Monitoring Settings Dialog */}
       <MonitoringSettingsDialog
         open={showSettingsDialog}
         onOpenChange={setShowSettingsDialogWrapped}

@@ -232,6 +232,7 @@ export type Database = {
       }
       device_status: {
         Row: {
+          baby_monitor_enabled: boolean
           created_at: string
           device_id: string
           device_mode: string
@@ -245,6 +246,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          baby_monitor_enabled?: boolean
           created_at?: string
           device_id: string
           device_mode?: string
@@ -258,6 +260,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          baby_monitor_enabled?: boolean
           created_at?: string
           device_id?: string
           device_mode?: string

@@ -1,10 +1,10 @@
 import React from 'react';
-import { Camera, CameraOff, Mic, MicOff } from 'lucide-react';
+import { Camera, CameraOff, Baby } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SensorStatusIndicatorProps {
   motionEnabled: boolean;
-  soundEnabled: boolean;
+  babyMonitorEnabled: boolean;
   /** True when Electron confirms hardware is active */
   securityEnabled: boolean;
   /** Only show when system is armed */
@@ -13,12 +13,12 @@ interface SensorStatusIndicatorProps {
 }
 
 /**
- * Compact sensor status indicator showing camera and microphone icons
- * Green = active & confirmed, Gray = off
+ * Compact sensor status indicator showing camera and baby monitor icons
+ * Green = active & confirmed, Purple = baby monitor, Gray = off
  */
 export const SensorStatusIndicator: React.FC<SensorStatusIndicatorProps> = ({
   motionEnabled,
-  soundEnabled,
+  babyMonitorEnabled,
   securityEnabled,
   isArmed,
   className,
@@ -26,7 +26,7 @@ export const SensorStatusIndicator: React.FC<SensorStatusIndicatorProps> = ({
   if (!isArmed) return null;
 
   const cameraActive = securityEnabled && motionEnabled;
-  const micActive = securityEnabled && soundEnabled;
+  const babyActive = babyMonitorEnabled;
 
   return (
     <div className={cn('flex items-center gap-3', className)}>
@@ -42,15 +42,15 @@ export const SensorStatusIndicator: React.FC<SensorStatusIndicatorProps> = ({
         )}
       </div>
 
-      {/* Microphone indicator */}
+      {/* Baby Monitor indicator */}
       <div className="flex items-center gap-1.5">
-        {micActive ? (
+        {babyActive ? (
           <>
-            <Mic className="w-4 h-4 text-green-400" />
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <Baby className="w-4 h-4 text-purple-400" />
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
           </>
         ) : (
-          <MicOff className="w-4 h-4 text-slate-500" />
+          <Baby className="w-4 h-4 text-slate-500" />
         )}
       </div>
     </div>

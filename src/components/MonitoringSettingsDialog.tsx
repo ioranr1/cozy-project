@@ -1,7 +1,6 @@
 import React from 'react';
-import { Eye, Volume2, Camera, CameraOff, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Eye, Baby, Camera, CameraOff, Loader2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,68 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { useLanguage } from '@/contexts/LanguageContext';
 
-/** All available sound detection targets */
-export const ALL_SOUND_TARGETS = [
-  'glass_breaking',
-  'baby_crying',
-  'dog_barking',
-  'alarm',
-  'gunshot',
-  'scream',
-  'siren',
-  'door_knock',
-] as const;
-
-export type SoundTarget = typeof ALL_SOUND_TARGETS[number];
-
-/** Sound categories for grouped display */
-type SoundCategory = 'security' | 'disturbance' | 'informational';
-
-interface SoundCategoryInfo {
-  id: SoundCategory;
-  labelHe: string;
-  labelEn: string;
-  targets: SoundTarget[];
-}
-
-const SOUND_CATEGORIES: SoundCategoryInfo[] = [
-  {
-    id: 'informational',
-    labelHe: '👶 משפחתי (מידע)',
-    labelEn: '👶 Family (Info)',
-    targets: ['baby_crying'],
-  },
-  {
-    id: 'disturbance',
-    labelHe: '🏠 רעשי בית',
-    labelEn: '🏠 Home Noises',
-    targets: ['door_knock', 'dog_barking', 'scream'],
-  },
-  {
-    id: 'security',
-    labelHe: '🔒 אבטחה',
-    labelEn: '🔒 Security',
-    targets: ['glass_breaking', 'alarm', 'gunshot', 'siren'],
-  },
-];
-
-/** Default category when sound is first enabled */
-export const DEFAULT_SOUND_CATEGORY: SoundCategory = 'informational';
-
-/** Get targets for a given category */
-export const getTargetsForCategory = (categoryId: SoundCategory): SoundTarget[] => {
-  const cat = SOUND_CATEGORIES.find(c => c.id === categoryId);
-  return cat ? [...cat.targets] : [];
-};
-
-/** Default targets when sound is first enabled (Family category) */
-export const DEFAULT_SOUND_TARGETS: SoundTarget[] = getTargetsForCategory(DEFAULT_SOUND_CATEGORY);
-
 export interface MonitoringSettings {
   motionEnabled: boolean;
-  soundEnabled: boolean;
-  soundTargets: SoundTarget[];
-  activeCategory?: SoundCategory;
+  babyMonitorEnabled: boolean;
 }
 
 interface MonitoringSettingsDialogProps {
@@ -91,17 +31,6 @@ interface MonitoringSettingsDialogProps {
   cameraStatus?: 'active' | 'inactive' | 'loading';
 }
 
-const SOUND_TARGET_LABELS: Record<SoundTarget, { he: string; en: string; icon: string }> = {
-  glass_breaking: { he: 'שבירת זכוכית', en: 'Glass Breaking', icon: '🪟' },
-  baby_crying:    { he: 'בכי תינוק', en: 'Baby Crying', icon: '👶' },
-  dog_barking:    { he: 'נביחת כלב', en: 'Dog Barking', icon: '🐕' },
-  alarm:          { he: 'אזעקה', en: 'Alarm', icon: '🚨' },
-  gunshot:        { he: 'ירי', en: 'Gunshot', icon: '💥' },
-  scream:         { he: 'צעקה / צעקת עזרה', en: 'Scream / Shout', icon: '😱' },
-  siren:          { he: 'סירנה', en: 'Siren', icon: '🚑' },
-  door_knock:     { he: 'דפיקה בדלת', en: 'Door Knock', icon: '🚪' },
-};
-
 export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> = ({
   open,
   onOpenChange,
@@ -116,7 +45,6 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
   cameraStatus = 'inactive',
 }) => {
   const { language, isRTL } = useLanguage();
-  const [soundExpanded, setSoundExpanded] = React.useState(false);
 
   const t = {
     title: language === 'he' ? 'הגדרות ניטור' : 'Monitoring Settings',
@@ -127,11 +55,13 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     motionDesc: language === 'he' 
       ? 'מזהה תנועה במצלמה ושולח התראות' 
       : 'Detects movement in camera and sends alerts',
-    soundDetection: language === 'he' ? 'זיהוי קול' : 'Sound Detection',
-    soundDesc: language === 'he' 
-      ? 'מזהה קולות חריגים ושולח התראות' 
-      : 'Detects unusual sounds and sends alerts',
-    soundTargetsLabel: language === 'he' ? 'סוגי קולות לזיהוי' : 'Sound types to detect',
+    babyMonitor: language === 'he' ? 'ניטור תינוק' : 'Baby Monitor',
+    babyMonitorDesc: language === 'he' 
+      ? 'שידור חי עם קול ווידאו להורים • ללא התראות' 
+      : 'Live audio & video stream for parents • No alerts',
+    babyMonitorNote: language === 'he'
+      ? 'כשמופעל, ההורה יכול לצפות ולשמוע בזמן אמת דרך הנייד'
+      : 'When enabled, parent can watch & listen in real-time from mobile',
     activate: language === 'he' ? 'הפעל ניטור' : 'Activate Monitoring',
     deactivate: language === 'he' ? 'כבה ניטור' : 'Deactivate Monitoring',
     updateSettings: language === 'he' ? 'עדכן הגדרות' : 'Update Settings',
@@ -149,39 +79,9 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     onSettingsChange({ ...settings, motionEnabled: checked });
   };
 
-  const handleSoundToggle = (checked: boolean) => {
-    const category = settings.activeCategory || DEFAULT_SOUND_CATEGORY;
-    onSettingsChange({ 
-      ...settings, 
-      soundEnabled: checked,
-      activeCategory: category,
-      soundTargets: checked ? getTargetsForCategory(category) : [],
-    });
-    if (checked) setSoundExpanded(true);
+  const handleBabyMonitorToggle = (checked: boolean) => {
+    onSettingsChange({ ...settings, babyMonitorEnabled: checked });
   };
-
-  const handleCategoryChange = (categoryId: SoundCategory) => {
-    onSettingsChange({
-      ...settings,
-      activeCategory: categoryId,
-      soundTargets: getTargetsForCategory(categoryId),
-    });
-  };
-
-  const handleSoundTargetToggle = (target: SoundTarget, checked: boolean) => {
-    const newTargets = checked
-      ? [...settings.soundTargets, target]
-      : settings.soundTargets.filter(t => t !== target);
-    onSettingsChange({ ...settings, soundTargets: newTargets });
-  };
-
-  /** Determine current active category from settings */
-  const currentCategory = settings.activeCategory || (() => {
-    for (const cat of SOUND_CATEGORIES) {
-      if (cat.targets.some(t => settings.soundTargets.includes(t))) return cat.id;
-    }
-    return DEFAULT_SOUND_CATEGORY;
-  })();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -278,114 +178,41 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
             </div>
           </div>
 
-          {/* Sound Detection Toggle */}
+          {/* Baby Monitor Toggle */}
           <div className="space-y-2">
             <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                  settings.soundEnabled 
-                    ? 'bg-blue-500/20 text-blue-400' 
+                  settings.babyMonitorEnabled 
+                    ? 'bg-purple-500/20 text-purple-400' 
                     : 'bg-slate-700/50 text-slate-400'
                 }`}>
-                  <Volume2 className="w-5 h-5" />
+                  <Baby className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-white">{t.soundDetection}</p>
-                  <p className="text-xs text-slate-400">{t.soundDesc}</p>
+                  <p className="text-sm font-medium text-white">{t.babyMonitor}</p>
+                  <p className="text-xs text-slate-400">{t.babyMonitorDesc}</p>
                 </div>
               </div>
               <div className="flex flex-col items-center gap-1">
                 <Switch
-                  checked={settings.soundEnabled}
-                  onCheckedChange={handleSoundToggle}
-                  className={settings.soundEnabled ? 'data-[state=checked]:bg-blue-500' : ''}
+                  checked={settings.babyMonitorEnabled}
+                  onCheckedChange={handleBabyMonitorToggle}
+                  className={settings.babyMonitorEnabled ? 'data-[state=checked]:bg-purple-500' : ''}
                 />
-                <span className={`text-xs ${settings.soundEnabled ? 'text-blue-400' : 'text-slate-500'}`}>
-                  {settings.soundEnabled ? t.on : t.off}
+                <span className={`text-xs ${settings.babyMonitorEnabled ? 'text-purple-400' : 'text-slate-500'}`}>
+                  {settings.babyMonitorEnabled ? t.on : t.off}
                 </span>
               </div>
             </div>
 
-            {/* Sound Targets - expandable checklist grouped by category */}
-            {settings.soundEnabled && (
-              <div className="bg-slate-800/30 rounded-xl border border-slate-700/50 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setSoundExpanded(!soundExpanded)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-slate-300 hover:bg-slate-700/30 transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <span>{t.soundTargetsLabel}</span>
-                    <span className="text-xs text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
-                      {SOUND_CATEGORIES.find(c => c.id === currentCategory)
-                        ? (language === 'he' 
-                            ? SOUND_CATEGORIES.find(c => c.id === currentCategory)!.labelHe 
-                            : SOUND_CATEGORIES.find(c => c.id === currentCategory)!.labelEn)
-                        : ''}
-                    </span>
-                  </span>
-                  {soundExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-slate-400" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
-                  )}
-                </button>
-
-                {soundExpanded && (
-                  <div className="px-3 pb-3 space-y-2">
-                    {/* Category radio selection */}
-                    {SOUND_CATEGORIES.map((category) => {
-                      const isSelected = currentCategory === category.id;
-                      return (
-                        <div key={category.id}>
-                          <label
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
-                              isSelected ? 'bg-blue-500/15 border border-blue-500/30' : 'hover:bg-slate-700/30 border border-transparent'
-                            }`}
-                            onClick={() => handleCategoryChange(category.id)}
-                          >
-                            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                              isSelected ? 'border-blue-400' : 'border-slate-500'
-                            }`}>
-                              {isSelected && <div className="w-2 h-2 rounded-full bg-blue-400" />}
-                            </div>
-                            <span className={`text-sm font-medium ${isSelected ? 'text-white' : 'text-slate-400'}`}>
-                              {language === 'he' ? category.labelHe : category.labelEn}
-                            </span>
-                          </label>
-
-                          {/* Show individual targets only for selected category */}
-                          {isSelected && (
-                            <div className="ms-6 mt-1 space-y-0.5">
-                              {category.targets.map((target) => {
-                                const label = SOUND_TARGET_LABELS[target];
-                                const isChecked = settings.soundTargets.includes(target);
-                                return (
-                                  <label
-                                    key={target}
-                                    className={`flex items-center gap-3 px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
-                                      isChecked ? 'bg-blue-500/10' : 'hover:bg-slate-700/30'
-                                    }`}
-                                  >
-                                    <Checkbox
-                                      checked={isChecked}
-                                      onCheckedChange={(checked) => handleSoundTargetToggle(target, !!checked)}
-                                      className="border-slate-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500"
-                                    />
-                                    <span className="text-base">{label.icon}</span>
-                                    <span className={`text-sm ${isChecked ? 'text-white' : 'text-slate-400'}`}>
-                                      {language === 'he' ? label.he : label.en}
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+            {/* Baby Monitor Info Note */}
+            {settings.babyMonitorEnabled && (
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl px-3 py-2.5">
+                <p className="text-xs text-purple-300 flex items-center gap-2">
+                  <span>👶</span>
+                  <span>{t.babyMonitorNote}</span>
+                </p>
               </div>
             )}
           </div>
@@ -397,7 +224,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
               {settingsChanged && onUpdateSettings ? (
                 <Button
                   onClick={onUpdateSettings}
-                  disabled={isLoading || (!settings.motionEnabled && !settings.soundEnabled)}
+                  disabled={isLoading || (!settings.motionEnabled && !settings.babyMonitorEnabled)}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   {isLoading ? (
@@ -440,7 +267,7 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
               </Button>
               <Button
                 onClick={onConfirm}
-                disabled={isLoading || (!settings.motionEnabled && !settings.soundEnabled)}
+                disabled={isLoading || (!settings.motionEnabled && !settings.babyMonitorEnabled)}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 {isLoading ? (

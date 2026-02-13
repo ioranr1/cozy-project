@@ -35,7 +35,8 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     security_enabled: boolean;
     motion_enabled: boolean;
     sound_enabled: boolean;
-  }>({ security_enabled: false, motion_enabled: false, sound_enabled: false });
+    baby_monitor_enabled: boolean;
+  }>({ security_enabled: false, motion_enabled: false, sound_enabled: false, baby_monitor_enabled: false });
 
   // Comprehensive i18n translations
   const t = useMemo(() => ({
@@ -270,6 +271,7 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
           security_enabled: status.security_enabled ?? false,
           motion_enabled: status.motion_enabled ?? false,
           sound_enabled: status.sound_enabled ?? false,
+          baby_monitor_enabled: status.baby_monitor_enabled ?? false,
         });
         
         console.log('[MobileAwayMode] Security status:', {
@@ -319,6 +321,7 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
             security_enabled: newStatus.security_enabled ?? false,
             motion_enabled: newStatus.motion_enabled ?? false,
             sound_enabled: newStatus.sound_enabled ?? false,
+            baby_monitor_enabled: newStatus.baby_monitor_enabled ?? false,
           });
           
           console.log('[MobileAwayMode] 📷 Camera status from Realtime:', {
@@ -595,7 +598,7 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
             </span>
             <SensorStatusIndicator
               motionEnabled={securityStatus.motion_enabled}
-              soundEnabled={securityStatus.sound_enabled}
+              babyMonitorEnabled={securityStatus.baby_monitor_enabled ?? false}
               securityEnabled={securityStatus.security_enabled}
               isArmed={securityStatus.security_enabled}
             />

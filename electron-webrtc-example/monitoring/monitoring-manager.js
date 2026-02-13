@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.4.3 (2026-02-13)
+ * VERSION: 0.5.0 (2026-02-13)
  * 
  * CHANGELOG:
  * - v0.3.5: CRITICAL FIX - Add sensor preflight check to skip camera if all sensors disabled
@@ -20,11 +20,7 @@
 
 const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config');
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SAFETY FLAG: Force-disable sound at IPC level to prevent renderer crashes
-// Set to true if AudioContext/YAMNet causes ACCESS_VIOLATION or black screen
-// ═══════════════════════════════════════════════════════════════════════════════
-const FORCE_DISABLE_SOUND = true;
+// Sound detection removed (v0.5.0) - replaced by Baby Monitor mode
 
 // Edge function endpoint for event reporting
 const EVENTS_REPORT_ENDPOINT = 'https://zoripeohnedivxkvrpbi.supabase.co/functions/v1/events-report';
@@ -226,29 +222,19 @@ class MonitoringManager {
       await this.loadConfig();
       
       let motionEnabled = this.config?.sensors?.motion?.enabled ?? false;
-      let soundEnabled = this.config?.sensors?.sound?.enabled ?? false;
       
-      // SAFETY: Force-disable sound at IPC level
-      if (FORCE_DISABLE_SOUND && soundEnabled) {
-        console.warn('[MonitoringManager] FORCE_DISABLE_SOUND is ON — overriding soundEnabled to false');
-        soundEnabled = false;
-        if (this.config?.sensors?.sound) {
-          this.config.sensors.sound.enabled = false;
-        }
-      }
+      // Sound detection removed (v0.5.0) - replaced by Baby Monitor mode
       
       console.log('[MonitoringManager] Config loaded for enable:', {
         monitoring_enabled: this.config?.monitoring_enabled,
         motion_enabled: motionEnabled,
-        sound_enabled: soundEnabled,
-        force_disable_sound: FORCE_DISABLE_SOUND,
       });
 
       // CRITICAL: Sensor preflight check - skip camera if ALL sensors disabled
-      if (!motionEnabled && !soundEnabled) {
-        console.log('[MonitoringManager] ⚠️ Both sensors disabled - skipping camera activation');
+      if (!motionEnabled) {
+        console.log('[MonitoringManager] ⚠️ Motion disabled - skipping camera activation');
         this.isStarting = false;
-        return { success: false, error: 'All sensors are disabled. Enable motion or sound detection first.' };
+        return { success: false, error: 'Motion detection is disabled.' };
       }
 
       // Check mainWindow availability
