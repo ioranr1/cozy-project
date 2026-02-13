@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.15.0 (2026-02-13)
+   VERSION: 2.16.0 (2026-02-13)
    ============================================================
    
    CHANGELOG:
@@ -709,6 +709,14 @@
             } else {
               const result = await response.json();
               console.log('[Monitoring] ✓ Event reported:', result.ai_is_real ? 'REAL' : 'False Positive');
+              
+              // Trigger local clip recording if event is real
+              if (result.ai_is_real && result.event_id) {
+                const clipDuration = currentConfig?.clips?.clip_duration_seconds || 10;
+                console.log(`[Monitoring] Triggering clip recording: event=${result.event_id}, duration=${clipDuration}s`);
+                // Directly call the clip recording handler (same logic as IPC-triggered)
+                triggerClipRecording(result.event_id, clipDuration);
+              }
             }
           } catch (error) {
             console.error('[Monitoring] Event send error:', error);
@@ -1070,10 +1078,11 @@
         }
         
         // ============================================================
-        // Clip Recording - triggered by Main after AI validates event
+        // Clip Recording - reusable function
+        // Can be triggered by: 1) renderer directly after server response
+        //                      2) IPC from main process (fallback)
         // ============================================================
-        if (window.electronAPI?.onStartClipRecording) {
-          window.electronAPI.onStartClipRecording(async ({ eventId, durationSeconds }) => {
+        async function triggerClipRecording(eventId, durationSeconds) {
             console.log(`[ClipRecorder] Recording requested: event=${eventId}, duration=${durationSeconds}s`);
             
             if (!monitoringStream || !videoElement) {
@@ -1146,6 +1155,12 @@
             } catch (err) {
               console.error('[ClipRecorder] Recording error:', err);
             }
+        }
+        
+        // IPC fallback - main process can still trigger clip recording
+        if (window.electronAPI?.onStartClipRecording) {
+          window.electronAPI.onStartClipRecording(async ({ eventId, durationSeconds }) => {
+            triggerClipRecording(eventId, durationSeconds);
           });
           console.log('[Monitoring] ✓ onStartClipRecording listener registered');
         }
