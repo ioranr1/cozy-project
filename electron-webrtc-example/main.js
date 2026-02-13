@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.5.0 (2026-02-13)
+ * VERSION: 2.5.1 (2026-02-13)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -348,18 +348,23 @@ function getIconPath() {
   // PNG tray icons on Windows often render as a black square.
   const isWin = process.platform === 'win32';
 
+  // Search order: ico first on Windows, then png, including tray-icon.png variants
   const possiblePaths = isWin
     ? [
         path.join(__dirname, 'icon.ico'),
         path.join(__dirname, 'assets', 'icon.ico'),
         path.join(__dirname, 'build', 'icon.ico'),
-        // PNG fallback (last resort on Windows)
+        // PNG fallbacks (Windows may render these as black squares)
+        path.join(__dirname, 'tray-icon.png'),
         path.join(__dirname, 'icon.png'),
+        path.join(__dirname, 'assets', 'tray-icon.png'),
         path.join(__dirname, 'assets', 'icon.png'),
         path.join(__dirname, 'build', 'icon.png'),
       ]
     : [
+        path.join(__dirname, 'tray-icon.png'),
         path.join(__dirname, 'icon.png'),
+        path.join(__dirname, 'assets', 'tray-icon.png'),
         path.join(__dirname, 'assets', 'icon.png'),
         path.join(__dirname, 'build', 'icon.png'),
         path.join(__dirname, 'icon.ico'),
@@ -418,11 +423,54 @@ function createValidatedTrayIcon(iconPath) {
 function initTray() {
   try {
     const iconPath = getIconPath();
-    const icon = createValidatedTrayIcon(iconPath);
+    let icon = createValidatedTrayIcon(iconPath);
 
+    // FALLBACK: If no icon file found or validation failed, create a programmatic icon
+    // This prevents the tray from not being created at all or showing a black square
     if (!icon) {
-      console.warn('[Tray] No valid icon available, tray will not be created');
-      return;
+      console.warn('[Tray] No valid icon file found – creating programmatic fallback icon');
+      try {
+        // Create a simple 16x16 blue circle icon as fallback
+        const size = 16;
+        const canvas = Buffer.alloc(size * size * 4); // RGBA
+        for (let y = 0; y < size; y++) {
+          for (let x = 0; x < size; x++) {
+            const cx = x - size / 2 + 0.5;
+            const cy = y - size / 2 + 0.5;
+            const dist = Math.sqrt(cx * cx + cy * cy);
+            const idx = (y * size + x) * 4;
+            if (dist < size / 2 - 1) {
+              // Blue fill
+              canvas[idx] = 66;     // R
+              canvas[idx + 1] = 133; // G
+              canvas[idx + 2] = 244; // B
+              canvas[idx + 3] = 255; // A
+            } else if (dist < size / 2) {
+              // Anti-aliased edge
+              const alpha = Math.max(0, Math.min(255, Math.round((size / 2 - dist) * 255)));
+              canvas[idx] = 66;
+              canvas[idx + 1] = 133;
+              canvas[idx + 2] = 244;
+              canvas[idx + 3] = alpha;
+            } else {
+              // Transparent
+              canvas[idx] = 0;
+              canvas[idx + 1] = 0;
+              canvas[idx + 2] = 0;
+              canvas[idx + 3] = 0;
+            }
+          }
+        }
+        icon = nativeImage.createFromBuffer(canvas, { width: size, height: size });
+        if (icon.isEmpty()) {
+          console.error('[Tray] Programmatic fallback icon is also empty!');
+          return;
+        }
+        console.log('[Tray] ✓ Programmatic fallback icon created (16x16 blue circle)');
+      } catch (fallbackErr) {
+        console.error('[Tray] Failed to create fallback icon:', fallbackErr);
+        return;
+      }
     }
 
     // Cache the working icon for safety
@@ -1752,7 +1800,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-13-v2.5.0-tray-hardening');
+console.log('[Main] BUILD ID: main-js-2026-02-13-v2.5.1-tray-icon-fix');
 console.log('[Main] SOUND_DETECTION_ENABLED:', SOUND_DETECTION_ENABLED);
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
