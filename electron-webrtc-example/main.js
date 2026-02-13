@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.8.0 (2026-02-13)
+ * VERSION: 2.8.1 (2026-02-13)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -437,6 +437,22 @@ function createValidatedTrayIcon(iconPath) {
 function initTray() {
   try {
     const iconPath = getIconPath();
+    
+    // DIAGNOSTIC: Log icon file details
+    if (iconPath) {
+      try {
+        const stats = fs.statSync(iconPath);
+        console.log(`[Tray:Diag] Icon file: ${iconPath}`);
+        console.log(`[Tray:Diag] File size: ${stats.size} bytes`);
+        console.log(`[Tray:Diag] File extension: ${path.extname(iconPath)}`);
+        console.log(`[Tray:Diag] Platform: ${process.platform}`);
+      } catch (statErr) {
+        console.error('[Tray:Diag] Cannot stat icon file:', statErr.message);
+      }
+    } else {
+      console.error('[Tray:Diag] No icon path found at all!');
+    }
+
     let icon = createValidatedTrayIcon(iconPath);
 
     // FALLBACK: If no icon file found or validation failed, create a programmatic icon
@@ -454,20 +470,17 @@ function initTray() {
             const dist = Math.sqrt(cx * cx + cy * cy);
             const idx = (y * size + x) * 4;
             if (dist < size / 2 - 1) {
-              // Blue fill
               canvas[idx] = 66;     // R
               canvas[idx + 1] = 133; // G
               canvas[idx + 2] = 244; // B
               canvas[idx + 3] = 255; // A
             } else if (dist < size / 2) {
-              // Anti-aliased edge
               const alpha = Math.max(0, Math.min(255, Math.round((size / 2 - dist) * 255)));
               canvas[idx] = 66;
               canvas[idx + 1] = 133;
               canvas[idx + 2] = 244;
               canvas[idx + 3] = alpha;
             } else {
-              // Transparent
               canvas[idx] = 0;
               canvas[idx + 1] = 0;
               canvas[idx + 2] = 0;
@@ -487,6 +500,19 @@ function initTray() {
       }
     }
 
+    // DIAGNOSTIC: Log icon bitmap details
+    const bitmapSize = icon.getSize();
+    console.log(`[Tray:Diag] nativeImage size: ${bitmapSize.width}x${bitmapSize.height}`);
+    console.log(`[Tray:Diag] nativeImage isEmpty: ${icon.isEmpty()}`);
+    const bmp = icon.toBitmap();
+    console.log(`[Tray:Diag] Bitmap buffer length: ${bmp.length} bytes`);
+    // Check if bitmap is all zeros (= fully transparent/black)
+    let nonZeroCount = 0;
+    for (let i = 0; i < Math.min(bmp.length, 1024); i++) {
+      if (bmp[i] !== 0) nonZeroCount++;
+    }
+    console.log(`[Tray:Diag] Non-zero bytes in first 1024: ${nonZeroCount} (0 = fully black/transparent)`);
+
     // Cache the working icon for safety
     _cachedTrayIcon = icon;
 
@@ -503,10 +529,38 @@ function initTray() {
     });
 
     console.log('[Tray] ✓ Initialized successfully (icon validated)');
+    
+    // DIAGNOSTIC: Start periodic tray health monitor
+    startTrayHealthMonitor();
+    
   } catch (error) {
     console.error('[Tray] Failed to initialize:', error);
     trayAvailable = false;
   }
+}
+
+/**
+ * TRAY HEALTH MONITOR
+ * Logs tray state every 30 seconds so we can see WHEN the icon goes black.
+ * Also logs the total number of updateTrayMenu calls and setContextMenu calls.
+ */
+let _trayHealthInterval = null;
+let _setContextMenuCallCount = 0;
+
+function startTrayHealthMonitor() {
+  if (_trayHealthInterval) return;
+  
+  _trayHealthInterval = setInterval(() => {
+    if (!tray || tray.isDestroyed?.()) {
+      console.log('[Tray:Health] Tray is destroyed or null!');
+      return;
+    }
+    
+    const uptime = Math.round((Date.now() - _appStartTime) / 1000);
+    const bounds = tray.getBounds?.() || { x: 0, y: 0, width: 0, height: 0 };
+    
+    console.log(`[Tray:Health] uptime=${uptime}s | menuUpdates=${_trayUpdateCounter} | setContextMenu=${_setContextMenuCallCount} | bounds=${JSON.stringify(bounds)} | hash=${_lastTrayMenuHash}`);
+  }, 30000); // every 30 seconds
 }
 
 // Global tray-update counter for diagnostics
@@ -556,8 +610,10 @@ function updateTrayMenu(caller = 'unknown') {
     { label: t('quit'), click: () => { app.isQuitting = true; app.quit(); } }
   ]);
 
+  _setContextMenuCallCount++;
   tray.setContextMenu(contextMenu);
   tray.setToolTip(`${t('trayTooltip')} - ${liveStatus}`);
+  console.log(`[Tray:Diag] setContextMenu call #${_setContextMenuCallCount} completed`);
 
   // REMOVED: tray.setImage() after setContextMenu.
   // The icon is set ONCE in initTray() and never touched again at runtime.
@@ -1858,7 +1914,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-13-v2.7.1-tray-no-redundant-rebuild');
+console.log('[Main] BUILD ID: main-js-2026-02-13-v2.8.1-tray-diagnostics');
 console.log('[Main] SOUND_DETECTION_ENABLED:', SOUND_DETECTION_ENABLED);
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
