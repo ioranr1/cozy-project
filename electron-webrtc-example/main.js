@@ -1858,7 +1858,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-13-v2.7.0-self-echo-guard');
+console.log('[Main] BUILD ID: main-js-2026-02-13-v2.7.1-tray-no-redundant-rebuild');
 console.log('[Main] SOUND_DETECTION_ENABLED:', SOUND_DETECTION_ENABLED);
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
