@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.8.1 (2026-02-13)
+ * VERSION: 2.8.2 (2026-02-13)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -33,6 +33,7 @@ const AwayManager = require('./away/away-manager');
 // NEW: Import Monitoring system
 const MonitoringManager = require('./monitoring/monitoring-manager');
 const SoundManager = require('./sound/sound-manager');
+const LocalClipRecorder = require('./monitoring/local-clip-recorder');
 const fs = require('fs');
 
 // =============================================================================
@@ -90,6 +91,9 @@ let localModelPort = 0;
 // Auto-Away guard (prevents infinite retries)
 let autoAwayAttempts = 0;
 const MAX_AUTO_AWAY_ATTEMPTS = 3;
+
+// Language (default 'he', loaded from store in initDevice)
+let currentLanguage = 'he';
 
 // =============================================================================
 // PROCESS SIGNAL HANDLERS (CMD window close safety)
