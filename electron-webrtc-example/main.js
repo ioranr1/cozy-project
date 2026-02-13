@@ -1911,8 +1911,9 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-13-v2.8.1-tray-diagnostics');
-console.log('[Main] SOUND_DETECTION_ENABLED:', SOUND_DETECTION_ENABLED);
+console.log('[Main] BUILD ID: main-js-2026-02-13-v2.14.0-baby-monitor');
+console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
+
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
