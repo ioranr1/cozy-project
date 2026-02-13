@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.6.0 (2026-02-13)
+ * VERSION: 2.7.0 (2026-02-13)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -347,6 +347,12 @@ let _cachedTrayIcon = null;
 let _lastTrayMenuHash = '';
 let _lastTrayMenuTime = 0;
 const TRAY_UPDATE_MIN_INTERVAL_MS = 1500; // minimum 1.5s between updates
+
+// Self-echo guard: when the agent itself writes to device_status, the Realtime
+// subscription fires back with the same data. We suppress those echoes to prevent
+// cascading updates (which cause rapid tray rebuilds → black icon on Windows).
+let _selfWriteTimestamp = 0;
+const SELF_ECHO_GUARD_MS = 3000; // ignore Realtime echoes within 3s of our own write
 
 function getIconPath() {
   // On Windows, strongly prefer ICO (with proper multi-size + alpha).
@@ -910,7 +916,8 @@ async function handleCommand(command) {
         const awayResult = await awayManager.enable();
         if (!awayResult.success) {
           console.error('[Commands] ❌ AWAY mode enable failed:', awayResult.error);
-          // Revert database state  
+          // Revert database state
+          _selfWriteTimestamp = Date.now();
           await supabase
             .from('device_status')
             .update({ device_mode: 'NORMAL' })
@@ -951,6 +958,7 @@ async function handleCommand(command) {
           throw new Error('Missing deviceId while disabling Away Mode');
         }
 
+        _selfWriteTimestamp = Date.now();
         const { error: normalDbError } = await supabase
           .from('device_status')
           .update({
@@ -992,6 +1000,7 @@ async function handleCommand(command) {
           }
 
           const nowIso = new Date().toISOString();
+          _selfWriteTimestamp = Date.now();
           const { error: statusError } = await supabase
             .from('device_status')
             .update({
@@ -1012,6 +1021,7 @@ async function handleCommand(command) {
           // Ensure DB reflects reality: if monitoring didn't start, it is NOT armed.
           if (deviceId) {
             try {
+              _selfWriteTimestamp = Date.now();
               await supabase
                 .from('device_status')
                 .update({
@@ -1030,6 +1040,7 @@ async function handleCommand(command) {
 
       case 'SET_MONITORING:OFF':
         console.log('[Commands] Processing SET_MONITORING:OFF command');
+        _selfWriteTimestamp = Date.now(); // MonitoringManager.disable() writes to device_status
         const stopResult = await monitoringManager.disable();
         if (!stopResult.success) {
           console.error('[Commands] ❌ Monitoring disable failed:', stopResult.error);
@@ -1421,9 +1432,21 @@ function subscribeToDeviceStatus() {
   console.log('[DeviceStatus] Subscribed');
 }
 
+// Global counter for debugging tray/device_status update frequency
+let _deviceStatusUpdateCounter = 0;
+
 function handleDeviceStatusUpdate(status) {
-  // CRITICAL FIX: Use AwayManager for device status sync
-  console.log('[DeviceStatus] Syncing with AwayManager:', status.device_mode);
+  _deviceStatusUpdateCounter++;
+  const now = Date.now();
+
+  // SELF-ECHO GUARD: If we just wrote to device_status ourselves, ignore
+  // the Realtime echo to prevent cascading updates (tray rebuild loops).
+  if (now - _selfWriteTimestamp < SELF_ECHO_GUARD_MS) {
+    console.log(`[DeviceStatus] #${_deviceStatusUpdateCounter} SKIPPED (self-echo, ${now - _selfWriteTimestamp}ms since our write)`);
+    return;
+  }
+
+  console.log(`[DeviceStatus] #${_deviceStatusUpdateCounter} Syncing with AwayManager: ${status.device_mode}`);
   awayManager.syncWithDatabaseStatus(status);
 }
 
@@ -2077,6 +2100,7 @@ app.on('before-quit', async (event) => {
       }
 
       // Update device_status to NORMAL + mark device inactive — in parallel
+      _selfWriteTimestamp = Date.now();
       dbUpdates.push(
         supabase
           .from('device_status')
