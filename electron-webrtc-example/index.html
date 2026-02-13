@@ -933,7 +933,11 @@
             };
             
             soundSource.connect(soundProcessor);
-            soundProcessor.connect(soundAudioContext.destination);
+            // CRITICAL: Sink into a silent MediaStreamDestination instead of
+            // audioContext.destination to prevent audio output to speakers and
+            // avoid system-level interference that causes tray icon darkening on Windows.
+            const silentDest = soundAudioContext.createMediaStreamDestination();
+            soundProcessor.connect(silentDest);
             
             isSoundRunning = true;
             soundAudioBuffer = [];
