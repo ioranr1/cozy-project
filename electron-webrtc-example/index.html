@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.14.0 (2026-02-13)
+   VERSION: 2.15.0 (2026-02-13)
    ============================================================
    
    CHANGELOG:
@@ -1101,7 +1101,13 @@
                 const reader = new FileReader();
                 reader.onloadend = async () => {
                   const base64 = reader.result.split(',')[1]; // strip data:... prefix
-                  const filename = `${eventId}_${Date.now()}.webm`;
+                  // Readable filename: clip_YYYY-MM-DD_HH-mm-ss_shortId.webm
+                  const _now = new Date();
+                  const _pad = (n) => String(n).padStart(2, '0');
+                  const _dateStr = `${_now.getFullYear()}-${_pad(_now.getMonth() + 1)}-${_pad(_now.getDate())}`;
+                  const _timeStr = `${_pad(_now.getHours())}-${_pad(_now.getMinutes())}-${_pad(_now.getSeconds())}`;
+                  const _shortId = (eventId || 'unknown').substring(0, 8);
+                  const filename = `clip_${_dateStr}_${_timeStr}_${_shortId}.webm`;
                   
                   console.log(`[ClipRecorder] Saving clip: ${filename} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`);
                   
