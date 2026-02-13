@@ -348,6 +348,9 @@ let _lastTrayMenuHash = '';
 let _lastTrayMenuTime = 0;
 const TRAY_UPDATE_MIN_INTERVAL_MS = 1500; // minimum 1.5s between updates
 
+// App start timestamp for diagnostics
+const _appStartTime = Date.now();
+
 // Self-echo guard: when the agent itself writes to device_status, the Realtime
 // subscription fires back with the same data. We suppress those echoes to prevent
 // cascading updates (which cause rapid tray rebuilds → black icon on Windows).
@@ -506,6 +509,9 @@ function initTray() {
   }
 }
 
+// Global tray-update counter for diagnostics
+let _trayUpdateCounter = 0;
+
 function updateTrayMenu(caller = 'unknown') {
   if (!tray) return;
 
@@ -534,10 +540,11 @@ function updateTrayMenu(caller = 'unknown') {
     return;
   }
 
+  _trayUpdateCounter++;
   _lastTrayMenuHash = menuHash;
   _lastTrayMenuTime = now;
 
-  console.log(`[Tray] updateTrayMenu called by: ${caller} | hash: ${menuHash}`);
+  console.log(`[Tray] #${_trayUpdateCounter} updateTrayMenu by: ${caller} | hash: ${menuHash} | uptime: ${Math.round((now - _appStartTime) / 1000)}s`);
 
   const contextMenu = Menu.buildFromTemplate([
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
@@ -1849,10 +1856,8 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-13-v2.6.0-tray-throttle');
+console.log('[Main] BUILD ID: main-js-2026-02-13-v2.7.0-self-echo-guard');
 console.log('[Main] SOUND_DETECTION_ENABLED:', SOUND_DETECTION_ENABLED);
-console.log('[Main] Starting Electron app...');
-console.log('═══════════════════════════════════════════════════════════════');
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
 
