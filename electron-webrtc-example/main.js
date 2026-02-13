@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.4.0 (2026-02-12)
+ * VERSION: 2.5.0 (2026-02-13)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -339,40 +339,96 @@ function createWindow() {
 // TRAY SETUP
 // =============================================================================
 
-function getIconPath() {
-  const possiblePaths = [
-    path.join(__dirname, 'icon.ico'),
-    path.join(__dirname, 'icon.png'),
-    path.join(__dirname, 'assets', 'icon.ico'),
-    path.join(__dirname, 'assets', 'icon.png'),
-    path.join(__dirname, 'build', 'icon.ico'),
-    path.join(__dirname, 'build', 'icon.png')
-  ];
+// Cached nativeImage for tray – used as fallback if any setImage/setContextMenu
+// causes the icon to go blank on Windows.
+let _cachedTrayIcon = null;
 
-  const fs = require('fs');
+function getIconPath() {
+  // On Windows, strongly prefer ICO (with proper multi-size + alpha).
+  // PNG tray icons on Windows often render as a black square.
+  const isWin = process.platform === 'win32';
+
+  const possiblePaths = isWin
+    ? [
+        path.join(__dirname, 'icon.ico'),
+        path.join(__dirname, 'assets', 'icon.ico'),
+        path.join(__dirname, 'build', 'icon.ico'),
+        // PNG fallback (last resort on Windows)
+        path.join(__dirname, 'icon.png'),
+        path.join(__dirname, 'assets', 'icon.png'),
+        path.join(__dirname, 'build', 'icon.png'),
+      ]
+    : [
+        path.join(__dirname, 'icon.png'),
+        path.join(__dirname, 'assets', 'icon.png'),
+        path.join(__dirname, 'build', 'icon.png'),
+        path.join(__dirname, 'icon.ico'),
+        path.join(__dirname, 'assets', 'icon.ico'),
+        path.join(__dirname, 'build', 'icon.ico'),
+      ];
+
   for (const iconPath of possiblePaths) {
     if (fs.existsSync(iconPath)) {
+      console.log('[Tray] Icon found:', iconPath);
       return iconPath;
     }
   }
+
+  console.warn('[Tray] No icon file found in any expected location');
   return null;
+}
+
+/**
+ * Create a validated nativeImage for the tray.
+ * Returns null if the image is empty or corrupt.
+ */
+function createValidatedTrayIcon(iconPath) {
+  if (!iconPath) return null;
+
+  try {
+    const icon = nativeImage.createFromPath(iconPath);
+
+    if (icon.isEmpty()) {
+      console.error('[Tray] ICON_VALIDATION_FAIL: nativeImage is empty for path:', iconPath);
+      return null;
+    }
+
+    const size = icon.getSize();
+    console.log(`[Tray] Icon loaded: ${iconPath} (${size.width}x${size.height})`);
+
+    // On Windows, ICO files already contain multi-size – don't resize.
+    // For PNG, resize to 16x16 for the tray.
+    if (iconPath.endsWith('.ico')) {
+      return icon;
+    }
+
+    const resized = icon.resize({ width: 16, height: 16 });
+    if (resized.isEmpty()) {
+      console.error('[Tray] ICON_VALIDATION_FAIL: resized icon is empty');
+      return null;
+    }
+
+    return resized;
+  } catch (err) {
+    console.error('[Tray] ICON_VALIDATION_FAIL: Error loading icon:', err);
+    return null;
+  }
 }
 
 function initTray() {
   try {
     const iconPath = getIconPath();
-    if (!iconPath) {
-      console.warn('[Tray] No icon found, tray will not be available');
+    const icon = createValidatedTrayIcon(iconPath);
+
+    if (!icon) {
+      console.warn('[Tray] No valid icon available, tray will not be created');
       return;
     }
 
-    const icon = nativeImage.createFromPath(iconPath);
-    if (icon.isEmpty()) {
-      console.warn('[Tray] Icon is empty, tray will not be available');
-      return;
-    }
+    // Cache the working icon for safety
+    _cachedTrayIcon = icon;
 
-    tray = new Tray(icon.resize({ width: 16, height: 16 }));
+    tray = new Tray(icon);
     tray.setToolTip(t('trayTooltip'));
     updateTrayMenu();
     trayAvailable = true;
@@ -384,7 +440,7 @@ function initTray() {
       }
     });
 
-    console.log('[Tray] Initialized successfully');
+    console.log('[Tray] ✓ Initialized successfully (icon validated)');
   } catch (error) {
     console.error('[Tray] Failed to initialize:', error);
     trayAvailable = false;
@@ -408,6 +464,16 @@ function updateTrayMenu() {
 
   tray.setContextMenu(contextMenu);
   tray.setToolTip(`${t('trayTooltip')} - ${liveStatus}`);
+
+  // SAFETY: After setContextMenu, verify the icon is still valid on Windows.
+  // Some Windows builds cause the icon to go blank after context menu rebuild.
+  if (process.platform === 'win32' && _cachedTrayIcon) {
+    try {
+      tray.setImage(_cachedTrayIcon);
+    } catch (e) {
+      console.warn('[Tray] Failed to re-apply cached icon:', e?.message);
+    }
+  }
 }
 
 // =============================================================================
@@ -1686,7 +1752,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('═══════════════════════════════════════════════════════════════');
-console.log('[Main] BUILD ID: main-js-2026-02-12-v2.4.0-sound-detection');
+console.log('[Main] BUILD ID: main-js-2026-02-13-v2.5.0-tray-hardening');
 console.log('[Main] SOUND_DETECTION_ENABLED:', SOUND_DETECTION_ENABLED);
 console.log('[Main] Starting Electron app...');
 console.log('═══════════════════════════════════════════════════════════════');
