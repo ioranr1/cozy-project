@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.8.2 (2026-02-13)
+ * VERSION: 2.8.3 (2026-02-13)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -517,10 +517,22 @@ function initTray() {
     }
     console.log(`[Tray:Diag] Non-zero bytes in first 1024: ${nonZeroCount} (0 = fully black/transparent)`);
 
-    // Cache the working icon for safety
-    _cachedTrayIcon = icon;
+    // Resize to 16x16 for Windows system tray (256x256 renders as black)
+    const trayIcon = icon.resize({ width: 16, height: 16 });
+    console.log(`[Tray:Diag] Resized icon to 16x16, isEmpty: ${trayIcon.isEmpty()}`);
+    
+    // Check resized bitmap
+    const resizedBmp = trayIcon.toBitmap();
+    let resizedNonZero = 0;
+    for (let i = 0; i < resizedBmp.length; i++) {
+      if (resizedBmp[i] !== 0) resizedNonZero++;
+    }
+    console.log(`[Tray:Diag] Resized bitmap: ${resizedBmp.length} bytes, non-zero: ${resizedNonZero}`);
 
-    tray = new Tray(icon);
+    // Cache the working icon for safety
+    _cachedTrayIcon = trayIcon;
+
+    tray = new Tray(trayIcon);
     tray.setToolTip(t('trayTooltip'));
     updateTrayMenu('initTray');
     trayAvailable = true;
@@ -564,6 +576,17 @@ function startTrayHealthMonitor() {
     const bounds = tray.getBounds?.() || { x: 0, y: 0, width: 0, height: 0 };
     
     console.log(`[Tray:Health] uptime=${uptime}s | menuUpdates=${_trayUpdateCounter} | setContextMenu=${_setContextMenuCallCount} | bounds=${JSON.stringify(bounds)} | hash=${_lastTrayMenuHash}`);
+    
+    // AUTO-RECOVERY: If bounds width/height is 0, tray icon is gone
+    if (bounds.width === 0 && bounds.height === 0 && _cachedTrayIcon) {
+      console.log('[Tray:Health] WARNING: Tray bounds are 0x0, attempting recovery...');
+      try {
+        tray.setImage(_cachedTrayIcon);
+        console.log('[Tray:Health] Recovery: setImage applied');
+      } catch (e) {
+        console.error('[Tray:Health] Recovery failed:', e.message);
+      }
+    }
   }, 30000); // every 30 seconds
 }
 

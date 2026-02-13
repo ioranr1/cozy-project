@@ -1,6 +1,6 @@
 {
   "name": "security-camera-agent",
-  "version": "2.13.0",
+  "version": "2.13.1",
   "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
   "main": "main.js",
   "scripts": {
