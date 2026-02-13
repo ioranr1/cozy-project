@@ -1,3 +1,13 @@
+/**
+ * Events Report Edge Function
+ * ============================
+ * VERSION: 2.1.0 (2026-02-13)
+ * 
+ * Changes in 2.1.0:
+ * - Added server-side debounce: rejects motion events if a recent event exists
+ *   for the same device within the debounce window (from monitoring_config).
+ * - Deduplicates by original_timestamp to prevent dual-report (raw + snapshot).
+ */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.90.1";
 
@@ -165,6 +175,84 @@ serve(async (req) => {
         }
       } catch (uploadErr) {
         console.error('[events-report] Snapshot processing error:', uploadErr);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SERVER-SIDE DEBOUNCE: Reject if a recent event exists within debounce window
+    // This is a safety net in case the Electron agent's debounce fails.
+    // ═══════════════════════════════════════════════════════════════════════════
+    const SERVER_DEBOUNCE_MS = 55000; // 55 seconds (slightly under client's 60s to avoid edge cases)
+
+    if (event_type === 'motion') {
+      // Step 1: Check for duplicate by original_timestamp (same detection cycle sends raw + snapshot)
+      if (timestamp) {
+        const { data: duplicateEvent } = await supabase
+          .from('monitoring_events')
+          .select('id, snapshot_url')
+          .eq('device_id', device_id)
+          .eq('event_type', 'motion')
+          .filter('metadata->>original_timestamp', 'eq', String(timestamp))
+          .limit(1)
+          .maybeSingle();
+
+        if (duplicateEvent) {
+          // If the existing event has no snapshot but this one does, UPDATE instead of creating new
+          if (snapshotUrl && !duplicateEvent.snapshot_url) {
+            console.log(`[events-report] Duplicate detected - updating snapshot for event ${duplicateEvent.id}`);
+            await supabase
+              .from('monitoring_events')
+              .update({ snapshot_url: snapshotUrl })
+              .eq('id', duplicateEvent.id);
+
+            return new Response(JSON.stringify({
+              success: true,
+              event_id: duplicateEvent.id,
+              deduplicated: true,
+              action: 'snapshot_updated',
+            }), {
+              status: 200,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+
+          // Pure duplicate - skip
+          console.log(`[events-report] Duplicate event skipped (same original_timestamp ${timestamp})`);
+          return new Response(JSON.stringify({
+            success: true,
+            event_id: duplicateEvent.id,
+            deduplicated: true,
+            action: 'skipped',
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      // Step 2: Server-side debounce - check for recent events
+      const debounceThreshold = new Date(Date.now() - SERVER_DEBOUNCE_MS).toISOString();
+      const { data: recentEvent } = await supabase
+        .from('monitoring_events')
+        .select('id, created_at')
+        .eq('device_id', device_id)
+        .eq('event_type', 'motion')
+        .gte('created_at', debounceThreshold)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recentEvent) {
+        console.log(`[events-report] SERVER DEBOUNCE - motion event rejected for device ${device_id}, recent event ${recentEvent.id} at ${recentEvent.created_at}`);
+        return new Response(JSON.stringify({
+          success: false,
+          reason: 'server_debounce',
+          message: `Motion event throttled - recent event exists within ${SERVER_DEBOUNCE_MS}ms`,
+          recent_event_id: recentEvent.id,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
     }
 
