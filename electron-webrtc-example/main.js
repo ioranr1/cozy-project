@@ -523,8 +523,10 @@ function updateTrayMenu(caller = 'unknown') {
   // Build a hash of the menu content – skip rebuild if nothing changed
   const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}`;
 
-  if (menuHash === _lastTrayMenuHash && (now - _lastTrayMenuTime) < TRAY_UPDATE_MIN_INTERVAL_MS) {
-    // Content unchanged AND too soon – skip entirely
+  // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
+  // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
+  // and cause the "black tray icon" bug after ~45 seconds.
+  if (menuHash === _lastTrayMenuHash) {
     return;
   }
 
