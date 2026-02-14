@@ -23,9 +23,9 @@ const AWAY_MODE_STRINGS = {
     powerRequired: 'Please connect to power source',
     cameraRequired: 'Camera not available',
     
-    // Tray Status
-    trayStatusAway: '🏠 AWAY',
-    trayStatusNormal: '📍 NORMAL',
+    // Tray Status (ASCII only - no emojis for Windows CMD compatibility)
+    trayStatusAway: '[HOME] AWAY',
+    trayStatusNormal: '[LOC] NORMAL',
   },
   
   he: {
@@ -44,9 +44,9 @@ const AWAY_MODE_STRINGS = {
     powerRequired: 'יש לחבר למקור חשמל',
     cameraRequired: 'המצלמה לא זמינה',
     
-    // Tray Status
-    trayStatusAway: '🏠 מרוחק',
-    trayStatusNormal: '📍 רגיל',
+    // Tray Status (ASCII only - no emojis for Windows CMD compatibility)
+    trayStatusAway: '[HOME] מרוחק',
+    trayStatusNormal: '[LOC] רגיל',
   }
 };
 

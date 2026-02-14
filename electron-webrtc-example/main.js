@@ -189,10 +189,10 @@ const STRINGS = {
     powerRequired: 'Please connect to power source',
     cameraRequired: 'Camera not available',
     trayTooltip: 'Security Camera',
-    trayStatusLive: '🔴 LIVE',
-    trayStatusIdle: '⚪ Idle',
-    trayStatusAway: '🏠 AWAY',
-    trayStatusNormal: '📍 NORMAL',
+    trayStatusLive: '[LIVE] LIVE',
+    trayStatusIdle: '[IDLE] Idle',
+    trayStatusAway: '[HOME] AWAY',
+    trayStatusNormal: '[LOC] NORMAL',
     showWindow: 'Show Window',
     quit: 'Quit'
   },
@@ -207,10 +207,10 @@ const STRINGS = {
     powerRequired: 'יש לחבר למקור חשמל',
     cameraRequired: 'המצלמה לא זמינה',
     trayTooltip: 'מצלמת אבטחה',
-    trayStatusLive: '🔴 שידור',
-    trayStatusIdle: '⚪ המתנה',
-    trayStatusAway: '🏠 מרוחק',
-    trayStatusNormal: '📍 רגיל',
+    trayStatusLive: '[LIVE] שידור',
+    trayStatusIdle: '[IDLE] המתנה',
+    trayStatusAway: '[HOME] מרוחק',
+    trayStatusNormal: '[LOC] רגיל',
     showWindow: 'הצג חלון',
     quit: 'יציאה'
   }
@@ -274,7 +274,7 @@ function startLocalModelServer() {
 
     localModelServer.listen(0, '127.0.0.1', () => {
       localModelPort = localModelServer.address().port;
-      console.log(`[ModelServer] ✓ Serving models on http://127.0.0.1:${localModelPort}/`);
+      console.log(`[ModelServer] [OK] Serving models on http://127.0.0.1:${localModelPort}/`);
       resolve(localModelPort);
     });
 
@@ -492,7 +492,7 @@ function initTray() {
           console.error('[Tray] Programmatic fallback icon is also empty!');
           return;
         }
-        console.log('[Tray] ✓ Programmatic fallback icon created (16x16 blue circle)');
+        console.log('[Tray] [OK] Programmatic fallback icon created (16x16 blue circle)');
       } catch (fallbackErr) {
         console.error('[Tray] Failed to create fallback icon:', fallbackErr);
         return;
@@ -566,7 +566,7 @@ function initTray() {
       }
     });
 
-    console.log('[Tray] ✓ Initialized successfully (icon validated)');
+    console.log('[Tray] [OK] Initialized successfully (icon validated)');
     
     // DIAGNOSTIC: Start periodic tray health monitor
     startTrayHealthMonitor();
@@ -725,7 +725,7 @@ async function fetchAndSetDeviceAuthToken() {
 
     if (data?.device_auth_token) {
       monitoringManager.setDeviceAuthToken(data.device_auth_token);
-      console.log('[DeviceToken] ✓ Device auth token set for monitoring');
+      console.log('[DeviceToken] [OK] Device auth token set for monitoring');
     } else {
       console.warn('[DeviceToken] No device_auth_token found in DB - events will not be reported');
     }
@@ -810,7 +810,7 @@ async function maybeEnableAutoAway(reason) {
     return;
   }
 
-  console.log('[AutoAway] ✅ Away Mode enabled successfully (Auto-Away)');
+  console.log('[AutoAway] [OK] Away Mode enabled successfully (Auto-Away)');
 }
 
 function startHeartbeat() {
@@ -902,7 +902,7 @@ async function verifyPairingCode(code) {
 
 function subscribeToCommands(retryCount = 0) {
   if (!deviceId) {
-    console.error('[Commands] ❌ Cannot subscribe - no deviceId!');
+    console.error('[Commands] [FAIL] Cannot subscribe - no deviceId!');
     return;
   }
 
@@ -920,10 +920,10 @@ function subscribeToCommands(retryCount = 0) {
     commandsSubscription = null;
   }
 
-  console.log('[Commands] ═══════════════════════════════════════════════════');
+  console.log('[Commands] ===================================================');
   console.log('[Commands] Subscribing for device:', deviceId);
   console.log('[Commands] Attempt:', retryCount + 1, 'of', MAX_RETRIES + 1);
-  console.log('[Commands] ═══════════════════════════════════════════════════');
+  console.log('[Commands] ===================================================');
 
   const channelName = `commands-${deviceId}-${Date.now()}`;
   
@@ -938,10 +938,10 @@ function subscribeToCommands(retryCount = 0) {
         filter: `device_id=eq.${deviceId}`
       },
       (payload) => {
-        console.log('[Commands] ═══════════════════════════════════════════════════');
-        console.log('[Commands] 🔔 NEW COMMAND RECEIVED:', payload.new?.command);
+        console.log('[Commands] ===================================================');
+        console.log('[Commands] [ALERT] NEW COMMAND RECEIVED:', payload.new?.command);
         console.log('[Commands] Command ID:', payload.new?.id);
-        console.log('[Commands] ═══════════════════════════════════════════════════');
+        console.log('[Commands] ===================================================');
         handleCommand(payload.new);
       }
     )
@@ -949,9 +949,9 @@ function subscribeToCommands(retryCount = 0) {
       console.log('[Commands] Subscription status:', status, err ? `Error: ${err}` : '');
       
       if (status === 'SUBSCRIBED') {
-        console.log('[Commands] ✅ Successfully subscribed to commands for device:', deviceId);
+        console.log('[Commands] [OK] Successfully subscribed to commands for device:', deviceId);
       } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-        console.error('[Commands] ❌ Subscription failed:', status);
+        console.error('[Commands] [FAIL] Subscription failed:', status);
         
         if (retryCount < MAX_RETRIES) {
           console.log(`[Commands] Retrying in ${RETRY_DELAY}ms...`);
@@ -959,7 +959,7 @@ function subscribeToCommands(retryCount = 0) {
             subscribeToCommands(retryCount + 1);
           }, RETRY_DELAY);
         } else {
-          console.error('[Commands] ❌ Max retries reached. Using polling fallback.');
+          console.error('[Commands] [FAIL] Max retries reached. Using polling fallback.');
           startCommandPolling();
         }
       }
@@ -1029,7 +1029,7 @@ async function handleCommand(command) {
         console.log('[Commands] Processing AWAY mode command');
         const awayResult = await awayManager.enable();
         if (!awayResult.success) {
-          console.error('[Commands] ❌ AWAY mode enable failed:', awayResult.error);
+          console.error('[Commands] [FAIL] AWAY mode enable failed:', awayResult.error);
           // Revert database state
           _selfWriteTimestamp = Date.now();
           await supabase
@@ -1061,7 +1061,7 @@ async function handleCommand(command) {
         const normalResult = await awayManager.disable();
 
         if (normalResult && normalResult.success === false) {
-          console.error('[Commands] ❌ NORMAL mode disable failed:', normalResult.error);
+          console.error('[Commands] [FAIL] NORMAL mode disable failed:', normalResult.error);
           // Throw so the command is marked as failed with a meaningful message.
           throw new Error(normalResult.error || 'Away Mode disable failed');
         }
@@ -1084,22 +1084,22 @@ async function handleCommand(command) {
           .eq('device_id', deviceId);
 
         if (normalDbError) {
-          console.error('[Commands] ❌ Failed to update device_status to NORMAL:', normalDbError);
+          console.error('[Commands] [FAIL] Failed to update device_status to NORMAL:', normalDbError);
           throw new Error(normalDbError.message || 'Failed to update device status');
         }
-        console.log('[Commands] ✅ NORMAL mode set (monitoring stopped, camera released)');
+        console.log('[Commands] [OK] NORMAL mode set (monitoring stopped, camera released)');
         break;
 
       case 'SET_MONITORING:ON':
-        console.log('[Commands] ═══════════════════════════════════════════════════');
+        console.log('[Commands] ===================================================');
         console.log('[Commands] Processing SET_MONITORING:ON command');
-        console.log('[Commands] ═══════════════════════════════════════════════════');
+        console.log('[Commands] ===================================================');
         try {
           console.log('[Commands] Calling monitoringManager.enable()...');
           const monitoringResult = await monitoringManager.enable();
           console.log('[Commands] monitoringManager.enable() result:', monitoringResult);
           if (!monitoringResult.success) {
-            console.error('[Commands] ❌ Monitoring enable failed:', monitoringResult.error);
+            console.error('[Commands] [FAIL] Monitoring enable failed:', monitoringResult.error);
             throw new Error(monitoringResult.error || 'Monitoring enable failed');
           }
 
@@ -1126,11 +1126,11 @@ async function handleCommand(command) {
             .eq('device_id', deviceId);
 
           if (statusError) {
-            console.error('[Commands] ❌ Failed to update device_status after monitoring-started:', statusError);
+            console.error('[Commands] [FAIL] Failed to update device_status after monitoring-started:', statusError);
             throw new Error(statusError.message || 'Failed to update device status');
           }
 
-          console.log('[Commands] ✅ Monitoring enabled (renderer ACK received)');
+          console.log('[Commands] [OK] Monitoring enabled (renderer ACK received)');
         } catch (e) {
           // Ensure DB reflects reality: if monitoring didn't start, it is NOT armed.
           if (deviceId) {
@@ -1157,10 +1157,10 @@ async function handleCommand(command) {
         _selfWriteTimestamp = Date.now(); // MonitoringManager.disable() writes to device_status
         const stopResult = await monitoringManager.disable();
         if (!stopResult.success) {
-          console.error('[Commands] ❌ Monitoring disable failed:', stopResult.error);
+          console.error('[Commands] [FAIL] Monitoring disable failed:', stopResult.error);
           throw new Error(stopResult.error || 'Monitoring disable failed');
         }
-        console.log('[Commands] ✅ Monitoring disabled');
+        console.log('[Commands] [OK] Monitoring disabled');
         break;
 
       // Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
@@ -1227,7 +1227,7 @@ function startCommandPolling() {
       if (commands && commands.length > 0) {
         for (const cmd of commands) {
           if (cmd.id !== lastProcessedCommandId) {
-            console.log('[Commands-Poll] 🔔 Found new command:', cmd.command);
+            console.log('[Commands-Poll] [ALERT] Found new command:', cmd.command);
             lastProcessedCommandId = cmd.id;
             handleCommand(cmd);
           }
@@ -1264,7 +1264,7 @@ function startRtcPolling() {
       if (sessions && sessions.length > 0) {
         // Only log if it's a new session we haven't started
         if (sessions[0].id !== liveViewState.currentSessionId) {
-          console.log('[RTC-Poll] 🔔 Found pending session:', sessions[0].id);
+          console.log('[RTC-Poll] [ALERT] Found pending session:', sessions[0].id);
           handleNewRtcSession(sessions[0]);
         }
       }
@@ -1280,7 +1280,7 @@ function startRtcPolling() {
 
 function subscribeToRtcSessions(retryCount = 0) {
   if (!deviceId) {
-    console.error('[RTC] ❌ Cannot subscribe - no deviceId!');
+    console.error('[RTC] [FAIL] Cannot subscribe - no deviceId!');
     return;
   }
 
@@ -1298,10 +1298,10 @@ function subscribeToRtcSessions(retryCount = 0) {
     rtcSessionsSubscription = null;
   }
 
-  console.log('[RTC] ═══════════════════════════════════════════════════');
+  console.log('[RTC] ===================================================');
   console.log('[RTC] Subscribing to rtc_sessions for device:', deviceId);
   console.log('[RTC] Attempt:', retryCount + 1, 'of', MAX_RETRIES + 1);
-  console.log('[RTC] ═══════════════════════════════════════════════════');
+  console.log('[RTC] ===================================================');
 
   const channelName = `rtc-${deviceId}-${Date.now()}`;
 
@@ -1316,10 +1316,10 @@ function subscribeToRtcSessions(retryCount = 0) {
         filter: `device_id=eq.${deviceId}`
       },
       (payload) => {
-        console.log('[RTC] ═══════════════════════════════════════════════════');
-        console.log('[RTC] 🔔 NEW RTC SESSION:', payload.new?.id);
+        console.log('[RTC] ===================================================');
+        console.log('[RTC] [ALERT] NEW RTC SESSION:', payload.new?.id);
         console.log('[RTC] Status:', payload.new?.status);
-        console.log('[RTC] ═══════════════════════════════════════════════════');
+        console.log('[RTC] ===================================================');
         if (payload.new.status === 'pending') {
           handleNewRtcSession(payload.new);
         }
@@ -1329,9 +1329,9 @@ function subscribeToRtcSessions(retryCount = 0) {
       console.log('[RTC] Subscription status:', status, err ? `Error: ${err}` : '');
       
       if (status === 'SUBSCRIBED') {
-        console.log('[RTC] ✅ Successfully subscribed to RTC sessions');
+        console.log('[RTC] [OK] Successfully subscribed to RTC sessions');
       } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-        console.error('[RTC] ❌ Subscription failed:', status);
+        console.error('[RTC] [FAIL] Subscription failed:', status);
         
         if (retryCount < MAX_RETRIES) {
           console.log(`[RTC] Retrying in ${RETRY_DELAY}ms...`);
@@ -1339,7 +1339,7 @@ function subscribeToRtcSessions(retryCount = 0) {
             subscribeToRtcSessions(retryCount + 1);
           }, RETRY_DELAY);
         } else {
-          console.error('[RTC] ❌ Max retries reached. Using polling fallback.');
+          console.error('[RTC] [FAIL] Max retries reached. Using polling fallback.');
           startRtcPolling();
         }
       }
@@ -1351,7 +1351,7 @@ function subscribeToRtcSessions(retryCount = 0) {
 function handleNewRtcSession(session) {
   // CRITICAL FIX: Prevent duplicate start for the SAME session
   if (liveViewState.currentSessionId === session.id) {
-    console.log('[RTC] ⚠️ Session already handled, skipping:', session.id);
+    console.log('[RTC] [WARN] Session already handled, skipping:', session.id);
     return;
   }
 
@@ -1377,23 +1377,23 @@ function handleNewRtcSession(session) {
 async function startNewSession(session) {
   // CRITICAL: Double-check we're not already handling this session
   if (liveViewState.currentSessionId === session.id) {
-    console.log('[RTC] ⚠️ startNewSession called for already-active session, skipping');
+    console.log('[RTC] [WARN] startNewSession called for already-active session, skipping');
     return;
   }
   
   // CRITICAL FIX: Wait for cleanup to complete before starting new session
   if (liveViewState.isCleaningUp) {
-    console.log('[RTC] ⏳ Renderer still cleaning up, waiting...');
+    console.log('[RTC] [WAIT] Renderer still cleaning up, waiting...');
     let retries = 10; // 10 x 300ms = 3 seconds max
     while (liveViewState.isCleaningUp && retries > 0) {
       await new Promise(r => setTimeout(r, 300));
       retries--;
       if (liveViewState.isCleaningUp) {
-        console.log(`[RTC] ⏳ Cleanup still in progress, retries left: ${retries}`);
+        console.log(`[RTC] [WAIT] Cleanup still in progress, retries left: ${retries}`);
       }
     }
     if (liveViewState.isCleaningUp) {
-      console.log('[RTC] ⚠️ Cleanup timeout - forcing reset and proceeding');
+      console.log('[RTC] [WARN] Cleanup timeout - forcing reset and proceeding');
       liveViewState.isCleaningUp = false;
     }
   }
@@ -1430,7 +1430,7 @@ async function handleStartLiveView() {
   // CRITICAL FIX: If RTC-Poll already started this SAME session, skip entirely
   // This prevents duplicate offers when both Command and RTC channels fire
   if (liveViewState.currentSessionId === pendingSession.id) {
-    console.log('[RTC] handleStartLiveView: ⚠️ Session already being handled by RTC-Poll, skipping:', pendingSession.id);
+    console.log('[RTC] handleStartLiveView: [WARN] Session already being handled by RTC-Poll, skipping:', pendingSession.id);
     // But we STILL must wait for offer-sent (or start-failed) so the command isn't ACKed too early.
     if (liveViewState.offerSentForSessionId !== pendingSession.id) {
       await waitForLiveViewStartAck(pendingSession.id);
@@ -1594,7 +1594,7 @@ function setupIpcHandlers() {
   });
 
   ipcMain.on('webrtc-start-failed', (event, payload) => {
-    console.error('[IPC] ❌ WebRTC start failed:', payload);
+    console.error('[IPC] [FAIL] WebRTC start failed:', payload);
     // Ensure state doesn't get stuck on "active" if renderer failed.
     liveViewState.isActive = false;
     // CRITICAL: Also clear currentSessionId so START retries won't be skipped.
@@ -1625,12 +1625,12 @@ function setupIpcHandlers() {
   
   // CRITICAL: Cleanup coordination signals from renderer
   ipcMain.on('webrtc-cleanup-started', () => {
-    console.log('[IPC] 🔄 Renderer cleanup started');
+    console.log('[IPC] [SYNC] Renderer cleanup started');
     liveViewState.isCleaningUp = true;
   });
   
   ipcMain.on('webrtc-cleanup-complete', () => {
-    console.log('[IPC] ✅ Renderer cleanup complete');
+    console.log('[IPC] [OK] Renderer cleanup complete');
     liveViewState.isCleaningUp = false;
   });
 
@@ -1643,10 +1643,10 @@ function setupIpcHandlers() {
 
   // Login from renderer (after pairing)
   ipcMain.on('login-user', async (event, data) => {
-    console.log('═══════════════════════════════════════════════════════════════');
-    console.log('[IPC] 📥 LOGIN-USER RECEIVED FROM RENDERER');
+    console.log('===============================================================');
+    console.log('[IPC] [IN] LOGIN-USER RECEIVED FROM RENDERER');
     console.log('[IPC] Data:', JSON.stringify(data, null, 2));
-    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('===============================================================');
     
     const oldDeviceId = deviceId;
     const deviceChanged = data.device_id && data.device_id !== oldDeviceId;
@@ -1736,19 +1736,19 @@ function setupIpcHandlers() {
           const row = Array.isArray(data) ? data[0] : data;
           
           if (row && row.profile_exists && row.auto_away_enabled === true) {
-            console.log('[IPC] ═══════════════════════════════════════════════════');
-            console.log('[IPC] 🤖 AUTO-AWAY: Profile has auto_away_enabled=true');
-            console.log('[IPC] 🤖 Enabling Away Mode with skipDisplayOff=true');
-            console.log('[IPC] ═══════════════════════════════════════════════════');
+            console.log('[IPC] ===================================================');
+            console.log('[IPC] [AUTO] AUTO-AWAY: Profile has auto_away_enabled=true');
+            console.log('[IPC] [AUTO] Enabling Away Mode with skipDisplayOff=true');
+            console.log('[IPC] ===================================================');
             
             // Enable Away Mode WITHOUT turning off display
             // This is the key difference from manual mode
             const result = await awayManager.enable({ skipDisplayOff: true });
             
             if (result.success) {
-              console.log('[IPC] ✅ Auto-Away enabled successfully (display follows OS settings)');
+              console.log('[IPC] [OK] Auto-Away enabled successfully (display follows OS settings)');
             } else {
-              console.log('[IPC] ⚠️ Auto-Away could not be enabled:', result.error);
+              console.log('[IPC] [WARN] Auto-Away could not be enabled:', result.error);
             }
           } else {
             console.log('[IPC] Auto-Away not enabled for this profile (auto_away_enabled=false, not set, or profile not found)');
@@ -1896,7 +1896,7 @@ function setupIpcHandlers() {
         if (error) {
           console.error('[Clips] Failed to update event metadata:', error);
         } else {
-          console.log('[Clips] ✓ Event metadata updated with clip info');
+          console.log('[Clips] [OK] Event metadata updated with clip info');
         }
       } catch (err) {
         console.error('[Clips] DB update error:', err);
@@ -1910,12 +1910,12 @@ function setupIpcHandlers() {
 // =============================================================================
 
 // BUILD ID - Verify this matches your local file!
-console.log('═══════════════════════════════════════════════════════════════');
+console.log('===============================================================');
 console.log('[Main] BUILD ID: main-js-2026-02-13-v2.14.0-baby-monitor');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');
-console.log('═══════════════════════════════════════════════════════════════');
+console.log('===============================================================');
 
 app.whenReady().then(async () => {
   console.log('[Main] app.whenReady() - Starting local model server...');
@@ -1971,7 +1971,7 @@ app.whenReady().then(async () => {
 powerMonitor.on('suspend', async () => {
   const isAwayActive = awayManager.isActive();
   
-  console.log('[PowerMonitor] 💤 Suspend event detected');
+  console.log('[PowerMonitor] [SLEEP] Suspend event detected');
   console.log('[PowerMonitor] Away Mode active:', isAwayActive);
   
   if (!deviceId) {
@@ -1982,9 +1982,9 @@ powerMonitor.on('suspend', async () => {
   // CRITICAL: If Away Mode is active, this suspend should NOT have happened
   // Log this as a potential issue - the powerSaveBlocker should prevent sleep
   if (isAwayActive) {
-    console.log('[PowerMonitor] ⚠️ UNEXPECTED SUSPEND while Away Mode is active!');
-    console.log('[PowerMonitor] ⚠️ powerSaveBlocker should have prevented this.');
-    console.log('[PowerMonitor] ⚠️ Possible causes: lid closed, critical battery, or system override.');
+    console.log('[PowerMonitor] [WARN] UNEXPECTED SUSPEND while Away Mode is active!');
+    console.log('[PowerMonitor] [WARN] powerSaveBlocker should have prevented this.');
+    console.log('[PowerMonitor] [WARN] Possible causes: lid closed, critical battery, or system override.');
     
     // DO NOT update device_mode to NORMAL - Away Mode is still logically active
     // Just mark device as temporarily inactive
@@ -2026,7 +2026,7 @@ powerMonitor.on('suspend', async () => {
       })
       .eq('id', deviceId);
 
-    console.log('[PowerMonitor] ✅ Device marked as offline before sleep');
+    console.log('[PowerMonitor] [OK] Device marked as offline before sleep');
     
     // Stop heartbeat interval (will restart on resume)
     if (heartbeatInterval) {
@@ -2036,12 +2036,12 @@ powerMonitor.on('suspend', async () => {
     }
 
   } catch (err) {
-    console.error('[PowerMonitor] ⚠️ Failed to update DB before sleep:', err.message);
+    console.error('[PowerMonitor] [WARN] Failed to update DB before sleep:', err.message);
   }
 });
 
 powerMonitor.on('resume', async () => {
-  console.log('[PowerMonitor] 💡 System resumed from sleep - sending immediate heartbeat');
+  console.log('[PowerMonitor] [WAKE] System resumed from sleep - sending immediate heartbeat');
   sendHeartbeat();
   
   // Restart heartbeat interval if it was cleared
@@ -2052,13 +2052,13 @@ powerMonitor.on('resume', async () => {
 
   // CRITICAL FIX: Re-enable Away Mode if it was active before sleep
   // This ensures the computer doesn't go back to sleep immediately
-  console.log('[PowerMonitor] 🏠 Checking if Away Mode needs to be restored...');
+  console.log('[PowerMonitor] [HOME] Checking if Away Mode needs to be restored...');
   const resumeResult = await awayManager.handleResume();
   
   if (resumeResult.wasRestored) {
-    console.log('[PowerMonitor] ✅ Away Mode was restored after wake');
+    console.log('[PowerMonitor] [OK] Away Mode was restored after wake');
   } else {
-    console.log('[PowerMonitor] ℹ️ Away Mode was not active before sleep, not restoring');
+    console.log('[PowerMonitor] [INFO] Away Mode was not active before sleep, not restoring');
     // Only call handleUserReturned if Away Mode was NOT restored
     // (If restored, we want to stay in Away Mode)
     awayManager.handleUserReturned();
@@ -2066,7 +2066,7 @@ powerMonitor.on('resume', async () => {
 
   // CRITICAL FIX: Recover missed commands sent while sleeping
   if (deviceId) {
-    console.log('[PowerMonitor] 🔍 Checking for missed commands...');
+    console.log('[PowerMonitor] [SEARCH] Checking for missed commands...');
     try {
       const { data: missedCommands, error } = await supabase
         .from('commands')
@@ -2078,7 +2078,7 @@ powerMonitor.on('resume', async () => {
       if (error) {
         console.error('[PowerMonitor] Failed to fetch missed commands:', error);
       } else if (missedCommands && missedCommands.length > 0) {
-        console.log(`[PowerMonitor] 📬 Found ${missedCommands.length} missed commands, processing...`);
+        console.log(`[PowerMonitor] [MAIL] Found ${missedCommands.length} missed commands, processing...`);
         for (const cmd of missedCommands) {
           console.log(`[PowerMonitor] Processing missed command: ${cmd.command}`);
           if (mainWindow && mainWindow.webContents) {
@@ -2086,7 +2086,7 @@ powerMonitor.on('resume', async () => {
           }
         }
       } else {
-        console.log('[PowerMonitor] ✅ No missed commands');
+        console.log('[PowerMonitor] [OK] No missed commands');
       }
     } catch (err) {
       console.error('[PowerMonitor] Error recovering commands:', err);
@@ -2095,13 +2095,13 @@ powerMonitor.on('resume', async () => {
 });
 
 powerMonitor.on('unlock-screen', () => {
-  console.log('[PowerMonitor] 🔓 Screen unlocked - sending heartbeat');
+  console.log('[PowerMonitor] [UNLOCK] Screen unlocked - sending heartbeat');
   sendHeartbeat();
   awayManager.handleUserReturned();
 });
 
 powerMonitor.on('user-did-become-active', () => {
-  console.log('[PowerMonitor] 👤 User became active');
+  console.log('[PowerMonitor] [USER] User became active');
   awayManager.handleUserReturned();
 });
 
@@ -2177,9 +2177,9 @@ app.on('before-quit', async (event) => {
           Promise.all(dbUpdates),
           new Promise((_, reject) => setTimeout(() => reject(new Error('DB cleanup timeout')), 3000))
         ]);
-        console.log('[App] ✅ DB cleanup completed (device NORMAL + inactive)');
+        console.log('[App] [OK] DB cleanup completed (device NORMAL + inactive)');
       } catch (err) {
-        console.warn('[App] ⚠️ DB cleanup did not finish in time:', err.message);
+        console.warn('[App] [WARN] DB cleanup did not finish in time:', err.message);
       }
     }
 
