@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, CameraOff, Baby } from 'lucide-react';
+import { Camera, CameraOff, Baby, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SensorStatusIndicatorProps {
@@ -13,7 +13,7 @@ interface SensorStatusIndicatorProps {
 }
 
 /**
- * Compact sensor status indicator showing camera and baby monitor icons
+ * Compact sensor status indicator showing camera, baby monitor, and microphone icons
  * Green = active & confirmed, Purple = baby monitor, Gray = off
  */
 export const SensorStatusIndicator: React.FC<SensorStatusIndicatorProps> = ({
@@ -27,6 +27,7 @@ export const SensorStatusIndicator: React.FC<SensorStatusIndicatorProps> = ({
 
   const cameraActive = securityEnabled && motionEnabled;
   const babyActive = babyMonitorEnabled;
+  const micActive = securityEnabled && babyMonitorEnabled;
 
   return (
     <div className={cn('flex items-center gap-3', className)}>
@@ -53,6 +54,20 @@ export const SensorStatusIndicator: React.FC<SensorStatusIndicatorProps> = ({
           <Baby className="w-4 h-4 text-slate-500" />
         )}
       </div>
+
+      {/* Microphone indicator - only shown when Baby Monitor is armed & active */}
+      {babyActive && (
+        <div className="flex items-center gap-1.5">
+          {micActive ? (
+            <>
+              <Mic className="w-4 h-4 text-emerald-400" />
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </>
+          ) : (
+            <Mic className="w-4 h-4 text-amber-400 animate-pulse" />
+          )}
+        </div>
+      )}
     </div>
   );
 };

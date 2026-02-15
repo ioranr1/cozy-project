@@ -210,6 +210,7 @@ function validateSensorConfig(config, sensorType) {
 function mergeWithDefaults(partialConfig = {}) {
   return {
     monitoring_enabled: partialConfig.monitoring_enabled ?? DEFAULT_MONITORING_CONFIG.monitoring_enabled,
+    baby_monitor_enabled: partialConfig.baby_monitor_enabled ?? false,
     sensors: {
       motion: {
         ...MOTION_SENSOR_DEFAULTS,
