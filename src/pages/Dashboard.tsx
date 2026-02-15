@@ -245,11 +245,24 @@ const Dashboard: React.FC = () => {
         .eq('device_id', activeDeviceId)
         .maybeSingle();
       if (data) {
+        console.log('[Dashboard] baby monitor state fetched:', data.is_armed, data.baby_monitor_enabled);
         setIsBabyMonitorArmed(data.is_armed && data.baby_monitor_enabled);
+      } else {
+        setIsBabyMonitorArmed(false);
       }
     };
 
     fetchBabyMonitorState();
+
+    // Re-fetch when user navigates back to this page (e.g. from /baby-monitor)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchBabyMonitorState();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    // Also re-fetch on window focus (covers SPA navigation back)
+    window.addEventListener('focus', fetchBabyMonitorState);
 
     const channel = supabase
       .channel(`dashboard-baby-monitor-${activeDeviceId}`)
@@ -260,11 +273,16 @@ const Dashboard: React.FC = () => {
         filter: `device_id=eq.${activeDeviceId}`,
       }, (payload) => {
         const s = payload.new as { is_armed: boolean; baby_monitor_enabled: boolean };
+        console.log('[Dashboard] baby monitor realtime update:', s.is_armed, s.baby_monitor_enabled);
         setIsBabyMonitorArmed(s.is_armed && s.baby_monitor_enabled);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', fetchBabyMonitorState);
+      supabase.removeChannel(channel);
+    };
   }, [activeDeviceId]);
 
   useEffect(() => {
