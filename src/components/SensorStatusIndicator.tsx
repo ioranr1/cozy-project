@@ -14,7 +14,7 @@ interface SensorStatusIndicatorProps {
 
 /**
  * Compact sensor status indicator showing camera, baby monitor, and microphone icons
- * Green = active & confirmed, Purple = baby monitor, Gray = off
+ * Green = active & confirmed, Purple = baby monitor, Emerald = mic active, Gray = off
  */
 export const SensorStatusIndicator: React.FC<SensorStatusIndicatorProps> = ({
   motionEnabled,
@@ -55,17 +55,26 @@ export const SensorStatusIndicator: React.FC<SensorStatusIndicatorProps> = ({
         )}
       </div>
 
-      {/* Microphone indicator - only shown when Baby Monitor is armed & active */}
+      {/* Microphone indicator - shown when Baby Monitor is selected */}
       {babyActive && (
-        <div className="flex items-center gap-1.5">
-          {micActive ? (
-            <>
-              <Mic className="w-4 h-4 text-emerald-400" />
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            </>
-          ) : (
-            <Mic className="w-4 h-4 text-amber-400 animate-pulse" />
-          )}
+        <div className={cn(
+          'flex items-center gap-1.5 px-2 py-0.5 rounded-full',
+          micActive ? 'bg-emerald-500/20' : 'bg-amber-500/20'
+        )}>
+          <Mic className={cn(
+            'w-4 h-4',
+            micActive ? 'text-emerald-400' : 'text-amber-400'
+          )} />
+          <div className={cn(
+            'w-2 h-2 rounded-full animate-pulse',
+            micActive ? 'bg-emerald-500' : 'bg-amber-500'
+          )} />
+          <span className={cn(
+            'text-[10px] font-medium',
+            micActive ? 'text-emerald-400' : 'text-amber-400'
+          )}>
+            {micActive ? 'MIC' : '...'}
+          </span>
         </div>
       )}
     </div>
