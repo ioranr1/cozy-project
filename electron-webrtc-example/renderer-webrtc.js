@@ -1,7 +1,7 @@
 /**
  * Electron Renderer WebRTC Implementation
  * ========================================
- * BUILD: renderer-webrtc-2026-01-31-v2.2.3-stun-fix
+ * BUILD: renderer-webrtc-2026-02-15-v2.3.0-audio-only
  * 
  * This file should be loaded in your Electron renderer process (e.g., index.html or a hidden window).
  * It listens for IPC messages from main.js to start/stop live view sessions.
@@ -31,6 +31,7 @@ let lastStopTime = null;   // Track when we stopped to prevent immediate restart
 let isStartingSession = false; // CRITICAL: Prevent duplicate START calls
 // Abort token to cancel an in-flight start sequence when STOP arrives mid-start.
 let abortToken = 0;
+let currentMode = 'full'; // 'full' | 'audio_only'
 
 function stopTracksSafe(stream, label = 'stream') {
   if (!stream) return;
@@ -319,7 +320,8 @@ async function fetchTurnCredentials() {
 // WEBRTC CORE
 // ============================================================
 
-async function startLiveView(sessionId) {
+async function startLiveView(sessionId, mode = 'full') {
+  currentMode = mode;
   // CRITICAL FIX: Prevent duplicate starts for the SAME session
   if (isStartingSession) {
     console.log('[Desktop] ⚠️ Already starting a session, ignoring duplicate call');
@@ -398,8 +400,8 @@ async function startLiveView(sessionId) {
   }
   
   console.log('═══════════════════════════════════════════════════');
-  console.log('[Desktop] START LIVE VIEW - Session:', sessionId);
-  console.log('═══════════════════════════════════════════════════');
+  console.log('[Desktop] START LIVE VIEW - Session:', sessionId, 'Mode:', currentMode);
+  console.log('---------------------------------------------------');
   
   currentSessionId = sessionId;
   processedSignalIds.clear();
@@ -443,19 +445,33 @@ async function startLiveView(sessionId) {
       console.log('[Desktop] Could not enumerate devices:', enumErr.message);
     }
     
-    // 1. Get camera access (with timeout and retry)
-    console.log('[Desktop] Step 1/5: Getting camera access (30s timeout, 3 retries)...');
-    const acquiredStream = await getCameraWithRetry(CAMERA_MAX_RETRIES);
+    // 1. Get media access (with timeout and retry)
+    // In audio_only mode, skip camera entirely - only request microphone.
+    let acquiredStream;
+    if (currentMode === 'audio_only') {
+      console.log('[Desktop] Step 1/5: Getting AUDIO-ONLY access (baby monitor mode)...');
+      try {
+        acquiredStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        console.log('[Desktop] [OK] Audio-only access granted');
+      } catch (audioErr) {
+        console.error('[Desktop] [FAIL] Audio-only getUserMedia failed:', audioErr.message);
+        throw audioErr;
+      }
+    } else {
+      console.log('[Desktop] Step 1/5: Getting camera access (30s timeout, 3 retries)...');
+      acquiredStream = await getCameraWithRetry(CAMERA_MAX_RETRIES);
+    }
+
     // If STOP arrived during getUserMedia/retry, release immediately.
     if (isAborted()) {
-      console.log('[Desktop] 🛑 Start aborted right after camera acquired (STOP received)');
+      console.log('[Desktop] Start aborted right after media acquired (STOP received)');
       stopTracksSafe(acquiredStream, 'acquiredStream (aborted)');
       isStartingSession = false;
       return;
     }
 
     localStream = acquiredStream;
-    console.log('[Desktop] ✅ Camera access granted, tracks:', localStream.getTracks().map(t => t.kind).join(', '));
+    console.log('[Desktop] [OK] Media access granted, tracks:', localStream.getTracks().map(t => t.kind).join(', '));
     
     // 2. Get ICE servers
     console.log('[Desktop] Step 2/5: Fetching ICE servers...');
@@ -817,9 +833,18 @@ async function stopLiveView() {
 // Check if we're in Electron environment with IPC exposed
 if (typeof window !== 'undefined' && window.electronAPI) {
   // Listen for start-live-view from main process
-  window.electronAPI.onStartLiveView((sessionId) => {
-    console.log('[Desktop] Received start-live-view IPC with sessionId:', sessionId);
-    startLiveView(sessionId);
+  window.electronAPI.onStartLiveView((data) => {
+    // Support both old format (string sessionId) and new format ({ sessionId, mode })
+    let sessionId, mode;
+    if (typeof data === 'object' && data !== null && data.sessionId) {
+      sessionId = data.sessionId;
+      mode = data.mode || 'full';
+    } else {
+      sessionId = data;
+      mode = 'full';
+    }
+    console.log('[Desktop] Received start-live-view IPC with sessionId:', sessionId, 'mode:', mode);
+    startLiveView(sessionId, mode);
   });
   
   // Listen for stop-live-view from main process
