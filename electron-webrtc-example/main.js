@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.20.0 (2026-02-15)
+ * VERSION: 2.21.0 (2026-02-15)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1410,9 +1410,22 @@ async function startNewSession(session, forceFullMode = false) {
   updateTrayMenu('live-view-start-reset');
 
   // Detect mode: forceFullMode overrides baby monitor auto-detection
-  const isBabyMonitorActive = monitoringManager.isMonitoringActive() && monitoringManager.isBabyMonitorMode?.();
+  // SSOT: Check DB device_status.baby_monitor_enabled first, fallback to in-memory state
+  let isBabyMonitorActive = false;
+  try {
+    const { data: dbStatus } = await supabase
+      .from('device_status')
+      .select('baby_monitor_enabled')
+      .eq('device_id', deviceId)
+      .single();
+    isBabyMonitorActive = dbStatus?.baby_monitor_enabled === true;
+    console.log('[RTC] DB baby_monitor_enabled:', dbStatus?.baby_monitor_enabled);
+  } catch (dbErr) {
+    console.warn('[RTC] Failed to check DB for baby_monitor_enabled, falling back to in-memory:', dbErr.message);
+    isBabyMonitorActive = monitoringManager.isMonitoringActive() && monitoringManager.isBabyMonitorMode?.();
+  }
   const mode = forceFullMode ? 'full' : (isBabyMonitorActive ? 'audio_only' : 'full');
-  console.log('[RTC] Starting live view for session:', session.id, 'mode:', mode, 'forceFullMode:', forceFullMode);
+  console.log('[RTC] Starting live view for session:', session.id, 'mode:', mode, 'forceFullMode:', forceFullMode, 'babyMonitorDB:', isBabyMonitorActive);
   // Tell renderer to start WebRTC (pass mode so renderer knows if audio-only)
   mainWindow?.webContents.send('start-live-view', { sessionId: session.id, mode });
 }
