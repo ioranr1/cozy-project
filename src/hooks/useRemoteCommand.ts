@@ -8,6 +8,7 @@ export type CommandType =
   | 'START_MOTION_DETECTION' 
   | 'STOP_MOTION_DETECTION' 
   | 'START_LIVE_VIEW' 
+  | 'START_LIVE_VIEW_FULL'
   | 'STOP_LIVE_VIEW'
   | 'START_CAMERA'
   | 'STOP_CAMERA'

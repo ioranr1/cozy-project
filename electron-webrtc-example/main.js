@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.19.0 (2026-02-15)
+ * VERSION: 2.20.0 (2026-02-15)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1018,7 +1018,11 @@ async function handleCommand(command) {
   try {
     switch (cmd) {
       case 'START_LIVE_VIEW':
-        await handleStartLiveView();
+        await handleStartLiveView(false);
+        break;
+
+      case 'START_LIVE_VIEW_FULL':
+        await handleStartLiveView(true);
         break;
 
       case 'STOP_LIVE_VIEW':
@@ -1348,7 +1352,7 @@ function subscribeToRtcSessions(retryCount = 0) {
   console.log('[RTC] Subscription initiated...');
 }
 
-function handleNewRtcSession(session) {
+function handleNewRtcSession(session, forceFullMode = false) {
   // CRITICAL FIX: Prevent duplicate start for the SAME session
   if (liveViewState.currentSessionId === session.id) {
     console.log('[RTC] [WARN] Session already handled, skipping:', session.id);
@@ -1366,15 +1370,15 @@ function handleNewRtcSession(session) {
     liveViewState.currentSessionId = null;
     // Small delay to let cleanup happen
     setTimeout(() => {
-      startNewSession(session);
+      startNewSession(session, forceFullMode);
     }, 500);
     return;
   }
 
-  startNewSession(session);
+  startNewSession(session, forceFullMode);
 }
 
-async function startNewSession(session) {
+async function startNewSession(session, forceFullMode = false) {
   // CRITICAL: Double-check we're not already handling this session
   if (liveViewState.currentSessionId === session.id) {
     console.log('[RTC] [WARN] startNewSession called for already-active session, skipping');
@@ -1405,15 +1409,15 @@ async function startNewSession(session) {
   liveViewState.offerSentForSessionId = null;
   updateTrayMenu('live-view-start-reset');
 
-  // Detect if baby monitor mode is active (audio-only WebRTC)
+  // Detect mode: forceFullMode overrides baby monitor auto-detection
   const isBabyMonitorActive = monitoringManager.isMonitoringActive() && monitoringManager.isBabyMonitorMode?.();
-  const mode = isBabyMonitorActive ? 'audio_only' : 'full';
-  console.log('[RTC] Starting live view for session:', session.id, 'mode:', mode);
+  const mode = forceFullMode ? 'full' : (isBabyMonitorActive ? 'audio_only' : 'full');
+  console.log('[RTC] Starting live view for session:', session.id, 'mode:', mode, 'forceFullMode:', forceFullMode);
   // Tell renderer to start WebRTC (pass mode so renderer knows if audio-only)
   mainWindow?.webContents.send('start-live-view', { sessionId: session.id, mode });
 }
 
-async function handleStartLiveView() {
+async function handleStartLiveView(forceFullMode = false) {
   // Check for pending sessions FIRST (before any state changes)
   const { data: sessions } = await supabase
     .from('rtc_sessions')
@@ -1449,7 +1453,7 @@ async function handleStartLiveView() {
   }
 
   console.log('[RTC] handleStartLiveView: Starting session:', pendingSession.id);
-  handleNewRtcSession(pendingSession);
+  handleNewRtcSession(pendingSession, forceFullMode);
 
   // CRITICAL: Do NOT acknowledge START until renderer actually sent an offer.
   // If camera/mic fails, renderer will report via IPC and we must mark command as failed.
