@@ -31,24 +31,24 @@ const AWAY_MODE_STRINGS = {
   },
   
   he: {
-    // Notifications
-    awayModeEnabled: 'מצב מרוחק הופעל - המצלמה מוכנה',
-    awayModeDisabled: 'מצב מרוחק כובה',
-    awayModePreflightFailed: 'לא ניתן להפעיל מצב מרוחק',
+    // Notifications (ASCII only - Windows CMD cannot render Hebrew/Unicode)
+    awayModeEnabled: 'Away Mode activated - Camera ready',
+    awayModeDisabled: 'Away Mode deactivated',
+    awayModePreflightFailed: 'Cannot activate Away Mode',
     
     // User Returned Modal
-    userReturnedTitle: 'ברוך שובך',
-    userReturnedMessage: 'חזרת הביתה. האם לכבות את מצב מרוחק?',
-    disableButton: 'כבה מצב מרוחק',
-    keepButton: 'השאר מצב מרוחק',
+    userReturnedTitle: 'Welcome Back',
+    userReturnedMessage: 'You have returned. Disable Away Mode?',
+    disableButton: 'Disable Away Mode',
+    keepButton: 'Keep Away Mode',
     
     // Preflight Errors
-    powerRequired: 'יש לחבר למקור חשמל',
-    cameraRequired: 'המצלמה לא זמינה',
+    powerRequired: 'Connect to power',
+    cameraRequired: 'Camera not available',
     
-    // Tray Status (ASCII only - no emojis for Windows CMD compatibility)
-    trayStatusAway: '[HOME] מרוחק',
-    trayStatusNormal: '[LOC] רגיל',
+    // Tray Status (ASCII only - Windows CMD cannot render Hebrew/Unicode)
+    trayStatusAway: '[HOME] AWAY',
+    trayStatusNormal: '[LOC] NORMAL',
   }
 };
 

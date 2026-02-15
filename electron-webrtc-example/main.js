@@ -197,22 +197,22 @@ const STRINGS = {
     quit: 'Quit'
   },
   he: {
-    awayModeEnabled: 'מצב מרוחק הופעל - המצלמה מוכנה',
-    awayModeDisabled: 'מצב מרוחק כובה',
-    awayModePreflightFailed: 'לא ניתן להפעיל מצב מרוחק',
-    userReturnedTitle: 'ברוך שובך',
-    userReturnedMessage: 'חזרת הביתה. האם לכבות את מצב מרוחק?',
-    disableButton: 'כבה מצב מרוחק',
-    keepButton: 'השאר מצב מרוחק',
-    powerRequired: 'יש לחבר למקור חשמל',
-    cameraRequired: 'המצלמה לא זמינה',
-    trayTooltip: 'מצלמת אבטחה',
-    trayStatusLive: '[LIVE] שידור',
-    trayStatusIdle: '[IDLE] המתנה',
-    trayStatusAway: '[HOME] מרוחק',
-    trayStatusNormal: '[LOC] רגיל',
-    showWindow: 'הצג חלון',
-    quit: 'יציאה'
+    awayModeEnabled: 'Away Mode activated',
+    awayModeDisabled: 'Away Mode deactivated',
+    awayModePreflightFailed: 'Cannot activate Away Mode',
+    userReturnedTitle: 'Welcome Back',
+    userReturnedMessage: 'You have returned. Disable Away Mode?',
+    disableButton: 'Disable Away Mode',
+    keepButton: 'Keep Away Mode',
+    powerRequired: 'Connect to power',
+    cameraRequired: 'Camera not available',
+    trayTooltip: 'Security Camera',
+    trayStatusLive: '[LIVE] LIVE',
+    trayStatusIdle: '[IDLE] Idle',
+    trayStatusAway: '[HOME] AWAY',
+    trayStatusNormal: '[LOC] NORMAL',
+    showWindow: 'Show Window',
+    quit: 'Quit'
   }
 };
 
