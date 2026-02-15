@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.18.0 (2026-02-15)
+ * VERSION: 2.19.0 (2026-02-15)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1405,9 +1405,12 @@ async function startNewSession(session) {
   liveViewState.offerSentForSessionId = null;
   updateTrayMenu('live-view-start-reset');
 
-  console.log('[RTC] Starting live view for session:', session.id);
-  // Tell renderer to start WebRTC
-  mainWindow?.webContents.send('start-live-view', session.id);
+  // Detect if baby monitor mode is active (audio-only WebRTC)
+  const isBabyMonitorActive = monitoringManager.isMonitoringActive() && monitoringManager.isBabyMonitorMode?.();
+  const mode = isBabyMonitorActive ? 'audio_only' : 'full';
+  console.log('[RTC] Starting live view for session:', session.id, 'mode:', mode);
+  // Tell renderer to start WebRTC (pass mode so renderer knows if audio-only)
+  mainWindow?.webContents.send('start-live-view', { sessionId: session.id, mode });
 }
 
 async function handleStartLiveView() {
@@ -1453,7 +1456,7 @@ async function handleStartLiveView() {
   await waitForLiveViewStartAck(pendingSession.id);
 }
 
-function waitForLiveViewStartAck(sessionId, { timeoutMs = 15000 } = {}) {
+function waitForLiveViewStartAck(sessionId, { timeoutMs = 30000 } = {}) {
   // If the renderer already confirmed offer-sent for this session, resolve immediately.
   if (liveViewState.offerSentForSessionId === sessionId) {
     return Promise.resolve(true);
