@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Laptop, Video, Activity, Bell, Clock, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Monitor } from 'lucide-react';
+import { Laptop, Video, Activity, Bell, Clock, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Monitor, Baby, Camera } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
@@ -40,6 +40,7 @@ const Dashboard: React.FC = () => {
   const [isLaptopStatusLoading, setIsLaptopStatusLoading] = useState(true);
   const [viewStatus, setViewStatus] = useState<ViewStatus>('idle');
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [isBabyMonitorArmed, setIsBabyMonitorArmed] = useState(false);
   const isMobileDevice = useIsMobileDevice();
   const capabilities = useCapabilities();
   const { flags: featureFlags, isLoading: isFlagsLoading } = useFeatureFlags();
@@ -231,6 +232,39 @@ const Dashboard: React.FC = () => {
       supabase.removeChannel(channel);
       clearInterval(interval);
     };
+  }, [activeDeviceId]);
+
+  // Subscribe to device_status for baby_monitor_enabled + is_armed
+  useEffect(() => {
+    if (!activeDeviceId) return;
+
+    const fetchBabyMonitorState = async () => {
+      const { data } = await supabase
+        .from('device_status')
+        .select('is_armed, baby_monitor_enabled')
+        .eq('device_id', activeDeviceId)
+        .maybeSingle();
+      if (data) {
+        setIsBabyMonitorArmed(data.is_armed && data.baby_monitor_enabled);
+      }
+    };
+
+    fetchBabyMonitorState();
+
+    const channel = supabase
+      .channel(`dashboard-baby-monitor-${activeDeviceId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'device_status',
+        filter: `device_id=eq.${activeDeviceId}`,
+      }, (payload) => {
+        const s = payload.new as { is_armed: boolean; baby_monitor_enabled: boolean };
+        setIsBabyMonitorArmed(s.is_armed && s.baby_monitor_enabled);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [activeDeviceId]);
 
   useEffect(() => {
@@ -537,7 +571,38 @@ const Dashboard: React.FC = () => {
           </div>
 
 
-          {/* Manual Live View Control Card */}
+          {/* Baby Monitor Viewer Card - shown when baby monitor is armed */}
+          {isBabyMonitorArmed && (
+            <div className="bg-gradient-to-br from-purple-600/20 to-purple-800/20 border border-purple-500/30 rounded-2xl p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center">
+                  <Baby className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-white">
+                    {language === 'he' ? 'ניטור תינוק' : 'Baby Monitor'}
+                  </h3>
+                  <p className="text-white/60 text-sm">
+                    {language === 'he' ? 'מיקרופון פעיל • מצלמה ידנית' : 'Mic active • Manual camera'}
+                  </p>
+                </div>
+                <div className="px-2 py-1 rounded-full text-xs bg-emerald-500/20 text-emerald-400">
+                  {language === 'he' ? 'פעיל' : 'Active'}
+                </div>
+              </div>
+              <Button
+                onClick={() => navigate('/baby-monitor')}
+                disabled={laptopStatus !== 'online'}
+                className="w-full bg-purple-600 hover:bg-purple-700"
+              >
+                <Baby className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                {language === 'he' ? 'צפה בתינוק 👶' : 'Watch Baby 👶'}
+              </Button>
+            </div>
+          )}
+
+          {/* Manual Live View Control Card - HIDDEN when baby monitor is armed */}
+          {!isBabyMonitorArmed && (
           <div className="bg-gradient-to-br from-blue-600/20 to-blue-800/20 border border-blue-500/30 rounded-2xl p-5">
             <div className="flex items-center gap-3 mb-4">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
@@ -606,6 +671,7 @@ const Dashboard: React.FC = () => {
             </div>
 
           </div>
+          )}
 
           {/* Recent Events Card */}
           <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
