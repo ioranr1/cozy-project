@@ -8,7 +8,7 @@ import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { useDevices, getSelectedDeviceId } from '@/hooks/useDevices';
 
 /**
- * Baby Monitor Viewer - v2.1.0
+ * Baby Monitor Viewer - v2.2.0
  * User must tap "Start Listening" to unlock browser audio policy.
  * Opens audio stream via WebRTC (camera OFF in UI).
  * "Turn on camera" navigates to full Viewer.

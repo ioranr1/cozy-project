@@ -2,7 +2,7 @@
  * Away Mode i18n Strings
  * ======================
  * 
- * VERSION: 1.1.0 (2026-02-14)
+ * VERSION: 1.2.0 (2026-02-15)
  * 
  * All translatable strings for Away Mode UI and notifications.
  * Supports: English (en), Hebrew (he)
