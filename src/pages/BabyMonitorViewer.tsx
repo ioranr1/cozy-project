@@ -2,16 +2,16 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Baby, ArrowLeft, ArrowRight, Camera, Volume2, VolumeX, Mic, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Baby, ArrowLeft, ArrowRight, Camera, Volume2, VolumeX, Mic, Loader2, AlertCircle, RefreshCw, Headphones } from 'lucide-react';
 import { useRtcSession, RtcSessionStatus } from '@/hooks/useRtcSession';
 import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { useDevices, getSelectedDeviceId } from '@/hooks/useDevices';
-import { toast } from 'sonner';
 
 /**
- * Baby Monitor Viewer - v2.0.0
- * Opens with audio stream via WebRTC (camera OFF on Electron side).
- * User hears real-time audio. Camera activation redirects to full Viewer.
+ * Baby Monitor Viewer - v2.1.0
+ * User must tap "Start Listening" to unlock browser audio policy.
+ * Opens audio stream via WebRTC (camera OFF in UI).
+ * "Turn on camera" navigates to full Viewer.
  */
 
 type BabyViewerState = 'idle' | 'connecting' | 'connected' | 'error' | 'ended';
@@ -57,12 +57,12 @@ const BabyMonitorViewer: React.FC = () => {
     if (!audio) return;
 
     audio.srcObject = stream;
-    audio.muted = false;
-    setIsMuted(false);
+    // Audio element was already unlocked by user gesture in handleStartListening
     audio.play().then(() => {
       console.log('✅ [BabyViewer] Audio playing');
+      setIsMuted(false);
     }).catch(e => {
-      console.warn('⚠️ [BabyViewer] Audio play blocked, muting first:', e);
+      console.warn('⚠️ [BabyViewer] Audio play blocked, trying muted:', e);
       audio.muted = true;
       setIsMuted(true);
       audio.play().catch(() => {});
@@ -119,13 +119,7 @@ const BabyMonitorViewer: React.FC = () => {
     startInitiatedRef.current = false;
   }, [navigate]);
 
-  // Auto-start audio stream when ready
-  useEffect(() => {
-    if (viewerId && primaryDeviceId && viewerState === 'idle' && !startInitiatedRef.current) {
-      handleStartListening();
-    }
-  }, [viewerId, primaryDeviceId, viewerState]);
-
+  // User must tap this – unlocks audio in gesture context (browser policy)
   const handleStartListening = useCallback(async () => {
     if (startInitiatedRef.current || !primaryDeviceId || !viewerId) return;
     startInitiatedRef.current = true;
@@ -133,9 +127,15 @@ const BabyMonitorViewer: React.FC = () => {
     setViewerState('connecting');
     setErrorMessage(null);
 
-    console.log('🎧 [BabyViewer] Starting audio session...');
+    // CRITICAL: unlock audio element inside user gesture
+    const audio = audioRef.current;
+    if (audio) {
+      audio.muted = false;
+      await audio.play().catch(() => {});
+    }
 
-    // Send START_LIVE_VIEW command (Electron will stream audio+video, we only use audio)
+    console.log('🎧 [BabyViewer] Starting audio session (user gesture)...');
+
     const sent = await sendCommandRef.current('START_LIVE_VIEW');
     if (!sent) {
       console.error('❌ [BabyViewer] Failed to send START command');
@@ -145,7 +145,6 @@ const BabyMonitorViewer: React.FC = () => {
       return;
     }
 
-    // Wait briefly then start RTC session
     setTimeout(() => {
       startSession();
     }, 300);
@@ -156,7 +155,6 @@ const BabyMonitorViewer: React.FC = () => {
     stopSentRef.current = true;
     console.log('🛑 [BabyViewer] Stopping...');
 
-    // Cleanup audio
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(t => t.stop());
       mediaStreamRef.current = null;
@@ -246,6 +244,30 @@ const BabyMonitorViewer: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col items-center justify-center p-6 space-y-8">
 
+        {/* Idle State - User must tap to start */}
+        {viewerState === 'idle' && (
+          <div className="flex flex-col items-center gap-6">
+            <div className="w-24 h-24 rounded-full bg-emerald-500/20 border-2 border-emerald-500/50 flex items-center justify-center">
+              <Mic className="w-12 h-12 text-emerald-400" />
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-emerald-400 font-medium">
+                {language === 'he' ? 'מיקרופון פעיל' : 'Microphone Active'}
+              </p>
+              <p className="text-white/50 text-sm">
+                {language === 'he' ? 'המיקרופון מאזין ברקע. לחץ להאזנה בזמן אמת.' : 'Microphone is listening. Tap to hear real-time audio.'}
+              </p>
+            </div>
+            <Button
+              onClick={handleStartListening}
+              className="h-14 px-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-3 text-base"
+            >
+              <Headphones className="w-5 h-5" />
+              {language === 'he' ? 'התחל האזנה' : 'Start Listening'}
+            </Button>
+          </div>
+        )}
+
         {/* Connecting State */}
         {viewerState === 'connecting' && (
           <div className="flex flex-col items-center gap-4">
@@ -268,7 +290,7 @@ const BabyMonitorViewer: React.FC = () => {
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-emerald-400 font-medium text-sm">
-                  {language === 'he' ? 'אודיו חי פעיל' : 'Live Audio Active'}
+                  {language === 'he' ? 'שמע פעיל' : 'Live Audio Active'}
                 </span>
               </div>
               {isMuted && (
@@ -312,7 +334,7 @@ const BabyMonitorViewer: React.FC = () => {
                 {language === 'he' ? 'הפעל מצלמה לצפייה' : 'Turn On Camera to Watch'}
               </Button>
               <p className="text-white/30 text-xs text-center mt-2">
-                {language === 'he' ? 'המצלמה כבויה. הפעל ידנית לצפייה בוידאו.' : 'Camera is off. Turn on manually to watch video.'}
+                {language === 'he' ? 'המצלמה כבויה כברירת מחדל. הפעל ידנית לצפייה.' : 'Camera is off by default. Turn on manually to watch.'}
               </p>
             </div>
 
