@@ -267,13 +267,29 @@ const BabyMonitorViewer: React.FC = () => {
     }
   }, [audioEnabled, cameraEnabled, connectWithMode, disconnectCurrent]);
 
-  // Cancel baby monitor — stop everything + navigate back
+  // Cancel baby monitor — disarm in DB, stop stream, navigate back
   const handleCancel = useCallback(async () => {
+    // 1. Disconnect stream if active
     if (connectionState === 'connected' || connectionState === 'connecting' || connectionState === 'reconnecting') {
       await disconnectCurrent();
     }
+
+    // 2. Disarm baby monitor in DB so dashboard won't show purple card
+    if (primaryDeviceId) {
+      const { supabase } = await import('@/integrations/supabase/client');
+      await supabase
+        .from('device_status')
+        .update({
+          is_armed: false,
+          baby_monitor_enabled: false,
+          sound_enabled: false,
+        })
+        .eq('device_id', primaryDeviceId);
+      console.log('[BabyViewer] Disarmed baby monitor in DB');
+    }
+
     navigate('/dashboard');
-  }, [connectionState, disconnectCurrent, navigate]);
+  }, [connectionState, disconnectCurrent, navigate, primaryDeviceId]);
 
   const handleToggleMute = useCallback(() => {
     if (audioRef.current) {
