@@ -73,14 +73,20 @@ const BabyMonitorViewer: React.FC = () => {
     const audio = audioRef.current;
     if (audio) {
       audio.srcObject = stream;
+      // Try unmuted first (should work since we unlocked AudioContext in user gesture)
+      audio.muted = false;
       audio.play().then(() => {
-        console.log('[BabyViewer] Audio playing');
+        console.log('[BabyViewer] Audio playing (unmuted)');
         setIsMuted(false);
       }).catch(e => {
-        console.warn('[BabyViewer] Audio play blocked, trying muted:', e);
+        console.warn('[BabyViewer] Unmuted play blocked, retrying muted:', e.message);
         audio.muted = true;
         setIsMuted(true);
-        audio.play().catch(() => {});
+        audio.play().then(() => {
+          console.log('[BabyViewer] Audio playing (muted fallback)');
+        }).catch(e2 => {
+          console.error('[BabyViewer] Audio play completely failed:', e2.message);
+        });
       });
     }
 
@@ -172,11 +178,24 @@ const BabyMonitorViewer: React.FC = () => {
     }
     setErrorMessage(null);
 
-    // Unlock audio element inside user gesture
+    // CRITICAL: Unlock audio context during user gesture (click)
+    // Playing an empty audio element fails silently and doesn't unlock.
+    // Instead, create + resume an AudioContext which globally unlocks audio for the page.
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        await ctx.resume();
+        console.log('[BabyViewer] AudioContext unlocked via user gesture');
+        ctx.close();
+      }
+    } catch (e) {
+      console.warn('[BabyViewer] AudioContext unlock failed:', e);
+    }
+    // Also prepare the audio element
     const audio = audioRef.current;
     if (audio) {
       audio.muted = false;
-      await audio.play().catch(() => {});
     }
 
     console.log('[BabyViewer] Connecting with mode:', mode);
