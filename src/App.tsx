@@ -14,6 +14,7 @@ import Viewer from "./pages/Viewer";
 import EventDetails from "./pages/EventDetails";
 import Events from "./pages/Events";
 import LiveView from "./pages/LiveView";
+import BabyMonitorViewer from "./pages/BabyMonitorViewer";
 import MicrophoneTestPage from "./pages/MicrophoneTestPage";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/camera" element={<Camera />} />
             <Route path="/mic-test" element={<MicrophoneTestPage />} />
             <Route path="/viewer" element={<Viewer />} />
+            <Route path="/baby-monitor" element={<BabyMonitorViewer />} />
             <Route path="/events" element={<Events />} />
             <Route path="/event/:eventId" element={<EventDetails />} />
             <Route path="/live/:sessionId" element={<LiveView />} />
