@@ -1,10 +1,11 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.7.0 (2026-02-13)
+ * VERSION: 0.8.0 (2026-02-15)
  * 
  * CHANGELOG:
- * - v0.7.0: CRITICAL FIX - Remove duplicate server reporting from manager.
+ * - v0.8.0: Baby Monitor support - enable() activates mic immediately when baby_monitor_enabled.
+ *           Mic stays on after Live View closes. Only SET_MONITORING:OFF stops mic.
  *           The Renderer (index.html) is the SOLE reporter to events-report edge function.
  *           Manager now only handles: clip recording trigger, debounce tracking, logging.
  * - v0.6.0: Removed sound detection hardware activation
@@ -226,19 +227,21 @@ class MonitoringManager {
       await this.loadConfig();
       
       let motionEnabled = this.config?.sensors?.motion?.enabled ?? false;
+      let babyMonitorEnabled = this.config?.baby_monitor_enabled ?? false;
       
       // Sound detection removed (v0.5.0) - replaced by Baby Monitor mode
       
       console.log('[MonitoringManager] Config loaded for enable:', {
         monitoring_enabled: this.config?.monitoring_enabled,
         motion_enabled: motionEnabled,
+        baby_monitor_enabled: babyMonitorEnabled,
       });
 
-      // CRITICAL: Sensor preflight check - skip camera if ALL sensors disabled
-      if (!motionEnabled) {
-        console.log('[MonitoringManager] ⚠️ Motion disabled - skipping camera activation');
+      // CRITICAL: Sensor preflight check - skip if ALL sensors disabled
+      if (!motionEnabled && !babyMonitorEnabled) {
+        console.log('[MonitoringManager] No sensors enabled - skipping activation');
         this.isStarting = false;
-        return { success: false, error: 'Motion detection is disabled.' };
+        return { success: false, error: 'No sensors enabled (motion or baby monitor).' };
       }
 
       // Check mainWindow availability

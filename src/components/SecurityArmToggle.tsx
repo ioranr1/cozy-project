@@ -336,8 +336,9 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           }, { onConflict: 'device_id' });
       }
 
-      // Only send monitoring command if motion is enabled (baby monitor uses existing WebRTC)
-      if (monitoringSettings.motionEnabled) {
+      // Send monitoring command for both motion AND baby monitor modes
+      // Baby Monitor needs SET_MONITORING:ON to activate the microphone immediately
+      if (monitoringSettings.motionEnabled || monitoringSettings.babyMonitorEnabled) {
         const commandId = await sendMonitoringCommand('SET_MONITORING:ON');
         if (!commandId) {
           await supabase
@@ -380,15 +381,18 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     setShowSettingsDialogWrapped(false);
 
     try {
+      // IMPORTANT: Disarm only stops sensors — Away Mode stays ON
       const { error: statusError } = await supabase
         .from('device_status')
         .update({
           is_armed: false,
+          security_enabled: false,
           motion_enabled: false,
           sound_enabled: false,
           baby_monitor_enabled: false,
           last_command: 'DISARM',
           last_command_at: new Date().toISOString(),
+          // NOTE: device_mode is NOT changed — Away Mode stays active
         })
         .eq('device_id', deviceId);
 
@@ -403,7 +407,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       }
 
       setIsArmed(false);
-      toast.success(language === 'he' ? '🔓 הניטור כובה' : '🔓 Monitoring Disabled');
+      toast.success(language === 'he' ? '🔓 הניטור כובה • Away פעיל' : '🔓 Monitoring Off • Away Active');
     } catch (err) {
       console.error('[SecurityArmToggle] Unexpected error:', err);
       toast.error(language === 'he' ? 'שגיאה בלתי צפויה' : 'Unexpected error');
