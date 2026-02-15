@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.9.0 (2026-02-15)
+ * VERSION: 0.10.0 (2026-02-15)
  * 
  * CHANGELOG:
  * - v0.8.0: Baby Monitor support - enable() activates mic immediately when baby_monitor_enabled.
@@ -424,6 +424,13 @@ class MonitoringManager {
 
   isMonitoringActive() {
     return this.isActive;
+  }
+
+  /**
+   * Check if baby monitor mode is currently active (audio-only WebRTC).
+   */
+  isBabyMonitorMode() {
+    return this.isActive && (this.config?.baby_monitor_enabled === true);
   }
 
   getStatus() {
