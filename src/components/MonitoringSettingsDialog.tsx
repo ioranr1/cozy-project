@@ -75,12 +75,19 @@ export const MonitoringSettingsDialog: React.FC<MonitoringSettingsDialogProps> =
     cameraWaitingAck: language === 'he' ? 'ממתין לאישור מהמחשב…' : 'Waiting for computer acknowledgment…',
   };
 
+  // Mutual exclusive: only one mode can be active at a time
   const handleMotionToggle = (checked: boolean) => {
-    onSettingsChange({ ...settings, motionEnabled: checked });
+    onSettingsChange({
+      motionEnabled: checked,
+      babyMonitorEnabled: checked ? false : settings.babyMonitorEnabled,
+    });
   };
 
   const handleBabyMonitorToggle = (checked: boolean) => {
-    onSettingsChange({ ...settings, babyMonitorEnabled: checked });
+    onSettingsChange({
+      babyMonitorEnabled: checked,
+      motionEnabled: checked ? false : settings.motionEnabled,
+    });
   };
 
   return (

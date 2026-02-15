@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.16.0 (2026-02-13)
+   VERSION: 2.17.0 (2026-02-15)
    ============================================================
    
    CHANGELOG:
@@ -895,7 +895,7 @@
         // ============================================================
         async function startMonitoring(config) {
           console.log('[Monitoring] ═══════════════════════════════════════════════════');
-          console.log('[Monitoring] Starting monitoring v2.6.0 with config:', JSON.stringify(config, null, 2));
+          console.log('[Monitoring] Starting monitoring v2.17.0 with config:', JSON.stringify(config, null, 2));
           console.log('[Monitoring] ═══════════════════════════════════════════════════');
           currentConfig = config;
           
@@ -906,11 +906,13 @@
           monitoringStartedAt = null;
           
           const motionEnabled = config?.sensors?.motion?.enabled ?? false;
+          const babyMonitorEnabled = config?.baby_monitor_enabled ?? false;
           
-          console.log('[Monitoring] Sensor config:', { motionEnabled });
+          console.log('[Monitoring] Sensor config:', { motionEnabled, babyMonitorEnabled });
           
           try {
             let motionStarted = false;
+            let micStarted = false;
             
             // ============================================================
             // MOTION: Only activate camera if motion detection is enabled
@@ -939,10 +941,10 @@
               }
               
               if (!monitoringStream) {
-                console.error('[Monitoring] ✗ All camera attempts failed');
+                console.error('[Monitoring] All camera attempts failed');
                 throw new Error('Camera unavailable');
               } else {
-                console.log('[Monitoring] ✓ Camera acquired - LED should be ON now');
+                console.log('[Monitoring] Camera acquired - LED should be ON now');
                 
                 // Create hidden video element
                 videoElement = document.getElementById('monitoring-video');
@@ -972,30 +974,56 @@
                 if (isDetectorReady) {
                   detectionLoopActive = true;
                   motionStarted = true;
-                  console.log('[Monitoring] ✓ Motion detection loop started');
+                  console.log('[Monitoring] Motion detection loop started');
                   runDetectionLoop();
                 }
               }
             } else {
-              console.log('[Monitoring] Motion DISABLED - camera stays OFF 📷🚫');
+              console.log('[Monitoring] Motion DISABLED - camera stays OFF');
             }
             
-            // Sound detection removed (v2.13.0) - replaced by Baby Monitor
+            // ============================================================
+            // BABY MONITOR: Activate microphone immediately
+            // ============================================================
+            if (babyMonitorEnabled && !motionEnabled) {
+              console.log('[Monitoring] Baby Monitor enabled - requesting microphone access...');
+              try {
+                monitoringStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                if (monitoringStream) {
+                  micStarted = true;
+                  console.log('[Monitoring] Microphone acquired for Baby Monitor - mic is ON');
+                  // Sink audio to silent destination to keep stream alive without playing through speakers
+                  try {
+                    const audioCtx = new AudioContext();
+                    const source = audioCtx.createMediaStreamSource(monitoringStream);
+                    const dest = audioCtx.createMediaStreamDestination();
+                    source.connect(dest);
+                    console.log('[Monitoring] Audio routed to silent destination');
+                  } catch (audioErr) {
+                    console.warn('[Monitoring] Silent audio routing failed (non-fatal):', audioErr.message);
+                  }
+                }
+              } catch (micErr) {
+                console.error('[Monitoring] Microphone access failed:', micErr.message);
+                // Non-fatal: Baby Monitor can still work when parent connects via Live View
+              }
+            }
             
             // Mark monitoring as active
             isMonitoring = true;
             monitoringStartedAt = Date.now();
-            console.log('[Monitoring] ✓ Grace period started (10s)');
+            console.log('[Monitoring] Grace period started (10s)');
             
             const ackPayload = {
               motion: motionStarted,
-              sound: false,
+              sound: micStarted,
+              babyMonitor: babyMonitorEnabled,
             };
             console.log('[Monitoring] Sending ACK to main process...');
             window.electronAPI?.notifyMonitoringStarted?.(ackPayload);
-            console.log('[Monitoring] ✓ Sent monitoring-started ACK:', JSON.stringify(ackPayload));
+            console.log('[Monitoring] Sent monitoring-started ACK:', JSON.stringify(ackPayload));
             
-            updateSensorIndicator({ motion: motionStarted, sound: false });
+            updateSensorIndicator({ motion: motionStarted, sound: micStarted });
           } catch (error) {
             console.error('[Monitoring] ✗ Start failed:', error);
             console.error('[Monitoring] Error name:', error.name);
