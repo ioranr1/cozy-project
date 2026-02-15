@@ -50,7 +50,7 @@ const BabyMonitorViewer: React.FC = () => {
 
   // Stream received – attach to <audio>
   const handleStreamReceived = useCallback((stream: MediaStream) => {
-    console.log('🎧 [BabyViewer] Stream received, tracks:', stream.getTracks().length);
+    console.log('[BabyViewer] Stream received, tracks:', stream.getTracks().length);
     mediaStreamRef.current = stream;
 
     const audio = audioRef.current;
@@ -59,10 +59,10 @@ const BabyMonitorViewer: React.FC = () => {
     audio.srcObject = stream;
     // Audio element was already unlocked by user gesture in handleStartListening
     audio.play().then(() => {
-      console.log('✅ [BabyViewer] Audio playing');
+      console.log('[BabyViewer] [OK] Audio playing');
       setIsMuted(false);
     }).catch(e => {
-      console.warn('⚠️ [BabyViewer] Audio play blocked, trying muted:', e);
+      console.warn('[BabyViewer] [WARN] Audio play blocked, trying muted:', e);
       audio.muted = true;
       setIsMuted(true);
       audio.play().catch(() => {});
@@ -72,14 +72,14 @@ const BabyMonitorViewer: React.FC = () => {
   }, []);
 
   const handleRtcError = useCallback((error: string) => {
-    console.error('❌ [BabyViewer] RTC Error:', error);
+    console.error('[BabyViewer] [FAIL] RTC Error:', error);
     setErrorMessage(error);
     setViewerState('error');
     startInitiatedRef.current = false;
   }, []);
 
   const handleStatusChange = useCallback((status: RtcSessionStatus) => {
-    console.log('🔄 [BabyViewer] RTC status:', status);
+    console.log('[BabyViewer] RTC status:', status);
     if (status === 'connecting') setViewerState('connecting');
     else if (status === 'connected') setViewerState('connected');
     else if (status === 'failed') {
@@ -120,6 +120,8 @@ const BabyMonitorViewer: React.FC = () => {
   }, [navigate]);
 
   // User must tap this – unlocks audio in gesture context (browser policy)
+  // CRITICAL: Session order must match Viewer.tsx → startSession() FIRST, then sendCommand()
+  // Otherwise Electron finds a stale session while the viewer listens on a new one.
   const handleStartListening = useCallback(async () => {
     if (startInitiatedRef.current || !primaryDeviceId || !viewerId) return;
     startInitiatedRef.current = true;
@@ -134,26 +136,36 @@ const BabyMonitorViewer: React.FC = () => {
       await audio.play().catch(() => {});
     }
 
-    console.log('🎧 [BabyViewer] Starting audio session (user gesture)...');
+    console.log('[BabyViewer] Starting audio session (user gesture)...');
 
-    const sent = await sendCommandRef.current('START_LIVE_VIEW');
-    if (!sent) {
-      console.error('❌ [BabyViewer] Failed to send START command');
+    // Step 1: Create RTC session FIRST (so Electron finds the correct pending session)
+    const activeSessionId = await startSession();
+    if (!activeSessionId) {
+      console.error('[BabyViewer] Failed to create RTC session');
       setViewerState('error');
-      setErrorMessage(language === 'he' ? 'שליחת פקודה נכשלה' : 'Failed to send command');
+      setErrorMessage(language === 'he' ? 'יצירת חיבור נכשלה' : 'Failed to create session');
       startInitiatedRef.current = false;
       return;
     }
 
-    setTimeout(() => {
-      startSession();
-    }, 300);
+    // Step 2: THEN send START_LIVE_VIEW command (Electron will find our pending session)
+    const sent = await sendCommandRef.current('START_LIVE_VIEW');
+    if (!sent) {
+      console.error('[BabyViewer] Failed to send START command');
+      setViewerState('error');
+      setErrorMessage(language === 'he' ? 'שליחת פקודה נכשלה' : 'Failed to send command');
+      startInitiatedRef.current = false;
+      await stopSessionRef.current?.();
+      return;
+    }
+
+    console.log('[BabyViewer] Session created + command sent, waiting for offer...');
   }, [primaryDeviceId, viewerId, startSession, language]);
 
   const handleStopListening = useCallback(async () => {
     if (stopSentRef.current) return;
     stopSentRef.current = true;
-    console.log('🛑 [BabyViewer] Stopping...');
+    console.log('[BabyViewer] Stopping...');
 
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(t => t.stop());
