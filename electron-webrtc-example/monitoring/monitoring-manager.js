@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.8.0 (2026-02-15)
+ * VERSION: 0.9.0 (2026-02-15)
  * 
  * CHANGELOG:
  * - v0.8.0: Baby Monitor support - enable() activates mic immediately when baby_monitor_enabled.
@@ -216,9 +216,9 @@ class MonitoringManager {
       return { success: true };
     }
 
-    console.log('[MonitoringManager] ═══════════════════════════════════════════════════');
+    console.log('[MonitoringManager] ===================================================');
     console.log('[MonitoringManager] Enable requested');
-    console.log('[MonitoringManager] ═══════════════════════════════════════════════════');
+    console.log('[MonitoringManager] ===================================================');
 
     try {
       this.isStarting = true;
@@ -246,13 +246,13 @@ class MonitoringManager {
 
       // Check mainWindow availability
       if (!this.mainWindow) {
-        console.error('[MonitoringManager] ❌ No main window reference set!');
+        console.error('[MonitoringManager] [FAIL] No main window reference set!');
         this.isStarting = false;
         return { success: false, error: 'Main window not available' };
       }
       
       if (this.mainWindow.isDestroyed()) {
-        console.error('[MonitoringManager] ❌ Main window is destroyed!');
+        console.error('[MonitoringManager] [FAIL] Main window is destroyed!');
         this.isStarting = false;
         return { success: false, error: 'Main window destroyed' };
       }
@@ -269,15 +269,15 @@ class MonitoringManager {
       console.log('[MonitoringManager] device_auth_token present:', !!this.deviceAuthToken);
       
       this.mainWindow.webContents.send('start-monitoring', configWithCredentials);
-      console.log('[MonitoringManager] ✓ Config sent to renderer');
+      console.log('[MonitoringManager] [OK] Config sent to renderer');
 
       // IMPORTANT (SSOT): Do NOT set isActive or update DB here.
       // The renderer will attempt getUserMedia + start detectors.
       // We only mark active after receiving 'monitoring-started' from renderer.
-      console.log('[MonitoringManager] ⏳ Waiting for renderer ACK (monitoring-started)...');
+      console.log('[MonitoringManager] [WAIT] Waiting for renderer ACK (monitoring-started)...');
       return { success: true, starting: true };
     } catch (error) {
-      console.error('[MonitoringManager] ❌ Enable failed:', error);
+      console.error('[MonitoringManager] [FAIL] Enable failed:', error);
       this.isStarting = false;
       this.isActive = false;
       return { success: false, error: error.message || 'Enable failed' };
@@ -290,7 +290,7 @@ class MonitoringManager {
   onRendererStarted(status) {
     this.isStarting = false;
     this.isActive = true;
-    console.log('[MonitoringManager] ✓ Renderer confirmed monitoring started', status);
+    console.log('[MonitoringManager] [OK] Renderer confirmed monitoring started', status);
   }
 
   /**
@@ -299,7 +299,7 @@ class MonitoringManager {
   onRendererStopped() {
     this.isStarting = false;
     this.isActive = false;
-    console.log('[MonitoringManager] ✓ Renderer confirmed monitoring stopped');
+    console.log('[MonitoringManager] [OK] Renderer confirmed monitoring stopped');
   }
 
   /**
@@ -308,7 +308,7 @@ class MonitoringManager {
   onRendererError(error) {
     this.isStarting = false;
     this.isActive = false;
-    console.log('[MonitoringManager] ✗ Renderer reported monitoring error:', error);
+    console.log('[MonitoringManager] [FAIL] Renderer reported monitoring error:', error);
   }
 
   async disable() {
@@ -331,7 +331,7 @@ class MonitoringManager {
         if (error) {
           console.error('[MonitoringManager] Failed to update device_status:', error);
         } else {
-          console.log('[MonitoringManager] ✓ DB updated: security_enabled = false');
+          console.log('[MonitoringManager] [OK] DB updated: security_enabled = false');
         }
       }
 
@@ -356,7 +356,7 @@ class MonitoringManager {
       }
       this.pendingEvents = [];
 
-      console.log('[MonitoringManager] ✓ Monitoring disabled');
+      console.log('[MonitoringManager] [OK] Monitoring disabled');
       return { success: true };
     } catch (error) {
       console.error('[MonitoringManager] Disable failed:', error);
