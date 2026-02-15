@@ -455,88 +455,110 @@ const BabyMonitorViewer: React.FC = () => {
             </div>
           )}
 
-          {/* Main Toggle Buttons */}
-          <div className="w-full max-w-sm space-y-4">
-            {/* Audio Toggle */}
-            <button
-              onClick={handleToggleAudio}
-              disabled={isBusy}
-              className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl border-2 transition-all duration-200 ${
-                audioEnabled
-                  ? 'bg-emerald-500/15 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
-                  : 'bg-slate-800/60 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600/50'
-              } ${isBusy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  audioEnabled ? 'bg-emerald-500/20' : 'bg-slate-700/50'
-                }`}>
-                  {audioEnabled ? (
-                    <Mic className="w-6 h-6 text-emerald-400" />
-                  ) : (
-                    <MicOff className="w-6 h-6 text-slate-400" />
-                  )}
-                </div>
-                <div className={`text-start ${isRTL ? 'text-right' : 'text-left'}`}>
-                  <p className={`font-semibold ${audioEnabled ? 'text-emerald-300' : 'text-white/80'}`}>
-                    {language === 'he' ? 'האזנה' : 'Audio'}
-                  </p>
-                  <p className="text-xs text-white/40">
-                    {audioEnabled
-                      ? (language === 'he' ? 'שמע פעיל — לחץ לכיבוי' : 'Active — tap to turn off')
-                      : (language === 'he' ? 'לחץ להפעלת שמע' : 'Tap to enable audio')}
-                  </p>
-                </div>
+          {/* === IDLE STATE: Big "Start Listening" button === */}
+          {connectionState === 'idle' && !audioEnabled && (
+            <div className="flex flex-col items-center gap-6">
+              <button
+                onClick={handleToggleAudio}
+                className="w-32 h-32 rounded-full bg-purple-600 hover:bg-purple-500 active:bg-purple-700 shadow-2xl shadow-purple-500/30 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                <Mic className="w-14 h-14 text-white" />
+              </button>
+              <div className="text-center">
+                <p className="text-white font-semibold text-lg">
+                  {language === 'he' ? 'התחל האזנה' : 'Start Listening'}
+                </p>
+                <p className="text-white/40 text-sm mt-1">
+                  {language === 'he' ? 'לחץ להפעלת שמע מהמכשיר' : 'Tap to start audio from device'}
+                </p>
               </div>
-              <div className={`w-12 h-7 rounded-full flex items-center px-1 transition-colors ${
-                audioEnabled ? 'bg-emerald-500 justify-end' : 'bg-slate-600 justify-start'
-              }`}>
-                <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
-              </div>
-            </button>
+            </div>
+          )}
 
-            {/* Camera Toggle */}
-            <button
-              onClick={handleToggleCamera}
-              disabled={!audioEnabled || isBusy}
-              className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl border-2 transition-all duration-200 ${
-                cameraEnabled
-                  ? 'bg-purple-500/15 border-purple-500/50 shadow-lg shadow-purple-500/10'
-                  : audioEnabled
-                    ? 'bg-slate-800/60 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600/50'
-                    : 'bg-slate-900/40 border-slate-800/30 opacity-40'
-              } ${(!audioEnabled || isBusy) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                  cameraEnabled ? 'bg-purple-500/20' : 'bg-slate-700/50'
+          {/* === CONNECTED / ACTIVE STATE: Toggle controls === */}
+          {(audioEnabled || isBusy) && connectionState !== 'error' && (
+            <div className="w-full max-w-sm space-y-4">
+              {/* Audio Toggle */}
+              <button
+                onClick={handleToggleAudio}
+                disabled={isBusy}
+                className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl border-2 transition-all duration-200 ${
+                  audioEnabled
+                    ? 'bg-emerald-500/15 border-emerald-500/50 shadow-lg shadow-emerald-500/10'
+                    : 'bg-slate-800/60 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600/50'
+                } ${isBusy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    audioEnabled ? 'bg-emerald-500/20' : 'bg-slate-700/50'
+                  }`}>
+                    {audioEnabled ? (
+                      <Mic className="w-6 h-6 text-emerald-400" />
+                    ) : (
+                      <MicOff className="w-6 h-6 text-slate-400" />
+                    )}
+                  </div>
+                  <div className={`text-start ${isRTL ? 'text-right' : 'text-left'}`}>
+                    <p className={`font-semibold ${audioEnabled ? 'text-emerald-300' : 'text-white/80'}`}>
+                      {language === 'he' ? 'האזנה' : 'Audio'}
+                    </p>
+                    <p className="text-xs text-white/40">
+                      {audioEnabled
+                        ? (language === 'he' ? 'שמע פעיל — לחץ לכיבוי' : 'Active — tap to turn off')
+                        : (language === 'he' ? 'לחץ להפעלת שמע' : 'Tap to enable audio')}
+                    </p>
+                  </div>
+                </div>
+                <div className={`w-12 h-7 rounded-full flex items-center px-1 transition-colors ${
+                  audioEnabled ? 'bg-emerald-500 justify-end' : 'bg-slate-600 justify-start'
                 }`}>
-                  {cameraEnabled ? (
-                    <Camera className="w-6 h-6 text-purple-400" />
-                  ) : (
-                    <CameraOff className="w-6 h-6 text-slate-400" />
-                  )}
+                  <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
                 </div>
-                <div className={`text-start ${isRTL ? 'text-right' : 'text-left'}`}>
-                  <p className={`font-semibold ${cameraEnabled ? 'text-purple-300' : 'text-white/80'}`}>
-                    {language === 'he' ? 'מצלמה' : 'Camera'}
-                  </p>
-                  <p className="text-xs text-white/40">
-                    {!audioEnabled
-                      ? (language === 'he' ? 'יש להפעיל שמע תחילה' : 'Enable audio first')
-                      : cameraEnabled
-                        ? (language === 'he' ? 'מצלמה פעילה — לחץ לכיבוי' : 'Active — tap to turn off')
-                        : (language === 'he' ? 'לחץ להפעלת מצלמה' : 'Tap to enable camera')}
-                  </p>
+              </button>
+
+              {/* Camera Toggle */}
+              <button
+                onClick={handleToggleCamera}
+                disabled={!audioEnabled || isBusy}
+                className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl border-2 transition-all duration-200 ${
+                  cameraEnabled
+                    ? 'bg-purple-500/15 border-purple-500/50 shadow-lg shadow-purple-500/10'
+                    : audioEnabled
+                      ? 'bg-slate-800/60 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600/50'
+                      : 'bg-slate-900/40 border-slate-800/30 opacity-40'
+                } ${(!audioEnabled || isBusy) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                    cameraEnabled ? 'bg-purple-500/20' : 'bg-slate-700/50'
+                  }`}>
+                    {cameraEnabled ? (
+                      <Camera className="w-6 h-6 text-purple-400" />
+                    ) : (
+                      <CameraOff className="w-6 h-6 text-slate-400" />
+                    )}
+                  </div>
+                  <div className={`text-start ${isRTL ? 'text-right' : 'text-left'}`}>
+                    <p className={`font-semibold ${cameraEnabled ? 'text-purple-300' : 'text-white/80'}`}>
+                      {language === 'he' ? 'מצלמה' : 'Camera'}
+                    </p>
+                    <p className="text-xs text-white/40">
+                      {!audioEnabled
+                        ? (language === 'he' ? 'יש להפעיל שמע תחילה' : 'Enable audio first')
+                        : cameraEnabled
+                          ? (language === 'he' ? 'מצלמה פעילה — לחץ לכיבוי' : 'Active — tap to turn off')
+                          : (language === 'he' ? 'לחץ להפעלת מצלמה' : 'Tap to enable camera')}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className={`w-12 h-7 rounded-full flex items-center px-1 transition-colors ${
-                cameraEnabled ? 'bg-purple-500 justify-end' : 'bg-slate-600 justify-start'
-              }`}>
-                <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
-              </div>
-            </button>
-          </div>
+                <div className={`w-12 h-7 rounded-full flex items-center px-1 transition-colors ${
+                  cameraEnabled ? 'bg-purple-500 justify-end' : 'bg-slate-600 justify-start'
+                }`}>
+                  <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
+                </div>
+              </button>
+            </div>
+          )}
 
           {/* Muted warning */}
           {isActive && isMuted && (
