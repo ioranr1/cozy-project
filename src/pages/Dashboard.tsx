@@ -522,7 +522,7 @@ const Dashboard: React.FC = () => {
           )}
 
           {/* Security Arm Toggle - Main Control - DISABLED when offline */}
-          <SecurityArmToggle disabled={laptopStatus !== 'online'} />
+          <SecurityArmToggle disabled={laptopStatus !== 'online'} onBabyMonitorActivated={() => navigate('/baby-monitor')} />
 
           {/* Away Mode Card - Only visible when feature flag is ON - DISABLED when offline */}
           {featureFlags.away_mode && (
