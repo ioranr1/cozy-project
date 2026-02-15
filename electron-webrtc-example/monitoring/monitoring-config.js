@@ -1,9 +1,11 @@
 /**
  * Monitoring Configuration Defaults & Schemas
  * ============================================
- * VERSION: 0.2.0 (2026-02-08)
+ * VERSION: 0.3.0 (2026-02-15)
  * 
  * CHANGELOG:
+ * - v0.3.0: CRITICAL FIX - mergeWithDefaults now preserves baby_monitor_enabled field.
+ *           Without this fix, Electron always received baby_monitor_enabled=false.
  * - v0.2.0: Added per-category sound policies (informational/disturbance/security)
  *           Per-label thresholds, persistence, debounce, and severity
  * - v0.1.0: Initial configuration with flat defaults
