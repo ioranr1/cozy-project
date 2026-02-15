@@ -25,9 +25,10 @@ interface DeviceStatus {
 export interface SecurityArmToggleProps {
   className?: string;
   disabled?: boolean;
+  onBabyMonitorActivated?: () => void;
 }
 
-export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className, disabled = false }) => {
+export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className, disabled = false, onBabyMonitorActivated }) => {
   const { language, isRTL } = useLanguage();
   const [isArmed, setIsArmed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -366,6 +367,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           ? `🛡️ מפעיל ניטור • ${sensors.join(' + ')}` 
           : `🛡️ Activating Monitoring • ${sensors.join(' + ')}`
       );
+
+      // Auto-navigate to baby monitor viewer after activation
+      if (monitoringSettings.babyMonitorEnabled && onBabyMonitorActivated) {
+        onBabyMonitorActivated();
+      }
     } catch (err) {
       console.error('[SecurityArmToggle] Unexpected error:', err);
       toast.error(language === 'he' ? 'שגיאה בלתי צפויה' : 'Unexpected error');
