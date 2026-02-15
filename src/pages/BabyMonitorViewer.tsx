@@ -8,7 +8,7 @@ import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { useDevices, getSelectedDeviceId } from '@/hooks/useDevices';
 
 /**
- * Baby Monitor Viewer - v2.2.0
+ * Baby Monitor Viewer - v2.3.0
  * User must tap "Start Listening" to unlock browser audio policy.
  * Opens audio stream via WebRTC (camera OFF in UI).
  * "Turn on camera" navigates to full Viewer.
@@ -123,7 +123,13 @@ const BabyMonitorViewer: React.FC = () => {
   // CRITICAL: Session order must match Viewer.tsx → startSession() FIRST, then sendCommand()
   // Otherwise Electron finds a stale session while the viewer listens on a new one.
   const handleStartListening = useCallback(async () => {
-    if (startInitiatedRef.current || !primaryDeviceId || !viewerId) return;
+    if (startInitiatedRef.current) return;
+    if (!primaryDeviceId || !viewerId) {
+      console.error('[BabyViewer] Cannot start: missing deviceId or viewerId', { primaryDeviceId, viewerId });
+      setErrorMessage(language === 'he' ? 'לא נמצא מכשיר מחובר' : 'No connected device found');
+      setViewerState('error');
+      return;
+    }
     startInitiatedRef.current = true;
     stopSentRef.current = false;
     setViewerState('connecting');
@@ -137,9 +143,11 @@ const BabyMonitorViewer: React.FC = () => {
     }
 
     console.log('[BabyViewer] Starting audio session (user gesture)...');
+    console.log('[BabyViewer] deviceId:', primaryDeviceId, 'viewerId:', viewerId);
 
     // Step 1: Create RTC session FIRST (so Electron finds the correct pending session)
     const activeSessionId = await startSession();
+    console.log('[BabyViewer] startSession returned:', activeSessionId);
     if (!activeSessionId) {
       console.error('[BabyViewer] Failed to create RTC session');
       setViewerState('error');
@@ -149,7 +157,9 @@ const BabyMonitorViewer: React.FC = () => {
     }
 
     // Step 2: THEN send START_LIVE_VIEW command (Electron will find our pending session)
+    console.log('[BabyViewer] Sending START_LIVE_VIEW command...');
     const sent = await sendCommandRef.current('START_LIVE_VIEW');
+    console.log('[BabyViewer] START_LIVE_VIEW sent result:', sent);
     if (!sent) {
       console.error('[BabyViewer] Failed to send START command');
       setViewerState('error');
