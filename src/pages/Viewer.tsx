@@ -561,8 +561,10 @@ const Viewer: React.FC = () => {
       return; // Error already handled in hook
     }
 
-    // Send START_LIVE_VIEW command (only for manual Viewer start)
-    const ok = await sendCommand('START_LIVE_VIEW');
+    // Send START command - use FULL when coming from baby-monitor to force video+audio
+    const startCommand = isFromBabyMonitor ? 'START_LIVE_VIEW_FULL' : 'START_LIVE_VIEW';
+    console.log(`[Viewer] Sending ${startCommand} command (isFromBabyMonitor=${isFromBabyMonitor})`);
+    const ok = await sendCommand(startCommand);
     if (!ok) {
       // Command failed, cleanup session
       await stopSession();
