@@ -360,6 +360,9 @@ const Viewer: React.FC = () => {
     fetchDevices();
   }, [navigate, isAlertSource]);
 
+  // Track if baby-monitor auto-start was done
+  const [babyMonitorAutoStartDone, setBabyMonitorAutoStartDone] = useState(false);
+
   // Handle alert deep link auto-start
   useEffect(() => {
     // Only auto-start once when all conditions are met
@@ -379,6 +382,26 @@ const Viewer: React.FC = () => {
       handleStartViewing();
     }
   }, [isFromAlert, alertAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected]);
+
+  // Handle baby-monitor → viewer auto-start
+  useEffect(() => {
+    if (
+      isFromBabyMonitor &&
+      !babyMonitorAutoStartDone &&
+      primaryDevice &&
+      viewerId &&
+      !loading &&
+      !liveStateLoading &&
+      viewerState === 'idle' &&
+      !isConnecting &&
+      !isConnected &&
+      !isReloadRef.current
+    ) {
+      console.log('[Viewer] From baby-monitor, auto-starting live view');
+      setBabyMonitorAutoStartDone(true);
+      handleStartViewing();
+    }
+  }, [isFromBabyMonitor, babyMonitorAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected]);
 
   // Clear alert params when stopping (to allow re-triggering if needed)
   const clearAlertParams = useCallback(() => {
