@@ -8,7 +8,7 @@ import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { useDevices, getSelectedDeviceId } from '@/hooks/useDevices';
 
 /**
- * Baby Monitor Viewer - v3.1.0
+ * Baby Monitor Viewer - v3.2.0
  * 
  * New design:
  * - Opens "quiet" — no auto-connection
@@ -267,17 +267,23 @@ const BabyMonitorViewer: React.FC = () => {
     // Camera ON → disconnect audio session and navigate to regular Live View
     // The Viewer will handle the full video+audio experience
     // On close, the Viewer navigates back to /baby-monitor
-    if (audioEnabled && connectionState === 'connected') {
-      await disconnectCurrent();
-    }
-    // Reset local state so when user returns, they see "Start Listening" again
+    console.log('[BabyViewer] handleToggleCamera: audioEnabled=', audioEnabled, 'connectionState=', connectionState);
+    
+    // Reset local state FIRST so UI updates immediately
     setAudioEnabled(false);
     setCameraEnabled(false);
     setActiveMode('none');
     setConnectionState('idle');
     startInitiatedRef.current = false;
-    stopSentRef.current = false;
-    // Navigate to Viewer with from=baby-monitor so it knows to return here
+
+    // Disconnect in background — don't block navigation
+    if (audioEnabled || connectionState === 'connected' || connectionState === 'connecting') {
+      // Reset stopSentRef so disconnectCurrent actually runs
+      stopSentRef.current = false;
+      disconnectCurrent().catch(e => console.warn('[BabyViewer] disconnect error (ignored):', e));
+    }
+
+    // Navigate immediately to Viewer with from=baby-monitor
     navigate('/viewer?from=baby-monitor');
   }, [audioEnabled, connectionState, disconnectCurrent, navigate]);
 
