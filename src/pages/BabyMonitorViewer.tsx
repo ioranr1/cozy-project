@@ -8,7 +8,7 @@ import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { useDevices, getSelectedDeviceId } from '@/hooks/useDevices';
 
 /**
- * Baby Monitor Viewer - v3.0.0
+ * Baby Monitor Viewer - v3.1.0
  * 
  * New design:
  * - Opens "quiet" — no auto-connection
@@ -264,27 +264,22 @@ const BabyMonitorViewer: React.FC = () => {
   }, [audioEnabled, connectWithMode, disconnectCurrent]);
 
   const handleToggleCamera = useCallback(async () => {
-    if (!audioEnabled) return; // Camera requires audio
-
-    if (cameraEnabled) {
-      // Turn OFF camera, keep audio — reconnect as audio_only
-      setCameraEnabled(false);
-      isReconnectingRef.current = true;
-      setConnectionState('reconnecting');
+    // Camera ON → disconnect audio session and navigate to regular Live View
+    // The Viewer will handle the full video+audio experience
+    // On close, the Viewer navigates back to /baby-monitor
+    if (audioEnabled && connectionState === 'connected') {
       await disconnectCurrent();
-      // Small delay for cleanup
-      await new Promise(r => setTimeout(r, 500));
-      await connectWithMode('audio_only');
-    } else {
-      // Turn ON camera — reconnect as full
-      setCameraEnabled(true);
-      isReconnectingRef.current = true;
-      setConnectionState('reconnecting');
-      await disconnectCurrent();
-      await new Promise(r => setTimeout(r, 500));
-      await connectWithMode('full');
     }
-  }, [audioEnabled, cameraEnabled, connectWithMode, disconnectCurrent]);
+    // Reset local state so when user returns, they see "Start Listening" again
+    setAudioEnabled(false);
+    setCameraEnabled(false);
+    setActiveMode('none');
+    setConnectionState('idle');
+    startInitiatedRef.current = false;
+    stopSentRef.current = false;
+    // Navigate to Viewer with from=baby-monitor so it knows to return here
+    navigate('/viewer?from=baby-monitor');
+  }, [audioEnabled, connectionState, disconnectCurrent, navigate]);
 
   // Cancel baby monitor — disarm in DB, stop stream, navigate back
   const handleCancel = useCallback(async () => {
@@ -472,6 +467,16 @@ const BabyMonitorViewer: React.FC = () => {
                   {language === 'he' ? 'לחץ להפעלת שמע מהמכשיר' : 'Tap to start audio from device'}
                 </p>
               </div>
+              {/* Camera shortcut in idle state */}
+              <button
+                onClick={handleToggleCamera}
+                className="flex items-center gap-2 mt-4 px-4 py-2 rounded-xl bg-slate-800/60 border border-slate-700/50 hover:bg-slate-800/80 transition-colors"
+              >
+                <Camera className="w-4 h-4 text-purple-400" />
+                <span className="text-white/60 text-sm">
+                  {language === 'he' ? 'פתח מצלמה (צפייה מרחוק)' : 'Open Camera (Live View)'}
+                </span>
+              </button>
             </div>
           )}
 
@@ -516,17 +521,13 @@ const BabyMonitorViewer: React.FC = () => {
                 </div>
               </button>
 
-              {/* Camera Toggle */}
+              {/* Camera Toggle — always available, navigates to Live View */}
               <button
                 onClick={handleToggleCamera}
-                disabled={!audioEnabled || isBusy}
+                disabled={isBusy}
                 className={`w-full flex items-center justify-between px-6 py-4 rounded-2xl border-2 transition-all duration-200 ${
-                  cameraEnabled
-                    ? 'bg-purple-500/15 border-purple-500/50 shadow-lg shadow-purple-500/10'
-                    : audioEnabled
-                      ? 'bg-slate-800/60 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600/50'
-                      : 'bg-slate-900/40 border-slate-800/30 opacity-40'
-                } ${(!audioEnabled || isBusy) ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                  'bg-slate-800/60 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600/50'
+                } ${isBusy ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
@@ -539,22 +540,16 @@ const BabyMonitorViewer: React.FC = () => {
                     )}
                   </div>
                   <div className={`text-start ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className={`font-semibold ${cameraEnabled ? 'text-purple-300' : 'text-white/80'}`}>
+                    <p className="font-semibold text-white/80">
                       {language === 'he' ? 'מצלמה' : 'Camera'}
                     </p>
                     <p className="text-xs text-white/40">
-                      {!audioEnabled
-                        ? (language === 'he' ? 'יש להפעיל שמע תחילה' : 'Enable audio first')
-                        : cameraEnabled
-                          ? (language === 'he' ? 'מצלמה פעילה — לחץ לכיבוי' : 'Active — tap to turn off')
-                          : (language === 'he' ? 'לחץ להפעלת מצלמה' : 'Tap to enable camera')}
+                      {language === 'he' ? 'לחץ לפתיחת צפייה מרחוק' : 'Tap to open Live View'}
                     </p>
                   </div>
                 </div>
-                <div className={`w-12 h-7 rounded-full flex items-center px-1 transition-colors ${
-                  cameraEnabled ? 'bg-purple-500 justify-end' : 'bg-slate-600 justify-start'
-                }`}>
-                  <div className="w-5 h-5 rounded-full bg-white shadow-sm" />
+                <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+                  <ArrowIcon className="w-4 h-4 text-purple-400 rotate-180" />
                 </div>
               </button>
             </div>
