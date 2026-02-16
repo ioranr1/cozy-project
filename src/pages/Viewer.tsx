@@ -100,8 +100,15 @@ const Viewer: React.FC = () => {
   // Alert deep link state
   const alertDeviceId = searchParams.get('device_id');
   const isAlertSource = searchParams.get('source') === 'alert';
+  const isFromBabyMonitor = searchParams.get('from') === 'baby-monitor';
   const [isFromAlert, setIsFromAlert] = useState(false);
   const [alertAutoStartDone, setAlertAutoStartDone] = useState(false);
+
+  // Determine back destination: baby-monitor or dashboard
+  const backPath = isFromBabyMonitor ? '/baby-monitor' : '/dashboard';
+  const backLabel = isFromBabyMonitor
+    ? (language === 'he' ? 'חזרה לניטור תינוק' : 'Back to Baby Monitor')
+    : (language === 'he' ? 'חזרה לדשבורד' : 'Back to Dashboard');
   
   // CRITICAL: Prevent duplicate handleStartViewing calls
   // This flag is set when START is initiated and cleared only after cleanup/stop
@@ -834,10 +841,10 @@ const Viewer: React.FC = () => {
               ? 'נא לחץ על הכפתור חזרה לדשבורד'
               : 'Please click the button to return to dashboard'}
           </p>
-          <Link to="/dashboard">
+          <Link to={backPath}>
             <Button className="bg-primary hover:bg-primary/90">
               <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-              {language === 'he' ? 'חזרה לדשבורד' : 'Back to Dashboard'}
+              {backLabel}
             </Button>
           </Link>
         </div>
@@ -870,9 +877,9 @@ const Viewer: React.FC = () => {
               ? 'ודא שהמחשב הנייד מחובר ופעיל'
               : 'Make sure your laptop is connected and active'}
           </p>
-          <Link to="/dashboard">
+          <Link to={backPath}>
             <Button className="bg-primary hover:bg-primary/90">
-              {language === 'he' ? 'חזרה לדשבורד' : 'Back to Dashboard'}
+              {backLabel}
             </Button>
           </Link>
         </div>
@@ -970,10 +977,10 @@ const Viewer: React.FC = () => {
                   )}
                   {language === 'he' ? 'התחל צפייה' : 'Start Viewing'}
                 </Button>
-                <Link to="/dashboard">
+                <Link to={backPath}>
                   <Button variant="outline" className="border-slate-600 bg-slate-800 text-white hover:bg-slate-700">
                     <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                    {language === 'he' ? 'דשבורד' : 'Dashboard'}
+                    {backLabel}
                   </Button>
                 </Link>
               </div>
@@ -997,7 +1004,7 @@ const Viewer: React.FC = () => {
                   console.log('[Viewer] Cancel clicked during connecting');
                   // CRITICAL: Wait for STOP command to be sent BEFORE navigating
                   await handleStopViewing(true);
-                  navigate('/dashboard');
+                  navigate(backPath);
                 }}
                 className="border-slate-600 bg-slate-800 text-white hover:bg-slate-700"
               >
@@ -1025,10 +1032,10 @@ const Viewer: React.FC = () => {
                   <RefreshCw className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
                   {language === 'he' ? 'נסה שוב' : 'Try Again'}
                 </Button>
-                <Link to="/dashboard">
+                <Link to={backPath}>
                   <Button variant="outline" className="border-slate-600 bg-slate-800 text-white hover:bg-slate-700">
                     <ArrowIcon className={`w-4 h-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                    {language === 'he' ? 'דשבורד' : 'Dashboard'}
+                    {backLabel}
                   </Button>
                 </Link>
               </div>
@@ -1058,7 +1065,7 @@ const Viewer: React.FC = () => {
                   setAutoRetryCount(0);
                   // Stop and go back
                   await handleStopViewing(true);
-                  navigate('/dashboard');
+                  navigate(backPath);
                 }}
                 className="border-slate-600 bg-slate-800 text-white hover:bg-slate-700"
               >
@@ -1147,7 +1154,7 @@ const Viewer: React.FC = () => {
                   if (viewerState === 'connecting' || viewerState === 'connected') {
                     await handleStopViewing(true);
                   }
-                  navigate('/dashboard');
+                  navigate(backPath);
                 }}
                 className="text-white hover:bg-slate-700 p-2"
               >
