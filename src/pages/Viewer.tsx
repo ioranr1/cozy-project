@@ -560,6 +560,7 @@ const Viewer: React.FC = () => {
     isConnected,
     viewerState,
     isPrimaryDeviceOnline,
+    isFromBabyMonitor,
     dashboardSessionId,
     startSession,
     sendCommand,
@@ -582,13 +583,9 @@ const Viewer: React.FC = () => {
       !isReloadRef.current &&
       !startInitiatedRef.current
     ) {
-      console.log('[Viewer] From baby-monitor, scheduling auto-start (viewerId=%s, device=%s)', viewerId, primaryDevice.id);
+      console.log('[Viewer] From baby-monitor, auto-starting live view (viewerId=%s, device=%s)', viewerId, primaryDevice.id);
       setBabyMonitorAutoStartDone(true);
-      const timer = setTimeout(() => {
-        console.log('[Viewer] From baby-monitor, executing auto-start now');
-        handleStartViewing();
-      }, 500);
-      return () => clearTimeout(timer);
+      handleStartViewing();
     }
   }, [isFromBabyMonitor, babyMonitorAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected, handleStartViewing]);
 
