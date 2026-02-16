@@ -581,13 +581,18 @@ const Viewer: React.FC = () => {
       !isConnecting &&
       !isConnected &&
       !isReloadRef.current &&
-      !startInitiatedRef.current
+      !startInitiatedRef.current &&
+      isPrimaryDeviceOnline
     ) {
-      console.log('[Viewer] From baby-monitor, auto-starting live view (viewerId=%s, device=%s)', viewerId, primaryDevice.id);
+      console.log('[Viewer] From baby-monitor, auto-starting live view in 800ms (viewerId=%s, device=%s, online=%s)', viewerId, primaryDevice.id, isPrimaryDeviceOnline);
       setBabyMonitorAutoStartDone(true);
-      handleStartViewing();
+      const timer = setTimeout(() => {
+        console.log('[Viewer] From baby-monitor, executing auto-start now');
+        handleStartViewing();
+      }, 800);
+      return () => clearTimeout(timer);
     }
-  }, [isFromBabyMonitor, babyMonitorAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected, handleStartViewing]);
+  }, [isFromBabyMonitor, babyMonitorAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected, isPrimaryDeviceOnline, handleStartViewing]);
 
 
   // This ensures identical behavior for all stop actions
