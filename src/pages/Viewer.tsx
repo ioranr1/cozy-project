@@ -383,25 +383,7 @@ const Viewer: React.FC = () => {
     }
   }, [isFromAlert, alertAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected]);
 
-  // Handle baby-monitor → viewer auto-start
-  useEffect(() => {
-    if (
-      isFromBabyMonitor &&
-      !babyMonitorAutoStartDone &&
-      primaryDevice &&
-      viewerId &&
-      !loading &&
-      !liveStateLoading &&
-      viewerState === 'idle' &&
-      !isConnecting &&
-      !isConnected &&
-      !isReloadRef.current
-    ) {
-      console.log('[Viewer] From baby-monitor, auto-starting live view');
-      setBabyMonitorAutoStartDone(true);
-      handleStartViewing();
-    }
-  }, [isFromBabyMonitor, babyMonitorAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected]);
+  // baby-monitor auto-start is handled AFTER handleStartViewing definition (below)
 
   // Clear alert params when stopping (to allow re-triggering if needed)
   const clearAlertParams = useCallback(() => {
@@ -585,7 +567,32 @@ const Viewer: React.FC = () => {
     language,
   ]);
 
-  // Stop viewing: complete cleanup flow (used by both Stop button and X button)
+  // Handle baby-monitor → viewer auto-start (must be after handleStartViewing definition)
+  useEffect(() => {
+    if (
+      isFromBabyMonitor &&
+      !babyMonitorAutoStartDone &&
+      primaryDevice &&
+      viewerId &&
+      !loading &&
+      !liveStateLoading &&
+      viewerState === 'idle' &&
+      !isConnecting &&
+      !isConnected &&
+      !isReloadRef.current &&
+      !startInitiatedRef.current
+    ) {
+      console.log('[Viewer] From baby-monitor, scheduling auto-start (viewerId=%s, device=%s)', viewerId, primaryDevice.id);
+      setBabyMonitorAutoStartDone(true);
+      const timer = setTimeout(() => {
+        console.log('[Viewer] From baby-monitor, executing auto-start now');
+        handleStartViewing();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isFromBabyMonitor, babyMonitorAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected, handleStartViewing]);
+
+
   // This ensures identical behavior for all stop actions
   const handleStopViewing = useCallback(async (sendStopCommand = true) => {
     console.log('[Viewer] Stopping viewing, sendCommand:', sendStopCommand, 'stopSentRef:', stopSentRef.current);
