@@ -360,8 +360,7 @@ const Viewer: React.FC = () => {
     fetchDevices();
   }, [navigate, isAlertSource]);
 
-  // Track if baby-monitor auto-start was done
-  const [babyMonitorAutoStartDone, setBabyMonitorAutoStartDone] = useState(false);
+  // Baby-monitor auto-start removed (v3.4.0) — user clicks "Start Viewing" manually
 
   // Handle alert deep link auto-start
   useEffect(() => {
@@ -568,36 +567,8 @@ const Viewer: React.FC = () => {
     language,
   ]);
 
-  // Keep handleStartViewing in a ref so the auto-start timer isn't cancelled
-  // when the callback identity changes (due to deps like viewerState, isConnecting, etc.)
-  const handleStartViewingRef = useRef(handleStartViewing);
-  useEffect(() => { handleStartViewingRef.current = handleStartViewing; }, [handleStartViewing]);
-
-  // Handle baby-monitor → viewer auto-start (must be after handleStartViewing definition)
-  useEffect(() => {
-    if (
-      isFromBabyMonitor &&
-      !babyMonitorAutoStartDone &&
-      primaryDevice &&
-      viewerId &&
-      !loading &&
-      !liveStateLoading &&
-      viewerState === 'idle' &&
-      !isConnecting &&
-      !isConnected &&
-      !isReloadRef.current &&
-      !startInitiatedRef.current &&
-      isPrimaryDeviceOnline
-    ) {
-      console.log('[Viewer] From baby-monitor, auto-starting live view in 800ms (viewerId=%s, device=%s, online=%s)', viewerId, primaryDevice.id, isPrimaryDeviceOnline);
-      setBabyMonitorAutoStartDone(true);
-      const timer = setTimeout(() => {
-        console.log('[Viewer] From baby-monitor, executing auto-start now');
-        handleStartViewingRef.current();
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [isFromBabyMonitor, babyMonitorAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected, isPrimaryDeviceOnline]);
+  // Baby-monitor → viewer: No auto-start. User clicks "Start Viewing" like normal live view.
+  // The from=baby-monitor param is kept for: 1) back button navigation, 2) START_LIVE_VIEW_FULL command.
 
 
   // This ensures identical behavior for all stop actions
