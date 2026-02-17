@@ -264,36 +264,23 @@ const BabyMonitorViewer: React.FC = () => {
   }, [audioEnabled, connectWithMode, disconnectCurrent]);
 
   const handleToggleCamera = useCallback(async () => {
-    // Camera ON → navigate to regular Viewer which will send START_LIVE_VIEW_FULL
-    // CRITICAL: Do NOT send STOP_LIVE_VIEW here! The Viewer will handle everything.
-    // Sending STOP races with the Viewer's START and kills the session (no video, no logs).
-    console.log('[BabyViewer] handleToggleCamera: switching to Viewer (no STOP sent)');
+    // Camera ON → properly stop audio session, then navigate to Viewer (like normal live view)
+    console.log('[BabyViewer] handleToggleCamera: stopping audio session, then opening Viewer');
     
-    // Reset local state FIRST so UI updates immediately
+    // Reset local state
     setAudioEnabled(false);
     setCameraEnabled(false);
     setActiveMode('none');
     setConnectionState('idle');
     startInitiatedRef.current = false;
 
-    // Stop local media tracks only (no DB commands, no STOP_LIVE_VIEW)
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach(t => t.stop());
-      mediaStreamRef.current = null;
-    }
-    if (audioRef.current) audioRef.current.srcObject = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
+    // Properly disconnect: stops RTC, sends STOP_LIVE_VIEW to Electron
+    await disconnectCurrent();
 
-    // Close RTC peer connection locally (no command to Electron)
-    void stopSessionRef.current?.();
-
-    // CRITICAL: Mark stop as sent to prevent unmount cleanup from sending STOP_LIVE_VIEW
-    // This is the key fix — without this, unmount sends STOP which races with Viewer's START
-    stopSentRef.current = true;
-
-    // Navigate immediately to Viewer with from=baby-monitor
+    // Navigate to Viewer with from=baby-monitor (for back button + START_LIVE_VIEW_FULL)
+    // User will click "Start Viewing" like in normal live view — no race conditions
     navigate('/viewer?from=baby-monitor');
-  }, [navigate]);
+  }, [navigate, disconnectCurrent]);
 
   // Cancel baby monitor — disarm in DB, stop stream, navigate back
   const handleCancel = useCallback(async () => {
