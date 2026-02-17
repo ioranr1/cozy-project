@@ -119,7 +119,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       if (data) {
         const status = data as DeviceStatus;
         
-        if (status.is_armed && !status.security_enabled) {
+        if (status.is_armed && !status.security_enabled && !status.baby_monitor_enabled) {
           const { data: cmdData } = await supabase
             .from('commands')
             .select('id')
