@@ -662,34 +662,33 @@ const Viewer: React.FC = () => {
 
   // Watch liveViewActive and auto-start RTC session (fallback for non-Dashboard entry)
   // Note: This only handles LIVE VIEW state, not motion detection
+  // CRITICAL: Skip entirely when coming from baby-monitor - user clicks "Start Viewing" manually
   useEffect(() => {
+    // Skip if coming from baby-monitor (user already clicked Start Viewing)
+    if (isFromBabyMonitor) return;
     // Skip if we already have a dashboard session (handled above)
     if (dashboardSessionId) return;
     if (!primaryDevice || !viewerId || liveStateLoading) return;
     
     // CRITICAL: Skip if viewer state is 'ended' or 'error' - user already stopped manually
-    // This prevents loop where liveViewActive updates cause repeated start/stop cycles
     if (viewerState === 'ended' || viewerState === 'error') {
       console.log('[Viewer] Skipping liveViewActive effect - state is:', viewerState);
       return;
     }
     
     // CRITICAL: Skip auto-start if this is a page refresh (F5)
-    // (DB may still say liveViewActive=true, but after reload we want the user to start manually)
     if (isReloadRef.current) {
       console.log('[Viewer] Skipping auto-start - page was refreshed (F5)');
       return;
     }
 
     // Only auto-start if liveViewActive is true AND we're in idle state
-    // CRITICAL: Also check startInitiatedRef to prevent duplicate START calls
     if (liveViewActive && viewerState === 'idle' && !isConnecting && !isConnected && !startInitiatedRef.current) {
       console.log('[Viewer] Live view active (non-dashboard), starting RTC session...');
       handleStartViewing();
     }
-    // NOTE: Removed auto-stop on !liveViewActive - this was causing loop issues
-    // Manual stop already handles cleanup via handleStopViewing
   }, [
+    isFromBabyMonitor,
     dashboardSessionId,
     liveViewActive,
     liveStateLoading,
@@ -749,8 +748,10 @@ const Viewer: React.FC = () => {
       return;
     }
 
-    // Send START command
-    const ok = await sendCommand('START_LIVE_VIEW');
+    // Send START command - preserve FULL mode when coming from baby-monitor
+    const retryCommand = isFromBabyMonitor ? 'START_LIVE_VIEW_FULL' : 'START_LIVE_VIEW';
+    console.log(`[Viewer] Auto-retry sending ${retryCommand}`);
+    const ok = await sendCommand(retryCommand);
     if (!ok) {
       await stopSession();
       console.log('[Viewer] Auto-retry: command failed');
@@ -798,8 +799,10 @@ const Viewer: React.FC = () => {
       return;
     }
 
-    // For retry, always send START command (we're not coming from Dashboard anymore)
-    const ok = await sendCommand('START_LIVE_VIEW');
+    // For retry, send correct command type based on source
+    const retryCmd = isFromBabyMonitor ? 'START_LIVE_VIEW_FULL' : 'START_LIVE_VIEW';
+    console.log(`[Viewer] Manual retry sending ${retryCmd}`);
+    const ok = await sendCommand(retryCmd);
     if (!ok) {
       await stopSession();
       setViewerState('error');
