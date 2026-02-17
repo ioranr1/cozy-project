@@ -468,16 +468,6 @@ const BabyMonitorViewer: React.FC = () => {
                   {language === 'he' ? 'לחץ להפעלת שמע מהמכשיר' : 'Tap to start audio from device'}
                 </p>
               </div>
-              {/* Camera shortcut in idle state */}
-              <button
-                onClick={handleToggleCamera}
-                className="flex items-center gap-2 mt-4 px-4 py-2 rounded-xl bg-slate-800/60 border border-slate-700/50 hover:bg-slate-800/80 transition-colors"
-              >
-                <Camera className="w-4 h-4 text-purple-400" />
-                <span className="text-white/60 text-sm">
-                  {language === 'he' ? 'פתח מצלמה (צפייה מרחוק)' : 'Open Camera (Live View)'}
-                </span>
-              </button>
             </div>
           )}
 
