@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Shield, ShieldOff, Loader2, Settings } from 'lucide-react';
 import { SensorStatusIndicator } from '@/components/SensorStatusIndicator';
 import { Switch } from '@/components/ui/switch';
@@ -8,19 +8,7 @@ import { toast } from 'sonner';
 import { useDevices } from '@/hooks/useDevices';
 import { MonitoringSettingsDialog, MonitoringSettings } from '@/components/MonitoringSettingsDialog';
 import { getSessionToken } from '@/hooks/useSession';
-
-interface DeviceStatus {
-  id: string;
-  device_id: string;
-  is_armed: boolean;
-  device_mode: string;
-  motion_enabled: boolean;
-  sound_enabled: boolean;
-  baby_monitor_enabled: boolean;
-  security_enabled: boolean;
-  last_command: string | null;
-  updated_at: string;
-}
+import { useDeviceStatusSync } from '@/hooks/useDeviceStatusSync';
 
 export interface SecurityArmToggleProps {
   className?: string;
@@ -30,8 +18,6 @@ export interface SecurityArmToggleProps {
 
 export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className, disabled = false, onBabyMonitorActivated }) => {
   const { language, isRTL } = useLanguage();
-  const [isArmed, setIsArmed] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const showSettingsDialogRef = React.useRef(false);
@@ -39,12 +25,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     showSettingsDialogRef.current = open;
     setShowSettingsDialog(open);
   }, []);
-  const [securityEnabled, setSecurityEnabled] = useState(false);
-  const [monitoringSettings, setMonitoringSettings] = useState<MonitoringSettings>({
-    motionEnabled: false,
-    babyMonitorEnabled: false,
-  });
-  const armedSettingsRef = useRef<{ motionEnabled: boolean; babyMonitorEnabled: boolean } | null>(null);
 
   const profileId = useMemo(() => {
     const stored = localStorage.getItem('userProfile');
@@ -60,6 +40,29 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
 
   const { selectedDevice } = useDevices(profileId);
   const deviceId = selectedDevice?.id;
+
+  // ─── ISOLATED STATUS SYNC ──────────────────────────────────
+  // All state reading, sanity checks, and realtime subscriptions
+  // are handled by this hook with mode-aware isolation.
+  // SecurityArmToggle only handles user ACTIONS (arm/disarm/update).
+  // ────────────────────────────────────────────────────────────
+  const {
+    isArmed,
+    setIsArmed,
+    securityEnabled,
+    monitoringSettings,
+    setMonitoringSettings,
+    armedSettingsRef,
+    isLoading,
+    fetchStatus,
+  } = useDeviceStatusSync(deviceId, showSettingsDialogRef);
+
+  // Re-fetch when dialog closes to ensure fresh state
+  useEffect(() => {
+    if (!showSettingsDialog && deviceId) {
+      fetchStatus();
+    }
+  }, [showSettingsDialog, deviceId, fetchStatus]);
 
   const sendMonitoringCommand = useCallback(
     async (command: 'SET_MONITORING:ON' | 'SET_MONITORING:OFF'): Promise<string | null> => {
@@ -97,132 +100,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
     },
     [deviceId, language]
   );
-
-  const fetchStatus = useCallback(async () => {
-    if (!deviceId) {
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from('device_status')
-        .select('*')
-        .eq('device_id', deviceId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('[SecurityArmToggle] Error fetching status:', error);
-        return;
-      }
-
-      if (data) {
-        const status = data as DeviceStatus;
-        
-        if (status.is_armed && !status.security_enabled && !status.baby_monitor_enabled) {
-          const { data: cmdData } = await supabase
-            .from('commands')
-            .select('id')
-            .eq('device_id', deviceId)
-            .eq('command', 'SET_MONITORING:ON')
-            .order('created_at', { ascending: false })
-            .limit(1);
-          
-          if (!cmdData || cmdData.length === 0) {
-            await supabase
-              .from('device_status')
-              .update({
-                is_armed: false,
-                security_enabled: false,
-                motion_enabled: false,
-                sound_enabled: false,
-                baby_monitor_enabled: false,
-              })
-              .eq('device_id', deviceId);
-            setIsArmed(false);
-          } else {
-            setIsArmed(status.is_armed);
-          }
-        } else {
-          setIsArmed(status.is_armed);
-        }
-        
-        setSecurityEnabled(status.security_enabled ?? false);
-        
-        const motionVal = status.motion_enabled ?? true;
-        const babyVal = status.baby_monitor_enabled ?? false;
-        setMonitoringSettings({
-          motionEnabled: motionVal,
-          babyMonitorEnabled: babyVal,
-        });
-        if (status.is_armed) {
-          armedSettingsRef.current = { motionEnabled: motionVal, babyMonitorEnabled: babyVal };
-        }
-      } else {
-        console.log('[SecurityArmToggle] No status found, creating initial record');
-        const { error: insertError } = await supabase
-          .from('device_status')
-          .insert({
-            device_id: deviceId,
-            is_armed: false,
-            last_command: 'STANDBY',
-            motion_enabled: false,
-            sound_enabled: false,
-            baby_monitor_enabled: false,
-          });
-        
-        if (insertError) {
-          console.error('[SecurityArmToggle] Error creating status:', insertError);
-        }
-      }
-    } catch (err) {
-      console.error('[SecurityArmToggle] Unexpected error:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [deviceId]);
-
-  useEffect(() => {
-    if (!deviceId) return;
-
-    fetchStatus();
-
-    const channelName = `security_arm_status_${deviceId}`;
-    const channel = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'device_status',
-          filter: `device_id=eq.${deviceId}`
-        },
-        (payload) => {
-          console.log('[SecurityArmToggle] 🔔 Realtime update:', payload.new);
-          const newStatus = payload.new as DeviceStatus;
-          setIsArmed(newStatus.is_armed);
-          setSecurityEnabled(newStatus.security_enabled ?? false);
-          if (!showSettingsDialogRef.current) {
-            setMonitoringSettings(prev => ({
-              motionEnabled: newStatus.motion_enabled ?? true,
-              babyMonitorEnabled: newStatus.baby_monitor_enabled ?? false,
-            }));
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [fetchStatus, deviceId]);
-
-  useEffect(() => {
-    if (!showSettingsDialog && deviceId) {
-      fetchStatus();
-    }
-  }, [showSettingsDialog, deviceId, fetchStatus]);
 
   const ensureAwayModeActive = async (): Promise<boolean> => {
     if (!deviceId) return false;
@@ -301,7 +178,7 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
         .update({
           is_armed: true,
           motion_enabled: monitoringSettings.motionEnabled,
-          sound_enabled: false, // Sound detection removed
+          sound_enabled: false,
           baby_monitor_enabled: monitoringSettings.babyMonitorEnabled,
           last_command: 'ARM',
           last_command_at: new Date().toISOString(),
@@ -344,7 +221,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       }
 
       // Send monitoring command for both motion AND baby monitor modes
-      // Baby Monitor needs SET_MONITORING:ON to activate the microphone immediately
       if (monitoringSettings.motionEnabled || monitoringSettings.babyMonitorEnabled) {
         const commandId = await sendMonitoringCommand('SET_MONITORING:ON');
         if (!commandId) {
