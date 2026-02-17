@@ -131,7 +131,13 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
           if (!cmdData || cmdData.length === 0) {
             await supabase
               .from('device_status')
-              .update({ is_armed: false })
+              .update({
+                is_armed: false,
+                security_enabled: false,
+                motion_enabled: false,
+                sound_enabled: false,
+                baby_monitor_enabled: false,
+              })
               .eq('device_id', deviceId);
             setIsArmed(false);
           } else {
