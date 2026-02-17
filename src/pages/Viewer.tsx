@@ -568,6 +568,11 @@ const Viewer: React.FC = () => {
     language,
   ]);
 
+  // Keep handleStartViewing in a ref so the auto-start timer isn't cancelled
+  // when the callback identity changes (due to deps like viewerState, isConnecting, etc.)
+  const handleStartViewingRef = useRef(handleStartViewing);
+  useEffect(() => { handleStartViewingRef.current = handleStartViewing; }, [handleStartViewing]);
+
   // Handle baby-monitor → viewer auto-start (must be after handleStartViewing definition)
   useEffect(() => {
     if (
@@ -588,11 +593,11 @@ const Viewer: React.FC = () => {
       setBabyMonitorAutoStartDone(true);
       const timer = setTimeout(() => {
         console.log('[Viewer] From baby-monitor, executing auto-start now');
-        handleStartViewing();
+        handleStartViewingRef.current();
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, [isFromBabyMonitor, babyMonitorAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected, isPrimaryDeviceOnline, handleStartViewing]);
+  }, [isFromBabyMonitor, babyMonitorAutoStartDone, primaryDevice, viewerId, loading, liveStateLoading, viewerState, isConnecting, isConnected, isPrimaryDeviceOnline]);
 
 
   // This ensures identical behavior for all stop actions
