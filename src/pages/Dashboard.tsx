@@ -428,6 +428,16 @@ const Dashboard: React.FC = () => {
       setCurrentSessionId(sessionId);
       console.log('[LiveView] Session stored in state:', sessionId);
 
+      // MODE ISOLATION: Reset baby_monitor_enabled BEFORE sending START_LIVE_VIEW
+      // so Electron won't see a stale flag and start in audio_only mode.
+      if (activeDeviceId) {
+        console.log('[Dashboard] Resetting baby_monitor_enabled for regular Live View');
+        await supabase
+          .from('device_status')
+          .update({ baby_monitor_enabled: false })
+          .eq('device_id', activeDeviceId);
+      }
+
       // 2. Navigate FIRST so the Viewer mounts and starts listening on the correct sessionId
       // This prevents a race where the desktop sends the offer before the Viewer is ready.
       console.log('[LiveView] Navigating to Viewer with sessionId:', sessionId);
