@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.21.0 (2026-02-15)
+ * VERSION: 2.22.0 (2026-02-17)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -68,6 +68,7 @@ let liveViewState = {
   currentSessionId: null,
   isCleaningUp: false,  // CRITICAL: Track renderer cleanup state
   offerSentForSessionId: null, // Only set once renderer actually sent offer
+  pendingForceFullMode: false, // Set by START_LIVE_VIEW_FULL when no pending session yet
 };
 
 // IPC events from renderer (used to correctly ACK/FAIL DB commands)
@@ -1268,8 +1269,10 @@ function startRtcPolling() {
       if (sessions && sessions.length > 0) {
         // Only log if it's a new session we haven't started
         if (sessions[0].id !== liveViewState.currentSessionId) {
-          console.log('[RTC-Poll] [ALERT] Found pending session:', sessions[0].id);
-          handleNewRtcSession(sessions[0]);
+          const useForceFullMode = liveViewState.pendingForceFullMode || false;
+          liveViewState.pendingForceFullMode = false; // consume the flag
+          console.log('[RTC-Poll] [ALERT] Found pending session:', sessions[0].id, 'forceFullMode:', useForceFullMode);
+          handleNewRtcSession(sessions[0], useForceFullMode);
         }
       }
     } catch (err) {
@@ -1325,7 +1328,9 @@ function subscribeToRtcSessions(retryCount = 0) {
         console.log('[RTC] Status:', payload.new?.status);
         console.log('[RTC] ===================================================');
         if (payload.new.status === 'pending') {
-          handleNewRtcSession(payload.new);
+          const useForceFullMode = liveViewState.pendingForceFullMode || false;
+          liveViewState.pendingForceFullMode = false; // consume the flag
+          handleNewRtcSession(payload.new, useForceFullMode);
         }
       }
     )
@@ -1441,7 +1446,11 @@ async function handleStartLiveView(forceFullMode = false) {
     .limit(1);
 
   if (!sessions || sessions.length === 0) {
-    console.log('[RTC] handleStartLiveView: No pending sessions found');
+    console.log('[RTC] handleStartLiveView: No pending sessions found, storing forceFullMode=' + forceFullMode + ' for RTC-Poll');
+    // Store forceFullMode so when RTC-Poll finds the session later, it uses it
+    if (forceFullMode) {
+      liveViewState.pendingForceFullMode = true;
+    }
     return;
   }
 
@@ -1512,6 +1521,7 @@ async function handleStopLiveView() {
   liveViewState.isCleaningUp = true;
   liveViewState.isActive = false;
   liveViewState.currentSessionId = null;
+  liveViewState.pendingForceFullMode = false; // Clear pending flag on stop
   updateTrayMenu('live-view-stop');
 
   // Tell renderer to stop WebRTC
