@@ -264,10 +264,10 @@ const BabyMonitorViewer: React.FC = () => {
   }, [audioEnabled, connectWithMode, disconnectCurrent]);
 
   const handleToggleCamera = useCallback(async () => {
-    // Camera ON → disconnect audio session and navigate to regular Live View
-    // The Viewer will handle the full video+audio experience
-    // On close, the Viewer navigates back to /baby-monitor
-    console.log('[BabyViewer] handleToggleCamera: audioEnabled=', audioEnabled, 'connectionState=', connectionState);
+    // Camera ON → navigate to regular Viewer which will send START_LIVE_VIEW_FULL
+    // CRITICAL: Do NOT send STOP_LIVE_VIEW here! The Viewer will handle everything.
+    // Sending STOP races with the Viewer's START and kills the session (no video, no logs).
+    console.log('[BabyViewer] handleToggleCamera: switching to Viewer (no STOP sent)');
     
     // Reset local state FIRST so UI updates immediately
     setAudioEnabled(false);
@@ -276,16 +276,24 @@ const BabyMonitorViewer: React.FC = () => {
     setConnectionState('idle');
     startInitiatedRef.current = false;
 
-    // Disconnect in background — don't block navigation
-    if (audioEnabled || connectionState === 'connected' || connectionState === 'connecting') {
-      // Reset stopSentRef so disconnectCurrent actually runs
-      stopSentRef.current = false;
-      disconnectCurrent().catch(e => console.warn('[BabyViewer] disconnect error (ignored):', e));
+    // Stop local media tracks only (no DB commands, no STOP_LIVE_VIEW)
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(t => t.stop());
+      mediaStreamRef.current = null;
     }
+    if (audioRef.current) audioRef.current.srcObject = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+
+    // Close RTC peer connection locally (no command to Electron)
+    void stopSessionRef.current?.();
+
+    // CRITICAL: Mark stop as sent to prevent unmount cleanup from sending STOP_LIVE_VIEW
+    // This is the key fix — without this, unmount sends STOP which races with Viewer's START
+    stopSentRef.current = true;
 
     // Navigate immediately to Viewer with from=baby-monitor
     navigate('/viewer?from=baby-monitor');
-  }, [audioEnabled, connectionState, disconnectCurrent, navigate]);
+  }, [navigate]);
 
   // Cancel baby monitor — disarm in DB, stop stream, navigate back
   const handleCancel = useCallback(async () => {
