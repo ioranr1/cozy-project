@@ -520,6 +520,18 @@ const Viewer: React.FC = () => {
     setErrorMessage(null);
     setViewerState('connecting');
 
+    // MODE ISOLATION: When starting a regular Live View (not from Baby Monitor),
+    // reset baby_monitor_enabled in DB so Electron won't start in audio_only mode
+    // due to a stale flag from a previous Baby Monitor session.
+    // This MUST happen before any branching (dashboard path or manual path).
+    if (!isFromBabyMonitor && primaryDevice?.id) {
+      console.log('[Viewer] Regular Live View — resetting baby_monitor_enabled to prevent audio_only mode');
+      await supabase
+        .from('device_status')
+        .update({ baby_monitor_enabled: false })
+        .eq('device_id', primaryDevice.id);
+    }
+
     // If Dashboard already created session and sent command, just start RTC
     // Do NOT create new session or send command again!
     if (dashboardSessionId) {
@@ -538,17 +550,6 @@ const Viewer: React.FC = () => {
     // CRITICAL: Send command FIRST so Electron sets pendingForceFullMode BEFORE RTC-Poll finds the session
     // Otherwise RTC-Poll picks up the session before the FULL command arrives and starts audio_only
     const startCommand = isFromBabyMonitor ? 'START_LIVE_VIEW_FULL' : 'START_LIVE_VIEW';
-
-    // MODE ISOLATION: When starting a regular Live View (not from Baby Monitor),
-    // reset baby_monitor_enabled in DB so Electron won't start in audio_only mode
-    // due to a stale flag from a previous Baby Monitor session.
-    if (!isFromBabyMonitor && primaryDevice?.id) {
-      console.log('[Viewer] Regular Live View — resetting baby_monitor_enabled to prevent audio_only mode');
-      await supabase
-        .from('device_status')
-        .update({ baby_monitor_enabled: false })
-        .eq('device_id', primaryDevice.id);
-    }
 
     console.log(`[Viewer] Sending ${startCommand} command BEFORE creating session (isFromBabyMonitor=${isFromBabyMonitor})`);
     const ok = await sendCommand(startCommand);
