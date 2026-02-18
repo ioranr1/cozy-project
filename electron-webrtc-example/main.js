@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.22.0 (2026-02-17)
+ * VERSION: 2.23.0 (2026-02-18)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -69,6 +69,7 @@ let liveViewState = {
   isCleaningUp: false,  // CRITICAL: Track renderer cleanup state
   offerSentForSessionId: null, // Only set once renderer actually sent offer
   pendingForceFullMode: false, // Set by START_LIVE_VIEW_FULL when no pending session yet
+  _monitoringWasPaused: false, // v2.23.0: Track if monitoring was paused for live view
 };
 
 // IPC events from renderer (used to correctly ACK/FAIL DB commands)
@@ -1414,6 +1415,23 @@ async function startNewSession(session, forceFullMode = false) {
   liveViewState.offerSentForSessionId = null;
   updateTrayMenu('live-view-start-reset');
 
+  // ── PAUSE MONITORING (v2.23.0) ─────────────────────────────────────
+  // If motion detection is active, pause it BEFORE starting WebRTC.
+  // Both use the same camera hardware and cannot run simultaneously.
+  // We store a flag so handleStopLiveView knows to resume afterwards.
+  if (monitoringManager.isMonitoringActive()) {
+    console.log('[RTC] Pausing motion monitoring before live view (camera conflict)');
+    liveViewState._monitoringWasPaused = true;
+    try {
+      await monitoringManager.disable();
+      console.log('[RTC] Motion monitoring paused successfully');
+    } catch (pauseErr) {
+      console.warn('[RTC] Failed to pause monitoring (continuing anyway):', pauseErr?.message);
+    }
+  } else {
+    liveViewState._monitoringWasPaused = false;
+  }
+
   // Detect mode: forceFullMode overrides baby monitor auto-detection
   // SSOT: Check DB device_status.baby_monitor_enabled first, fallback to in-memory state
   let isBabyMonitorActive = false;
@@ -1522,10 +1540,42 @@ async function handleStopLiveView() {
   liveViewState.isActive = false;
   liveViewState.currentSessionId = null;
   liveViewState.pendingForceFullMode = false; // Clear pending flag on stop
+  const shouldResumeMonitoring = liveViewState._monitoringWasPaused === true;
+  liveViewState._monitoringWasPaused = false; // Reset flag
   updateTrayMenu('live-view-stop');
 
   // Tell renderer to stop WebRTC
   mainWindow?.webContents.send('stop-live-view');
+
+  // ── RESUME MONITORING (v2.23.0) ────────────────────────────────────
+  // If monitoring was paused when live view started, check DB to see if
+  // the user still wants it active (motion_enabled + is_armed).
+  // Use a short delay to let camera hardware release first.
+  if (shouldResumeMonitoring) {
+    setTimeout(async () => {
+      try {
+        const { data: dbStatus } = await supabase
+          .from('device_status')
+          .select('is_armed, motion_enabled')
+          .eq('device_id', deviceId)
+          .single();
+
+        if (dbStatus?.is_armed && dbStatus?.motion_enabled) {
+          console.log('[RTC] Resuming motion monitoring after live view ended');
+          const resumeResult = await monitoringManager.enable();
+          if (resumeResult.success) {
+            console.log('[RTC] Motion monitoring resumed successfully');
+          } else {
+            console.warn('[RTC] Failed to resume monitoring:', resumeResult.error);
+          }
+        } else {
+          console.log('[RTC] Monitoring not resumed (is_armed:', dbStatus?.is_armed, 'motion_enabled:', dbStatus?.motion_enabled, ')');
+        }
+      } catch (err) {
+        console.warn('[RTC] Error checking monitoring resume:', err?.message);
+      }
+    }, 2000); // 2s delay for camera hardware release
+  }
 }
 
 // =============================================================================
