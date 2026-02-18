@@ -6,6 +6,7 @@ import { Baby, ArrowLeft, ArrowRight, Camera, CameraOff, Volume2, VolumeX, Mic, 
 import { useRtcSession, RtcSessionStatus } from '@/hooks/useRtcSession';
 import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { useDevices, getSelectedDeviceId } from '@/hooks/useDevices';
+import { useSessionManager } from '@/hooks/useSessionManager';
 
 /**
  * Baby Monitor Viewer - v3.2.0
@@ -58,6 +59,7 @@ const BabyMonitorViewer: React.FC = () => {
   const [viewerId, setViewerId] = useState('');
   const { selectedDevice } = useDevices(profileId);
   const primaryDeviceId = selectedDevice?.id || getSelectedDeviceId() || '';
+  const { prepareBabyMonitor, prepareLiveView } = useSessionManager();
 
   // Remote command
   const { sendCommand } = useRemoteCommand({ deviceId: primaryDeviceId });
@@ -200,7 +202,20 @@ const BabyMonitorViewer: React.FC = () => {
 
     console.log('[BabyViewer] Connecting with mode:', mode);
 
-    // Step 1: Create RTC session
+    // CENTRALIZED SESSION PREPARATION (KILL → SET)
+    const prepareOk = mode === 'audio_only'
+      ? await prepareBabyMonitor(primaryDeviceId)
+      : await prepareLiveView(primaryDeviceId);
+    
+    if (!prepareOk) {
+      setConnectionState('error');
+      setErrorMessage(language === 'he' ? 'שגיאה בהכנת הסשן' : 'Session preparation failed');
+      startInitiatedRef.current = false;
+      isReconnectingRef.current = false;
+      return;
+    }
+
+    // Create RTC session
     const activeSessionId = await startSession();
     if (!activeSessionId) {
       setConnectionState('error');
@@ -224,7 +239,7 @@ const BabyMonitorViewer: React.FC = () => {
     }
 
     console.log('[BabyViewer] Session + command sent, waiting for stream...');
-  }, [primaryDeviceId, viewerId, startSession, language]);
+  }, [primaryDeviceId, viewerId, startSession, language, prepareBabyMonitor, prepareLiveView]);
 
   // Disconnect current session
   const disconnectCurrent = useCallback(async () => {

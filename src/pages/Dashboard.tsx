@@ -21,6 +21,7 @@ import { AwayModeCard } from '@/components/AwayModeCard';
 import { MobileAwayModeCard } from '@/components/MobileAwayModeCard';
 import { SecurityModeComingSoon } from '@/components/SecurityModeComingSoon';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { useSessionManager } from '@/hooks/useSessionManager';
 
 
 interface UserProfile {
@@ -44,6 +45,7 @@ const Dashboard: React.FC = () => {
   const isMobileDevice = useIsMobileDevice();
   const capabilities = useCapabilities();
   const { flags: featureFlags, isLoading: isFlagsLoading } = useFeatureFlags();
+  const { prepareLiveView } = useSessionManager();
 
   // Get profile ID for device loading
   const profileId = useMemo(() => {
@@ -395,36 +397,14 @@ const Dashboard: React.FC = () => {
 
       setViewStatus('starting');
 
-      // HARD GUARANTEE: never start on top of an old session.
-      // If the user did STOP→START quickly, a previous rtc_session can remain active/pending for a moment
-      // and cause the next Viewer connection to fail.
-      if (activeDeviceId) {
-        try {
-          await supabase
-            .from('rtc_sessions')
-            .update({
-              status: 'ended',
-              ended_at: new Date().toISOString(),
-              fail_reason: 'superseded_by_new_start',
-            })
-            .eq('device_id', activeDeviceId)
-            .in('status', ['pending', 'active'])
-            .is('ended_at', null);
-        } catch (e) {
-          console.warn('[LiveView] Failed to pre-end open rtc_sessions (continuing anyway):', e);
-        }
-      }
-
-      // MODE ISOLATION: Reset baby_monitor_enabled BEFORE creating RTC session
-      // Electron's RTC-Poll picks up new sessions immediately — if it reads
-      // baby_monitor_enabled=true it will start in audio_only mode.
-      // This MUST happen before the session row exists in the DB.
-      if (activeDeviceId) {
-        console.log('[Dashboard] Resetting baby_monitor_enabled BEFORE session creation');
-        await supabase
-          .from('device_status')
-          .update({ baby_monitor_enabled: false })
-          .eq('device_id', activeDeviceId);
+      // CENTRALIZED SESSION PREPARATION (KILL → SET → cleanup stale sessions)
+      // This single call replaces scattered flag resets and stale session cleanup.
+      const prepared = await prepareLiveView(activeDeviceId);
+      if (!prepared) {
+        console.error('[LiveView] Session preparation failed');
+        setViewStatus('idle');
+        toast.error(language === 'he' ? 'שגיאה בהכנת הסשן' : 'Session preparation failed');
+        return;
       }
 
       // 1. FIRST: Create rtc_session (MUST happen before command)
