@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.23.0 (2026-02-18)
+ * VERSION: 2.24.0 (2026-02-18)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1454,22 +1454,42 @@ async function startNewSession(session, forceFullMode = false) {
 }
 
 async function handleStartLiveView(forceFullMode = false) {
-  // Check for pending sessions FIRST (before any state changes)
-  const { data: sessions } = await supabase
-    .from('rtc_sessions')
-    .select('*')
-    .eq('device_id', deviceId)
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false })
-    .limit(1);
+  // v2.24.0: Retry finding the pending session up to 10 times (every 500ms = 5s total).
+  // The Viewer creates the RTC session record AFTER sending the command, so it may not
+  // exist yet when we first check. Previously we returned silently → command marked completed
+  // even though no session was found → Live View never connected.
+  let sessions = null;
+  const MAX_RETRIES = 10;
+  const RETRY_DELAY_MS = 500;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    const { data } = await supabase
+      .from('rtc_sessions')
+      .select('*')
+      .eq('device_id', deviceId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (data && data.length > 0) {
+      sessions = data;
+      console.log(`[RTC] handleStartLiveView: Found pending session on attempt ${attempt}/${MAX_RETRIES}`);
+      break;
+    }
+
+    if (attempt < MAX_RETRIES) {
+      console.log(`[RTC] handleStartLiveView: No pending sessions (attempt ${attempt}/${MAX_RETRIES}), retrying in ${RETRY_DELAY_MS}ms...`);
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+    }
+  }
 
   if (!sessions || sessions.length === 0) {
-    console.log('[RTC] handleStartLiveView: No pending sessions found, storing forceFullMode=' + forceFullMode + ' for RTC-Poll');
-    // Store forceFullMode so when RTC-Poll finds the session later, it uses it
+    console.error('[RTC] handleStartLiveView: No pending sessions found after all retries');
+    // Store forceFullMode for RTC-Poll as last resort
     if (forceFullMode) {
       liveViewState.pendingForceFullMode = true;
     }
-    return;
+    throw new Error('No pending RTC session found after retries');
   }
 
   const pendingSession = sessions[0];
