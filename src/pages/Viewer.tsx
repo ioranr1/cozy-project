@@ -522,10 +522,12 @@ const Viewer: React.FC = () => {
     setErrorMessage(null);
     setViewerState('connecting');
 
-    // CENTRALIZED SESSION PREPARATION (KILL → SET)
-    // For regular Live View: reset all flags. For baby-monitor→viewer: prepareLiveView also works
-    // because we want FULL video mode regardless.
-    if (primaryDevice?.id) {
+    // If Dashboard already created session and sent command, just start RTC.
+    // CRITICAL: Do NOT call prepareLiveView here — Dashboard already prepared
+    // and cleanupStaleSessions would KILL the session Dashboard just created!
+    //
+    // Only prepare when starting MANUALLY from Viewer (no dashboardSessionId).
+    if (!dashboardSessionId && primaryDevice?.id) {
       const prepared = await prepareLiveView(primaryDevice.id);
       if (!prepared) {
         setViewerState('error');
