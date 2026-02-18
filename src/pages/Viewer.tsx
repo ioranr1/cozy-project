@@ -13,6 +13,7 @@ import { LiveViewDebugPanel } from '@/components/LiveViewDebugPanel';
 import { useRemoteCommand } from '@/hooks/useRemoteCommand';
 import { useDevices, getSelectedDeviceId } from '@/hooks/useDevices';
 import { toast } from 'sonner';
+import { useSessionManager } from '@/hooks/useSessionManager';
 
 type ViewerState = 'idle' | 'connecting' | 'connected' | 'error' | 'ended' | 'retrying';
 
@@ -139,6 +140,7 @@ const Viewer: React.FC = () => {
   // Get primary device ID for live view state hook - use selectedDevice or fallback to localStorage
   const primaryDeviceId = selectedDevice?.id || primaryDevice?.id || getSelectedDeviceId() || '';
   const { liveViewActive, isLoading: liveStateLoading, refreshState } = useLiveViewState({ deviceId: primaryDeviceId || undefined });
+  const { prepareLiveView } = useSessionManager();
 
   // Remote command hook for START/STOP
   const { sendCommand, commandState, isLoading: isCommandLoading } = useRemoteCommand({
@@ -520,16 +522,17 @@ const Viewer: React.FC = () => {
     setErrorMessage(null);
     setViewerState('connecting');
 
-    // MODE ISOLATION: When starting a regular Live View (not from Baby Monitor),
-    // reset baby_monitor_enabled in DB so Electron won't start in audio_only mode
-    // due to a stale flag from a previous Baby Monitor session.
-    // This MUST happen before any branching (dashboard path or manual path).
-    if (!isFromBabyMonitor && primaryDevice?.id) {
-      console.log('[Viewer] Regular Live View — resetting baby_monitor_enabled to prevent audio_only mode');
-      await supabase
-        .from('device_status')
-        .update({ baby_monitor_enabled: false })
-        .eq('device_id', primaryDevice.id);
+    // CENTRALIZED SESSION PREPARATION (KILL → SET)
+    // For regular Live View: reset all flags. For baby-monitor→viewer: prepareLiveView also works
+    // because we want FULL video mode regardless.
+    if (primaryDevice?.id) {
+      const prepared = await prepareLiveView(primaryDevice.id);
+      if (!prepared) {
+        setViewerState('error');
+        setErrorMessage(language === 'he' ? 'שגיאה בהכנת הסשן' : 'Session preparation failed');
+        startInitiatedRef.current = false;
+        return;
+      }
     }
 
     // If Dashboard already created session and sent command, just start RTC
@@ -579,6 +582,7 @@ const Viewer: React.FC = () => {
     sendCommand,
     stopSession,
     language,
+    prepareLiveView,
   ]);
 
   // Baby-monitor → viewer: No auto-start. User clicks "Start Viewing" like normal live view.
