@@ -29,16 +29,24 @@ import { supabase } from '@/integrations/supabase/client';
  * KILL — Reset ALL sensor flags to a clean state.
  * This is identical for every mode and MUST run first.
  */
-async function killAllFlags(deviceId: string): Promise<boolean> {
-  console.log('[SessionManager] KILL — Resetting all flags for device:', deviceId);
+async function killAllFlags(deviceId: string, preserveMotion = false): Promise<boolean> {
+  console.log('[SessionManager] KILL — Resetting flags for device:', deviceId, { preserveMotion });
   
+  const update: Record<string, boolean> = {
+    baby_monitor_enabled: false,
+    sound_enabled: false,
+  };
+
+  // Only reset motion_enabled when explicitly requested (e.g., baby monitor mode).
+  // Live View should NOT touch motion_enabled — the Electron agent handles
+  // pausing motion detection during an active WebRTC stream and resuming after.
+  if (!preserveMotion) {
+    update.motion_enabled = false;
+  }
+
   const { error } = await supabase
     .from('device_status')
-    .update({
-      baby_monitor_enabled: false,
-      motion_enabled: false,
-      sound_enabled: false,
-    })
+    .update(update)
     .eq('device_id', deviceId);
 
   if (error) {
@@ -46,7 +54,7 @@ async function killAllFlags(deviceId: string): Promise<boolean> {
     return false;
   }
 
-  console.log('[SessionManager] KILL ✅ — All flags reset');
+  console.log('[SessionManager] KILL ✅ — Flags reset (preserveMotion:', preserveMotion, ')');
   return true;
 }
 
@@ -119,8 +127,9 @@ export function useSessionManager() {
   const prepareLiveView = useCallback(async (deviceId: string): Promise<boolean> => {
     console.log('[SessionManager] ═══ prepareLiveView START ═══');
 
-    // KILL
-    const killed = await killAllFlags(deviceId);
+    // KILL — preserve motion_enabled so motion detection stays armed during live view.
+    // The Electron agent pauses motion detection while WebRTC is active and resumes after.
+    const killed = await killAllFlags(deviceId, true);
     if (!killed) return false;
 
     // SET (no flag needed for live view)
