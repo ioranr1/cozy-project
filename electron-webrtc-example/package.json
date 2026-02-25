@@ -1,18 +1,40 @@
 {
   "name": "security-camera-agent",
-  "version": "2.17.0",
+  "version": "2.24.0",
   "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron . --enable-logging"
+    "dev": "electron . --enable-logging",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
-    "electron-store": "7.0.3"
+    "electron-store": "7.0.3",
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
-    "electron": "^28.0.0"
+    "electron": "^28.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.yourdomain.securitycamera",
+    "productName": "Security Camera Agent",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YOUR_GITHUB_USERNAME",
+        "repo": "YOUR_REPO_NAME"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
   },
   "author": "",
   "license": "MIT"
