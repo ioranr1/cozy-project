@@ -1,7 +1,7 @@
 /**
  * Electron Preload Script - Complete Implementation
  * ==================================================
- * VERSION: 2.1.0 (2026-02-12)
+ * VERSION: 2.2.0 (2026-02-26)
  * 
  * CHANGELOG:
  *  - 2.0.2: Added openClipsFolder IPC channel to open local clips folder in OS file explorer
@@ -430,9 +430,39 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * @returns {Promise<object>}
    */
   getSoundStatus: () => ipcRenderer.invoke('get-sound-status'),
+
+  // -------------------------------------------------------------------------
+  // Auto-Update (v2.2.0)
+  // -------------------------------------------------------------------------
+  
+  /**
+   * Listen for auto-update events from main process
+   * Events: update-available, update-not-available, download-progress, update-downloaded, error
+   * @param {function(event: {type: string, ...})} callback
+   */
+  onAutoUpdate: (callback) => {
+    ipcRenderer.on('auto-update', (event, data) => {
+      callback(data);
+    });
+  },
+
+  /**
+   * Request to download the available update
+   */
+  downloadUpdate: () => ipcRenderer.invoke('auto-update-download'),
+
+  /**
+   * Quit and install the downloaded update
+   */
+  installUpdate: () => ipcRenderer.invoke('auto-update-install'),
+
+  /**
+   * Manually check for updates
+   */
+  checkForUpdate: () => ipcRenderer.invoke('auto-update-check'),
 });
 
 // BUILD STAMP (debug)
-const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-12-sound-detection-01';
+const __ELECTRON_PRELOAD_BUILD_ID__ = 'electron-preload-2026-02-26-auto-update-01';
 console.log('[Preload] electronAPI exposed to renderer');
 console.log(`[Preload] build: ${__ELECTRON_PRELOAD_BUILD_ID__}`);
