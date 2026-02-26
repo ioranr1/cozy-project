@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.25.0 (2026-02-26)
+ * VERSION: 2.26.0 (2026-02-26)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -2026,6 +2026,13 @@ app.whenReady().then(async () => {
   console.log('[Main] IPC handlers registered. Creating window...');
   createWindow();
   initTray();
+
+  // v2.26.0: Show & focus window on first launch so the user sees the app after install
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
+
   await initDevice();
 
   // Initialize MonitoringManager with device info

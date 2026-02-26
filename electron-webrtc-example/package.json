@@ -1,6 +1,6 @@
 {
   "name": "security-camera-agent",
-  "version": "2.25.0",
+  "version": "2.26.0",
   "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
   "main": "main.js",
   "scripts": {
@@ -29,6 +29,11 @@
         "repo": "cozy-project"
       }
     ],
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": true
+    },
     "win": {
       "target": "nsis"
     },
