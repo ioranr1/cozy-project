@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Laptop, Video, Activity, Bell, Clock, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Monitor, Baby, Camera } from 'lucide-react';
+import { Laptop, Video, Activity, Bell, Clock, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Monitor, Baby, Camera, Download, Smartphone } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
@@ -526,6 +526,25 @@ const Dashboard: React.FC = () => {
         />
 
         <div className="p-4 space-y-4">
+          {/* Mobile Viewer Info Card */}
+          <div className="bg-gradient-to-br from-emerald-600/20 to-teal-800/20 border border-emerald-500/30 rounded-2xl p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
+                <Smartphone className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">
+                  {language === 'he' ? 'מסך צפייה מרחוק' : 'Mobile Viewer Active'}
+                </h3>
+              </div>
+            </div>
+            <p className="text-white/70 text-sm mb-3">
+              {language === 'he' 
+                ? 'אתה כרגע על מכשיר נייד. השתמש במסך זה לצפות במצלמות הפעילות שלך. כדי להוסיף מצלמה חדשה, התחבר לדשבורד מהמחשב הנייד או הנייח שלך.'
+                : 'You are currently on a mobile device. Use this screen to monitor your active cameras. To add a new camera, please log in to this dashboard from your Laptop or PC.'}
+            </p>
+          </div>
+
           {/* OFFLINE WARNING BANNER - Shows when computer is not connected */}
           {laptopStatus === 'offline' && !isLaptopStatusLoading && (
             <OfflineBanner />
@@ -712,6 +731,59 @@ const Dashboard: React.FC = () => {
       />
 
       <div className="p-6">
+        {/* Download Agent Card - Only for desktop browsers (not Electron) */}
+        {!capabilities.isElectron && (
+          <div className="bg-gradient-to-br from-cyan-600/20 to-blue-800/20 border border-cyan-500/30 rounded-2xl p-6 mb-6">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
+                <Download className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">
+                  {language === 'he' ? 'הפוך את המחשב הזה למצלמת אבטחה' : 'Turn this computer into a security camera'}
+                </h3>
+                <p className="text-white/60 text-sm">
+                  {language === 'he'
+                    ? 'הורד והתקן את ה-Camera Agent על מחשב זה. לאחר הפתיחה, התחבר עם החשבון שלך כדי לקשר אותו.'
+                    : 'Download and install our Camera Agent on this computer. Once opened, log in with your account to link it.'}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {(typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)) ? (
+                <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent-Setup-2.25.0.exe" download>
+                  <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
+                    <Monitor className="w-5 h-5" />
+                    {language === 'he' ? 'הורד ל-Windows' : 'Download for Windows'}
+                  </Button>
+                </a>
+              ) : (typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)) ? (
+                <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent.dmg" download>
+                  <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
+                    <Monitor className="w-5 h-5" />
+                    {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
+                  </Button>
+                </a>
+              ) : (
+                <>
+                  <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent-Setup-2.25.0.exe" download>
+                    <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
+                      <Monitor className="w-5 h-5" />
+                      {language === 'he' ? 'הורד ל-Windows' : 'Download for Windows'}
+                    </Button>
+                  </a>
+                  <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent.dmg" download>
+                    <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
+                      <Monitor className="w-5 h-5" />
+                      {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
+                    </Button>
+                  </a>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* Left Column - Status Cards */}

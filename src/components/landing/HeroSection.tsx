@@ -4,7 +4,6 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Monitor } from 'lucide-react';
 import devicesImage from '@/assets/devices-hero.png';
-import { DownloadButton } from './DownloadButton';
 
 export const HeroSection: React.FC = () => {
   const { t, isRTL } = useLanguage();
@@ -78,7 +77,11 @@ export const HeroSection: React.FC = () => {
 
             {/* CTA Buttons */}
             <div className={`flex flex-col sm:flex-row items-center gap-4 ${isRTL ? 'justify-center lg:justify-end' : 'justify-center lg:justify-start'}`}>
-              <DownloadButton />
+              <Link to="/register">
+                <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-8 py-6 text-lg rounded-xl shadow-lg shadow-cyan-500/30 font-semibold min-w-[160px] border-0">
+                  {isRTL ? 'התחל עכשיו' : 'Get Started'}
+                </Button>
+              </Link>
               <a href="#how-it-works">
                 <Button 
                   size="lg" 
