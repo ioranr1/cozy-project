@@ -751,7 +751,7 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="flex flex-wrap gap-3">
               {(typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)) ? (
-                <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent-Setup-2.25.0.exe" download>
+                <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent-Setup.exe" download>
                   <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                     <Monitor className="w-5 h-5" />
                     {language === 'he' ? 'הורד ל-Windows' : 'Download for Windows'}
@@ -766,7 +766,7 @@ const Dashboard: React.FC = () => {
                 </a>
               ) : (
                 <>
-                  <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent-Setup-2.25.0.exe" download>
+                  <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent-Setup.exe" download>
                     <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                       <Monitor className="w-5 h-5" />
                       {language === 'he' ? 'הורד ל-Windows' : 'Download for Windows'}
