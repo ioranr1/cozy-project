@@ -17,6 +17,7 @@ import LiveView from "./pages/LiveView";
 import BabyMonitorViewer from "./pages/BabyMonitorViewer";
 import MicrophoneTestPage from "./pages/MicrophoneTestPage";
 import NotFound from "./pages/NotFound";
+import UpdateNotification from "./components/UpdateNotification";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <UpdateNotification />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
