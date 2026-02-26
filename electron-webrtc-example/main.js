@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.24.0 (2026-02-18)
+ * VERSION: 2.25.0 (2026-02-26)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -26,6 +26,7 @@ const Store = require('electron-store');
 const { createClient } = require('@supabase/supabase-js');
 const { EventEmitter } = require('events');
 const http = require('http');
+const { autoUpdater } = require('electron-updater');
 
 // CRITICAL FIX: Import AwayManager to replace old Away Mode implementation
 const AwayManager = require('./away/away-manager');
@@ -2050,12 +2051,93 @@ app.whenReady().then(async () => {
     subscribeToDeviceStatus();
   }
 
+  // =========================================================================
+  // AUTO-UPDATER (v2.25.0)
+  // =========================================================================
+  initAutoUpdater();
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
     }
   });
 });
+
+// =============================================================================
+// AUTO-UPDATER
+// =============================================================================
+
+function initAutoUpdater() {
+  console.log('[AutoUpdater] Initializing...');
+
+  // Don't download automatically — let the user decide
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[AutoUpdater] Checking for update...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] Update available:', info.version);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auto-update', { type: 'update-available', version: info.version, releaseDate: info.releaseDate });
+    }
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('[AutoUpdater] No update available. Current:', info.version);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auto-update', { type: 'update-not-available', version: info.version });
+    }
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auto-update', { type: 'download-progress', percent: progress.percent, bytesPerSecond: progress.bytesPerSecond, transferred: progress.transferred, total: progress.total });
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Update downloaded:', info.version);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auto-update', { type: 'update-downloaded', version: info.version });
+    }
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[AutoUpdater] Error:', err?.message || err);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('auto-update', { type: 'error', message: err?.message || 'Unknown error' });
+    }
+  });
+
+  // IPC: renderer requests download
+  ipcMain.handle('auto-update-download', () => {
+    console.log('[AutoUpdater] Download requested by renderer');
+    autoUpdater.downloadUpdate();
+  });
+
+  // IPC: renderer requests quit-and-install
+  ipcMain.handle('auto-update-install', () => {
+    console.log('[AutoUpdater] Quit and install requested by renderer');
+    autoUpdater.quitAndInstall(false, true);
+  });
+
+  // IPC: renderer requests manual check
+  ipcMain.handle('auto-update-check', () => {
+    console.log('[AutoUpdater] Manual check requested');
+    autoUpdater.checkForUpdates();
+  });
+
+  // Check for updates on startup (after a short delay)
+  setTimeout(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.warn('[AutoUpdater] Initial check failed:', err?.message);
+    });
+  }, 10000); // 10s delay to let the app settle
+}
 
 // =============================================================================
 // POWER MONITOR - Suspend/Resume handling
