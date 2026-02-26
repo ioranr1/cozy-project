@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.27.0 (2026-02-26)
+ * VERSION: 2.28.0 (2026-02-26)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -364,13 +364,20 @@ function getIconPath() {
   // PNG tray icons on Windows often render as a black square.
   const isWin = process.platform === 'win32';
 
-  // Search order: ico first on Windows, then png, including tray-icon.png variants
+  // CRITICAL FIX v2.28.0: In packaged builds, __dirname points inside app.asar.
+  // Icons placed via extraResources live in process.resourcesPath (outside asar).
+  const resourcesDir = process.resourcesPath || __dirname;
+
+  // Search order: extraResources first (packaged), then __dirname (dev)
   const possiblePaths = isWin
     ? [
+        // Packaged build - extraResources
+        path.join(resourcesDir, 'tray-icon.png'),
+        path.join(resourcesDir, 'icon.ico'),
+        // Dev mode - __dirname
         path.join(__dirname, 'icon.ico'),
         path.join(__dirname, 'assets', 'icon.ico'),
         path.join(__dirname, 'build', 'icon.ico'),
-        // PNG fallbacks (Windows may render these as black squares)
         path.join(__dirname, 'tray-icon.png'),
         path.join(__dirname, 'icon.png'),
         path.join(__dirname, 'assets', 'tray-icon.png'),
@@ -378,6 +385,9 @@ function getIconPath() {
         path.join(__dirname, 'build', 'icon.png'),
       ]
     : [
+        // Packaged build - extraResources
+        path.join(resourcesDir, 'tray-icon.png'),
+        // Dev mode - __dirname
         path.join(__dirname, 'tray-icon.png'),
         path.join(__dirname, 'icon.png'),
         path.join(__dirname, 'assets', 'tray-icon.png'),
