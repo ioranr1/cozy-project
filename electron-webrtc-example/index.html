@@ -1,7 +1,7 @@
 <!--
   ============================================================
   AIGuard Camera - Electron UI
-   VERSION: 2.17.0 (2026-02-15)
+   VERSION: 2.28.0 (2026-02-26)
    ============================================================
    
    CHANGELOG:
@@ -325,6 +325,122 @@
         }
       }
 
+      /* ====== ONBOARDING SCREEN ====== */
+      .onboarding-screen {
+        text-align: center;
+      }
+
+      .onboarding-icon {
+        font-size: 72px;
+        margin-bottom: 8px;
+        animation: iconPulse 2.5s ease-in-out infinite;
+      }
+
+      @keyframes iconPulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.08); opacity: 0.85; }
+      }
+
+      .onboarding-title {
+        font-size: 22px;
+        font-weight: 800;
+        color: #f1f5f9;
+        margin-bottom: 6px;
+      }
+
+      .onboarding-subtitle {
+        color: #94a3b8;
+        font-size: 14px;
+        margin-bottom: 24px;
+      }
+
+      .steps-container {
+        text-align: start;
+        margin-bottom: 24px;
+      }
+
+      .step-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding: 14px 0;
+        border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+      }
+
+      .step-item:last-child {
+        border-bottom: none;
+      }
+
+      .step-number {
+        flex-shrink: 0;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: white;
+        font-weight: 800;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .step-content {
+        padding-top: 4px;
+      }
+
+      .step-label {
+        font-weight: 700;
+        color: #e2e8f0;
+        font-size: 14px;
+        margin-bottom: 2px;
+      }
+
+      .step-desc {
+        color: #94a3b8;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .onboarding-cta {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        border: none;
+        color: white;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 700;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        user-select: none;
+      }
+
+      .onboarding-cta:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 22px rgba(59, 130, 246, 0.28);
+      }
+
+      .onboarding-version {
+        color: #475569;
+        font-size: 11px;
+        margin-top: 16px;
+      }
+
+      [dir="rtl"] .steps-container {
+        text-align: right;
+      }
+
+      [dir="rtl"] .step-item {
+        flex-direction: row-reverse;
+      }
+
+      /* ====== END ONBOARDING ====== */
+
       .live-indicator {
         display: none;
         background: rgba(239, 68, 68, 0.2);
@@ -434,7 +550,41 @@
         <button id="lang-he" class="lang-btn" type="button">עב</button>
       </div>
 
-      <div id="pairing-screen">
+      <!-- ONBOARDING SCREEN (shown first on launch) -->
+      <div id="onboarding-screen" class="onboarding-screen">
+        <div class="onboarding-icon">📷</div>
+        <div class="onboarding-title" id="onboarding-title">Your Camera Agent is Ready!</div>
+        <div class="onboarding-subtitle" id="onboarding-subtitle">To start monitoring from this computer:</div>
+
+        <div class="steps-container">
+          <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-label" id="step1-label">Open the Dashboard</div>
+              <div class="step-desc" id="step1-desc">Go to the dashboard on your mobile phone</div>
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-label" id="step2-label">Navigate to Devices</div>
+              <div class="step-desc" id="step2-desc">Open the 'Devices' menu from the sidebar</div>
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <div class="step-label" id="step3-label">Pair New Camera</div>
+              <div class="step-desc" id="step3-desc">Click 'Pair New Camera' and enter the code shown here</div>
+            </div>
+          </div>
+        </div>
+
+        <button class="onboarding-cta" id="onboarding-cta" type="button">🔗 <span id="onboarding-cta-text">Continue to Pairing</span></button>
+        <div class="onboarding-version">AIGuard Camera Agent v2.28.0</div>
+      </div>
+
+      <div id="pairing-screen" style="display:none;">
         <div class="header">
           <div class="logo">🛡️</div>
           <h1 id="title">Connect Camera</h1>
@@ -510,7 +660,7 @@
          If you don't see this in the Electron console, you're not running
          this updated index.html file (or DevTools console is filtered). -->
     <script>
-      console.log("[UI] index.html build: electron-index-2026-02-08-v2.7.0");
+      console.log("[UI] index.html build: electron-index-2026-02-26-v2.28.0");
       
       // ============================================================
       // Sensor Status Indicator - update UI for camera/mic
@@ -541,7 +691,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-09-v2.9.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-26-v2.28.0";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -1236,7 +1386,17 @@
           userReturnedTitle: "Welcome Back",
           userReturnedMessage: "You have returned. Would you like to disable Away Mode?",
           disableAwayMode: "Disable Away Mode",
-          keepAwayMode: "Keep Away Mode"
+          keepAwayMode: "Keep Away Mode",
+          // Onboarding
+          onboardingTitle: "Your Camera Agent is Ready!",
+          onboardingSubtitle: "To start monitoring from this computer:",
+          step1Label: "Open the Dashboard",
+          step1Desc: "Go to the dashboard on your mobile phone",
+          step2Label: "Navigate to Devices",
+          step2Desc: "Open the 'Devices' menu from the sidebar",
+          step3Label: "Pair New Camera",
+          step3Desc: "Click 'Pair New Camera' and enter the code shown here",
+          onboardingCta: "Continue to Pairing"
         },
         he: {
           dir: "rtl",
@@ -1266,7 +1426,17 @@
           userReturnedTitle: "ברוך שובך",
           userReturnedMessage: "חזרת הביתה. האם לכבות את מצב מרוחק?",
           disableAwayMode: "כבה מצב מרוחק",
-          keepAwayMode: "השאר מצב מרוחק"
+          keepAwayMode: "השאר מצב מרוחק",
+          // Onboarding
+          onboardingTitle: "סוכן המצלמה שלך מוכן!",
+          onboardingSubtitle: "כדי להתחיל לנטר מהמחשב הזה:",
+          step1Label: "פתח את הדשבורד",
+          step1Desc: "היכנס לדשבורד מהטלפון הנייד שלך",
+          step2Label: "עבור לתפריט מכשירים",
+          step2Desc: "פתח את תפריט 'מכשירים' מהתפריט הצדדי",
+          step3Label: "צמד מצלמה חדשה",
+          step3Desc: "לחץ על 'צמד מצלמה חדשה' והזן את הקוד שמוצג כאן",
+          onboardingCta: "המשך לצימוד"
         }
       };
 
@@ -1297,7 +1467,27 @@
         document.getElementById("minimize-text").textContent = t.minimize;
         document.getElementById("exit-text").textContent = t.exit;
         document.getElementById("exit-warning").textContent = t.exitWarning;
+
+        // Onboarding
+        document.getElementById("onboarding-title").textContent = t.onboardingTitle;
+        document.getElementById("onboarding-subtitle").textContent = t.onboardingSubtitle;
+        document.getElementById("step1-label").textContent = t.step1Label;
+        document.getElementById("step1-desc").textContent = t.step1Desc;
+        document.getElementById("step2-label").textContent = t.step2Label;
+        document.getElementById("step2-desc").textContent = t.step2Desc;
+        document.getElementById("step3-label").textContent = t.step3Label;
+        document.getElementById("step3-desc").textContent = t.step3Desc;
+        document.getElementById("onboarding-cta-text").textContent = t.onboardingCta;
       }
+
+      // ============================================================
+      // ONBOARDING CTA - transition to pairing screen
+      // ============================================================
+      document.getElementById("onboarding-cta").addEventListener("click", () => {
+        document.getElementById("onboarding-screen").style.display = "none";
+        document.getElementById("pairing-screen").style.display = "block";
+        document.querySelectorAll(".code-input")[0]?.focus();
+      });
 
       // ============================================================
       // PAIRING UI HELPERS
@@ -1345,6 +1535,7 @@
       }
 
       function showSuccessScreen() {
+        document.getElementById("onboarding-screen").style.display = "none";
         document.getElementById("pairing-screen").style.display = "none";
         document.getElementById("success-screen").style.display = "block";
       }

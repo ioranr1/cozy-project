@@ -1,6 +1,6 @@
 {
   "name": "security-camera-agent",
-  "version": "2.27.0",
+  "version": "2.28.0",
   "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
   "main": "main.js",
   "scripts": {
@@ -40,7 +40,13 @@
     },
     "mac": {
       "target": "dmg"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "tray-icon.png",
+        "to": "tray-icon.png"
+      }
+    ]
   },
   "author": "",
   "license": "MIT"
