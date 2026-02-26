@@ -25,8 +25,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "YOUR_GITHUB_USERNAME",
-        "repo": "YOUR_REPO_NAME"
+        "owner": "ioranr1",
+        "repo": "cozy-project"
       }
     ],
     "win": {
