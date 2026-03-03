@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.29.0 (2026-03-03)
+ * VERSION: 2.30.0 (2026-03-03)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -665,6 +665,8 @@ function updateTrayMenu(caller = 'unknown') {
   console.log(`[Tray] #${_trayUpdateCounter} updateTrayMenu by: ${caller} | hash: ${menuHash} | uptime: ${Math.round((now - _appStartTime) / 1000)}s`);
 
   const contextMenu = Menu.buildFromTemplate([
+    { label: `Version: ${app.getVersion()}`, enabled: false },
+    { type: 'separator' },
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
     { type: 'separator' },
     { label: t('showWindow'), click: () => { mainWindow?.show(); mainWindow?.focus(); } },
