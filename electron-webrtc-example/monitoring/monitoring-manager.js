@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.10.0 (2026-02-15)
+ * VERSION: 0.10.1 (2026-03-04)
  * 
  * CHANGELOG:
  * - v0.8.0: Baby Monitor support - enable() activates mic immediately when baby_monitor_enabled.
@@ -318,11 +318,15 @@ class MonitoringManager {
       // CRITICAL FIX: Always update DB first to ensure security_enabled is false
       // This fixes the bug where UI shows "active" but camera is off
       if (this.deviceId) {
+        // NOTE: We intentionally do NOT reset motion_enabled here.
+        // motion_enabled is a USER PREFERENCE — it means "I want motion detection".
+        // security_enabled is a HARDWARE STATE — it means "camera is actively running".
+        // Resetting motion_enabled here would prevent auto-resume after Live View ends,
+        // because the resume logic checks: is_armed && motion_enabled.
         const { error } = await this.supabase
           .from('device_status')
           .update({
             security_enabled: false,
-            motion_enabled: false,
             sound_enabled: false,
             updated_at: new Date().toISOString(),
           })
