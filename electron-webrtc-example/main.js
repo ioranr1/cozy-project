@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.31.0 (2026-03-03)
+ * VERSION: 2.32.0 (2026-03-04)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -299,6 +299,7 @@ function createWindow() {
     resizable: false,
     frame: false,
     transparent: false,
+    show: false,
     backgroundColor: '#1a1a2e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -319,7 +320,7 @@ function createWindow() {
   mainWindow.on('close', (event) => {
     if (trayAvailable && !app.isQuitting) {
       event.preventDefault();
-      mainWindow.hide();
+      hideMainWindowToTray();
     }
   });
 
@@ -327,7 +328,7 @@ function createWindow() {
   mainWindow.on('minimize', (event) => {
     if (trayAvailable) {
       event.preventDefault();
-      mainWindow.hide();
+      hideMainWindowToTray();
     }
   });
 
@@ -335,6 +336,35 @@ function createWindow() {
   mainWindow.on('focus', () => {
     awayManager.handleUserReturned();
   });
+}
+
+function showMainWindowFromTray() {
+  if (!mainWindow || mainWindow.isDestroyed?.()) return;
+  
+  // Keep app visible in Taskbar/Dock when user explicitly opens the window
+  if (process.platform === 'darwin') {
+    app.dock?.show();
+  }
+  if (process.platform === 'win32') {
+    mainWindow.setSkipTaskbar(false);
+  }
+
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function hideMainWindowToTray() {
+  if (!mainWindow || mainWindow.isDestroyed?.()) return;
+
+  // Keep app running as tray app without taskbar clutter
+  if (process.platform === 'darwin') {
+    app.dock?.hide();
+  }
+  if (process.platform === 'win32') {
+    mainWindow.setSkipTaskbar(true);
+  }
+
+  mainWindow.hide();
 }
 
 // =============================================================================
@@ -573,10 +603,7 @@ function initTray() {
     trayAvailable = true;
 
     tray.on('click', () => {
-      if (mainWindow) {
-        mainWindow.show();
-        mainWindow.focus();
-      }
+      showMainWindowFromTray();
     });
 
     console.log('[Tray] [OK] Initialized successfully (icon validated)');
@@ -669,7 +696,7 @@ function updateTrayMenu(caller = 'unknown') {
     { type: 'separator' },
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
     { type: 'separator' },
-    { label: t('showWindow'), click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+    { label: t('showWindow'), click: () => showMainWindowFromTray() },
     { type: 'separator' },
     { label: t('quit'), click: () => { app.isQuitting = true; app.quit(); } }
   ]);
@@ -1680,7 +1707,7 @@ function setupIpcHandlers() {
   // Window controls
   ipcMain.handle('minimize-to-tray', () => {
     if (trayAvailable) {
-      mainWindow?.hide();
+      hideMainWindowToTray();
     } else {
       mainWindow?.minimize();
     }
@@ -2039,10 +2066,14 @@ app.whenReady().then(async () => {
   createWindow();
   initTray();
 
-  // v2.26.0: Show & focus window on first launch so the user sees the app after install
+  // Start as tray-first in packaged apps (after EXE install)
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.show();
-    mainWindow.focus();
+    if (app.isPackaged && trayAvailable) {
+      hideMainWindowToTray();
+      console.log('[Startup] Tray initialized automatically on packaged startup');
+    } else {
+      showMainWindowFromTray();
+    }
   }
 
   await initDevice();
