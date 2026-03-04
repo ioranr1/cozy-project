@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.33.0 (2026-03-04)
+ * VERSION: 2.34.0 (2026-03-04)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -2066,14 +2066,11 @@ app.whenReady().then(async () => {
   createWindow();
   initTray();
 
-  // Start as tray-first in packaged apps (after EXE install)
+  // v2.34.0: ALWAYS show the window on startup so the user sees the Onboarding UI.
+  // The window will only hide to tray when the user explicitly clicks Close or Minimize.
   if (mainWindow && !mainWindow.isDestroyed()) {
-    if (app.isPackaged && trayAvailable) {
-      hideMainWindowToTray();
-      console.log('[Startup] Tray initialized automatically on packaged startup');
-    } else {
-      showMainWindowFromTray();
-    }
+    showMainWindowFromTray();
+    console.log('[Startup] Window shown and focused on startup (v2.34.0)');
   }
 
   await initDevice();
