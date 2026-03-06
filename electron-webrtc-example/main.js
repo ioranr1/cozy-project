@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.36.0 (2026-03-06)
+ * VERSION: 2.38.0 (2026-03-06)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -19,7 +19,7 @@
  *   macOS: uses built-in pmset
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog, Notification } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
@@ -663,8 +663,11 @@ function updateTrayMenu(caller = 'unknown') {
   const awayStatus = awayManager.getTrayStatus();
   const modeStatus = awayStatus.statusText;
 
+  // v2.38.0: Include update state in menu hash so tray rebuilds when update status changes
+  const updateState = _downloadedUpdateInfo ? 'downloaded' : (_pendingUpdateInfo ? 'available' : 'none');
+
   // Build a hash of the menu content – skip rebuild if nothing changed
-  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}`;
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}`;
 
   // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
   // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
@@ -691,7 +694,27 @@ function updateTrayMenu(caller = 'unknown') {
 
   console.log(`[Tray] #${_trayUpdateCounter} updateTrayMenu by: ${caller} | hash: ${menuHash} | uptime: ${Math.round((now - _appStartTime) / 1000)}s`);
 
+  // v2.38.0: Build update menu items dynamically
+  const updateMenuItems = [];
+  if (_downloadedUpdateInfo) {
+    updateMenuItems.push({
+      label: `🚀 Install Update (v${_downloadedUpdateInfo.version})`,
+      click: () => { autoUpdater.quitAndInstall(false, true); }
+    });
+    updateMenuItems.push({ type: 'separator' });
+  } else if (_pendingUpdateInfo) {
+    updateMenuItems.push({
+      label: `🌟 Download Update (v${_pendingUpdateInfo.version})`,
+      click: () => {
+        console.log('[AutoUpdater] Tray: Download clicked');
+        autoUpdater.downloadUpdate();
+      }
+    });
+    updateMenuItems.push({ type: 'separator' });
+  }
+
   const contextMenu = Menu.buildFromTemplate([
+    ...updateMenuItems,
     { label: `Version: ${app.getVersion()}`, enabled: false },
     { type: 'separator' },
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
@@ -737,6 +760,18 @@ async function initDevice() {
 
     // AUTO-AWAY on startup (uses profile.auto_away_enabled)
     scheduleAutoAwayCheck('startup-stored-session');
+
+    // v2.38.0: CRITICAL FIX - Auto-show success screen for persisted pairing
+    // Without this, the renderer shows onboarding/pairing UI on every restart
+    // even though credentials are already stored.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Small delay to ensure renderer has finished loading index.html
+      setTimeout(() => {
+        console.log('[Device] Sending show-success-screen (persisted pairing)');
+        mainWindow.webContents.send('show-success-screen');
+      }, 1500);
+    }
+
     return;
   }
 
@@ -2051,7 +2086,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('===============================================================');
-console.log('[Main] BUILD ID: main-js-2026-02-13-v2.14.0-baby-monitor');
+console.log('[Main] BUILD ID: main-js-2026-03-06-v2.38.0');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');
@@ -2111,13 +2146,18 @@ app.whenReady().then(async () => {
 });
 
 // =============================================================================
-// AUTO-UPDATER
+// AUTO-UPDATER (v2.38.0 - Silent tray-based updates)
 // =============================================================================
 
-function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing...');
+// Update state for tray menu integration
+let _pendingUpdateInfo = null;   // { version } when update-available
+let _downloadedUpdateInfo = null; // { version } when update-downloaded
+let _updateCheckInterval = null;
 
-  // Don't download automatically — let the user decide
+function initAutoUpdater() {
+  console.log('[AutoUpdater] Initializing (v2.38.0 - silent tray mode)...');
+
+  // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
@@ -2127,13 +2167,36 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-available', (info) => {
     console.log('[AutoUpdater] Update available:', info.version);
+    _pendingUpdateInfo = { version: info.version };
+    _downloadedUpdateInfo = null;
+
+    // Notify renderer (for in-app UI if visible)
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'update-available', version: info.version, releaseDate: info.releaseDate });
     }
+
+    // v2.38.0: Show Windows notification balloon instead of modal
+    if (Notification.isSupported()) {
+      const notification = new Notification({
+        title: 'AIGuard Camera - Update Available',
+        body: `Version ${info.version} is available! Check the tray menu to download.`,
+        icon: getIconPath(),
+      });
+      notification.on('click', () => {
+        // When user clicks notification, start download immediately
+        console.log('[AutoUpdater] Notification clicked - starting download');
+        autoUpdater.downloadUpdate();
+      });
+      notification.show();
+    }
+
+    // Add download item to tray menu
+    updateTrayMenu('update-available');
   });
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('[AutoUpdater] No update available. Current:', info.version);
+    _pendingUpdateInfo = null;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'update-not-available', version: info.version });
     }
@@ -2148,27 +2211,34 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version);
+    _pendingUpdateInfo = null;
+    _downloadedUpdateInfo = { version: info.version };
+
     // Notify renderer
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'update-downloaded', version: info.version });
     }
-    // v2.36.0: Show native dialog so user can restart immediately
-    dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : null, {
-      type: 'info',
-      title: 'Update Ready',
-      message: 'A new update has been downloaded. Restart the application to apply the updates?',
-      buttons: ['Yes', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-    }).then(({ response }) => {
-      if (response === 0) {
+
+    // v2.38.0: Show notification that update is ready
+    if (Notification.isSupported()) {
+      const notification = new Notification({
+        title: 'AIGuard Camera - Update Ready',
+        body: `Version ${info.version} downloaded. Restart to apply.`,
+        icon: getIconPath(),
+      });
+      notification.on('click', () => {
         autoUpdater.quitAndInstall(false, true);
-      }
-    });
+      });
+      notification.show();
+    }
+
+    // Update tray menu to show install option
+    updateTrayMenu('update-downloaded');
   });
 
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err?.message || err);
+    _pendingUpdateInfo = null;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'error', message: err?.message || 'Unknown error' });
     }
@@ -2192,12 +2262,21 @@ function initAutoUpdater() {
     autoUpdater.checkForUpdates();
   });
 
-  // Check for updates on startup (after a short delay)
+  // v2.38.0: Silent check on startup (10s delay) — no notification if no update
   setTimeout(() => {
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    console.log('[AutoUpdater] Initial silent check...');
+    autoUpdater.checkForUpdates().catch((err) => {
       console.warn('[AutoUpdater] Initial check failed:', err?.message);
     });
-  }, 10000); // 10s delay to let the app settle
+  }, 10000);
+
+  // v2.38.0: Periodic check every 12 hours
+  _updateCheckInterval = setInterval(() => {
+    console.log('[AutoUpdater] Periodic check (12h interval)...');
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.warn('[AutoUpdater] Periodic check failed:', err?.message);
+    });
+  }, 12 * 60 * 60 * 1000);
 }
 
 // =============================================================================
