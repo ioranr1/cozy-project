@@ -2063,7 +2063,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('===============================================================');
-console.log('[Main] BUILD ID: main-js-2026-02-13-v2.14.0-baby-monitor');
+console.log('[Main] BUILD ID: main-js-2026-03-06-v2.38.0');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');
