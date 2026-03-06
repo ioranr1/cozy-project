@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.35.0 (2026-03-06)
+ * VERSION: 2.36.0 (2026-03-06)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -19,7 +19,7 @@
  *   macOS: uses built-in pmset
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
@@ -2148,9 +2148,23 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version);
+    // Notify renderer
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'update-downloaded', version: info.version });
     }
+    // v2.36.0: Show native dialog so user can restart immediately
+    dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : null, {
+      type: 'info',
+      title: 'Update Ready',
+      message: 'A new update has been downloaded. Restart the application to apply the updates?',
+      buttons: ['Yes', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) {
+        autoUpdater.quitAndInstall(false, true);
+      }
+    });
   });
 
   autoUpdater.on('error', (err) => {
@@ -2180,7 +2194,7 @@ function initAutoUpdater() {
 
   // Check for updates on startup (after a short delay)
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((err) => {
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
       console.warn('[AutoUpdater] Initial check failed:', err?.message);
     });
   }, 10000); // 10s delay to let the app settle
