@@ -1,9 +1,10 @@
 /**
  * Renderer Monitoring Controller
  * ===============================
- * VERSION: 1.2.0 (2026-02-08)
+ * VERSION: 1.3.0 (2026-03-06)
  * 
  * CHANGELOG:
+ * - v1.3.0: FIX - updateConfig() now creates videoElement when switching from sound-only to motion
  * - v1.2.0: Motion correlation for baby cry events (±10s cross-sensor boost)
  * - v1.1.0: CRITICAL FIX - Camera only activates when motion is enabled (sound-only = no camera)
  * - v1.0.0: Production release with motion/sound detection integration
@@ -243,7 +244,20 @@ class RendererMonitoringController {
           confidence_threshold: motionConfig.confidence_threshold,
           debounce_ms: motionConfig.debounce_ms,
         });
-        if (this.videoElement) {
+        // v1.3.0 FIX: If videoElement doesn't exist (e.g. switching from sound-only),
+        // create it now so the camera actually turns on.
+        if (!this.videoElement) {
+          console.log('[RendererMonitoring] No videoElement - creating for motion (was sound-only)');
+          this.setupVideoElement().then((video) => {
+            this.videoElement = video;
+            this.motionDetector.start(this.videoElement);
+            this.status.motionRunning = true;
+            console.log('[RendererMonitoring] ✓ Motion detector started after video setup');
+            this.notifyStatus();
+          }).catch((err) => {
+            console.error('[RendererMonitoring] Failed to setup video for motion:', err);
+          });
+        } else {
           this.motionDetector.start(this.videoElement);
           this.status.motionRunning = true;
         }
