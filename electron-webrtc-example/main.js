@@ -694,7 +694,27 @@ function updateTrayMenu(caller = 'unknown') {
 
   console.log(`[Tray] #${_trayUpdateCounter} updateTrayMenu by: ${caller} | hash: ${menuHash} | uptime: ${Math.round((now - _appStartTime) / 1000)}s`);
 
+  // v2.38.0: Build update menu items dynamically
+  const updateMenuItems = [];
+  if (_downloadedUpdateInfo) {
+    updateMenuItems.push({
+      label: `🚀 Install Update (v${_downloadedUpdateInfo.version})`,
+      click: () => { autoUpdater.quitAndInstall(false, true); }
+    });
+    updateMenuItems.push({ type: 'separator' });
+  } else if (_pendingUpdateInfo) {
+    updateMenuItems.push({
+      label: `🌟 Download Update (v${_pendingUpdateInfo.version})`,
+      click: () => {
+        console.log('[AutoUpdater] Tray: Download clicked');
+        autoUpdater.downloadUpdate();
+      }
+    });
+    updateMenuItems.push({ type: 'separator' });
+  }
+
   const contextMenu = Menu.buildFromTemplate([
+    ...updateMenuItems,
     { label: `Version: ${app.getVersion()}`, enabled: false },
     { type: 'separator' },
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
