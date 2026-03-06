@@ -663,8 +663,11 @@ function updateTrayMenu(caller = 'unknown') {
   const awayStatus = awayManager.getTrayStatus();
   const modeStatus = awayStatus.statusText;
 
+  // v2.38.0: Include update state in menu hash so tray rebuilds when update status changes
+  const updateState = _downloadedUpdateInfo ? 'downloaded' : (_pendingUpdateInfo ? 'available' : 'none');
+
   // Build a hash of the menu content – skip rebuild if nothing changed
-  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}`;
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}`;
 
   // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
   // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
