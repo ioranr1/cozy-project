@@ -19,7 +19,7 @@
  *   macOS: uses built-in pmset
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog, Notification } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const Store = require('electron-store');
