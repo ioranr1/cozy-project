@@ -737,6 +737,18 @@ async function initDevice() {
 
     // AUTO-AWAY on startup (uses profile.auto_away_enabled)
     scheduleAutoAwayCheck('startup-stored-session');
+
+    // v2.38.0: CRITICAL FIX - Auto-show success screen for persisted pairing
+    // Without this, the renderer shows onboarding/pairing UI on every restart
+    // even though credentials are already stored.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      // Small delay to ensure renderer has finished loading index.html
+      setTimeout(() => {
+        console.log('[Device] Sending show-success-screen (persisted pairing)');
+        mainWindow.webContents.send('show-success-screen');
+      }, 1500);
+    }
+
     return;
   }
 
