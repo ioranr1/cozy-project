@@ -2148,9 +2148,23 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version);
+    // Notify renderer
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'update-downloaded', version: info.version });
     }
+    // v2.36.0: Show native dialog so user can restart immediately
+    dialog.showMessageBox(mainWindow && !mainWindow.isDestroyed() ? mainWindow : null, {
+      type: 'info',
+      title: 'Update Ready',
+      message: 'A new update has been downloaded. Restart the application to apply the updates?',
+      buttons: ['Yes', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) {
+        autoUpdater.quitAndInstall(false, true);
+      }
+    });
   });
 
   autoUpdater.on('error', (err) => {
