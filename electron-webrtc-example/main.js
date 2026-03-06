@@ -2194,7 +2194,7 @@ function initAutoUpdater() {
 
   // Check for updates on startup (after a short delay)
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((err) => {
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
       console.warn('[AutoUpdater] Initial check failed:', err?.message);
     });
   }, 10000); // 10s delay to let the app settle
