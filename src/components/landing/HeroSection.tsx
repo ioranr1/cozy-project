@@ -39,13 +39,51 @@ export const HeroSection: React.FC = () => {
               </div>
             </div>
             
-            {/* Devices Image */}
-            <div className="relative">
-              <img 
-                src={livingRoomImage} 
-                alt="Smart home living room" 
-                className="w-full max-w-2xl mx-auto rounded-2xl drop-shadow-2xl"
-              />
+            {/* Device Mockups */}
+            <div className="relative flex items-end justify-center gap-4">
+              {/* Laptop Mockup */}
+              <div className="relative w-[70%]">
+                {/* Laptop Screen */}
+                <div className="bg-slate-800 rounded-t-lg p-1.5 border border-slate-600">
+                  <div className="relative rounded overflow-hidden aspect-[16/10]">
+                    <img 
+                      src={livingRoomImage} 
+                      alt="AIGuard on laptop" 
+                      className="w-full h-full object-cover"
+                    />
+                    {/* Screen overlay with subtle UI hint */}
+                    <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm rounded-full px-2.5 py-1">
+                      <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      <span className="text-white text-[10px] font-medium">LIVE</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Laptop Base */}
+                <div className="bg-slate-700 rounded-b-xl h-3 mx-auto border-t border-slate-600" />
+                <div className="bg-slate-600 rounded-b-lg h-1.5 mx-[10%]" />
+              </div>
+
+              {/* Phone Mockup */}
+              <div className="relative w-[22%] -mb-2 z-10">
+                {/* Phone Frame */}
+                <div className="bg-slate-800 rounded-[1rem] p-1 border-2 border-slate-600 shadow-2xl">
+                  {/* Notch */}
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 w-[40%] h-1.5 bg-slate-900 rounded-full z-10" />
+                  <div className="relative rounded-[0.7rem] overflow-hidden aspect-[9/19]">
+                    <img 
+                      src={livingRoomImage} 
+                      alt="AIGuard on mobile" 
+                      className="w-full h-full object-cover"
+                    />
+                    {/* Screen overlay with subtle UI hint */}
+                    <div className="absolute top-4 left-2 flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded-full px-2 py-0.5">
+                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+                      <span className="text-white text-[8px] font-medium">LIVE</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Glow effect under devices */}
               <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-3/4 h-16 bg-cyan-400/30 blur-3xl rounded-full" />
             </div>
