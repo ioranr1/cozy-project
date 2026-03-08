@@ -58,31 +58,33 @@ export const Header: React.FC = () => {
         {/* Mobile Menu */}
         {isMenuOpen && (
           <div className="md:hidden bg-white/95 backdrop-blur-lg rounded-2xl mt-2 p-6 space-y-4 shadow-lg">
-            <a
-              href="#features"
-              className="block text-slate-600 hover:text-slate-900 py-2"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              {t.nav.features}
-            </a>
-            <a
-              href="#how-it-works"
-              className="block text-slate-600 hover:text-slate-900 py-2"
-              onClick={() => setIsMenuOpen(false)}
-            >
-              {t.nav.howItWorks}
-            </a>
+            <div className={`flex items-center gap-6 ${isRTL ? 'flex-row-reverse' : ''}`}>
+              <a
+                href="#features"
+                className="text-slate-600 hover:text-slate-900 py-2"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                {t.nav.features}
+              </a>
+              <a
+                href="#how-it-works"
+                className="text-slate-600 hover:text-slate-900 py-2"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                {t.nav.howItWorks}
+              </a>
+            </div>
             <hr className="border-slate-200" />
             <div className="flex items-center justify-between">
-              <LanguageSwitcher />
+              <LanguageSwitcher variant="dark" />
             </div>
             <Link to="/login" onClick={() => setIsMenuOpen(false)}>
-              <Button variant="outline" className="w-full mb-2">
+              <Button variant="outline" className="w-full mb-2 border-slate-300 text-slate-700 hover:bg-slate-100">
                 {isRTL ? 'התחברות' : 'Sign In'}
               </Button>
             </Link>
             <Link to="/register" onClick={() => setIsMenuOpen(false)}>
-              <Button className="w-full bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600">
+              <Button className="w-full bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white font-semibold">
                 {isRTL ? 'התחל עכשיו' : 'Get Started'}
               </Button>
             </Link>
