@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Monitor } from 'lucide-react';
-import devicesImage from '@/assets/devices-hero.png';
+import livingRoomImage from '@/assets/living-room-hero.jpg';
 
 export const HeroSection: React.FC = () => {
   const { t, isRTL } = useLanguage();
@@ -42,9 +42,9 @@ export const HeroSection: React.FC = () => {
             {/* Devices Image */}
             <div className="relative">
               <img 
-                src={devicesImage} 
-                alt="Security camera devices" 
-                className="w-full max-w-2xl mx-auto drop-shadow-2xl"
+                src={livingRoomImage} 
+                alt="Smart home living room" 
+                className="w-full max-w-2xl mx-auto rounded-2xl drop-shadow-2xl"
               />
               {/* Glow effect under devices */}
               <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-3/4 h-16 bg-cyan-400/30 blur-3xl rounded-full" />
