@@ -44,13 +44,19 @@ export const HeroSection: React.FC = () => {
             <div className="relative flex items-end justify-center gap-4">
               {/* Laptop Mockup */}
               <div className="relative w-[70%]">
-                <div className="rounded-xl overflow-hidden shadow-2xl">
-                  <img 
-                    src={devicesHeroImage} 
-                    alt="AIGuard on laptop" 
-                    className="w-full h-auto"
-                  />
+                {/* Laptop Screen */}
+                <div className="bg-slate-800 rounded-t-lg p-2 border border-slate-600">
+                  <div className="relative rounded overflow-hidden">
+                    <img 
+                      src={devicesHeroImage} 
+                      alt="AIGuard on laptop" 
+                      className="w-full h-auto"
+                    />
+                  </div>
                 </div>
+                {/* Laptop Base */}
+                <div className="bg-slate-700 rounded-b-xl h-3 mx-auto border-t border-slate-600" />
+                <div className="bg-slate-600 rounded-b-lg h-1.5 mx-[10%]" />
               </div>
 
               {/* Phone Mockup */}
