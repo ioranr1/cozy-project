@@ -4,6 +4,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Monitor } from 'lucide-react';
 import livingRoomImage from '@/assets/living-room-hero.jpg';
+import devicesHeroImage from '@/assets/devices-hero.png';
 
 export const HeroSection: React.FC = () => {
   const { t, isRTL } = useLanguage();
