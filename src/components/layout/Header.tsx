@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
-import { Menu, X, Camera } from 'lucide-react';
+import { Menu, X, Shield } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { t, isRTL } = useLanguage();
@@ -15,10 +15,10 @@ export const Header: React.FC = () => {
         <nav className={`flex items-center justify-between h-16 md:h-20 ${isRTL ? 'flex-row-reverse' : ''}`}>
           {/* Logo */}
           <Link to="/" className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-            <span className="text-xl font-bold text-white">SecureCam</span>
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-              <Camera className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-sky-600 flex items-center justify-center">
+              <Shield className="w-6 h-6 text-white" />
             </div>
+            <span className="text-xl font-bold text-white">AIGuard</span>
           </Link>
 
           {/* Desktop Navigation */}
