@@ -4,6 +4,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Monitor } from 'lucide-react';
 import livingRoomImage from '@/assets/living-room-hero.jpg';
+import devicesHeroImage from '@/assets/devices-hero.png';
 
 export const HeroSection: React.FC = () => {
   const { t, isRTL } = useLanguage();
@@ -43,24 +44,13 @@ export const HeroSection: React.FC = () => {
             <div className="relative flex items-end justify-center gap-4">
               {/* Laptop Mockup */}
               <div className="relative w-[70%]">
-                {/* Laptop Screen */}
-                <div className="bg-slate-800 rounded-t-lg p-1.5 border border-slate-600">
-                  <div className="relative rounded overflow-hidden aspect-[16/10]">
-                    <img 
-                      src={livingRoomImage} 
-                      alt="AIGuard on laptop" 
-                      className="w-full h-full object-cover"
-                    />
-                    {/* Screen overlay with subtle UI hint */}
-                    <div className="absolute top-2 left-2 flex items-center gap-1.5 bg-black/50 backdrop-blur-sm rounded-full px-2.5 py-1">
-                      <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                      <span className="text-white text-[10px] font-medium">LIVE</span>
-                    </div>
-                  </div>
+                <div className="rounded-xl overflow-hidden shadow-2xl">
+                  <img 
+                    src={devicesHeroImage} 
+                    alt="AIGuard on laptop" 
+                    className="w-full h-auto"
+                  />
                 </div>
-                {/* Laptop Base */}
-                <div className="bg-slate-700 rounded-b-xl h-3 mx-auto border-t border-slate-600" />
-                <div className="bg-slate-600 rounded-b-lg h-1.5 mx-[10%]" />
               </div>
 
               {/* Phone Mockup */}
