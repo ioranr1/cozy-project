@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Monitor } from 'lucide-react';
-import devicesImage from '@/assets/devices-hero.png';
+import livingRoomImage from '@/assets/living-room-hero.jpg';
 
 export const HeroSection: React.FC = () => {
   const { t, isRTL } = useLanguage();
