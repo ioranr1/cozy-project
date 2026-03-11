@@ -2267,6 +2267,8 @@ function initAutoUpdater() {
       });
       notification.show();
     }
+    // v2.41.0: Show badge on tray icon
+    setTrayBadge(true);
 
     // Add download item to tray menu
     updateTrayMenu('update-available');
