@@ -599,6 +599,9 @@ function initTray() {
     // Cache the working icon for safety
     _cachedTrayIcon = trayIcon;
 
+    // v2.41.0: Create badge variant (red dot overlay in top-right corner)
+    _cachedTrayIconWithBadge = createBadgedIcon(trayIcon);
+
     tray = new Tray(trayIcon);
     tray.setToolTip(t('trayTooltip'));
     updateTrayMenu('initTray');
