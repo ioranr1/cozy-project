@@ -478,6 +478,79 @@ function createValidatedTrayIcon(iconPath) {
   }
 }
 
+/**
+ * v2.41.0: Create a copy of the tray icon with a red notification badge (dot)
+ * composited in the top-right corner. Works by manipulating the raw RGBA bitmap.
+ */
+function createBadgedIcon(baseIcon) {
+  if (!baseIcon || baseIcon.isEmpty()) return null;
+
+  try {
+    const size = baseIcon.getSize();
+    const w = size.width;
+    const h = size.height;
+    const bitmap = Buffer.from(baseIcon.toBitmap()); // copy
+
+    // Draw a red circle (radius ~3px) in the top-right corner
+    const dotRadius = Math.max(3, Math.round(w * 0.2));
+    const cx = w - dotRadius - 1; // center x
+    const cy = dotRadius + 1;     // center y
+
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const dx = x - cx;
+        const dy = y - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const idx = (y * w + x) * 4;
+
+        if (dist <= dotRadius - 0.5) {
+          // Solid red
+          bitmap[idx] = 255;     // R
+          bitmap[idx + 1] = 50;  // G
+          bitmap[idx + 2] = 50;  // B
+          bitmap[idx + 3] = 255; // A
+        } else if (dist <= dotRadius + 0.5) {
+          // Anti-aliased edge
+          const alpha = Math.max(0, Math.min(255, Math.round((dotRadius + 0.5 - dist) * 255)));
+          bitmap[idx] = 255;
+          bitmap[idx + 1] = 50;
+          bitmap[idx + 2] = 50;
+          bitmap[idx + 3] = Math.max(bitmap[idx + 3], alpha);
+        }
+      }
+    }
+
+    const badged = nativeImage.createFromBuffer(bitmap, { width: w, height: h });
+    if (badged.isEmpty()) {
+      console.warn('[Tray] Badge icon creation resulted in empty image');
+      return null;
+    }
+    console.log('[Tray] [OK] Badge icon created (red dot overlay)');
+    return badged;
+  } catch (err) {
+    console.error('[Tray] Failed to create badge icon:', err);
+    return null;
+  }
+}
+
+/**
+ * v2.41.0: Show or hide the notification badge on the tray icon
+ * @param {boolean} show - true to show badge, false to revert to normal
+ */
+function setTrayBadge(show) {
+  if (!tray || tray.isDestroyed?.()) return;
+
+  if (show && _cachedTrayIconWithBadge) {
+    tray.setImage(_cachedTrayIconWithBadge);
+    tray.setToolTip('Update Available! Right-click to download.');
+    console.log('[Tray] Badge ON - update available indicator shown');
+  } else if (_cachedTrayIcon) {
+    tray.setImage(_cachedTrayIcon);
+    tray.setToolTip(t('trayTooltip'));
+    console.log('[Tray] Badge OFF - normal icon restored');
+  }
+}
+
 function initTray() {
   try {
     const iconPath = getIconPath();
