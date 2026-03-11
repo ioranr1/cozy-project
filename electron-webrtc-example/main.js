@@ -2270,13 +2270,13 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.38.0: Periodic check every 12 hours
+  // v2.39.0: Periodic check every 1 minute (TEMPORARY - for testing; revert to 12h for production)
   _updateCheckInterval = setInterval(() => {
-    console.log('[AutoUpdater] Periodic check (12h interval)...');
+    console.log('[AutoUpdater] Periodic check (1min test interval)...');
     autoUpdater.checkForUpdates().catch((err) => {
       console.warn('[AutoUpdater] Periodic check failed:', err?.message);
     });
-  }, 12 * 60 * 60 * 1000);
+  }, 60 * 1000);
 }
 
 // =============================================================================
