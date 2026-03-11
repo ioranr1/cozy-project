@@ -373,6 +373,8 @@ function hideMainWindowToTray() {
 
 // Cached nativeImage for tray – set ONCE in initTray, never changed at runtime.
 let _cachedTrayIcon = null;
+// v2.41.0: Cached badge icon (tray icon with red dot overlay)
+let _cachedTrayIconWithBadge = null;
 
 // Throttle state for updateTrayMenu – prevents rapid rebuilds that cause
 // the Windows tray icon to flash black.
