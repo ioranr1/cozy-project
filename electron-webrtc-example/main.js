@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.38.0 (2026-03-06)
+ * VERSION: 2.39.0 (2026-03-11)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -2155,7 +2155,7 @@ let _downloadedUpdateInfo = null; // { version } when update-downloaded
 let _updateCheckInterval = null;
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.38.0 - silent tray mode)...');
+  console.log('[AutoUpdater] Initializing (v2.39.0 - silent tray mode, 1min test interval)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
@@ -2270,13 +2270,13 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.38.0: Periodic check every 12 hours
+  // v2.39.0: Periodic check every 1 minute (TEMPORARY - for testing; revert to 12h for production)
   _updateCheckInterval = setInterval(() => {
-    console.log('[AutoUpdater] Periodic check (12h interval)...');
+    console.log('[AutoUpdater] Periodic check (1min test interval)...');
     autoUpdater.checkForUpdates().catch((err) => {
       console.warn('[AutoUpdater] Periodic check failed:', err?.message);
     });
-  }, 12 * 60 * 60 * 1000);
+  }, 60 * 1000);
 }
 
 // =============================================================================
