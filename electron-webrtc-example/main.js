@@ -2155,7 +2155,7 @@ let _downloadedUpdateInfo = null; // { version } when update-downloaded
 let _updateCheckInterval = null;
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.38.0 - silent tray mode)...');
+  console.log('[AutoUpdater] Initializing (v2.39.0 - silent tray mode, 1min test interval)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
