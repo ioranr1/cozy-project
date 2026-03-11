@@ -2312,6 +2312,9 @@ function initAutoUpdater() {
       notification.show();
     }
 
+    // v2.41.0: Revert tray icon to normal (download complete)
+    setTrayBadge(false);
+
     // Update tray menu to show install option
     updateTrayMenu('update-downloaded');
   });
