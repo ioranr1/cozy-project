@@ -420,30 +420,13 @@ const Dashboard: React.FC = () => {
       setCurrentSessionId(sessionId);
       console.log('[LiveView] Session stored in state:', sessionId);
 
-      // 2. Navigate FIRST so the Viewer mounts and starts listening on the correct sessionId
-      // This prevents a race where the desktop sends the offer before the Viewer is ready.
+      // 2. Navigate to Viewer — the Viewer will send the START command itself.
+      // Previously, Dashboard sent the command AFTER navigate(), but since Dashboard
+      // unmounts on navigation, the command's ack tracking was lost. If the command
+      // failed on Electron's side, the Viewer never knew and sat spinning forever.
+      // FIX (v2.42.0): Viewer now owns the full START lifecycle.
       console.log('[LiveView] Navigating to Viewer with sessionId:', sessionId);
       navigate('/viewer', { state: { sessionId } });
-
-      // Give the Viewer a brief moment to mount + subscribe (Realtime/polling)
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
-
-      // 3. ONLY after navigation: send START_LIVE_VIEW command
-      console.log('[LiveView] inserting START_LIVE_VIEW', { sessionId });
-      const ok = await sendCommand(commandType);
-      
-      if (!ok) {
-        // Command failed - cleanup session
-        console.error('[LiveView] START_LIVE_VIEW command failed, cleaning up session');
-        await endRtcSession(sessionId);
-        setCurrentSessionId(null);
-        setViewStatus('idle');
-        // Optional: return user back to dashboard if start failed
-        navigate('/dashboard');
-        return;
-      }
-      
-      console.log('[LiveView] START_LIVE_VIEW command sent successfully');
     } else if (commandType === 'STOP_LIVE_VIEW') {
       console.log('[LiveView] Stop clicked', { currentSessionId });
       setViewStatus('stopping');

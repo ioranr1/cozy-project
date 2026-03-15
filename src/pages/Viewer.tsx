@@ -537,17 +537,26 @@ const Viewer: React.FC = () => {
       }
     }
 
-    // If Dashboard already created session and sent command, just start RTC
-    // Do NOT create new session or send command again!
+    // If Dashboard already created session, we still need to send the START command.
+    // Previously Dashboard sent the command after navigate(), but since it unmounts
+    // on navigation, ack tracking was lost and failures went unnoticed (v2.42.0 fix).
     if (dashboardSessionId) {
-      console.log('[Viewer] Using Dashboard session, starting RTC only:', dashboardSessionId);
+      console.log('[Viewer] Dashboard session detected, sending START command from Viewer:', dashboardSessionId);
+      
+      const ok = await sendCommand('START_LIVE_VIEW');
+      if (!ok) {
+        setViewerState('error');
+        setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
+        startInitiatedRef.current = false;
+        return;
+      }
+
       const activeSessionId = await startSession();
       if (!activeSessionId) {
         setViewerState('error');
         setErrorMessage(language === 'he' ? 'נכשל בהתחברות' : 'Failed to connect');
-        startInitiatedRef.current = false; // Release lock on failure
+        startInitiatedRef.current = false;
       }
-      // Command was already sent by Dashboard - don't send again
       return;
     }
 
