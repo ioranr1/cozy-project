@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Video, Bell, Cloud, Layers } from 'lucide-react';
+import { Video, Bell, Cloud, Mic } from 'lucide-react';
 
 export const FeaturesSection: React.FC = () => {
   const { t, isRTL } = useLanguage();
