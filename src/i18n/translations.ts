@@ -173,7 +173,7 @@ export const translations = {
       },
       motionDetection: {
         title: 'Motion Detection',
-        description: 'Get instant alerts when motion is detected',
+        description: 'Get instant alerts via WhatsApp when motion is detected',
       },
       cloudStorage: {
         title: 'Cloud Storage',
