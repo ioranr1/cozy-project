@@ -181,7 +181,7 @@ export const translations = {
       },
       multiDevice: {
         title: 'Audio Monitoring',
-        description: 'Listen to what\'s happening even when the camera is off',
+        description: 'Listen to what\'s happening even when the camera is off (For example: a baby crying)',
       },
     },
     // How it works
