@@ -35,7 +35,7 @@ export const translations = {
       },
       multiDevice: {
         title: 'ניטור קול',
-        description: 'מאפשר להאזין למתרחש כשמצלמה כבויה',
+        description: ' מאפשר להאזין למתרחש כשמצלמה כבויה( למשל : בכי תינוק )',
       },
     },
     // How it works
