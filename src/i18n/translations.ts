@@ -177,7 +177,7 @@ export const translations = {
       },
       cloudStorage: {
         title: 'Cloud Storage',
-        description: 'Save recordings securely in the cloud',
+        description: 'Saves recordings securely on your computer\nand alert images in the cloud',
       },
       multiDevice: {
         title: 'Audio Monitoring',
