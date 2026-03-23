@@ -180,8 +180,8 @@ export const translations = {
         description: 'Save recordings securely in the cloud',
       },
       multiDevice: {
-        title: 'Multi-Device',
-        description: 'Connect multiple devices and control them from one place',
+        title: 'Audio Monitoring',
+        description: 'Listen to what\'s happening even when the camera is off',
       },
     },
     // How it works
