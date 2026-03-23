@@ -57,7 +57,7 @@ export const FeaturesSection: React.FC = () => {
               <h3 className="text-xl font-bold text-slate-800 mb-3">
                 {feature.title}
               </h3>
-              <p className="text-slate-600 leading-relaxed">
+              <p className="text-slate-600 leading-relaxed whitespace-pre-line">
                 {feature.description}
               </p>
 
