@@ -19,16 +19,16 @@ export const FeaturesSection: React.FC = () => {
       color: 'from-orange-500 to-amber-400',
     },
     {
-      icon: Cloud,
-      title: t.features.cloudStorage.title,
-      description: t.features.cloudStorage.description,
-      color: 'from-purple-500 to-pink-400',
-    },
-    {
       icon: Mic,
       title: t.features.multiDevice.title,
       description: t.features.multiDevice.description,
       color: 'from-green-500 to-emerald-400',
+    },
+    {
+      icon: Cloud,
+      title: t.features.cloudStorage.title,
+      description: t.features.cloudStorage.description,
+      color: 'from-purple-500 to-pink-400',
     },
   ];
 
