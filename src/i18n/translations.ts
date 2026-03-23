@@ -34,8 +34,8 @@ export const translations = {
         description: 'שמור הקלטות באופן מאובטח בענן',
       },
       multiDevice: {
-        title: 'ריבוי מכשירים',
-        description: 'חבר כמה מכשירים ושלוט בהם ממקום אחד',
+        title: 'ניטור קול',
+        description: 'מאפשר להאזין למתרחש כשמצלמה כבויה',
       },
     },
     // How it works
