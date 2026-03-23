@@ -25,7 +25,7 @@ export const FeaturesSection: React.FC = () => {
       color: 'from-purple-500 to-pink-400',
     },
     {
-      icon: Layers,
+      icon: Mic,
       title: t.features.multiDevice.title,
       description: t.features.multiDevice.description,
       color: 'from-green-500 to-emerald-400',
