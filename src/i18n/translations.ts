@@ -30,7 +30,7 @@ export const translations = {
         description: 'קבל התראות מיידיות בוואטסאפ כשמזוהה תנועה',
       },
       cloudStorage: {
-        title: 'אחסון בענן',
+        title: 'שמירת ארועים',
         description: 'שמור הקלטות באופן מאובטח בענן',
       },
       multiDevice: {
