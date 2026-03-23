@@ -34,8 +34,8 @@ export const translations = {
         description: 'שמור הקלטות באופן מאובטח בענן',
       },
       multiDevice: {
-        title: 'ריבוי מכשירים',
-        description: 'חבר כמה מכשירים ושלוט בהם ממקום אחד',
+        title: 'ניטור קול',
+        description: 'מאפשר להאזין למתרחש כשמצלמה כבויה',
       },
     },
     // How it works
@@ -180,8 +180,8 @@ export const translations = {
         description: 'Save recordings securely in the cloud',
       },
       multiDevice: {
-        title: 'Multi-Device',
-        description: 'Connect multiple devices and control them from one place',
+        title: 'Audio Monitoring',
+        description: 'Listen to what\'s happening even when the camera is off',
       },
     },
     // How it works
