@@ -16,6 +16,7 @@ import Events from "./pages/Events";
 import LiveView from "./pages/LiveView";
 import BabyMonitorViewer from "./pages/BabyMonitorViewer";
 import MicrophoneTestPage from "./pages/MicrophoneTestPage";
+import InstallationGuide from "./pages/InstallationGuide";
 import NotFound from "./pages/NotFound";
 import UpdateNotification from "./components/UpdateNotification";
 
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/events" element={<Events />} />
             <Route path="/event/:eventId" element={<EventDetails />} />
             <Route path="/live/:sessionId" element={<LiveView />} />
+            <Route path="/installation-guide" element={<InstallationGuide />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

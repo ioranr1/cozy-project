@@ -73,6 +73,51 @@ export const translations = {
       selectCountry: 'בחר מדינה',
       phoneExample: 'לדוגמה: 501234567',
     },
+    // Installation Guide
+    installationGuide: {
+      title: 'הוראות התקנה',
+      subtitle: 'מדריך שלב אחר שלב להתקנה והפעלה של המערכת',
+      backToHome: 'חזרה לדף הבית',
+      button: 'הוראות התקנה',
+      steps: {
+        download: {
+          title: 'הורדת האפליקציה',
+          description: 'הורד את האפליקציה מהאתר שלנו',
+          details: [
+            'לחץ על כפתור ההורדה בדף הבית',
+            'בחר את הגרסה המתאימה למערכת ההפעלה שלך (Windows)',
+            'המתן לסיום ההורדה',
+          ],
+        },
+        install: {
+          title: 'התקנה על המחשב',
+          description: 'התקן את האפליקציה על המחשב שישמש כמצלמה',
+          details: [
+            'פתח את קובץ ההתקנה שהורדת',
+            'עקוב אחר הוראות ההתקנה',
+            'אפשר גישה למצלמה ולמיקרופון כשתתבקש',
+          ],
+        },
+        setup: {
+          title: 'הגדרה ורישום',
+          description: 'הירשם למערכת והגדר את המכשיר כמצלמה',
+          details: [
+            'פתח את האפליקציה והירשם עם מספר טלפון',
+            'הגדר את המכשיר כמצלמת אבטחה',
+            'מקם את המחשב במיקום הרצוי',
+          ],
+        },
+        connect: {
+          title: 'חיבור וצפייה',
+          description: 'התחבר מהטלפון שלך וצפה בשידור חי',
+          details: [
+            'פתח את האתר בטלפון הראשי שלך',
+            'התחבר עם אותו חשבון',
+            'לחץ על צפייה בשידור חי',
+          ],
+        },
+      },
+    },
     // Footer
     footer: {
       rights: 'כל הזכויות שמורות',
@@ -218,6 +263,51 @@ export const translations = {
       submitting: 'Submitting...',
       selectCountry: 'Select Country',
       phoneExample: 'Example: 501234567',
+    },
+    // Installation Guide
+    installationGuide: {
+      title: 'Installation Guide',
+      subtitle: 'Step-by-step guide to install and set up the system',
+      backToHome: 'Back to Home',
+      button: 'Installation Guide',
+      steps: {
+        download: {
+          title: 'Download the App',
+          description: 'Download the application from our website',
+          details: [
+            'Click the download button on the homepage',
+            'Choose the version for your operating system (Windows)',
+            'Wait for the download to complete',
+          ],
+        },
+        install: {
+          title: 'Install on Computer',
+          description: 'Install the app on the computer that will serve as a camera',
+          details: [
+            'Open the downloaded installation file',
+            'Follow the installation instructions',
+            'Allow access to camera and microphone when prompted',
+          ],
+        },
+        setup: {
+          title: 'Setup & Registration',
+          description: 'Register and set up the device as a camera',
+          details: [
+            'Open the app and register with your phone number',
+            'Set the device as a security camera',
+            'Position the computer in the desired location',
+          ],
+        },
+        connect: {
+          title: 'Connect & Watch',
+          description: 'Connect from your phone and watch the live stream',
+          details: [
+            'Open the website on your main phone',
+            'Log in with the same account',
+            'Click to watch the live stream',
+          ],
+        },
+      },
     },
     // Footer
     footer: {
