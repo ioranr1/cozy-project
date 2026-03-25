@@ -29,6 +29,9 @@ export const Header: React.FC = () => {
             <a href="#how-it-works" className="text-white/80 hover:text-white transition-colors font-medium">
               {t.nav.howItWorks}
             </a>
+            <Link to="/installation-guide" className="text-white/80 hover:text-white transition-colors font-medium">
+              {t.installationGuide.button}
+            </Link>
           </div>
 
           {/* Actions */}
@@ -73,6 +76,13 @@ export const Header: React.FC = () => {
               >
                 {t.nav.howItWorks}
               </a>
+              <Link
+                to="/installation-guide"
+                className="text-slate-600 hover:text-slate-900 py-2"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                {t.installationGuide.button}
+              </Link>
             </div>
             <hr className="border-slate-200" />
             <div className="flex items-center justify-between">
