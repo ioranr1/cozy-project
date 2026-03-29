@@ -71,7 +71,7 @@ export const HeroSection: React.FC = () => {
             {/* Subtitle */}
             <p className="text-lg md:text-xl text-white/80 mb-10 max-w-xl mx-auto lg:mx-0 lg:ml-auto leading-relaxed">
               {isRTL 
-                ? 'השתמשו בלפטופ כמצלמת אבטחה וצפה בזמן אמת מהטלפון הנייד שלך - מכל מקום בעולם' 
+                ? 'השתמשו בלפטופ כמצלמת אבטחה וצפה בזמן אמת בבית או במישרד מהטלפון הנייד שלך - מכל מקום בעולם' 
                 : 'Use your laptop as a security camera and watch in real-time from your mobile phone - from anywhere in the world'}
             </p>
 
