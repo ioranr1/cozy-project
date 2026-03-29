@@ -43,7 +43,7 @@ export const translations = {
       title: 'איך זה עובד',
       step1: {
         title: 'התקן את האפליקציה',
-        description: 'לאחר רישום ואימות הורד והתקן על הלפטופ את האפליקאציה ',
+        description: 'כנס https://aiguard24.com ולאחר רישום ואימות הורד והתקן על הלפטופ את האפליקאציה ',
       },
       step2: {
         title: 'צימוד מצלמה ',
