@@ -43,7 +43,7 @@ export const translations = {
       title: 'איך זה עובד',
       step1: {
         title: 'התקן את האפליקציה',
-        description: 'בלפטופ כנס https://aiguard24.com לאחר רישום ואימות הורד והתקן  את האפליקאציה. ( מותאם לMAC ולWIN) ',
+        description: 'בלפטופ כנס https://aiguard24.com לאחר רישום ואימות הורד והתקן  את האפליקאציה. ( מותאם ל MAC ול WIN) ',
       },
       step2: {
         title: 'צימוד מצלמה ',
@@ -51,7 +51,7 @@ export const translations = {
       },
       step3: {
         title: 'צפה מכל מקום',
-        description: 'כנס מטלפון הנייד ל https://aiguard24.com ולאחר רישום ואימות אתה מחובר.\nכדי שהאיקון של האפליקאציה  יופעי באופן קבוע בצעה "הוסף ךדף הבית"',
+        description: 'כנס מטלפון הנייד ל https://aiguard24.com ולאחר רישום ואימות אתה מחובר.\nכדי שהאיקון של האפליקאציה  יופעי באופן קבוע בצעה "הוסף לדף הבית"',
       },
     },
     // Auth
