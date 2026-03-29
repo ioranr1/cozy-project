@@ -218,11 +218,11 @@ export const translations = {
       },
       motionDetection: {
         title: 'Motion Detection',
-        description: 'Get instant alerts via WhatsApp when motion is detected',
+        description: 'Get instant alerts via WhatsApp when human motion is detected',
       },
       cloudStorage: {
-        title: 'Cloud Storage',
-        description: 'Saves recordings securely on your computer\nand alert images in the cloud',
+        title: 'Event Storage',
+        description: 'Saves recordings securely on your computer\nand alert snapshots in the cloud',
       },
       multiDevice: {
         title: 'Audio Monitoring',
