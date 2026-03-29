@@ -234,15 +234,15 @@ export const translations = {
       title: 'How It Works',
       step1: {
         title: 'Install the App',
-        description: 'Download and install on your laptop or old phone',
+        description: 'On your laptop go to https://aiguard24.com after registration and verification download and install the app. (Compatible with MAC and WIN)',
       },
       step2: {
-        title: 'Set as Camera',
-        description: 'Choose the device as camera and position it',
+        title: 'Camera Pairing',
+        description: 'On the laptop follow the simple instructions after installation (one time) to pair the laptop camera to the app',
       },
       step3: {
         title: 'Watch from Anywhere',
-        description: 'Use your main phone to watch the live stream',
+        description: 'On your mobile go to https://aiguard24.com after registration and verification you are connected.\nTo keep the app icon permanently tap "Add to Home Screen"',
       },
     },
     // Auth
