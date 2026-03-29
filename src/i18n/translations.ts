@@ -43,7 +43,7 @@ export const translations = {
       title: 'איך זה עובד',
       step1: {
         title: 'התקן את האפליקציה',
-        description: 'הורד והתקן על הלפטופ או הטלפון הישן',
+        description: 'לאחר רישום ואימות הורד והתקן על הלפטופ את האפליקאציה ',
       },
       step2: {
         title: 'הגדר כמצלמה',
