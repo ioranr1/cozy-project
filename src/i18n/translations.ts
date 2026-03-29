@@ -27,7 +27,7 @@ export const translations = {
       },
       motionDetection: {
         title: 'זיהוי תנועה',
-        description: 'קבל התראות מיידיות בוואטסאפ כשמזוהה תנועה',
+        description: 'קבל התראות מיידיות בוואטסאפ כשמזוהה תנועת אדם',
       },
       cloudStorage: {
         title: 'שמירת ארועים',
