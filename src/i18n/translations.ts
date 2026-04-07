@@ -277,7 +277,7 @@ export const translations = {
           description: 'Download the application from our website https://aiguard24.com and register using the "Get Started" button',
           details: [
             'Enter full name, email, mobile phone number and receive a verification code via WhatsApp',
-            'Click the download button on the homepage',
+            'In the "Control Panel" click the download button (automatic detection for WIN or MAC)',
             'Choose the version for your operating system (Windows)',
             'Wait for the download to complete',
           ],
