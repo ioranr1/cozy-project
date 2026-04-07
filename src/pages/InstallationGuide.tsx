@@ -1,6 +1,5 @@
 import React from 'react';
 import { Header } from '@/components/layout/Header';
-import dashboardDownloadImg from '@/assets/dashboard-download-example.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
