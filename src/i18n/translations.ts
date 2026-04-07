@@ -82,7 +82,7 @@ export const translations = {
       steps: {
         download: {
           title: 'הורדת האפליקציה',
-          description: 'הורד את האפליקציה מהאתר שלנו',
+          description: 'הורד את האפליקציה מהאתר שלנו https://aiguard24.com',
           details: [
             'לחץ על כפתור ההורדה בדף הבית',
             'בחר את הגרסה המתאימה למערכת ההפעלה שלך (Windows)',
@@ -273,7 +273,7 @@ export const translations = {
       steps: {
         download: {
           title: 'Download the App',
-          description: 'Download the application from our website',
+          description: 'Download the application from our website https://aiguard24.com',
           details: [
             'Click the download button on the homepage',
             'Choose the version for your operating system (Windows)',
