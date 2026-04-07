@@ -87,7 +87,7 @@ export const translations = {
             'הכנס שם מלא, אימייל, מספר טלפון נייד וקבל באמצעות וואטסאפ מספר אימות',
             'בדף "לוח הבקרה לחץ על כפתור ההורדה ( זיהוי אוטמטי עבור WIN או MAC ) \n',
             'בחר את הגרסה המתאימה למערכת ההפעלה שלך (Windows)',
-            'המתן לסיום ההורדה',
+            
           ],
         },
         install: {
@@ -279,7 +279,7 @@ export const translations = {
             'Enter full name, email, mobile phone number and receive a verification code via WhatsApp',
             'In the "Control Panel" click the download button (automatic detection for WIN or MAC)',
             'Choose the version for your operating system (Windows)',
-            'Wait for the download to complete',
+            
           ],
         },
         install: {
