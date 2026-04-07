@@ -91,10 +91,22 @@ const InstallationGuide: React.FC = () => {
                     {/* Details list */}
                     <ul className="space-y-2">
                       {step.details.map((detail: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2 text-slate-600">
-                          <CheckCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />
-                          <span>{detail}</span>
-                        </li>
+                        <React.Fragment key={i}>
+                          <li className="flex items-start gap-2 text-slate-600">
+                            <CheckCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />
+                            <span>{detail}</span>
+                          </li>
+                          {/* Show dashboard download image after "בדף לוח הבקרה" detail in the first step */}
+                          {index === 0 && i === 1 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={dashboardDownloadImg}
+                                alt={isRTL ? 'דוגמה לכפתור הורדה בלוח הבקרה' : 'Dashboard download button example'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
+                        </React.Fragment>
                       ))}
                     </ul>
                   </div>
