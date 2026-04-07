@@ -84,6 +84,7 @@ export const translations = {
           title: 'הורדת האפליקציה',
           description: 'הורד את האפליקציה מהאתר שלנו https://aiguard24.com והרשם באמצעות כפתור "התחל עכשיו " ',
           details: [
+            'הכנס שם מלא, אימייל, מספר טלפון נייד וקבל באמצעות וואטסאפ מספר אימות',
             'לחץ על כפתור ההורדה בדף הבית',
             'בחר את הגרסה המתאימה למערכת ההפעלה שלך (Windows)',
             'המתן לסיום ההורדה',
@@ -275,6 +276,7 @@ export const translations = {
           title: 'Download the App',
           description: 'Download the application from our website https://aiguard24.com and register using the "Get Started" button',
           details: [
+            'Enter full name, email, mobile phone number and receive a verification code via WhatsApp',
             'Click the download button on the homepage',
             'Choose the version for your operating system (Windows)',
             'Wait for the download to complete',
