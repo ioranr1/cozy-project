@@ -1,6 +1,5 @@
 import React from 'react';
 import { Header } from '@/components/layout/Header';
-import installationOptionsImg from '@/assets/installation-options.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -88,13 +87,6 @@ const InstallationGuide: React.FC = () => {
                     <p className="text-slate-600 mb-4">
                       {step.description}
                     </p>
-                    {index === 1 && (
-                      <img
-                        src={installationOptionsImg}
-                        alt={isRTL ? 'אפשרויות התקנה' : 'Installation options'}
-                        className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg mb-4"
-                      />
-                    )}
                     {/* Details list */}
                     <ul className="space-y-2">
                       {step.details.map((detail: string, i: number) => (
