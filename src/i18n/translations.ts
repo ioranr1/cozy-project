@@ -273,7 +273,7 @@ export const translations = {
       steps: {
         download: {
           title: 'Download the App',
-          description: 'Download the application from our website https://aiguard24.com',
+          description: 'Download the application from our website https://aiguard24.com and register using the "Get Started" button',
           details: [
             'Click the download button on the homepage',
             'Choose the version for your operating system (Windows)',
