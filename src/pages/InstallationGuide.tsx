@@ -1,6 +1,7 @@
 import React from 'react';
 import { Header } from '@/components/layout/Header';
 import dashboardDownloadImg from '@/assets/dashboard-download-example.png';
+import dashboardDownloadEnImg from '@/assets/installation-download-en.png';
 import installationSetupImg from '@/assets/installation-setup-example.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
