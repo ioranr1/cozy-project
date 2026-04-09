@@ -102,7 +102,7 @@ const InstallationGuide: React.FC = () => {
                           {index === 0 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
-                                src={dashboardDownloadImg}
+                                src={isRTL ? dashboardDownloadImg : dashboardDownloadEnImg}
                                 alt={isRTL ? 'דוגמה לכפתור הורדה בלוח הבקרה' : 'Dashboard download button example'}
                                 className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
                               />
