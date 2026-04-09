@@ -99,7 +99,7 @@ export const translations = {
           ],
         },
         setup: {
-          title: 'הגדרה ורישום',
+          title: 'צימוד מצלמת הלפטופ לאפליקציה',
           description: 'הירשם למערכת והגדר את המכשיר כמצלמה',
           details: [
             'פתח את האפליקציה והירשם עם מספר טלפון',
@@ -290,7 +290,7 @@ export const translations = {
           ],
         },
         setup: {
-          title: 'Setup & Registration',
+          title: 'Pairing the Laptop Camera',
           description: 'Register and set up the device as a camera',
           details: [
             'Open the app and register with your phone number',
