@@ -124,7 +124,7 @@ const InstallationGuide: React.FC = () => {
                           {index === 2 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
-                                src={devicesButtonImg}
+                                src={isRTL ? devicesButtonImg : devicesButtonEnImg}
                                 alt={isRTL ? 'דוגמה לכפתור מכשירים בדשבורד' : 'Devices button in dashboard example'}
                                 className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
                               />
