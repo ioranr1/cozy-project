@@ -113,7 +113,7 @@ export const translations = {
           title: 'חיבור וצפייה מהטלפון הנייד ',
           description: 'התחבר מהטלפון שלך וצפה בשידור חי',
           details: [
-            'פתח את האתר בטלפון הראשי שלך',
+            'כנס ל https://aiguard24.com  מהנייד שלך ',
             'התחבר עם אותו חשבון',
             'לחץ על צפייה בשידור חי',
           ],
@@ -306,7 +306,7 @@ export const translations = {
           title: 'Connect & Watch',
           description: 'Connect from your phone and watch the live stream',
           details: [
-            'Open the website on your main phone',
+            'Go to https://aiguard24.com from your mobile',
             'Log in with the same account',
             'Click to watch the live stream',
           ],
