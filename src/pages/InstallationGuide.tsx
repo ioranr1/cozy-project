@@ -131,6 +131,16 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
+                          {/* Show pair camera button image after second detail in step 3 */}
+                          {index === 2 && i === 1 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={pairCameraButtonImg}
+                                alt={isRTL ? 'דוגמה לכפתור צימוד מצלמה חדשה' : 'Pair new camera button example'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
                         </React.Fragment>
                       ))}
                     </ul>
