@@ -165,16 +165,6 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {/* Show paste code image after fifth detail in step 3 */}
-                          {index === 2 && i === 4 && (
-                            <li className="mt-3 mb-1">
-                              <img
-                                src={pasteCodeImg}
-                                alt={isRTL ? 'דוגמה להדבקת קוד צימוד' : 'Paste pairing code example'}
-                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
-                              />
-                            </li>
-                          )}
                         </React.Fragment>
                       ))}
                     </ul>

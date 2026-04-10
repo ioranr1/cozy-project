@@ -106,7 +106,7 @@ export const translations = {
             'לחץ על כפתור "+ צימוד מצלמה חדשה" כבתמונה',
             '​העתק את הקוד כבתמונה ',
             'לחץ על האיקון בסרגל המשימות',
-            'והדבק את הקוד מהשלב הקודם כבתמונה',
+            
           ],
         },
         connect: {
@@ -299,7 +299,7 @@ export const translations = {
             'Click on the "+ Pair new camera" button as in the image',
             'Copy the code as in the image',
             'Click the icon in the taskbar',
-            'And paste the code from the previous step as in the image',
+            
           ],
         },
         connect: {
