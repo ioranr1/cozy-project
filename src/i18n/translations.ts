@@ -110,7 +110,7 @@ export const translations = {
           ],
         },
         connect: {
-          title: 'חיבור וצפייה',
+          title: 'חיבור וצפייה מהטלפון הנייד ',
           description: 'התחבר מהטלפון שלך וצפה בשידור חי',
           details: [
             'פתח את האתר בטלפון הראשי שלך',
