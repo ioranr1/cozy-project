@@ -9,6 +9,7 @@ import pairCameraButtonImg from '@/assets/pair-camera-button-example.png';
 import pairCameraButtonEnImg from '@/assets/pair-camera-button-example-en.png';
 import pairingCodeExampleImg from '@/assets/pairing-code-example.png';
 import pairingCodeExampleEnImg from '@/assets/pairing-code-example-en.png';
+import trayIconImg from '@/assets/tray-icon-example.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -102,7 +103,16 @@ const InstallationGuide: React.FC = () => {
                         <React.Fragment key={i}>
                           <li className="flex items-start gap-2 text-slate-600">
                             <CheckCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />
-                            <span>{detail}</span>
+                            <span className="flex items-center gap-2 flex-wrap">
+                              {detail}
+                              {index === 2 && i === 3 && (
+                                <img
+                                  src={trayIconImg}
+                                  alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
+                                  className="inline-block w-6 h-6"
+                                />
+                              )}
+                            </span>
                           </li>
                           {/* Show dashboard download image after "בדף לוח הבקרה" detail in the first step */}
                           {index === 0 && i === 1 && (
