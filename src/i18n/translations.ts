@@ -105,7 +105,7 @@ export const translations = {
             '​בדשבורד לחץ על כפתור "מכשירים" כבתמונה',
             'לחץ על כפתור "+ צימוד מצלמה חדשה" כבתמונה',
             '​העתק את הקוד כבתמונה ',
-            'לחץ על האיקון בסרגל המשימות',
+            'לחץ על האיקון בסרגל המשימות, הדבק הקוד ותתחבר כבתמונה',
             
           ],
         },
@@ -298,7 +298,7 @@ export const translations = {
             'In the dashboard, click on the "Devices" button as in the image',
             'Click on the "+ Pair new camera" button as in the image',
             'Copy the code as in the image',
-            'Click the icon in the taskbar',
+            'Click the icon in the taskbar, paste the code and connect as in the image',
             
           ],
         },

@@ -11,6 +11,7 @@ import pairingCodeExampleImg from '@/assets/pairing-code-example.png';
 import pairingCodeExampleEnImg from '@/assets/pairing-code-example-en.png';
 import trayIconImg from '@/assets/tray-icon-example.png';
 import pasteCodeImg from '@/assets/paste-code-example.png';
+import pasteCodeImg from '@/assets/paste-code-connect.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
@@ -161,6 +162,16 @@ const InstallationGuide: React.FC = () => {
                               <img
                                 src={isRTL ? pairingCodeExampleImg : pairingCodeExampleEnImg}
                                 alt={isRTL ? 'דוגמה לקוד צימוד' : 'Pairing code example'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
+                          {/* Show paste code & connect image after fourth detail in step 3 */}
+                          {index === 2 && i === 3 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={pasteCodeImg}
+                                alt={isRTL ? 'דוגמה להדבקת קוד והתחברות' : 'Paste code and connect example'}
                                 className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
                               />
                             </li>
