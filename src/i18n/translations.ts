@@ -103,7 +103,7 @@ export const translations = {
           description: 'השלבים  לצימוד  המצלמה:',
           details: [
             '​בדשבורד לחץ על כפתור "מכשירים" כבתמונה',
-            'הגדר את המכשיר כמצלמת אבטחה',
+            'לחץ על כפתור "+ צימוד מצלמה חדשה" כבתמונה',
             'מקם את המחשב במיקום הרצוי',
           ],
         },
@@ -294,7 +294,7 @@ export const translations = {
           description: 'Register and set up the device as a camera',
           details: [
             'In the dashboard, click on the "Devices" button as in the image',
-            'Set the device as a security camera',
+            'Click on the "+ Pair new camera" button as in the image',
             'Position the computer in the desired location',
           ],
         },
