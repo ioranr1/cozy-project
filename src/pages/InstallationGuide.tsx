@@ -8,6 +8,7 @@ import devicesButtonEnImg from '@/assets/devices-button-example-en.png';
 import pairCameraButtonImg from '@/assets/pair-camera-button-example.png';
 import pairCameraButtonEnImg from '@/assets/pair-camera-button-example-en.png';
 import pairingCodeExampleImg from '@/assets/pairing-code-example.png';
+import pairingCodeExampleEnImg from '@/assets/pairing-code-example-en.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
