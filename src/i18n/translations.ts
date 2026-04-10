@@ -115,7 +115,7 @@ export const translations = {
           details: [
             'כנס מהטלפון הנייד  ל https://aiguard24.com  ',
             'התחבר עם אותו חשבון , קבל קוד אימות בוואטסאפ ואתה יכול להתחיל לצפות',
-            'לחץ על צפייה בשידור חי',
+            'כדי שהאיקון של האפליקאציה יופעי באופן קבוע על מסך הבית שלך  בצעה "הוסף לדף הבית" ( אין צורך להורדה מחנות האפליקאציות ) ',
           ],
         },
       },
@@ -308,7 +308,7 @@ export const translations = {
           details: [
             'Go to https://aiguard24.com from your mobile',
             'Log in with the same account',
-            'Click to watch the live stream',
+            'To keep the app icon permanently on your home screen, tap "Add to Home Screen" (no need to download from the app store)',
           ],
         },
       },
