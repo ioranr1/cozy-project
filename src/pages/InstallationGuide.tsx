@@ -5,6 +5,7 @@ import dashboardDownloadEnImg from '@/assets/installation-download-en.png';
 import installationSetupImg from '@/assets/installation-setup-example.png';
 import devicesButtonImg from '@/assets/devices-button-example.png';
 import devicesButtonEnImg from '@/assets/devices-button-example-en.png';
+import pairCameraButtonImg from '@/assets/pair-camera-button-example.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
