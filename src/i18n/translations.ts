@@ -102,7 +102,7 @@ export const translations = {
           title: 'צימוד מצלמת הלפטופ לאפליקאציה',
           description: 'השלבים  לצימוד  המצלמה:',
           details: [
-            'פתח את האפליקציה והירשם עם מספר טלפון',
+            '​בדשבורד לחץ על כפתור "מכשירים" כבתמונה',
             'הגדר את המכשיר כמצלמת אבטחה',
             'מקם את המחשב במיקום הרצוי',
           ],
@@ -293,7 +293,7 @@ export const translations = {
           title: 'Pairing the Laptop Camera',
           description: 'Register and set up the device as a camera',
           details: [
-            'Open the app and register with your phone number',
+            'In the dashboard, click on the "Devices" button as in the image',
             'Set the device as a security camera',
             'Position the computer in the desired location',
           ],
