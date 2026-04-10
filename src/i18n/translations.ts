@@ -308,7 +308,7 @@ export const translations = {
           details: [
             'Go to https://aiguard24.com from your mobile',
             'Log in with the same account',
-            'Click to watch the live stream',
+            'To keep the app icon permanently on your home screen, tap "Add to Home Screen" (no need to download from the app store)',
           ],
         },
       },
