@@ -148,7 +148,7 @@ const InstallationGuide: React.FC = () => {
                           {index === 2 && i === 2 && (
                             <li className="mt-3 mb-1">
                               <img
-                                src={pairingCodeExampleImg}
+                                src={isRTL ? pairingCodeExampleImg : pairingCodeExampleEnImg}
                                 alt={isRTL ? 'דוגמה לקוד צימוד' : 'Pairing code example'}
                                 className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
                               />
