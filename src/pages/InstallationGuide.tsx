@@ -104,14 +104,19 @@ const InstallationGuide: React.FC = () => {
                         <React.Fragment key={i}>
                           <li className="flex items-start gap-2 text-slate-600">
                             <CheckCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />
-                            <span className="flex items-center gap-2 flex-wrap">
-                              {detail}
-                              {index === 2 && i === 3 && (
-                                <img
-                                  src={trayIconImg}
-                                  alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
-                                  className="inline-block w-6 h-6"
-                                />
+                            <span className="flex items-center gap-1 flex-wrap">
+                              {index === 2 && i === 3 ? (
+                                <>
+                                  {detail.split(',')[0]}
+                                  <img
+                                    src={trayIconImg}
+                                    alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
+                                    className="inline-block w-6 h-6"
+                                  />
+                                  ,{detail.split(',').slice(1).join(',')}
+                                </>
+                              ) : (
+                                detail
                               )}
                             </span>
                           </li>
