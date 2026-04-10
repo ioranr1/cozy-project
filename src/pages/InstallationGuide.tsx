@@ -136,7 +136,7 @@ const InstallationGuide: React.FC = () => {
                           {index === 2 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
-                                src={pairCameraButtonImg}
+                                src={isRTL ? pairCameraButtonImg : pairCameraButtonEnImg}
                                 alt={isRTL ? 'דוגמה לכפתור צימוד מצלמה חדשה' : 'Pair new camera button example'}
                                 className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
                               />
