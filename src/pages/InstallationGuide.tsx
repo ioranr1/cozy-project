@@ -10,7 +10,6 @@ import pairCameraButtonEnImg from '@/assets/pair-camera-button-example-en.png';
 import pairingCodeExampleImg from '@/assets/pairing-code-example.png';
 import pairingCodeExampleEnImg from '@/assets/pairing-code-example-en.png';
 import trayIconImg from '@/assets/tray-icon-example.png';
-import pasteCodeImg from '@/assets/paste-code-example.png';
 import pasteCodeImg from '@/assets/paste-code-connect.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
