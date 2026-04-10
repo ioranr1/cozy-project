@@ -297,9 +297,9 @@ export const translations = {
           details: [
             'In the dashboard, click on the "Devices" button as in the image',
             'Click on the "+ Pair new camera" button as in the image',
-            'Copy the code as in the image',
+            'Copy the code as in the image (one-time)',
             'Click the icon in the taskbar, paste the code and connect as in the image',
-            
+            'That\'s it, the camera is connected - make sure not to close the laptop. The screen will turn off according to your previous settings but the system will work in the background. Go to step 4 to test and activate',
           ],
         },
         connect: {
