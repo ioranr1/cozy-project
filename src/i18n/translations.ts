@@ -104,7 +104,7 @@ export const translations = {
           details: [
             '​בדשבורד לחץ על כפתור "מכשירים" כבתמונה',
             'לחץ על כפתור "+ צימוד מצלמה חדשה" כבתמונה',
-            'מקם את המחשב במיקום הרצוי',
+            '​העתק את הקוד כבתמונה ',
           ],
         },
         connect: {
@@ -295,7 +295,7 @@ export const translations = {
           details: [
             'In the dashboard, click on the "Devices" button as in the image',
             'Click on the "+ Pair new camera" button as in the image',
-            'Position the computer in the desired location',
+            'Copy the code as in the image',
           ],
         },
         connect: {
