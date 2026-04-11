@@ -7,7 +7,8 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import dashboardScreenshotHe from '@/assets/dashboard-mobile-highlighted.png';
 import dashboardScreenshotEn from '@/assets/dashboard-mobile-en-highlighted.png';
-import viewerScreenshot from '@/assets/viewer-screen-final.png';
+import viewerScreenshotHe from '@/assets/viewer-screen-final.png';
+import viewerScreenshotEn from '@/assets/viewer-screen-en.png';
 
 const IPhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="relative mx-auto" style={{ width: 280 }}>
@@ -160,7 +161,7 @@ const FeaturesDetail: React.FC = () => {
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
                             <img
-                              src={viewerScreenshot}
+                              src={isRTL ? viewerScreenshotHe : viewerScreenshotEn}
                               alt={isRTL ? 'מסך צפייה בשידור חי' : 'Live viewer screen'}
                               className="w-full h-full object-cover object-top"
                               loading="lazy"
