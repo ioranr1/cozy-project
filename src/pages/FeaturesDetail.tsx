@@ -212,7 +212,7 @@ const FeaturesDetail: React.FC = () => {
                       {/* Step 2 - Enable motion detection */}
                       <div className="flex flex-col items-center">
                         <p className="text-sm font-semibold text-slate-600 mb-3 text-center">
-                          {isRTL ? 'הפעל זיהוי תנועה' : 'Enable Motion Detection'}
+                          {isRTL ? 'בחר כפתור זיהוי תנועה והפעל ניטור' : 'Enable Motion Detection'}
                         </p>
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
