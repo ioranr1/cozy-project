@@ -1,6 +1,8 @@
 import React from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Video, Bell, Cloud, Mic } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 export const FeaturesSection: React.FC = () => {
   const { t, isRTL } = useLanguage();
@@ -48,23 +50,30 @@ export const FeaturesSection: React.FC = () => {
               key={index}
               className="group relative bg-white/80 backdrop-blur-sm rounded-2xl p-8 border border-slate-200 hover:border-cyan-300 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-2"
             >
-              {/* Icon */}
               <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform`}>
                 <feature.icon className="w-7 h-7 text-white" />
               </div>
-
-              {/* Content */}
               <h3 className="text-xl font-bold text-slate-800 mb-3">
                 {feature.title}
               </h3>
               <p className="text-slate-600 leading-relaxed whitespace-pre-line">
                 {feature.description}
               </p>
-
-              {/* Hover Glow */}
               <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${feature.color} opacity-0 group-hover:opacity-10 transition-opacity -z-10`} />
             </div>
           ))}
+        </div>
+
+        {/* Read More Button */}
+        <div className="text-center mt-12">
+          <Link to="/features">
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-cyan-500 to-sky-500 hover:from-cyan-600 hover:to-sky-600 text-white px-8 py-3 text-lg rounded-xl shadow-md hover:shadow-lg transition-all"
+            >
+              {t.features.readMore}
+            </Button>
+          </Link>
         </div>
       </div>
     </section>

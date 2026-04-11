@@ -37,6 +37,32 @@ export const translations = {
         title: 'ניטור קול',
         description: ' מאפשר להאזין למתרחש כשמצלמה כבויה( למשל : בכי תינוק )',
       },
+      readMore: 'קרא עוד',
+      detailPage: {
+        title: 'תכונות מתקדמות',
+        subtitle: 'הכירו את כל היכולות של AIGuard24',
+        backToHome: 'חזרה לדף הבית',
+        liveStream: {
+          title: 'שידור חי',
+          description: 'צפו בזמן אמת במה שקורה בבית או במשרד שלכם, מכל מקום בעולם. השידור החי מאפשר לכם לפקח על הנעשה בכל רגע נתון, ישירות מהטלפון הנייד שלכם.',
+          bullets: ['שידור בזמן אמת באיכות גבוהה', 'צפייה מכל מקום בעולם', 'ממשק פשוט ונוח לשימוש'],
+        },
+        motionDetection: {
+          title: 'זיהוי תנועה',
+          description: 'המערכת מזהה תנועה של בני אדם ושולחת לכם התראה מיידית ישירות לוואטסאפ. כך תדעו בזמן אמת על כל פעילות חשודה.',
+          bullets: ['זיהוי תנועת אדם בלבד (מפחית התראות שווא)', 'התראות מיידיות בוואטסאפ', 'תמונת מצב (snapshot) של הארוע'],
+        },
+        audioMonitoring: {
+          title: 'ניטור קול',
+          description: 'האזינו למתרחש גם כשהמצלמה כבויה. מושלם לשימוש כבייבי מוניטור או לניטור כללי של הסביבה.',
+          bullets: ['האזנה בזמן אמת', 'מושלם כבייבי מוניטור', 'עובד גם ללא שידור וידאו'],
+        },
+        eventStorage: {
+          title: 'שמירת ארועים',
+          description: 'כל ארוע שמזוהה נשמר באופן מאובטח. ההקלטות נשמרות במחשב האישי שלכם ותמונות ההתראה נשמרות בענן לגישה נוחה.',
+          bullets: ['הקלטות מאוחסנות מקומית במחשב', 'תמונות התראה בענן', 'גישה נוחה להיסטוריית ארועים'],
+        },
+      },
     },
     // How it works
     howItWorks: {
@@ -229,6 +255,32 @@ export const translations = {
       multiDevice: {
         title: 'Audio Monitoring',
         description: 'Listen to what\'s happening even when the camera is off (For example: a baby crying)',
+      },
+      readMore: 'Read More',
+      detailPage: {
+        title: 'Advanced Features',
+        subtitle: 'Discover all the capabilities of AIGuard24',
+        backToHome: 'Back to Home',
+        liveStream: {
+          title: 'Live Stream',
+          description: 'Watch in real-time what\'s happening at your home or office, from anywhere in the world. The live stream lets you monitor everything directly from your mobile phone.',
+          bullets: ['High-quality real-time streaming', 'Watch from anywhere in the world', 'Simple and easy-to-use interface'],
+        },
+        motionDetection: {
+          title: 'Motion Detection',
+          description: 'The system detects human movement and sends you instant alerts directly to WhatsApp. Stay informed in real-time about any suspicious activity.',
+          bullets: ['Human-only motion detection (reduces false alerts)', 'Instant WhatsApp notifications', 'Event snapshot included'],
+        },
+        audioMonitoring: {
+          title: 'Audio Monitoring',
+          description: 'Listen to what\'s happening even when the camera is off. Perfect for use as a baby monitor or general environment monitoring.',
+          bullets: ['Real-time audio listening', 'Perfect as a baby monitor', 'Works without video streaming'],
+        },
+        eventStorage: {
+          title: 'Event Storage',
+          description: 'Every detected event is saved securely. Recordings are stored on your personal computer and alert snapshots are saved in the cloud for easy access.',
+          bullets: ['Recordings stored locally on your computer', 'Alert snapshots in the cloud', 'Easy access to event history'],
+        },
       },
     },
     // How it works
