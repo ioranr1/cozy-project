@@ -9,9 +9,12 @@ import dashboardScreenshotHe from '@/assets/dashboard-mobile-highlighted.png';
 import dashboardScreenshotEn from '@/assets/dashboard-mobile-en-highlighted.png';
 import viewerScreenshotHe from '@/assets/viewer-screen-final.png';
 import viewerScreenshotEn from '@/assets/viewer-screen-en.png';
-import motionStep1 from '@/assets/motion-step1-dashboard.png';
-import motionStep2 from '@/assets/motion-step2-settings.png';
-import motionStep3 from '@/assets/motion-step3-alert.png';
+import motionStep1He from '@/assets/motion-step1-dashboard.png';
+import motionStep1En from '@/assets/motion-step1-dashboard-en.png';
+import motionStep2He from '@/assets/motion-step2-settings.png';
+import motionStep2En from '@/assets/motion-step2-settings-en.png';
+import motionStep3He from '@/assets/motion-step3-alert.png';
+import motionStep3En from '@/assets/motion-step3-alert-en.png';
 
 const IPhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="relative mx-auto" style={{ width: 280 }}>
@@ -186,7 +189,7 @@ const FeaturesDetail: React.FC = () => {
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
                             <img
-                              src={motionStep1}
+                              src={isRTL ? motionStep1He : motionStep1En}
                               alt={isRTL ? 'הפעלת מערכת אבטחה' : 'Enable security system'}
                               className="w-full h-full object-cover object-top"
                             />
@@ -214,7 +217,7 @@ const FeaturesDetail: React.FC = () => {
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
                             <img
-                              src={motionStep2}
+                              src={isRTL ? motionStep2He : motionStep2En}
                               alt={isRTL ? 'הגדרות ניטור' : 'Monitoring settings'}
                               className="w-full h-full object-cover object-top"
                             />
@@ -242,7 +245,7 @@ const FeaturesDetail: React.FC = () => {
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
                             <img
-                              src={motionStep3}
+                              src={isRTL ? motionStep3He : motionStep3En}
                               alt={isRTL ? 'התראת זיהוי תנועה' : 'Motion detection alert'}
                               className="w-full h-full object-cover object-top"
                             />
