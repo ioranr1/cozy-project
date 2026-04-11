@@ -161,7 +161,7 @@ const FeaturesDetail: React.FC = () => {
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
                             <img
-                              src={viewerScreenshot}
+                              src={isRTL ? viewerScreenshotHe : viewerScreenshotEn}
                               alt={isRTL ? 'מסך צפייה בשידור חי' : 'Live viewer screen'}
                               className="w-full h-full object-cover object-top"
                               loading="lazy"
