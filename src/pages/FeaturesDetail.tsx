@@ -259,7 +259,7 @@ const FeaturesDetail: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Audio Monitoring flow: Step 1 - same as motion detection */}
+                  {/* Audio Monitoring flow: 3 steps */}
                   {index === 2 && (
                     <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 py-8">
                       {/* Step 1 - Enable security system */}
@@ -272,6 +272,62 @@ const FeaturesDetail: React.FC = () => {
                             <img
                               src={isRTL ? motionStep1He : motionStep1En}
                               alt={isRTL ? 'הפעלת מערכת אבטחה' : 'Enable security system'}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                        </IPhoneFrame>
+                      </div>
+
+                      {/* Arrow 1→2 */}
+                      <div className="flex items-center justify-center py-4 md:py-0">
+                        <div className="md:hidden flex flex-col items-center gap-1">
+                          <div className="w-0.5 h-8 border-l-2 border-dashed border-green-400" />
+                          <ArrowRight className="w-5 h-5 text-green-400 rotate-90" />
+                        </div>
+                        <div className="hidden md:flex items-center gap-1">
+                          <div className="h-0.5 w-10 border-t-2 border-dashed border-green-400" />
+                          <ArrowRight className={`w-5 h-5 text-green-400 ${isRTL ? 'rotate-180' : ''}`} />
+                        </div>
+                      </div>
+
+                      {/* Step 2 - Select baby monitor toggle */}
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-semibold text-slate-600 mb-3 text-center">
+                          {isRTL ? 'בחר כפתור ניטור תינוק והפעל ניטור' : 'Select Baby Monitor and Enable Monitoring'}
+                        </p>
+                        <IPhoneFrame>
+                          <div className="w-full" style={{ height: 540 }}>
+                            <img
+                              src={isRTL ? soundStep2He : soundStep2En}
+                              alt={isRTL ? 'הגדרות ניטור תינוק' : 'Baby monitor settings'}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                        </IPhoneFrame>
+                      </div>
+
+                      {/* Arrow 2→3 */}
+                      <div className="flex items-center justify-center py-4 md:py-0">
+                        <div className="md:hidden flex flex-col items-center gap-1">
+                          <div className="w-0.5 h-8 border-l-2 border-dashed border-green-400" />
+                          <ArrowRight className="w-5 h-5 text-green-400 rotate-90" />
+                        </div>
+                        <div className="hidden md:flex items-center gap-1">
+                          <div className="h-0.5 w-10 border-t-2 border-dashed border-green-400" />
+                          <ArrowRight className={`w-5 h-5 text-green-400 ${isRTL ? 'rotate-180' : ''}`} />
+                        </div>
+                      </div>
+
+                      {/* Step 3 - Start listening */}
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-semibold text-slate-600 mb-3 text-center">
+                          {isRTL ? 'התחל האזנה' : 'Start Listening'}
+                        </p>
+                        <IPhoneFrame>
+                          <div className="w-full" style={{ height: 540 }}>
+                            <img
+                              src={isRTL ? soundStep3He : soundStep3En}
+                              alt={isRTL ? 'התחל האזנה' : 'Start listening'}
                               className="w-full h-full object-cover object-top"
                             />
                           </div>
