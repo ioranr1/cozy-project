@@ -189,7 +189,7 @@ const FeaturesDetail: React.FC = () => {
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
                             <img
-                              src={motionStep1}
+                              src={isRTL ? motionStep1He : motionStep1En}
                               alt={isRTL ? 'הפעלת מערכת אבטחה' : 'Enable security system'}
                               className="w-full h-full object-cover object-top"
                             />
@@ -217,7 +217,7 @@ const FeaturesDetail: React.FC = () => {
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
                             <img
-                              src={motionStep2}
+                              src={isRTL ? motionStep2He : motionStep2En}
                               alt={isRTL ? 'הגדרות ניטור' : 'Monitoring settings'}
                               className="w-full h-full object-cover object-top"
                             />
@@ -245,7 +245,7 @@ const FeaturesDetail: React.FC = () => {
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
                             <img
-                              src={motionStep3}
+                              src={isRTL ? motionStep3He : motionStep3En}
                               alt={isRTL ? 'התראת זיהוי תנועה' : 'Motion detection alert'}
                               className="w-full h-full object-cover object-top"
                             />
