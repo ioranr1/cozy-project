@@ -7,7 +7,8 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import dashboardScreenshotHe from '@/assets/dashboard-mobile-highlighted.png';
 import dashboardScreenshotEn from '@/assets/dashboard-mobile-en-highlighted.png';
-import viewerScreenshot from '@/assets/viewer-screen-final.png';
+import viewerScreenshotHe from '@/assets/viewer-screen-final.png';
+import viewerScreenshotEn from '@/assets/viewer-screen-en.png';
 
 const IPhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="relative mx-auto" style={{ width: 280 }}>
