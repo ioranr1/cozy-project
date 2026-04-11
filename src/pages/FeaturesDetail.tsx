@@ -119,16 +119,51 @@ const FeaturesDetail: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* iPhone screenshot after Live Stream section */}
+                  {/* Flow diagram: Start screen → Viewer screen */}
                   {index === 0 && (
-                    <div className="flex justify-center py-4">
-                      <IPhoneFrame>
-                        <img
-                          src={isRTL ? dashboardScreenshotHe : dashboardScreenshotEn}
-                          alt={isRTL ? 'צילום מסך של האפליקציה - לחץ התחל' : 'App screenshot - tap Start'}
-                          className="w-full h-auto"
-                        />
-                      </IPhoneFrame>
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-0 py-8">
+                      {/* First iPhone - Start screen */}
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-semibold text-slate-600 mb-3">
+                          {isRTL ? 'לחץ על "התחל"' : 'Tap "Start"'}
+                        </p>
+                        <IPhoneFrame>
+                          <img
+                            src={isRTL ? dashboardScreenshotHe : dashboardScreenshotEn}
+                            alt={isRTL ? 'מסך התחלה' : 'Start screen'}
+                            className="w-full h-auto"
+                          />
+                        </IPhoneFrame>
+                      </div>
+
+                      {/* Dashed connector line */}
+                      <div className="flex items-center justify-center py-4 md:py-0 md:px-2">
+                        {/* Vertical dashed line for mobile */}
+                        <div className="md:hidden flex flex-col items-center gap-1">
+                          <div className="w-0.5 h-8 border-l-2 border-dashed border-cyan-400" />
+                          <ArrowRight className={`w-5 h-5 text-cyan-400 rotate-90`} />
+                        </div>
+                        {/* Horizontal dashed line for desktop */}
+                        <div className="hidden md:flex items-center gap-1">
+                          <div className="h-0.5 w-16 border-t-2 border-dashed border-cyan-400" />
+                          <ArrowRight className={`w-5 h-5 text-cyan-400 ${isRTL ? 'rotate-180' : ''}`} />
+                        </div>
+                      </div>
+
+                      {/* Second iPhone - Viewer screen */}
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-semibold text-slate-600 mb-3">
+                          {isRTL ? 'צפייה בשידור חי' : 'Live Viewing'}
+                        </p>
+                        <IPhoneFrame>
+                          <img
+                            src={viewerScreenshot}
+                            alt={isRTL ? 'מסך צפייה בשידור חי' : 'Live viewer screen'}
+                            className="w-full h-auto"
+                            loading="lazy"
+                          />
+                        </IPhoneFrame>
+                      </div>
                     </div>
                   )}
                 </React.Fragment>
