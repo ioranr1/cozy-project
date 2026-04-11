@@ -240,7 +240,7 @@ const FeaturesDetail: React.FC = () => {
                       {/* Step 3 - Alert snapshot */}
                       <div className="flex flex-col items-center">
                         <p className="text-sm font-semibold text-slate-600 mb-3 text-center">
-                          {isRTL ? 'התראה עם סנפשוט' : 'Alert with Snapshot'}
+                          {isRTL ? 'קבל התראה ב-WhatsApp עם סנפשוט' : 'Alert with Snapshot'}
                         </p>
                         <IPhoneFrame>
                           <div className="w-full" style={{ height: 540 }}>
