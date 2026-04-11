@@ -174,6 +174,83 @@ const FeaturesDetail: React.FC = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Motion Detection flow: 3 iPhone screens */}
+                  {index === 1 && (
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 py-8">
+                      {/* Step 1 - Enable security system */}
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-semibold text-slate-600 mb-3 text-center">
+                          {isRTL ? 'הפעל מערכת אבטחה' : 'Enable Security System'}
+                        </p>
+                        <IPhoneFrame>
+                          <div className="w-full" style={{ height: 540 }}>
+                            <img
+                              src={motionStep1}
+                              alt={isRTL ? 'הפעלת מערכת אבטחה' : 'Enable security system'}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                        </IPhoneFrame>
+                      </div>
+
+                      {/* Arrow 1→2 */}
+                      <div className="flex items-center justify-center py-4 md:py-0">
+                        <div className="md:hidden flex flex-col items-center gap-1">
+                          <div className="w-0.5 h-8 border-l-2 border-dashed border-orange-400" />
+                          <ArrowRight className="w-5 h-5 text-orange-400 rotate-90" />
+                        </div>
+                        <div className="hidden md:flex items-center gap-1">
+                          <div className="h-0.5 w-10 border-t-2 border-dashed border-orange-400" />
+                          <ArrowRight className={`w-5 h-5 text-orange-400 ${isRTL ? 'rotate-180' : ''}`} />
+                        </div>
+                      </div>
+
+                      {/* Step 2 - Enable motion detection */}
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-semibold text-slate-600 mb-3 text-center">
+                          {isRTL ? 'הפעל זיהוי תנועה' : 'Enable Motion Detection'}
+                        </p>
+                        <IPhoneFrame>
+                          <div className="w-full" style={{ height: 540 }}>
+                            <img
+                              src={motionStep2}
+                              alt={isRTL ? 'הגדרות ניטור' : 'Monitoring settings'}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                        </IPhoneFrame>
+                      </div>
+
+                      {/* Arrow 2→3 */}
+                      <div className="flex items-center justify-center py-4 md:py-0">
+                        <div className="md:hidden flex flex-col items-center gap-1">
+                          <div className="w-0.5 h-8 border-l-2 border-dashed border-orange-400" />
+                          <ArrowRight className="w-5 h-5 text-orange-400 rotate-90" />
+                        </div>
+                        <div className="hidden md:flex items-center gap-1">
+                          <div className="h-0.5 w-10 border-t-2 border-dashed border-orange-400" />
+                          <ArrowRight className={`w-5 h-5 text-orange-400 ${isRTL ? 'rotate-180' : ''}`} />
+                        </div>
+                      </div>
+
+                      {/* Step 3 - Alert snapshot */}
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-semibold text-slate-600 mb-3 text-center">
+                          {isRTL ? 'התראה עם סנפשוט' : 'Alert with Snapshot'}
+                        </p>
+                        <IPhoneFrame>
+                          <div className="w-full" style={{ height: 540 }}>
+                            <img
+                              src={motionStep3}
+                              alt={isRTL ? 'התראת זיהוי תנועה' : 'Motion detection alert'}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                        </IPhoneFrame>
+                      </div>
+                    </div>
+                  )}
                 </React.Fragment>
               );
             })}
