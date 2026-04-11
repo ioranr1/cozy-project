@@ -128,11 +128,13 @@ const FeaturesDetail: React.FC = () => {
                           {isRTL ? 'לחץ על "התחל"' : 'Tap "Start"'}
                         </p>
                         <IPhoneFrame>
-                          <img
-                            src={isRTL ? dashboardScreenshotHe : dashboardScreenshotEn}
-                            alt={isRTL ? 'מסך התחלה' : 'Start screen'}
-                            className="w-full h-auto"
-                          />
+                          <div className="w-full" style={{ height: 540 }}>
+                            <img
+                              src={isRTL ? dashboardScreenshotHe : dashboardScreenshotEn}
+                              alt={isRTL ? 'מסך התחלה' : 'Start screen'}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
                         </IPhoneFrame>
                       </div>
 
@@ -156,12 +158,14 @@ const FeaturesDetail: React.FC = () => {
                           {isRTL ? 'צפייה בשידור חי' : 'Live Viewing'}
                         </p>
                         <IPhoneFrame>
-                          <img
-                            src={viewerScreenshot}
-                            alt={isRTL ? 'מסך צפייה בשידור חי' : 'Live viewer screen'}
-                            className="w-full h-auto"
-                            loading="lazy"
-                          />
+                          <div className="w-full" style={{ height: 540 }}>
+                            <img
+                              src={viewerScreenshot}
+                              alt={isRTL ? 'מסך צפייה בשידור חי' : 'Live viewer screen'}
+                              className="w-full h-full object-cover object-top"
+                              loading="lazy"
+                            />
+                          </div>
                         </IPhoneFrame>
                       </div>
                     </div>
