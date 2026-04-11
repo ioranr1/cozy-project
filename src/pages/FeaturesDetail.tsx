@@ -254,6 +254,27 @@ const FeaturesDetail: React.FC = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Audio Monitoring flow: Step 1 - same as motion detection */}
+                  {index === 2 && (
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 py-8">
+                      {/* Step 1 - Enable security system */}
+                      <div className="flex flex-col items-center">
+                        <p className="text-sm font-semibold text-slate-600 mb-3 text-center">
+                          {isRTL ? 'הפעל מערכת אבטחה' : 'Enable Security System'}
+                        </p>
+                        <IPhoneFrame>
+                          <div className="w-full" style={{ height: 540 }}>
+                            <img
+                              src={isRTL ? motionStep1He : motionStep1En}
+                              alt={isRTL ? 'הפעלת מערכת אבטחה' : 'Enable security system'}
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                        </IPhoneFrame>
+                      </div>
+                    </div>
+                  )}
                 </React.Fragment>
               );
             })}
