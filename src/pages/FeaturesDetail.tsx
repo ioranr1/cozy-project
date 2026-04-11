@@ -5,7 +5,8 @@ import { Footer } from '@/components/layout/Footer';
 import { Video, Bell, Mic, Cloud, ArrowRight, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import dashboardScreenshot from '@/assets/dashboard-mobile-highlighted.png';
+import dashboardScreenshotHe from '@/assets/dashboard-mobile-highlighted.png';
+import dashboardScreenshotEn from '@/assets/dashboard-mobile-en-highlighted.png';
 
 const IPhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="relative mx-auto" style={{ width: 280 }}>
@@ -122,7 +123,7 @@ const FeaturesDetail: React.FC = () => {
                     <div className="flex justify-center py-4">
                       <IPhoneFrame>
                         <img
-                          src={dashboardScreenshot}
+                          src={isRTL ? dashboardScreenshotHe : dashboardScreenshotEn}
                           alt={isRTL ? 'צילום מסך של האפליקציה - לחץ התחל' : 'App screenshot - tap Start'}
                           className="w-full h-auto"
                         />
