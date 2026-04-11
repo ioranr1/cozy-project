@@ -9,9 +9,12 @@ import dashboardScreenshotHe from '@/assets/dashboard-mobile-highlighted.png';
 import dashboardScreenshotEn from '@/assets/dashboard-mobile-en-highlighted.png';
 import viewerScreenshotHe from '@/assets/viewer-screen-final.png';
 import viewerScreenshotEn from '@/assets/viewer-screen-en.png';
-import motionStep1 from '@/assets/motion-step1-dashboard.png';
-import motionStep2 from '@/assets/motion-step2-settings.png';
-import motionStep3 from '@/assets/motion-step3-alert.png';
+import motionStep1He from '@/assets/motion-step1-dashboard.png';
+import motionStep1En from '@/assets/motion-step1-dashboard-en.png';
+import motionStep2He from '@/assets/motion-step2-settings.png';
+import motionStep2En from '@/assets/motion-step2-settings-en.png';
+import motionStep3He from '@/assets/motion-step3-alert.png';
+import motionStep3En from '@/assets/motion-step3-alert-en.png';
 
 const IPhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="relative mx-auto" style={{ width: 280 }}>
