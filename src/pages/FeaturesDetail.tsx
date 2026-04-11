@@ -15,6 +15,10 @@ import motionStep2He from '@/assets/motion-step2-settings.png';
 import motionStep2En from '@/assets/motion-step2-settings-en.png';
 import motionStep3He from '@/assets/motion-step3-alert.png';
 import motionStep3En from '@/assets/motion-step3-alert-en.png';
+import soundStep2He from '@/assets/sound-step2-settings.png';
+import soundStep2En from '@/assets/sound-step2-settings-en.png';
+import soundStep3He from '@/assets/sound-step3-listen.png';
+import soundStep3En from '@/assets/sound-step3-listen-en.png';
 
 const IPhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="relative mx-auto" style={{ width: 280 }}>
