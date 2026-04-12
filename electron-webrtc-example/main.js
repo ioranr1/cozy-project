@@ -397,7 +397,7 @@ async function performUnpair() {
   app.quit();
 }
 
-
+function hideMainWindowToTray() {
   if (!mainWindow || mainWindow.isDestroyed?.()) return;
 
   // Keep app running as tray app without taskbar clutter
