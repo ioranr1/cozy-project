@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.41.0 (2026-03-11)
+ * VERSION: 2.42.0 (2026-04-12)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1034,6 +1034,11 @@ async function verifyPairingCode(code) {
       // Initialize AwayManager with device info
       awayManager.setDeviceId(deviceId);
       awayManager.setLanguage(currentLanguage);
+
+      // Initialize MonitoringManager with device info (CRITICAL FIX v2.42.0)
+      monitoringManager.setDeviceId(deviceId);
+      monitoringManager.setProfileId(profileId);
+      monitoringManager.setMainWindow(mainWindow);
 
       // Fetch device_auth_token for monitoring events API
       await fetchAndSetDeviceAuthToken();
