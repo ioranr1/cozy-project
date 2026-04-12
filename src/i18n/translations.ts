@@ -144,6 +144,16 @@ export const translations = {
             'כדי שהאיקון של האפליקאציה יופעי באופן קבוע על מסך הבית שלך  בצעה "הוסף לדף הבית" ( אין צורך להורדה מחנות האפליקאציות ) ',
           ],
         },
+        update: {
+          title: 'עדכון גרסה',
+          description: 'כשגרסה חדשה זמינה, האפליקציה תתריע אוטומטית',
+          details: [
+            'כאשר יש גרסה חדשה, תג כחול יופיע על האייקון בסרגל המשימות כבתמונה',
+            'לחץ קליק ימני על האייקון כבתמונה',
+            'לחץ על "Download Update" להורדת הגרסה העדכנית',
+            'לאחר ההורדה, לחץ על "Install Update" להתקנה אוטומטית',
+          ],
+        },
       },
     },
     // Footer
@@ -361,6 +371,16 @@ export const translations = {
             'Go to https://aiguard24.com from your mobile',
             'Log in with the same account',
             'To keep the app icon permanently on your home screen, tap "Add to Home Screen" (no need to download from the app store)',
+          ],
+        },
+        update: {
+          title: 'Version Update',
+          description: 'When a new version is available, the app will notify you automatically',
+          details: [
+            'When a new version is available, a blue badge will appear on the taskbar icon as shown',
+            'Right-click the icon as shown',
+            'Click "Download Update" to download the latest version',
+            'After downloading, click "Install Update" to install automatically',
           ],
         },
       },
