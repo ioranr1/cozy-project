@@ -809,6 +809,8 @@ function updateTrayMenu(caller = 'unknown') {
     { type: 'separator' },
     { label: t('showWindow'), click: () => showMainWindowFromTray() },
     { type: 'separator' },
+    { label: `🔓 ${t('unpair')}`, click: () => performUnpair() },
+    { type: 'separator' },
     { label: t('quit'), click: () => { app.isQuitting = true; app.quit(); } }
   ]);
 
