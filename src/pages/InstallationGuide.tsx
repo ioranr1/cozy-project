@@ -12,9 +12,11 @@ import pairingCodeExampleEnImg from '@/assets/pairing-code-example-en.png';
 import trayIconImg from '@/assets/tray-icon-example.png';
 import pasteCodeImg from '@/assets/paste-code-connect.png';
 import pasteCodeEnImg from '@/assets/paste-code-connect-en.png';
+import trayBlueBadgeImg from '@/assets/tray-icon-blue-badge.png';
+import trayUpdateMenuImg from '@/assets/tray-update-menu.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -46,6 +48,12 @@ const InstallationGuide: React.FC = () => {
       title: guide.steps.connect.title,
       description: guide.steps.connect.description,
       details: guide.steps.connect.details,
+    },
+    {
+      icon: RefreshCw,
+      title: guide.steps.update.title,
+      description: guide.steps.update.description,
+      details: guide.steps.update.details,
     },
   ];
 
