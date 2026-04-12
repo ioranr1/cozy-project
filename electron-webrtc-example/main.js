@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.42.0 (2026-04-12)
+ * VERSION: 2.46.0 (2026-04-12)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -877,6 +877,15 @@ async function initDevice() {
 
   if (deviceId && profileId) {
     console.log('[Device] Using stored device:', deviceId);
+
+    // CRITICAL FIX v2.46.0: Initialize MonitoringManager with stored credentials.
+    // Without this, monitoringManager.deviceId remains null on app restart,
+    // causing loadConfig() to fall back to defaults (motion.enabled=false)
+    // and SET_MONITORING:ON to fail with "No sensors enabled".
+    monitoringManager.setDeviceId(deviceId);
+    monitoringManager.setProfileId(profileId);
+    monitoringManager.setMainWindow(mainWindow);
+
     startHeartbeat();
 
     // Fetch device_auth_token for monitoring events API
