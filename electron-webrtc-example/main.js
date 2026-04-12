@@ -1035,6 +1035,11 @@ async function verifyPairingCode(code) {
       awayManager.setDeviceId(deviceId);
       awayManager.setLanguage(currentLanguage);
 
+      // Initialize MonitoringManager with device info (CRITICAL FIX v2.42.0)
+      monitoringManager.setDeviceId(deviceId);
+      monitoringManager.setProfileId(profileId);
+      monitoringManager.setMainWindow(mainWindow);
+
       // Fetch device_auth_token for monitoring events API
       await fetchAndSetDeviceAuthToken();
 
