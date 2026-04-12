@@ -12,9 +12,11 @@ import pairingCodeExampleEnImg from '@/assets/pairing-code-example-en.png';
 import trayIconImg from '@/assets/tray-icon-example.png';
 import pasteCodeImg from '@/assets/paste-code-connect.png';
 import pasteCodeEnImg from '@/assets/paste-code-connect-en.png';
+import trayBlueBadgeImg from '@/assets/tray-icon-blue-badge.png';
+import trayUpdateMenuImg from '@/assets/tray-update-menu.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -46,6 +48,12 @@ const InstallationGuide: React.FC = () => {
       title: guide.steps.connect.title,
       description: guide.steps.connect.description,
       details: guide.steps.connect.details,
+    },
+    {
+      icon: RefreshCw,
+      title: guide.steps.update.title,
+      description: guide.steps.update.description,
+      details: guide.steps.update.details,
     },
   ];
 
@@ -178,6 +186,26 @@ const InstallationGuide: React.FC = () => {
                                 src={isRTL ? pasteCodeImg : pasteCodeEnImg}
                                 alt={isRTL ? 'דוגמה להדבקת קוד והתחברות' : 'Paste code and connect example'}
                                 className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
+                          {/* Show blue badge tray icon image after first detail in step 5 */}
+                          {index === 4 && i === 0 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={trayBlueBadgeImg}
+                                alt={isRTL ? 'אייקון עם תג כחול לעדכון' : 'Tray icon with blue update badge'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-xs"
+                              />
+                            </li>
+                          )}
+                          {/* Show update menu image after second detail in step 5 */}
+                          {index === 4 && i === 1 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={trayUpdateMenuImg}
+                                alt={isRTL ? 'תפריט עדכון גרסה' : 'Version update menu'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-xs"
                               />
                             </li>
                           )}
