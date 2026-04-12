@@ -216,7 +216,30 @@ export function useRemoteCommand({
 
       if (response.error) {
         console.error('[useRemoteCommand] Edge function error:', response.error);
-        const details = (response.error as { message?: string }).message;
+        
+        // Try to extract error body from FunctionsHttpError context
+        let errorBody: { error_code?: string; error?: string } | null = null;
+        try {
+          const ctx = (response.error as any).context;
+          if (ctx && typeof ctx.json === 'function') {
+            errorBody = await ctx.json();
+          }
+        } catch (_) { /* ignore parse errors */ }
+
+        // Handle invalid/expired session by redirecting to login
+        if (errorBody?.error_code === 'INVALID_SESSION' || errorBody?.error_code === 'NO_SESSION') {
+          const errorMessage = language === 'he' 
+            ? 'נדרשת התחברות מחדש'
+            : 'Please log in again';
+          toast.error(errorMessage);
+          localStorage.removeItem('aiguard_session_token');
+          localStorage.removeItem('userProfile');
+          window.location.href = '/login';
+          setCommandState({ status: 'failed', commandId: null, commandType, error: errorMessage });
+          return false;
+        }
+
+        const details = errorBody?.error || (response.error as { message?: string }).message;
         const error = language === 'he'
           ? `שליחת הפקודה נכשלה${details ? `: ${details}` : ''}`
           : `Failed to send command${details ? `: ${details}` : ''}`;
