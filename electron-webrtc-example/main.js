@@ -197,6 +197,11 @@ const STRINGS = {
     trayStatusAway: '[HOME] AWAY',
     trayStatusNormal: '[LOC] NORMAL',
     showWindow: 'Show Window',
+    unpair: 'Unpair Camera',
+    unpairConfirmTitle: 'Unpair Camera',
+    unpairConfirmMessage: 'Are you sure you want to unpair this camera? You will need to pair again with a new code.',
+    unpairConfirmYes: 'Unpair',
+    unpairConfirmNo: 'Cancel',
     quit: 'Quit'
   },
   he: {
@@ -215,6 +220,11 @@ const STRINGS = {
     trayStatusAway: '[HOME] AWAY',
     trayStatusNormal: '[LOC] NORMAL',
     showWindow: 'Show Window',
+    unpair: 'ניתוק מצלמה',
+    unpairConfirmTitle: 'ניתוק מצלמה',
+    unpairConfirmMessage: 'האם אתה בטוח שברצונך לנתק את המצלמה? תצטרך לבצע צימוד מחדש עם קוד חדש.',
+    unpairConfirmYes: 'נתק',
+    unpairConfirmNo: 'ביטול',
     quit: 'Quit'
   }
 };
