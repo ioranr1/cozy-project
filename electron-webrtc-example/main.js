@@ -197,6 +197,11 @@ const STRINGS = {
     trayStatusAway: '[HOME] AWAY',
     trayStatusNormal: '[LOC] NORMAL',
     showWindow: 'Show Window',
+    unpair: 'Unpair Camera',
+    unpairConfirmTitle: 'Unpair Camera',
+    unpairConfirmMessage: 'Are you sure you want to unpair this camera? You will need to pair again with a new code.',
+    unpairConfirmYes: 'Unpair',
+    unpairConfirmNo: 'Cancel',
     quit: 'Quit'
   },
   he: {
@@ -215,6 +220,11 @@ const STRINGS = {
     trayStatusAway: '[HOME] AWAY',
     trayStatusNormal: '[LOC] NORMAL',
     showWindow: 'Show Window',
+    unpair: 'ניתוק מצלמה',
+    unpairConfirmTitle: 'ניתוק מצלמה',
+    unpairConfirmMessage: 'האם אתה בטוח שברצונך לנתק את המצלמה? תצטרך לבצע צימוד מחדש עם קוד חדש.',
+    unpairConfirmYes: 'נתק',
+    unpairConfirmNo: 'ביטול',
     quit: 'Quit'
   }
 };
@@ -353,7 +363,41 @@ function showMainWindowFromTray() {
   mainWindow.focus();
 }
 
-function hideMainWindowToTray() {
+// ── UNPAIR LOGIC ──────────────────────────────────────────────────
+async function performUnpair() {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: [t('unpairConfirmYes'), t('unpairConfirmNo')],
+    defaultId: 1,
+    cancelId: 1,
+    title: t('unpairConfirmTitle'),
+    message: t('unpairConfirmMessage'),
+  });
+
+  if (result.response !== 0) return; // user cancelled
+
+  console.log('[Unpair] User confirmed. Clearing credentials...');
+
+  // Stop all services
+  try { monitoringManager.disable(); } catch (e) { console.warn('[Unpair] monitoringManager.disable error:', e.message); }
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+
+  // Clear stored credentials
+  store.delete('deviceId');
+  store.delete('profileId');
+  store.delete('sessionToken');
+  deviceId = null;
+  profileId = null;
+
+  console.log('[Unpair] Credentials cleared. Restarting app...');
+
+  // Show the pairing screen again by restarting
+  app.relaunch();
+  app.isQuitting = true;
+  app.quit();
+}
+
+
   if (!mainWindow || mainWindow.isDestroyed?.()) return;
 
   // Keep app running as tray app without taskbar clutter
@@ -798,6 +842,8 @@ function updateTrayMenu(caller = 'unknown') {
     { label: `${liveStatus} | ${modeStatus}`, enabled: false },
     { type: 'separator' },
     { label: t('showWindow'), click: () => showMainWindowFromTray() },
+    { type: 'separator' },
+    { label: `🔓 ${t('unpair')}`, click: () => performUnpair() },
     { type: 'separator' },
     { label: t('quit'), click: () => { app.isQuitting = true; app.quit(); } }
   ]);
