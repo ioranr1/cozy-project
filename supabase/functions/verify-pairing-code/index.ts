@@ -128,6 +128,26 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Ensure device_status row exists (for re-paired devices)
+    const { error: statusError } = await supabaseAdmin
+      .from("device_status")
+      .upsert(
+        {
+          device_id: finalDeviceId,
+          device_mode: "NORMAL",
+          is_armed: false,
+          security_enabled: false,
+          motion_enabled: true,
+          sound_enabled: false,
+          baby_monitor_enabled: false,
+        },
+        { onConflict: "device_id", ignoreDuplicates: true }
+      );
+
+    if (statusError) {
+      console.error("Device status upsert error:", statusError);
+    }
+
     // Create session for the device
     const sessionToken = crypto.randomUUID() + "-" + crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
