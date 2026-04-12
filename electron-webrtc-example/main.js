@@ -380,7 +380,7 @@ async function performUnpair() {
 
   // Stop all services
   try { monitoringManager.disable(); } catch (e) { console.warn('[Unpair] monitoringManager.disable error:', e.message); }
-  try { stopHeartbeat(); } catch (e) { /* ignore */ }
+  if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
 
   // Clear stored credentials
   store.delete('deviceId');
