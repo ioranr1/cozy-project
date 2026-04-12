@@ -189,6 +189,26 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
+                          {/* Show blue badge tray icon image after first detail in step 5 */}
+                          {index === 4 && i === 0 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={trayBlueBadgeImg}
+                                alt={isRTL ? 'אייקון עם תג כחול לעדכון' : 'Tray icon with blue update badge'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-xs"
+                              />
+                            </li>
+                          )}
+                          {/* Show update menu image after second detail in step 5 */}
+                          {index === 4 && i === 1 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={trayUpdateMenuImg}
+                                alt={isRTL ? 'תפריט עדכון גרסה' : 'Version update menu'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-xs"
+                              />
+                            </li>
+                          )}
                         </React.Fragment>
                       ))}
                     </ul>
