@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { RefreshCw, Shield, Clock, Cpu, AlertTriangle } from "lucide-react";
+import { RefreshCw, Shield, Clock, Cpu, AlertTriangle, Trash2, LogOut, CalendarX } from "lucide-react";
 
 const ADMIN_PASSWORD = "684Mr3411";
 
@@ -74,7 +74,7 @@ function getPlatformLabel(systemInfo: Record<string, unknown> | null): string {
 }
 
 function isStale(dateStr: string): boolean {
-  return Date.now() - new Date(dateStr).getTime() > 10 * 60 * 1000; // >10 min
+  return Date.now() - new Date(dateStr).getTime() > 10 * 60 * 1000;
 }
 
 const AdminDiagnostics = () => {
@@ -84,6 +84,9 @@ const AdminDiagnostics = () => {
   const [diagnostics, setDiagnostics] = useState<DiagnosticRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedDevice, setExpandedDevice] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteBeforeDate, setDeleteBeforeDate] = useState("");
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const handleLogin = () => {
     if (password === ADMIN_PASSWORD) {
@@ -92,6 +95,13 @@ const AdminDiagnostics = () => {
     } else {
       setError("סיסמה שגויה / Wrong password");
     }
+  };
+
+  const handleLogout = () => {
+    setAuthenticated(false);
+    setPassword("");
+    setDiagnostics([]);
+    setExpandedDevice(null);
   };
 
   const fetchDiagnostics = async () => {
@@ -111,6 +121,37 @@ const AdminDiagnostics = () => {
       console.error("Error fetching diagnostics:", err);
     }
     setLoading(false);
+  };
+
+  const deleteRow = async (id: string) => {
+    if (!confirm("למחוק שורה זו? / Delete this row?")) return;
+    setDeletingId(id);
+    const { error } = await supabase.from("device_diagnostics").delete().eq("id", id);
+    if (error) {
+      console.error("Delete error:", error);
+      alert("שגיאה במחיקה: " + error.message);
+    } else {
+      setDiagnostics((prev) => prev.filter((r) => r.id !== id));
+    }
+    setDeletingId(null);
+  };
+
+  const deleteOlderThan = async () => {
+    if (!deleteBeforeDate) return;
+    if (!confirm(`למחוק את כל הדיווחים לפני ${deleteBeforeDate}?`)) return;
+    setBulkDeleting(true);
+    const { error, count } = await supabase
+      .from("device_diagnostics")
+      .delete({ count: "exact" })
+      .lt("updated_at", new Date(deleteBeforeDate).toISOString());
+    if (error) {
+      console.error("Bulk delete error:", error);
+      alert("שגיאה: " + error.message);
+    } else {
+      alert(`נמחקו ${count || 0} שורות`);
+      fetchDiagnostics();
+    }
+    setBulkDeleting(false);
   };
 
   useEffect(() => {
@@ -156,11 +197,42 @@ const AdminDiagnostics = () => {
             Device Diagnostics
             <Badge variant="secondary">{diagnostics.length} devices</Badge>
           </h1>
-          <Button onClick={fetchDiagnostics} disabled={loading} variant="outline" size="sm">
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={fetchDiagnostics} disabled={loading} variant="outline" size="sm">
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button onClick={handleLogout} variant="ghost" size="sm">
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
+
+        {/* Bulk delete by date */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3 flex-wrap">
+              <CalendarX className="h-5 w-5 text-destructive" />
+              <span className="text-sm font-medium">מחיקה לפי תאריך:</span>
+              <Input
+                type="date"
+                value={deleteBeforeDate}
+                onChange={(e) => setDeleteBeforeDate(e.target.value)}
+                className="w-auto"
+              />
+              <Button
+                onClick={deleteOlderThan}
+                disabled={!deleteBeforeDate || bulkDeleting}
+                variant="destructive"
+                size="sm"
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                {bulkDeleting ? "מוחק..." : "מחק דיווחים ישנים"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent className="p-0">
@@ -180,13 +252,13 @@ const AdminDiagnostics = () => {
                     <TableHead>Sound</TableHead>
                     <TableHead>Last Report</TableHead>
                     <TableHead>Errors</TableHead>
-                    <TableHead>Errors</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {diagnostics.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
                         {loading ? "Loading..." : "No diagnostic data yet"}
                       </TableCell>
                     </TableRow>
@@ -216,6 +288,7 @@ const AdminDiagnostics = () => {
                             <Badge variant="outline">{getPlatformLabel(row.system_info)}</Badge>
                           </TableCell>
                           <TableCell>
+                            {row.agent_version}
                           </TableCell>
                           <TableCell>
                             <span className="flex items-center gap-1">
@@ -251,10 +324,24 @@ const AdminDiagnostics = () => {
                               <span className="text-muted-foreground text-xs">0</span>
                             )}
                           </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              disabled={deletingId === row.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteRow(row.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                         {expandedDevice === row.id && (
                           <TableRow key={`${row.id}-detail`}>
-                            <TableCell colSpan={12} className="bg-muted/30 p-4">
+                            <TableCell colSpan={13} className="bg-muted/30 p-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                   <h4 className="font-semibold mb-2">System Info</h4>
