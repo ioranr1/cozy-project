@@ -237,8 +237,9 @@ const AdminDiagnostics = () => {
                           <TableCell>
                             <span className={`inline-block w-3 h-3 rounded-full ${getStatusColor(row.sound_detector_status)}`} title={row.sound_detector_status} />
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {getTimeSince(row.updated_at)}
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            <div>{formatDateTime(row.updated_at)}</div>
+                            <div className="text-[10px]">{getTimeSince(row.updated_at)}</div>
                           </TableCell>
                           <TableCell>
                             {row.recent_errors && row.recent_errors.length > 0 ? (
