@@ -54,6 +54,9 @@ const awayManager = new AwayManager({ supabase });
 // Initialize MonitoringManager
 const monitoringManager = new MonitoringManager({ supabase });
 
+// Initialize DiagnosticsReporter
+const diagReporter = new DiagnosticsReporter({ supabase, store });
+
 // Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
 
 // Clips folder path (initialized on startup)
@@ -1032,6 +1035,9 @@ function startHeartbeat() {
 
   // Heartbeat every 10 seconds
   heartbeatInterval = setInterval(sendHeartbeat, 10000);
+
+  // Start diagnostics reporter (v2.47.0)
+  diagReporter.start(deviceId, monitoringManager);
 }
 
 async function sendHeartbeat() {
