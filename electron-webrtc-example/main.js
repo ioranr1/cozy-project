@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.47.0 (2026-04-14)
+ * VERSION: 2.49.0 (2026-04-14)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -2106,6 +2106,20 @@ function setupIpcHandlers() {
   ipcMain.on('detector-error', (event, type, error) => {
     console.error('[IPC] Detector error:', type, error);
     monitoringManager.setDetectorReady(type, false);
+    
+    // Record error in diagnostics for remote visibility
+    if (diagReporter) {
+      diagReporter.recordError(type, error);
+    }
+  });
+
+  // MediaPipe total failure - camera should already be released by renderer
+  ipcMain.on('mediapipe-failed', () => {
+    console.error('[IPC] MediaPipe FAILED completely (GPU + CPU) - camera released by renderer');
+    monitoringManager.onRendererError('MediaPipe initialization failed on both GPU and CPU');
+    if (diagReporter) {
+      diagReporter.recordError('mediapipe', 'Total initialization failure (GPU + CPU). Camera released.');
+    }
   });
 
   // Monitoring started notification

@@ -84,6 +84,7 @@ class DiagnosticsReporter {
       let cameraStatus = 'unknown';
       let motionDetectorStatus = 'unknown';
       let soundDetectorStatus = 'unknown';
+      let detectionLoopRunning = false;
 
       if (this._monitoringManager) {
         const status = this._monitoringManager.getStatus();
@@ -94,11 +95,14 @@ class DiagnosticsReporter {
         motionDetectorStatus = detectors.motion ? 'active' : 'idle';
         soundDetectorStatus = detectors.sound ? 'active' : 'idle';
         
-        // Camera status: active if any sensor that uses camera is running
-        if (monitoringActive && (detectors.motion || detectors.sound)) {
+        // detection_loop_running: true only if isActive AND at least one detector is running
+        detectionLoopRunning = monitoringActive && (detectors.motion || detectors.sound);
+        
+        // Camera status: active if motion detector is running (motion uses camera)
+        if (detectors.motion) {
           cameraStatus = 'active';
         } else if (monitoringActive) {
-          cameraStatus = 'idle';
+          cameraStatus = 'idle'; // monitoring active but no motion = sound-only
         } else {
           cameraStatus = 'off';
         }
@@ -122,6 +126,7 @@ class DiagnosticsReporter {
         camera_status: cameraStatus,
         motion_detector_status: motionDetectorStatus,
         sound_detector_status: soundDetectorStatus,
+        detection_loop_running: detectionLoopRunning,
         system_info: systemInfo,
         recent_errors: this._recentErrors,
       };

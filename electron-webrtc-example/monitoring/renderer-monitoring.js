@@ -1,7 +1,7 @@
 /**
  * Renderer Monitoring Controller
  * ===============================
- * VERSION: 1.3.0 (2026-03-06)
+ * VERSION: 1.4.0 (2026-04-14)
  * 
  * CHANGELOG:
  * - v1.3.0: FIX - updateConfig() now creates videoElement when switching from sound-only to motion
@@ -149,9 +149,21 @@ class RendererMonitoringController {
             debounce_ms: config?.sensors?.motion?.debounce_ms || 60000,
           });
           
-          await this.motionDetector.start(this.videoElement);
-          this.status.motionRunning = true;
-          console.log('[RendererMonitoring] ✓ Motion detector started (camera ON)');
+          const started = await this.motionDetector.start(this.videoElement);
+          if (started) {
+            this.status.motionRunning = true;
+            console.log('[RendererMonitoring] ✓ Motion detector started (camera ON)');
+          } else {
+            // MediaPipe failed to start - release camera immediately
+            console.error('[RendererMonitoring] ✗ Motion detector failed to start - releasing camera');
+            this._releaseCamera();
+            window.electronAPI?.notifyDetectorError?.('motion', 'MediaPipe failed to start detection loop');
+          }
+        } else {
+          // Motion detector not ready (MediaPipe init failed) - release camera
+          console.error('[RendererMonitoring] ✗ Motion detector not ready - releasing camera');
+          this._releaseCamera();
+          window.electronAPI?.notifyDetectorError?.('motion', 'MediaPipe initialization failed - camera released');
         }
       } else {
         console.log('[RendererMonitoring] Motion disabled - camera stays OFF');
@@ -182,6 +194,8 @@ class RendererMonitoringController {
       console.log('[RendererMonitoring] ✓ Monitoring started successfully');
     } catch (error) {
       console.error('[RendererMonitoring] Failed to start monitoring:', error);
+      // Release camera on any failure
+      this._releaseCamera();
       window.electronAPI?.notifyMonitoringError?.(error.message);
     }
   }
@@ -419,6 +433,23 @@ class RendererMonitoringController {
       console.error('[RendererMonitoring] Camera access failed:', error);
       throw error;
     }
+  }
+
+  /**
+   * Release camera stream (turn off LED) without stopping other monitoring
+   * Used when MediaPipe fails but sound detection may still be active
+   */
+  _releaseCamera() {
+    if (this.videoElement && this.videoElement.srcObject) {
+      const tracks = this.videoElement.srcObject.getTracks();
+      tracks.forEach(track => {
+        track.stop();
+        console.log('[RendererMonitoring] Released track:', track.kind, track.label);
+      });
+      this.videoElement.srcObject = null;
+      console.log('[RendererMonitoring] ✓ Camera released (LED should be OFF)');
+    }
+    this.videoElement = null;
   }
 
   /**

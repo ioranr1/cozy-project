@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.1.0 (2026-01-31)
+ * VERSION: 2.2.0 (2026-04-14)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -20,6 +20,7 @@
  */
 
 const { powerSaveBlocker, ipcMain, powerMonitor } = require('electron');
+const { spawn } = require('child_process');
 const { exec } = require('child_process');
 const path = require('path');
 const { getAwayString, getAwayStrings } = require('./away-strings');
@@ -31,8 +32,11 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-01-31-v2.1.0';
+    this.__buildId = 'away-manager-2026-04-14-v2.2.0';
     console.log(`[AwayManager] build: ${this.__buildId}`);
+    
+    // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
+    this._nativeSleepBlockerProcess = null;
     
     // State
     this.state = {
@@ -370,6 +374,9 @@ class AwayManager {
     this._stopDisplayOffLoop();
     this._stopUserActivityWatch();
     
+    // Stop OS-native sleep blocker
+    this._stopNativeSleepBlocker();
+    
     if (this.state.powerBlockerId !== null) {
       powerSaveBlocker.stop(this.state.powerBlockerId);
       this.state.powerBlockerId = null;
@@ -486,45 +493,43 @@ class AwayManager {
     // The DIFFERENCE between modes is ONLY about display:
     //   - Manual Away: Forces display off + 30s reinforcement loop
     //   - Auto-Away: Display follows OS power settings (no forced off)
+    //
+    // v2.2.0 FIX: Use OS-native commands to prevent system sleep WITHOUT
+    // blocking the display timeout. Electron's 'prevent-display-sleep' was
+    // keeping the screen on forever; 'prevent-app-suspension' didn't prevent
+    // system sleep reliably. OS-native approach solves both:
+    //   - macOS: caffeinate -i (prevents idle sleep, allows display sleep)
+    //   - Windows: SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED)
+    //              (prevents system sleep, allows monitor power-off)
     // ═══════════════════════════════════════════════════════════════════════════
     
-    // Start powerSaveBlocker for BOTH modes to prevent system sleep
-    // CRITICAL FIX: Use 'prevent-display-sleep' which ALSO prevents system sleep.
-    // 'prevent-app-suspension' only prevents the app from being suspended but
-    // does NOT prevent the OS from putting the machine to sleep!
+    // Start Electron's prevent-app-suspension as a lightweight baseline
+    // (prevents app from being suspended in background)
     if (this.state.powerBlockerId === null) {
-      this.state.powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-      console.log('[AwayManager] Power save blocker started (prevent-display-sleep):', this.state.powerBlockerId);
-      
-      // Send status to UI for debugging visibility
-      if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
-        console.log('[AwayManager] -> UI power blocker status: STARTED', this.state.powerBlockerId);
-        this.awayModeIPC.sendPowerBlockerStatus('STARTED', this.state.powerBlockerId);
-      } else {
-        console.warn('[AwayManager] awayModeIPC not ready - cannot send power blocker status to UI');
-      }
-      
-      // Verify it's active
-      if (powerSaveBlocker.isStarted(this.state.powerBlockerId)) {
-        console.log('[AwayManager] ✓ Display sleep prevention is ACTIVE - system will NOT sleep');
-      } else {
-        console.error('[AwayManager] ✗ Failed to activate display sleep prevention!');
-      }
-    } else {
-      console.log('[AwayManager] Power save blocker already active:', this.state.powerBlockerId);
+      this.state.powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+      console.log('[AwayManager] Electron power blocker started (prevent-app-suspension):', this.state.powerBlockerId);
+    }
+    
+    // Start OS-native sleep prevention (prevents system sleep, ALLOWS display timeout)
+    this._startNativeSleepBlocker();
+    
+    // Send status to UI for debugging visibility
+    if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
+      console.log('[AwayManager] -> UI power blocker status: STARTED', this.state.powerBlockerId);
+      this.awayModeIPC.sendPowerBlockerStatus('STARTED', this.state.powerBlockerId);
     }
     
     // Display behavior differs between modes
     if (!skipDisplayOff) {
       // MANUAL MODE: Turn off display ONCE immediately
-      // After that, OS power settings control display behavior
+      // After that, OS power settings control display behavior (including screen timeout)
       console.log('[AwayManager] 📴 Manual Away: Turning display off ONCE');
       this._turnOffDisplay();
-      // NO reinforcement loop - if user wakes screen and leaves, OS handles it
     } else {
       // AUTO-AWAY MODE: 
       // - Do NOT turn off display (let OS power settings manage it)
-      // - powerSaveBlocker IS active (prevents full system sleep)
+      // - OS-native sleep blocker IS active (prevents full system sleep)
+      // - Display WILL turn off per OS timeout settings ✓
       console.log('[AwayManager] ℹ️ Auto-Away: Display follows OS power settings');
     }
   }
@@ -641,7 +646,10 @@ class AwayManager {
     this._stopDisplayOffLoop();
     this._stopUserActivityWatch();
     
-    // Release power save blocker
+    // Stop OS-native sleep blocker
+    this._stopNativeSleepBlocker();
+    
+    // Release Electron power save blocker
     if (this.state.powerBlockerId !== null) {
       const stoppedId = this.state.powerBlockerId;
       try {
@@ -652,20 +660,13 @@ class AwayManager {
       this.state.powerBlockerId = null;
       console.log('[AwayManager] Power save blocker stopped, ID was:', stoppedId);
       
-      // Send status to UI for debugging visibility
       if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
-        console.log('[AwayManager] -> UI power blocker status: STOPPED', stoppedId);
         this.awayModeIPC.sendPowerBlockerStatus('STOPPED', stoppedId);
-      } else {
-        console.warn('[AwayManager] awayModeIPC not ready - cannot send power blocker status to UI');
       }
     } else {
       console.log('[AwayManager] Power save blocker was already null (not running)');
       if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
-        console.log('[AwayManager] -> UI power blocker status: ALREADY_NULL');
         this.awayModeIPC.sendPowerBlockerStatus('ALREADY_NULL', null);
-      } else {
-        console.warn('[AwayManager] awayModeIPC not ready - cannot send power blocker status to UI');
       }
     }
   }
@@ -764,6 +765,98 @@ class AwayManager {
     }
     
     console.log('[AwayManager] Database updated to', mode);
+  }
+
+  // =========================================================================
+  // OS-NATIVE SLEEP PREVENTION (v2.2.0)
+  // Prevents system sleep WITHOUT blocking display timeout.
+  // =========================================================================
+
+  _startNativeSleepBlocker() {
+    if (this._nativeSleepBlockerProcess) {
+      console.log('[AwayManager] Native sleep blocker already running');
+      return;
+    }
+
+    const platform = process.platform;
+
+    if (platform === 'darwin') {
+      // caffeinate -i: prevent idle sleep (NOT display sleep)
+      // -i = prevent idle sleep only; display still sleeps per OS settings
+      // Process stays alive as long as Away Mode is active
+      try {
+        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-i'], {
+          stdio: 'ignore',
+          detached: false,
+        });
+        this._nativeSleepBlockerProcess.on('error', (err) => {
+          console.error('[AwayManager] caffeinate failed:', err.message);
+          this._nativeSleepBlockerProcess = null;
+        });
+        this._nativeSleepBlockerProcess.on('exit', (code) => {
+          console.log('[AwayManager] caffeinate exited with code:', code);
+          this._nativeSleepBlockerProcess = null;
+        });
+        console.log('[AwayManager] ✅ macOS: caffeinate -i started (prevents idle sleep, allows display sleep)');
+      } catch (err) {
+        console.error('[AwayManager] Failed to start caffeinate:', err);
+      }
+    } else if (platform === 'win32') {
+      // Windows: Use PowerShell to set ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+      // This prevents system sleep but does NOT prevent monitor power-off
+      // The -NoExit flag keeps the process alive; when we kill it, the state resets
+      const psScript = `
+        Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport("kernel32.dll")]public static extern uint SetThreadExecutionState(uint esFlags);}'
+        [SleepBlocker]::SetThreadExecutionState(0x80000001)
+        while($true){Start-Sleep -Seconds 30;[SleepBlocker]::SetThreadExecutionState(0x80000001)}
+      `.trim();
+
+      try {
+        this._nativeSleepBlockerProcess = spawn('powershell', [
+          '-WindowStyle', 'Hidden',
+          '-Command', psScript,
+        ], {
+          stdio: 'ignore',
+          detached: false,
+        });
+        this._nativeSleepBlockerProcess.on('error', (err) => {
+          console.error('[AwayManager] PowerShell sleep blocker failed:', err.message);
+          this._nativeSleepBlockerProcess = null;
+        });
+        this._nativeSleepBlockerProcess.on('exit', (code) => {
+          console.log('[AwayManager] PowerShell sleep blocker exited with code:', code);
+          this._nativeSleepBlockerProcess = null;
+        });
+        console.log('[AwayManager] ✅ Windows: SetThreadExecutionState started (prevents sleep, allows monitor off)');
+      } catch (err) {
+        console.error('[AwayManager] Failed to start PowerShell sleep blocker:', err);
+      }
+    } else {
+      console.log('[AwayManager] ℹ️ No native sleep blocker for platform:', platform);
+    }
+  }
+
+  _stopNativeSleepBlocker() {
+    if (!this._nativeSleepBlockerProcess) {
+      return;
+    }
+
+    try {
+      this._nativeSleepBlockerProcess.kill('SIGTERM');
+      console.log('[AwayManager] ✅ Native sleep blocker stopped');
+    } catch (err) {
+      console.error('[AwayManager] Failed to stop native sleep blocker:', err);
+    }
+    this._nativeSleepBlockerProcess = null;
+
+    // Windows: explicitly clear the execution state flag
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      exec('powershell -Command "Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport(\\\"kernel32.dll\\\")]public static extern uint SetThreadExecutionState(uint esFlags);}\';[SleepBlocker]::SetThreadExecutionState(0x80000000)"', (err) => {
+        if (err) console.warn('[AwayManager] Failed to clear execution state:', err.message);
+        else console.log('[AwayManager] ✅ Windows execution state cleared (ES_CONTINUOUS only)');
+      });
+    }
   }
 }
 
