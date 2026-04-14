@@ -86,20 +86,16 @@ class DiagnosticsReporter {
       let soundDetectorStatus = 'unknown';
 
       if (this._monitoringManager) {
-        monitoringActive = !!this._monitoringManager._isEnabled;
-        // Attempt to read sensor states if available
-        if (this._monitoringManager._motionDetector) {
-          motionDetectorStatus = this._monitoringManager._motionDetector._isRunning ? 'active' : 'idle';
-        } else {
-          motionDetectorStatus = 'not_loaded';
-        }
-        if (this._monitoringManager._soundDetector) {
-          soundDetectorStatus = this._monitoringManager._soundDetector._isRunning ? 'active' : 'idle';
-        } else {
-          soundDetectorStatus = 'not_loaded';
-        }
-        // Camera status: if monitoring is active and motion detector is running, camera is presumably in use
-        if (monitoringActive && motionDetectorStatus === 'active') {
+        const status = this._monitoringManager.getStatus();
+        monitoringActive = !!status.isActive;
+        
+        // Read detector statuses from the manager's detectorStatus map
+        const detectors = status.detectorStatus || {};
+        motionDetectorStatus = detectors.motion ? 'active' : 'idle';
+        soundDetectorStatus = detectors.sound ? 'active' : 'idle';
+        
+        // Camera status: if monitoring is active and motion detector is running, camera is in use
+        if (monitoringActive && detectors.motion) {
           cameraStatus = 'active';
         } else if (monitoringActive) {
           cameraStatus = 'idle';
