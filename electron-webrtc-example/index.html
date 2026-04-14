@@ -713,6 +713,9 @@
         let isDetectorReady = false;
         let detectionLoopActive = false;
         let currentConfig = null;
+        let currentDelegate = 'GPU'; // Track which delegate is active
+        let cachedWasmFileset = null; // Cache for CPU fallback at runtime
+        let cachedVisionModule = null; // Cache vision module for re-init
         let deviceAuthToken = null;
         let deviceId = null;
         
