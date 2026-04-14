@@ -21,7 +21,12 @@ interface DiagnosticRow {
   system_info: Record<string, unknown>;
   recent_errors: Array<{ ts: string; source: string; message: string }>;
   updated_at: string;
-  devices?: { device_name: string; profile_id: string; last_seen_at: string | null };
+  devices?: {
+    device_name: string;
+    profile_id: string;
+    last_seen_at: string | null;
+    profiles?: { full_name: string; phone_number: string; country_code: string };
+  };
 }
 
 function formatUptime(seconds: number): string {
