@@ -270,15 +270,15 @@ const AdminDiagnostics = () => {
                           onClick={() => setExpandedDevice(expandedDevice === row.id ? null : row.id)}
                         >
                           <TableCell className="font-medium">
-                            {row.devices?.device_name || row.device_id.slice(0, 8)}
+                            {row.device_name || row.device_id.slice(0, 8)}
                             {stale && <span className="ml-1 text-destructive text-xs">⚠ offline</span>}
                           </TableCell>
                           <TableCell className="text-sm">
-                            {row.devices?.profiles?.full_name || "—"}
+                            {row.user_full_name || "—"}
                           </TableCell>
                           <TableCell className="text-sm font-mono">
-                            {row.devices?.profiles
-                              ? `${row.devices.profiles.country_code}${row.devices.profiles.phone_number}`
+                            {row.user_phone
+                              ? `${row.user_country_code || ''}${row.user_phone}`
                               : "—"}
                           </TableCell>
                           <TableCell>
