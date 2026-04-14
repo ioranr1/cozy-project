@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.10.1 (2026-03-04)
+ * VERSION: 0.10.2 (2026-04-14)
  * 
  * CHANGELOG:
  * - v0.8.0: Baby Monitor support - enable() activates mic immediately when baby_monitor_enabled.
@@ -364,6 +364,7 @@ class MonitoringManager {
 
       this.isActive = false;
       this.isStarting = false;
+      this.detectorStatus = { motion: false, sound: false };
 
       // Clear any pending events
       if (this.eventQueueTimer) {
