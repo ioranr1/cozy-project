@@ -201,6 +201,59 @@ export type Database = {
           },
         ]
       }
+      device_diagnostics: {
+        Row: {
+          agent_version: string
+          camera_status: string
+          created_at: string
+          device_id: string
+          id: string
+          monitoring_active: boolean
+          motion_detector_status: string
+          recent_errors: Json | null
+          sound_detector_status: string
+          system_info: Json | null
+          updated_at: string
+          uptime_seconds: number
+        }
+        Insert: {
+          agent_version?: string
+          camera_status?: string
+          created_at?: string
+          device_id: string
+          id?: string
+          monitoring_active?: boolean
+          motion_detector_status?: string
+          recent_errors?: Json | null
+          sound_detector_status?: string
+          system_info?: Json | null
+          updated_at?: string
+          uptime_seconds?: number
+        }
+        Update: {
+          agent_version?: string
+          camera_status?: string
+          created_at?: string
+          device_id?: string
+          id?: string
+          monitoring_active?: boolean
+          motion_detector_status?: string
+          recent_errors?: Json | null
+          sound_detector_status?: string
+          system_info?: Json | null
+          updated_at?: string
+          uptime_seconds?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_diagnostics_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: true
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_notification_state: {
         Row: {
           created_at: string
