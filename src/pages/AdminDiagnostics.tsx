@@ -171,6 +171,7 @@ const AdminDiagnostics = () => {
                     <TableHead>Device</TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Phone</TableHead>
+                    <TableHead>OS</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Uptime</TableHead>
                     <TableHead>Monitoring</TableHead>
@@ -178,6 +179,7 @@ const AdminDiagnostics = () => {
                     <TableHead>Motion</TableHead>
                     <TableHead>Sound</TableHead>
                     <TableHead>Last Report</TableHead>
+                    <TableHead>Errors</TableHead>
                     <TableHead>Errors</TableHead>
                   </TableRow>
                 </TableHeader>
