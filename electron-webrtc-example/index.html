@@ -1118,6 +1118,12 @@
                 if (!isDetectorReady) {
                   const mpResult = await loadMediaPipe();
                   console.log('[Monitoring] MediaPipe load result:', mpResult);
+                  if (!isDetectorReady) {
+                    console.error('[Monitoring] ✗ MediaPipe FAILED to load - motion detection will NOT work');
+                    console.error('[Monitoring] Camera is ON but detection loop cannot start');
+                    // Report error to main process for diagnostics
+                    window.electronAPI?.notifyMonitoringError?.('MediaPipe failed to load - detection inactive despite camera ON');
+                  }
                 }
                 
                 // Start detection loop
@@ -1126,6 +1132,16 @@
                   motionStarted = true;
                   console.log('[Monitoring] Motion detection loop started');
                   runDetectionLoop();
+                } else {
+                  console.error('[Monitoring] ✗ isDetectorReady=false - releasing camera to avoid misleading LED');
+                  // Release camera since detection won't work anyway
+                  if (monitoringStream) {
+                    monitoringStream.getTracks().forEach(t => t.stop());
+                    monitoringStream = null;
+                  }
+                  if (videoElement) {
+                    videoElement.srcObject = null;
+                  }
                 }
               }
             } else {
