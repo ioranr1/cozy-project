@@ -167,7 +167,7 @@ const AdminDiagnostics = () => {
                 <TableBody>
                   {diagnostics.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         {loading ? "Loading..." : "No diagnostic data yet"}
                       </TableCell>
                     </TableRow>
