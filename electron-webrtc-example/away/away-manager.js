@@ -489,9 +489,12 @@ class AwayManager {
     // ═══════════════════════════════════════════════════════════════════════════
     
     // Start powerSaveBlocker for BOTH modes to prevent system sleep
+    // CRITICAL FIX: Use 'prevent-display-sleep' which ALSO prevents system sleep.
+    // 'prevent-app-suspension' only prevents the app from being suspended but
+    // does NOT prevent the OS from putting the machine to sleep!
     if (this.state.powerBlockerId === null) {
-      this.state.powerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
-      console.log('[AwayManager] Power save blocker started (prevent-app-suspension):', this.state.powerBlockerId);
+      this.state.powerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+      console.log('[AwayManager] Power save blocker started (prevent-display-sleep):', this.state.powerBlockerId);
       
       // Send status to UI for debugging visibility
       if (this.awayModeIPC && typeof this.awayModeIPC.sendPowerBlockerStatus === 'function') {
@@ -503,9 +506,9 @@ class AwayManager {
       
       // Verify it's active
       if (powerSaveBlocker.isStarted(this.state.powerBlockerId)) {
-        console.log('[AwayManager] ✓ App suspension prevention is ACTIVE - system will NOT sleep');
+        console.log('[AwayManager] ✓ Display sleep prevention is ACTIVE - system will NOT sleep');
       } else {
-        console.error('[AwayManager] ✗ Failed to activate app suspension prevention!');
+        console.error('[AwayManager] ✗ Failed to activate display sleep prevention!');
       }
     } else {
       console.log('[AwayManager] Power save blocker already active:', this.state.powerBlockerId);
