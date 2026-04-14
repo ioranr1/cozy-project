@@ -1,7 +1,7 @@
 /**
  * Motion Detector - MediaPipe Tasks Vision Integration
  * =====================================================
- * VERSION: 0.2.0 (2026-01-30)
+ * VERSION: 0.3.0 (2026-04-14)
  * 
  * Runs in Electron RENDERER process.
  * Uses MediaPipe Object Detection for local detection (person, animal, vehicle).
@@ -92,19 +92,57 @@ class MotionDetector {
         'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
       );
       
-      // Create the object detector
-      this.detector = await ObjectDetector.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: this.options.modelPath,
-          delegate: this.options.delegate,
-        },
-        runningMode: 'VIDEO',
-        maxResults: this.options.maxResults,
-        scoreThreshold: this.options.scoreThreshold,
-      });
-
+      // Try GPU first, fall back to CPU
+      let detector = null;
+      let usedDelegate = 'GPU';
+      
+      try {
+        detector = await ObjectDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: this.options.modelPath,
+            delegate: 'GPU',
+          },
+          runningMode: 'VIDEO',
+          maxResults: this.options.maxResults,
+          scoreThreshold: this.options.scoreThreshold,
+        });
+        console.log('[MotionDetector] ✓ GPU delegate initialized successfully');
+      } catch (gpuError) {
+        console.warn('[MotionDetector] ⚠️ GPU initialization failed:', gpuError.message);
+        console.log('[MotionDetector] Falling back to CPU delegate...');
+        usedDelegate = 'CPU';
+        
+        try {
+          detector = await ObjectDetector.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: this.options.modelPath,
+              delegate: 'CPU',
+            },
+            runningMode: 'VIDEO',
+            maxResults: this.options.maxResults,
+            scoreThreshold: this.options.scoreThreshold,
+          });
+          console.log('[MotionDetector] ✓ CPU delegate initialized successfully');
+        } catch (cpuError) {
+          console.error('[MotionDetector] ✗ CPU initialization also failed:', cpuError.message);
+          
+          // Report error to main process for diagnostics
+          if (window.electronAPI?.notifyDetectorError) {
+            window.electronAPI.notifyDetectorError('motion', `GPU failed: ${gpuError.message}; CPU failed: ${cpuError.message}`);
+          }
+          
+          // Signal camera release needed
+          if (window.electronAPI?.notifyMediaPipeFailed) {
+            window.electronAPI.notifyMediaPipeFailed();
+          }
+          
+          return false;
+        }
+      }
+      
+      this.detector = detector;
       this.isInitialized = true;
-      console.log('[MotionDetector] ✓ MediaPipe initialized successfully');
+      console.log(`[MotionDetector] ✓ MediaPipe initialized successfully (delegate: ${usedDelegate})`);
       
       // Notify main process
       if (window.electronAPI?.notifyDetectorReady) {
@@ -117,6 +155,11 @@ class MotionDetector {
       
       if (window.electronAPI?.notifyDetectorError) {
         window.electronAPI.notifyDetectorError('motion', error.message);
+      }
+      
+      // Signal camera release needed
+      if (window.electronAPI?.notifyMediaPipeFailed) {
+        window.electronAPI.notifyMediaPipeFailed();
       }
       
       return false;

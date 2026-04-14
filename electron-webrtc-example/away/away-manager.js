@@ -766,6 +766,98 @@ class AwayManager {
     
     console.log('[AwayManager] Database updated to', mode);
   }
+
+  // =========================================================================
+  // OS-NATIVE SLEEP PREVENTION (v2.2.0)
+  // Prevents system sleep WITHOUT blocking display timeout.
+  // =========================================================================
+
+  _startNativeSleepBlocker() {
+    if (this._nativeSleepBlockerProcess) {
+      console.log('[AwayManager] Native sleep blocker already running');
+      return;
+    }
+
+    const platform = process.platform;
+
+    if (platform === 'darwin') {
+      // caffeinate -i: prevent idle sleep (NOT display sleep)
+      // -i = prevent idle sleep only; display still sleeps per OS settings
+      // Process stays alive as long as Away Mode is active
+      try {
+        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-i'], {
+          stdio: 'ignore',
+          detached: false,
+        });
+        this._nativeSleepBlockerProcess.on('error', (err) => {
+          console.error('[AwayManager] caffeinate failed:', err.message);
+          this._nativeSleepBlockerProcess = null;
+        });
+        this._nativeSleepBlockerProcess.on('exit', (code) => {
+          console.log('[AwayManager] caffeinate exited with code:', code);
+          this._nativeSleepBlockerProcess = null;
+        });
+        console.log('[AwayManager] ✅ macOS: caffeinate -i started (prevents idle sleep, allows display sleep)');
+      } catch (err) {
+        console.error('[AwayManager] Failed to start caffeinate:', err);
+      }
+    } else if (platform === 'win32') {
+      // Windows: Use PowerShell to set ES_CONTINUOUS | ES_SYSTEM_REQUIRED
+      // This prevents system sleep but does NOT prevent monitor power-off
+      // The -NoExit flag keeps the process alive; when we kill it, the state resets
+      const psScript = `
+        Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport("kernel32.dll")]public static extern uint SetThreadExecutionState(uint esFlags);}'
+        [SleepBlocker]::SetThreadExecutionState(0x80000001)
+        while($true){Start-Sleep -Seconds 30;[SleepBlocker]::SetThreadExecutionState(0x80000001)}
+      `.trim();
+
+      try {
+        this._nativeSleepBlockerProcess = spawn('powershell', [
+          '-WindowStyle', 'Hidden',
+          '-Command', psScript,
+        ], {
+          stdio: 'ignore',
+          detached: false,
+        });
+        this._nativeSleepBlockerProcess.on('error', (err) => {
+          console.error('[AwayManager] PowerShell sleep blocker failed:', err.message);
+          this._nativeSleepBlockerProcess = null;
+        });
+        this._nativeSleepBlockerProcess.on('exit', (code) => {
+          console.log('[AwayManager] PowerShell sleep blocker exited with code:', code);
+          this._nativeSleepBlockerProcess = null;
+        });
+        console.log('[AwayManager] ✅ Windows: SetThreadExecutionState started (prevents sleep, allows monitor off)');
+      } catch (err) {
+        console.error('[AwayManager] Failed to start PowerShell sleep blocker:', err);
+      }
+    } else {
+      console.log('[AwayManager] ℹ️ No native sleep blocker for platform:', platform);
+    }
+  }
+
+  _stopNativeSleepBlocker() {
+    if (!this._nativeSleepBlockerProcess) {
+      return;
+    }
+
+    try {
+      this._nativeSleepBlockerProcess.kill('SIGTERM');
+      console.log('[AwayManager] ✅ Native sleep blocker stopped');
+    } catch (err) {
+      console.error('[AwayManager] Failed to stop native sleep blocker:', err);
+    }
+    this._nativeSleepBlockerProcess = null;
+
+    // Windows: explicitly clear the execution state flag
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      exec('powershell -Command "Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport(\\\"kernel32.dll\\\")]public static extern uint SetThreadExecutionState(uint esFlags);}\';[SleepBlocker]::SetThreadExecutionState(0x80000000)"', (err) => {
+        if (err) console.warn('[AwayManager] Failed to clear execution state:', err.message);
+        else console.log('[AwayManager] ✅ Windows execution state cleared (ES_CONTINUOUS only)');
+      });
+    }
+  }
 }
 
 module.exports = AwayManager;
