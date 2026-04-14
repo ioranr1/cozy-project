@@ -812,6 +812,27 @@ export type Database = {
         Args: { p_cooldown_ms?: number; p_device_id: string }
         Returns: boolean
       }
+      get_diagnostics_with_profiles: {
+        Args: never
+        Returns: {
+          agent_version: string
+          camera_status: string
+          device_id: string
+          device_name: string
+          id: string
+          last_seen_at: string
+          monitoring_active: boolean
+          motion_detector_status: string
+          recent_errors: Json
+          sound_detector_status: string
+          system_info: Json
+          updated_at: string
+          uptime_seconds: number
+          user_country_code: string
+          user_full_name: string
+          user_phone: string
+        }[]
+      }
       get_profile_auto_away: {
         Args: { _profile_id: string }
         Returns: {
