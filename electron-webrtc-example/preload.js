@@ -321,6 +321,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('detector-error', type, error);
   },
 
+  /**
+   * Notify main that MediaPipe failed completely (GPU + CPU)
+   * Main process should release camera and report to diagnostics
+   */
+  notifyMediaPipeFailed: () => {
+    ipcRenderer.send('mediapipe-failed');
+  },
+
   // -------------------------------------------------------------------------
   // Clip Recording
   // -------------------------------------------------------------------------
