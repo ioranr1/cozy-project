@@ -290,7 +290,19 @@ class MonitoringManager {
   onRendererStarted(status) {
     this.isStarting = false;
     this.isActive = true;
+
+    // Update detector statuses from renderer ACK so diagnostics reports correctly
+    if (status) {
+      if (typeof status.motion === 'boolean') {
+        this.detectorStatus.motion = status.motion;
+      }
+      if (typeof status.sound === 'boolean') {
+        this.detectorStatus.sound = status.sound;
+      }
+    }
+
     console.log('[MonitoringManager] [OK] Renderer confirmed monitoring started', status);
+    console.log('[MonitoringManager] Detector status after ACK:', this.detectorStatus);
   }
 
   /**
