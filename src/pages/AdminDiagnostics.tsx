@@ -56,6 +56,23 @@ function getTimeSince(dateStr: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function formatDateTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleString("he-IL", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function getPlatformLabel(systemInfo: Record<string, unknown> | null): string {
+  if (!systemInfo || !systemInfo.platform) return "—";
+  const p = String(systemInfo.platform).toLowerCase();
+  if (p.includes("win")) return "🪟 WIN";
+  if (p.includes("darwin")) return "🍎 MAC";
+  if (p.includes("linux")) return "🐧 Linux";
+  return String(systemInfo.platform).toUpperCase();
+}
+
 function isStale(dateStr: string): boolean {
   return Date.now() - new Date(dateStr).getTime() > 10 * 60 * 1000; // >10 min
 }
@@ -154,6 +171,7 @@ const AdminDiagnostics = () => {
                     <TableHead>Device</TableHead>
                     <TableHead>User</TableHead>
                     <TableHead>Phone</TableHead>
+                    <TableHead>OS</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Uptime</TableHead>
                     <TableHead>Monitoring</TableHead>
@@ -162,12 +180,13 @@ const AdminDiagnostics = () => {
                     <TableHead>Sound</TableHead>
                     <TableHead>Last Report</TableHead>
                     <TableHead>Errors</TableHead>
+                    <TableHead>Errors</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {diagnostics.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                         {loading ? "Loading..." : "No diagnostic data yet"}
                       </TableCell>
                     </TableRow>
@@ -194,7 +213,9 @@ const AdminDiagnostics = () => {
                               : "—"}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{row.agent_version}</Badge>
+                            <Badge variant="outline">{getPlatformLabel(row.system_info)}</Badge>
+                          </TableCell>
+                          <TableCell>
                           </TableCell>
                           <TableCell>
                             <span className="flex items-center gap-1">
@@ -216,8 +237,9 @@ const AdminDiagnostics = () => {
                           <TableCell>
                             <span className={`inline-block w-3 h-3 rounded-full ${getStatusColor(row.sound_detector_status)}`} title={row.sound_detector_status} />
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {getTimeSince(row.updated_at)}
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            <div>{formatDateTime(row.updated_at)}</div>
+                            <div className="text-[10px]">{getTimeSince(row.updated_at)}</div>
                           </TableCell>
                           <TableCell>
                             {row.recent_errors && row.recent_errors.length > 0 ? (
@@ -232,7 +254,7 @@ const AdminDiagnostics = () => {
                         </TableRow>
                         {expandedDevice === row.id && (
                           <TableRow key={`${row.id}-detail`}>
-                            <TableCell colSpan={11} className="bg-muted/30 p-4">
+                            <TableCell colSpan={12} className="bg-muted/30 p-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                   <h4 className="font-semibold mb-2">System Info</h4>
