@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.10.1 (2026-03-04)
+ * VERSION: 0.10.2 (2026-04-14)
  * 
  * CHANGELOG:
  * - v0.8.0: Baby Monitor support - enable() activates mic immediately when baby_monitor_enabled.
@@ -290,7 +290,19 @@ class MonitoringManager {
   onRendererStarted(status) {
     this.isStarting = false;
     this.isActive = true;
+
+    // Update detector statuses from renderer ACK so diagnostics reports correctly
+    if (status) {
+      if (typeof status.motion === 'boolean') {
+        this.detectorStatus.motion = status.motion;
+      }
+      if (typeof status.sound === 'boolean') {
+        this.detectorStatus.sound = status.sound;
+      }
+    }
+
     console.log('[MonitoringManager] [OK] Renderer confirmed monitoring started', status);
+    console.log('[MonitoringManager] Detector status after ACK:', this.detectorStatus);
   }
 
   /**
@@ -299,6 +311,7 @@ class MonitoringManager {
   onRendererStopped() {
     this.isStarting = false;
     this.isActive = false;
+    this.detectorStatus = { motion: false, sound: false };
     console.log('[MonitoringManager] [OK] Renderer confirmed monitoring stopped');
   }
 
@@ -308,6 +321,7 @@ class MonitoringManager {
   onRendererError(error) {
     this.isStarting = false;
     this.isActive = false;
+    this.detectorStatus = { motion: false, sound: false };
     console.log('[MonitoringManager] [FAIL] Renderer reported monitoring error:', error);
   }
 
@@ -352,6 +366,7 @@ class MonitoringManager {
 
       this.isActive = false;
       this.isStarting = false;
+      this.detectorStatus = { motion: false, sound: false };
 
       // Clear any pending events
       if (this.eventQueueTimer) {
