@@ -758,22 +758,34 @@
               'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
             );
             
-            // Create object detector
-            objectDetector = await ObjectDetector.createFromOptions(wasmFileset, {
-              baseOptions: {
-                modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
-                delegate: 'GPU',
-              },
-              runningMode: 'VIDEO',
-              maxResults: 5,
-              scoreThreshold: 0.5,
-            });
+            // Try GPU first, then fall back to CPU
+            const delegates = ['GPU', 'CPU'];
+            for (const delegate of delegates) {
+              try {
+                console.log(`[Monitoring] Trying MediaPipe with delegate: ${delegate}...`);
+                objectDetector = await ObjectDetector.createFromOptions(wasmFileset, {
+                  baseOptions: {
+                    modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite',
+                    delegate: delegate,
+                  },
+                  runningMode: 'VIDEO',
+                  maxResults: 5,
+                  scoreThreshold: 0.5,
+                });
+                
+                isDetectorReady = true;
+                console.log(`[Monitoring] ✓ Object detector initialized (delegate: ${delegate})`);
+                return true;
+              } catch (delegateError) {
+                console.warn(`[Monitoring] ✗ ${delegate} delegate failed:`, delegateError.message || delegateError);
+                if (delegate === 'CPU') throw delegateError; // both failed
+              }
+            }
             
-            isDetectorReady = true;
-            console.log('[Monitoring] ✓ Object detector initialized');
-            return true;
+            return false;
           } catch (error) {
             console.error('[Monitoring] ✗ MediaPipe initialization failed:', error);
+            console.error('[Monitoring] Error details:', error.message || error);
             return false;
           }
         }
@@ -1118,6 +1130,12 @@
                 if (!isDetectorReady) {
                   const mpResult = await loadMediaPipe();
                   console.log('[Monitoring] MediaPipe load result:', mpResult);
+                  if (!isDetectorReady) {
+                    console.error('[Monitoring] ✗ MediaPipe FAILED to load - motion detection will NOT work');
+                    console.error('[Monitoring] Camera is ON but detection loop cannot start');
+                    // Report error to main process for diagnostics
+                    window.electronAPI?.notifyMonitoringError?.('MediaPipe failed to load - detection inactive despite camera ON');
+                  }
                 }
                 
                 // Start detection loop
@@ -1126,6 +1144,16 @@
                   motionStarted = true;
                   console.log('[Monitoring] Motion detection loop started');
                   runDetectionLoop();
+                } else {
+                  console.error('[Monitoring] ✗ isDetectorReady=false - releasing camera to avoid misleading LED');
+                  // Release camera since detection won't work anyway
+                  if (monitoringStream) {
+                    monitoringStream.getTracks().forEach(t => t.stop());
+                    monitoringStream = null;
+                  }
+                  if (videoElement) {
+                    videoElement.srcObject = null;
+                  }
                 }
               }
             } else {
