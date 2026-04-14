@@ -311,6 +311,7 @@ class MonitoringManager {
   onRendererStopped() {
     this.isStarting = false;
     this.isActive = false;
+    this.detectorStatus = { motion: false, sound: false };
     console.log('[MonitoringManager] [OK] Renderer confirmed monitoring stopped');
   }
 
@@ -320,6 +321,7 @@ class MonitoringManager {
   onRendererError(error) {
     this.isStarting = false;
     this.isActive = false;
+    this.detectorStatus = { motion: false, sound: false };
     console.log('[MonitoringManager] [FAIL] Renderer reported monitoring error:', error);
   }
 
