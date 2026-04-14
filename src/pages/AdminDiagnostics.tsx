@@ -152,6 +152,8 @@ const AdminDiagnostics = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Device</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Phone</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Uptime</TableHead>
                     <TableHead>Monitoring</TableHead>
