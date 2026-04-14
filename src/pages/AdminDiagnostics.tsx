@@ -213,7 +213,9 @@ const AdminDiagnostics = () => {
                               : "—"}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{row.agent_version}</Badge>
+                            <Badge variant="outline">{getPlatformLabel(row.system_info)}</Badge>
+                          </TableCell>
+                          <TableCell>
                           </TableCell>
                           <TableCell>
                             <span className="flex items-center gap-1">
