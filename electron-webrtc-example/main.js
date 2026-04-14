@@ -35,6 +35,7 @@ const AwayManager = require('./away/away-manager');
 const MonitoringManager = require('./monitoring/monitoring-manager');
 // Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
 const LocalClipRecorder = require('./monitoring/local-clip-recorder');
+const DiagnosticsReporter = require('./monitoring/diagnostics-reporter');
 const fs = require('fs');
 
 // =============================================================================
