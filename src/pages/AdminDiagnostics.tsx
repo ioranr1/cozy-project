@@ -56,6 +56,23 @@ function getTimeSince(dateStr: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function formatDateTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleString("he-IL", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function getPlatformLabel(systemInfo: Record<string, unknown> | null): string {
+  if (!systemInfo || !systemInfo.platform) return "—";
+  const p = String(systemInfo.platform).toLowerCase();
+  if (p.includes("win")) return "🪟 WIN";
+  if (p.includes("darwin")) return "🍎 MAC";
+  if (p.includes("linux")) return "🐧 Linux";
+  return String(systemInfo.platform).toUpperCase();
+}
+
 function isStale(dateStr: string): boolean {
   return Date.now() - new Date(dateStr).getTime() > 10 * 60 * 1000; // >10 min
 }
