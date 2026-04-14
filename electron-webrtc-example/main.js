@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.46.0 (2026-04-12)
+ * VERSION: 2.47.0 (2026-04-14)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -35,6 +35,7 @@ const AwayManager = require('./away/away-manager');
 const MonitoringManager = require('./monitoring/monitoring-manager');
 // Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
 const LocalClipRecorder = require('./monitoring/local-clip-recorder');
+const DiagnosticsReporter = require('./monitoring/diagnostics-reporter');
 const fs = require('fs');
 
 // =============================================================================
@@ -52,6 +53,9 @@ const awayManager = new AwayManager({ supabase });
 
 // Initialize MonitoringManager
 const monitoringManager = new MonitoringManager({ supabase });
+
+// Initialize DiagnosticsReporter
+const diagReporter = new DiagnosticsReporter({ supabase, store });
 
 // Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
 
@@ -1031,6 +1035,9 @@ function startHeartbeat() {
 
   // Heartbeat every 10 seconds
   heartbeatInterval = setInterval(sendHeartbeat, 10000);
+
+  // Start diagnostics reporter (v2.47.0)
+  diagReporter.start(deviceId, monitoringManager);
 }
 
 async function sendHeartbeat() {
