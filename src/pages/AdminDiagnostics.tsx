@@ -82,7 +82,7 @@ const AdminDiagnostics = () => {
     try {
       const { data, error: fetchError } = await supabase
         .from("device_diagnostics")
-        .select("*, devices(device_name, profile_id, last_seen_at)")
+        .select("*, devices(device_name, profile_id, last_seen_at, profiles(full_name, phone_number, country_code))")
         .order("updated_at", { ascending: false });
 
       if (fetchError) {
