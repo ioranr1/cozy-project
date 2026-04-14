@@ -185,6 +185,14 @@ const AdminDiagnostics = () => {
                             {row.devices?.device_name || row.device_id.slice(0, 8)}
                             {stale && <span className="ml-1 text-destructive text-xs">⚠ offline</span>}
                           </TableCell>
+                          <TableCell className="text-sm">
+                            {row.devices?.profiles?.full_name || "—"}
+                          </TableCell>
+                          <TableCell className="text-sm font-mono">
+                            {row.devices?.profiles
+                              ? `${row.devices.profiles.country_code}${row.devices.profiles.phone_number}`
+                              : "—"}
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline">{row.agent_version}</Badge>
                           </TableCell>
