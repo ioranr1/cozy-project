@@ -818,6 +818,7 @@ export type Database = {
           agent_version: string
           camera_status: string
           device_id: string
+          device_mode: string
           device_name: string
           id: string
           last_seen_at: string

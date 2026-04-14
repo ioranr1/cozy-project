@@ -26,6 +26,7 @@ interface DiagnosticRow {
   user_full_name: string | null;
   user_phone: string | null;
   user_country_code: string | null;
+  device_mode: string | null;
 }
 
 function formatUptime(seconds: number): string {
@@ -243,6 +244,7 @@ const AdminDiagnostics = () => {
                     <TableHead>OS</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Uptime</TableHead>
+                    <TableHead>Away</TableHead>
                     <TableHead>Monitoring</TableHead>
                     <TableHead>Camera</TableHead>
                     <TableHead>Motion</TableHead>
@@ -255,7 +257,7 @@ const AdminDiagnostics = () => {
                 <TableBody>
                   {diagnostics.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={13} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
                         {loading ? "Loading..." : "No diagnostic data yet"}
                       </TableCell>
                     </TableRow>
@@ -292,6 +294,11 @@ const AdminDiagnostics = () => {
                               <Clock className="h-3 w-3" />
                               {formatUptime(row.uptime_seconds)}
                             </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={row.device_mode === "AWAY" ? "default" : "secondary"}>
+                              {row.device_mode === "AWAY" ? "AWAY" : "OFF"}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant={row.monitoring_active ? "default" : "secondary"}>
@@ -338,7 +345,7 @@ const AdminDiagnostics = () => {
                         </TableRow>
                         {expandedDevice === row.id && (
                           <TableRow key={`${row.id}-detail`}>
-                            <TableCell colSpan={13} className="bg-muted/30 p-4">
+                            <TableCell colSpan={14} className="bg-muted/30 p-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                   <h4 className="font-semibold mb-2">System Info</h4>
