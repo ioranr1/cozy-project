@@ -21,7 +21,12 @@ interface DiagnosticRow {
   system_info: Record<string, unknown>;
   recent_errors: Array<{ ts: string; source: string; message: string }>;
   updated_at: string;
-  devices?: { device_name: string; profile_id: string; last_seen_at: string | null };
+  devices?: {
+    device_name: string;
+    profile_id: string;
+    last_seen_at: string | null;
+    profiles?: { full_name: string; phone_number: string; country_code: string };
+  };
 }
 
 function formatUptime(seconds: number): string {
@@ -77,7 +82,7 @@ const AdminDiagnostics = () => {
     try {
       const { data, error: fetchError } = await supabase
         .from("device_diagnostics")
-        .select("*, devices(device_name, profile_id, last_seen_at)")
+        .select("*, devices(device_name, profile_id, last_seen_at, profiles(full_name, phone_number, country_code))")
         .order("updated_at", { ascending: false });
 
       if (fetchError) {
@@ -147,6 +152,8 @@ const AdminDiagnostics = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Device</TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Phone</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Uptime</TableHead>
                     <TableHead>Monitoring</TableHead>
@@ -160,7 +167,7 @@ const AdminDiagnostics = () => {
                 <TableBody>
                   {diagnostics.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         {loading ? "Loading..." : "No diagnostic data yet"}
                       </TableCell>
                     </TableRow>
@@ -177,6 +184,14 @@ const AdminDiagnostics = () => {
                           <TableCell className="font-medium">
                             {row.devices?.device_name || row.device_id.slice(0, 8)}
                             {stale && <span className="ml-1 text-destructive text-xs">⚠ offline</span>}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {row.devices?.profiles?.full_name || "—"}
+                          </TableCell>
+                          <TableCell className="text-sm font-mono">
+                            {row.devices?.profiles
+                              ? `${row.devices.profiles.country_code}${row.devices.profiles.phone_number}`
+                              : "—"}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{row.agent_version}</Badge>
@@ -217,7 +232,7 @@ const AdminDiagnostics = () => {
                         </TableRow>
                         {expandedDevice === row.id && (
                           <TableRow key={`${row.id}-detail`}>
-                            <TableCell colSpan={9} className="bg-muted/30 p-4">
+                            <TableCell colSpan={11} className="bg-muted/30 p-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                   <h4 className="font-semibold mb-2">System Info</h4>
