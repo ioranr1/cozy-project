@@ -94,8 +94,8 @@ class DiagnosticsReporter {
         motionDetectorStatus = detectors.motion ? 'active' : 'idle';
         soundDetectorStatus = detectors.sound ? 'active' : 'idle';
         
-        // Camera status: if monitoring is active and motion detector is running, camera is in use
-        if (monitoringActive && detectors.motion) {
+        // Camera status: active if any sensor that uses camera is running
+        if (monitoringActive && (detectors.motion || detectors.sound)) {
           cameraStatus = 'active';
         } else if (monitoringActive) {
           cameraStatus = 'idle';
