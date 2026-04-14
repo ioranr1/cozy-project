@@ -254,7 +254,7 @@ const AdminDiagnostics = () => {
                         </TableRow>
                         {expandedDevice === row.id && (
                           <TableRow key={`${row.id}-detail`}>
-                            <TableCell colSpan={11} className="bg-muted/30 p-4">
+                            <TableCell colSpan={12} className="bg-muted/30 p-4">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                   <h4 className="font-semibold mb-2">System Info</h4>
