@@ -107,9 +107,7 @@ const AdminDiagnostics = () => {
     setLoading(true);
     try {
       const { data, error: fetchError } = await supabase
-        .from("device_diagnostics")
-        .select("*, devices(device_name, profile_id, last_seen_at, profiles(full_name, phone_number, country_code))")
-        .order("updated_at", { ascending: false });
+        .rpc("get_diagnostics_with_profiles");
 
       if (fetchError) {
         console.error("Fetch error:", fetchError);
