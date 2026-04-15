@@ -346,12 +346,39 @@ const AdminDiagnostics = () => {
                         {expandedDevice === row.id && (
                           <TableRow key={`${row.id}-detail`}>
                             <TableCell colSpan={14} className="bg-muted/30 p-4">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                   <h4 className="font-semibold mb-2">System Info</h4>
                                   <pre className="text-xs bg-background p-3 rounded overflow-auto max-h-40">
                                     {JSON.stringify(row.system_info, null, 2)}
                                   </pre>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold mb-2">Motion Frame Stats</h4>
+                                  {(() => {
+                                    const si = row.system_info as Record<string, unknown> | null;
+                                    const frames = si?.motion_frames_processed as number | undefined;
+                                    if (frames === undefined) {
+                                      return <p className="text-xs text-muted-foreground">Not available (agent &lt; v2.51.0)</p>;
+                                    }
+                                    const detections = (si?.motion_detections_found as number) || 0;
+                                    const skipped = (si?.motion_frames_skipped as number) || 0;
+                                    const delegate = (si?.motion_delegate as string) || '?';
+                                    const confirmed = si?.motion_inference_confirmed as boolean;
+                                    const errors = (si?.motion_consecutive_errors as number) || 0;
+                                    return (
+                                      <div className="space-y-1 text-xs">
+                                        <div className="flex justify-between"><span>Frames processed:</span><span className="font-mono font-bold">{frames}</span></div>
+                                        <div className="flex justify-between"><span>Detections found:</span><span className="font-mono font-bold">{detections}</span></div>
+                                        <div className="flex justify-between"><span>Frames skipped (video not ready):</span><span className="font-mono">{skipped}</span></div>
+                                        <div className="flex justify-between"><span>Delegate:</span><span className="font-mono">{delegate}</span></div>
+                                        <div className="flex justify-between"><span>Inference confirmed:</span><span>{confirmed ? '✅' : '❌'}</span></div>
+                                        <div className="flex justify-between"><span>Consecutive errors:</span><span className="font-mono">{errors}</span></div>
+                                        {frames === 0 && <p className="text-destructive font-semibold mt-2">⚠ Zero frames — video element likely not playing</p>}
+                                        {frames > 0 && detections === 0 && <p className="text-yellow-500 font-semibold mt-2">⚠ Frames OK but zero detections — GPU may produce empty results</p>}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                                 <div>
                                   <h4 className="font-semibold mb-2">Recent Errors ({row.recent_errors?.length || 0})</h4>
