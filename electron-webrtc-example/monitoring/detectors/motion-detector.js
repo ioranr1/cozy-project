@@ -1,7 +1,7 @@
 /**
  * Motion Detector - MediaPipe Tasks Vision Integration
  * =====================================================
- * VERSION: 0.3.0 (2026-04-14)
+ * VERSION: 0.4.0 (2026-04-15)
  * 
  * Runs in Electron RENDERER process.
  * Uses MediaPipe Object Detection for local detection (person, animal, vehicle).
