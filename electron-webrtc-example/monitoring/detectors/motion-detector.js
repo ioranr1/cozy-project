@@ -79,6 +79,11 @@ class MotionDetector {
     this.currentDelegate = options.delegate || 'GPU';
     this.fallbackAttempted = false;
     
+    // Diagnostic counters (read-only, never affect logic)
+    this.framesProcessed = 0;
+    this.detectionsFound = 0;
+    this.framesSkipped = 0; // video not ready
+    
     console.log('[MotionDetector] Created with options:', this.options);
   }
 
@@ -230,6 +235,8 @@ class MotionDetector {
       // Only process if video is playing
       if (this.videoElement.readyState >= 2 && !this.videoElement.paused) {
         this.processFrame(now);
+      } else {
+        this.framesSkipped++;
       }
     }
 
@@ -241,6 +248,7 @@ class MotionDetector {
    * Process a single video frame
    */
   processFrame(timestamp) {
+    this.framesProcessed++;
     try {
       const detections = this.detector.detectForVideo(this.videoElement, timestamp);
       
@@ -260,6 +268,7 @@ class MotionDetector {
       }
       
       if (detections && detections.detections.length > 0) {
+        this.detectionsFound += detections.detections.length;
         this.processDetections(detections.detections);
       }
     } catch (error) {
@@ -435,6 +444,13 @@ class MotionDetector {
       hasVideo: !!this.videoElement,
       targets: Array.from(this.targetLabels),
       threshold: this.options.scoreThreshold,
+      // Diagnostic counters
+      framesProcessed: this.framesProcessed,
+      detectionsFound: this.detectionsFound,
+      framesSkipped: this.framesSkipped,
+      delegate: this.currentDelegate,
+      inferenceConfirmed: this.inferenceConfirmed,
+      consecutiveErrors: this.consecutiveErrors,
     };
   }
 
