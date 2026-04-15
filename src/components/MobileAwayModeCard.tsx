@@ -424,28 +424,34 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     }
   };
 
-  // CRITICAL FIX: Away mode is only valid when device is online
-  // If device is offline/sleeping, we show the stored mode but indicate unavailability
+  // SSOT: device_mode from DB determines AWAY state, NOT connection status
   const isDeviceReachable = connectionStatus === 'online';
-  const isAway = deviceMode === 'AWAY' && isDeviceReachable;
+  const isAway = deviceMode === 'AWAY';
+  const isAwayButUnreachable = isAway && !isDeviceReachable;
   const isPending = pendingMode !== null || isCommandLoading;
   const showError = commandState.status === 'failed' || commandState.status === 'timeout';
 
   // Get status label - must be defined before any conditional returns
   const getStatusLabel = () => {
     if (isPending) return t.statusPending;
-    if (connectionStatus === 'offline') return t.statusOffline;
-    if (connectionStatus === 'sleeping') return t.statusSleeping;
-    // Only show "Away Active" if device is actually reachable
-    if (deviceMode === 'AWAY' && isDeviceReachable) return t.statusAwayActive;
+    if (isAwayButUnreachable && connectionStatus === 'sleeping') {
+      return language === 'he' ? 'Away פעיל • שינה' : 'Away Active • Sleeping';
+    }
+    if (isAwayButUnreachable && connectionStatus === 'offline') {
+      return language === 'he' ? 'Away פעיל • לא זמין' : 'Away Active • Unavailable';
+    }
+    if (connectionStatus === 'offline' && !isAway) return t.statusOffline;
+    if (connectionStatus === 'sleeping' && !isAway) return t.statusSleeping;
+    if (isAway && isDeviceReachable) return t.statusAwayActive;
     return t.statusNormal;
   };
 
   // Get status color - must be defined before any conditional returns
   const getStatusColor = () => {
     if (isPending) return 'text-blue-400';
-    if (connectionStatus === 'offline') return 'text-red-400';
-    if (connectionStatus === 'sleeping') return 'text-yellow-400';
+    if (isAwayButUnreachable) return 'text-orange-400';
+    if (connectionStatus === 'offline' && !isAway) return 'text-red-400';
+    if (connectionStatus === 'sleeping' && !isAway) return 'text-yellow-400';
     if (isAway) return 'text-amber-400';
     return 'text-slate-500';
   };
