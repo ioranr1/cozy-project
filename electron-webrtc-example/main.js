@@ -2155,9 +2155,19 @@ function setupIpcHandlers() {
     monitoringIpcEvents.emit('error', error);
   });
 
-  // Monitoring status update
+  // Monitoring status update (includes frame counters for diagnostics)
   ipcMain.on('monitoring-status', (event, status) => {
-    console.log('[IPC] Monitoring status:', status);
+    console.log('[IPC] Monitoring status:', JSON.stringify(status?.motion ? {
+      framesProcessed: status.motion.framesProcessed,
+      detectionsFound: status.motion.detectionsFound,
+      framesSkipped: status.motion.framesSkipped,
+      delegate: status.motion.delegate,
+      inferenceConfirmed: status.motion.inferenceConfirmed,
+    } : 'no-motion-data'));
+    // Store on monitoring manager for diagnostics reporter to read
+    if (monitoringManager && status) {
+      monitoringManager._rendererFrameStats = status.motion || null;
+    }
   });
 
   // Sound detection IPC handlers removed (v2.14.0) - replaced by Baby Monitor mode

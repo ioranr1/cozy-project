@@ -480,9 +480,32 @@ class RendererMonitoringController {
   }
 
   /**
+   * Start periodic status push (diagnostic counters)
+   */
+  _startPeriodicStatus() {
+    this._stopPeriodicStatus();
+    this._statusInterval = setInterval(() => {
+      if (this.isMonitoring) {
+        this.notifyStatus();
+      }
+    }, 60000); // Every 60 seconds
+  }
+
+  /**
+   * Stop periodic status push
+   */
+  _stopPeriodicStatus() {
+    if (this._statusInterval) {
+      clearInterval(this._statusInterval);
+      this._statusInterval = null;
+    }
+  }
+
+  /**
    * Cleanup all resources
    */
   dispose() {
+    this._stopPeriodicStatus();
     this.stopMonitoring();
     
     if (this.motionDetector) {

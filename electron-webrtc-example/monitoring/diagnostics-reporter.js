@@ -118,6 +118,17 @@ class DiagnosticsReporter {
         nodeVersion: process.version,
       };
 
+      // Include renderer frame stats if available (diagnostic counters)
+      const frameStats = this._monitoringManager?._rendererFrameStats || null;
+      if (frameStats) {
+        systemInfo.motion_frames_processed = frameStats.framesProcessed || 0;
+        systemInfo.motion_detections_found = frameStats.detectionsFound || 0;
+        systemInfo.motion_frames_skipped = frameStats.framesSkipped || 0;
+        systemInfo.motion_delegate = frameStats.delegate || 'unknown';
+        systemInfo.motion_inference_confirmed = frameStats.inferenceConfirmed || false;
+        systemInfo.motion_consecutive_errors = frameStats.consecutiveErrors || 0;
+      }
+
       const payload = {
         device_id: this._deviceId,
         agent_version: pkg.version || '0.0.0',
