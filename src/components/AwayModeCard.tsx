@@ -400,12 +400,12 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
         }`}>
           {isUpdating ? (
             <Loader2 className="w-7 h-7 text-white animate-spin" />
+          ) : isAway ? (
+            <Home className="w-7 h-7 text-white" />
           ) : connectionStatus === 'offline' ? (
             <WifiOff className="w-7 h-7 text-red-400" />
           ) : connectionStatus === 'sleeping' ? (
             <Moon className="w-7 h-7 text-yellow-400" />
-          ) : isAway ? (
-            <Home className="w-7 h-7 text-white" />
           ) : (
             <HomeIcon className="w-7 h-7 text-slate-400" />
           )}
@@ -460,11 +460,23 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
       )}
 
       {/* Active Status Bar */}
-      {isAway && !lastError && (
+      {isAway && !lastError && !isAwayButUnreachable && (
         <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg">
           <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
           <span className="text-amber-400 text-xs">
             {t.activeMessage}
+          </span>
+        </div>
+      )}
+
+      {/* Away active but unreachable warning */}
+      {isAwayButUnreachable && !lastError && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+          <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
+          <span className="text-orange-400 text-xs">
+            {language === 'he' 
+              ? 'Away פעיל אך המחשב אינו זמין כרגע - הניטור יחודש כשהמחשב יתחבר מחדש' 
+              : 'Away active but computer currently unavailable - monitoring will resume when reconnected'}
           </span>
         </div>
       )}
