@@ -1,7 +1,7 @@
 /**
  * Renderer Monitoring Controller
  * ===============================
- * VERSION: 1.4.0 (2026-04-14)
+ * VERSION: 1.5.0 (2026-04-15)
  * 
  * CHANGELOG:
  * - v1.3.0: FIX - updateConfig() now creates videoElement when switching from sound-only to motion
@@ -42,6 +42,9 @@ class RendererMonitoringController {
       motionRunning: false,
       soundRunning: false,
     };
+    
+    // Periodic status push interval (diagnostic only)
+    this._statusInterval = null;
     
     console.log('[RendererMonitoring] Controller created');
   }
@@ -185,6 +188,9 @@ class RendererMonitoringController {
       this.isMonitoring = true;
       this.notifyStatus();
       
+      // Start periodic status push (every 60s) for frame counter diagnostics
+      this._startPeriodicStatus();
+      
       // Notify main process
       window.electronAPI?.notifyMonitoringStarted?.({
         motion: this.status.motionRunning,
@@ -230,6 +236,7 @@ class RendererMonitoringController {
     }
 
     this.isMonitoring = false;
+    this._stopPeriodicStatus();
     this.notifyStatus();
     
     // Notify main process
@@ -473,9 +480,32 @@ class RendererMonitoringController {
   }
 
   /**
+   * Start periodic status push (diagnostic counters)
+   */
+  _startPeriodicStatus() {
+    this._stopPeriodicStatus();
+    this._statusInterval = setInterval(() => {
+      if (this.isMonitoring) {
+        this.notifyStatus();
+      }
+    }, 60000); // Every 60 seconds
+  }
+
+  /**
+   * Stop periodic status push
+   */
+  _stopPeriodicStatus() {
+    if (this._statusInterval) {
+      clearInterval(this._statusInterval);
+      this._statusInterval = null;
+    }
+  }
+
+  /**
    * Cleanup all resources
    */
   dispose() {
+    this._stopPeriodicStatus();
     this.stopMonitoring();
     
     if (this.motionDetector) {
