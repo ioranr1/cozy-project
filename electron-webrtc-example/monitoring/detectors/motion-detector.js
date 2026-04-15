@@ -1,7 +1,7 @@
 /**
  * Motion Detector - MediaPipe Tasks Vision Integration
  * =====================================================
- * VERSION: 0.3.0 (2026-04-14)
+ * VERSION: 0.4.0 (2026-04-15)
  * 
  * Runs in Electron RENDERER process.
  * Uses MediaPipe Object Detection for local detection (person, animal, vehicle).
@@ -71,6 +71,13 @@ class MotionDetector {
     // Detection loop timing
     this.detectionIntervalMs = options.detectionIntervalMs || 200; // 5 FPS for detection
     this.lastFrameTime = 0;
+    
+    // Inference error tracking for runtime fallback
+    this.consecutiveErrors = 0;
+    this.maxConsecutiveErrors = 10;
+    this.inferenceConfirmed = false;
+    this.currentDelegate = options.delegate || 'GPU';
+    this.fallbackAttempted = false;
     
     console.log('[MotionDetector] Created with options:', this.options);
   }
@@ -237,11 +244,102 @@ class MotionDetector {
     try {
       const detections = this.detector.detectForVideo(this.videoElement, timestamp);
       
+      // Reset error counter on success
+      if (this.consecutiveErrors > 0) {
+        console.log(`[MotionDetector] ✓ Inference recovered after ${this.consecutiveErrors} errors`);
+        this.consecutiveErrors = 0;
+      }
+      
+      // Log first successful inference once
+      if (!this.inferenceConfirmed) {
+        this.inferenceConfirmed = true;
+        console.log(`[MotionDetector] ✓ First inference OK (delegate: ${this.currentDelegate})`);
+        if (window.electronAPI?.notifyDetectorError) {
+          window.electronAPI.notifyDetectorError('motion', `inference_ok:${this.currentDelegate}`);
+        }
+      }
+      
       if (detections && detections.detections.length > 0) {
         this.processDetections(detections.detections);
       }
     } catch (error) {
-      console.error('[MotionDetector] Frame processing error:', error);
+      this.consecutiveErrors++;
+      
+      // Log every error (not just the first)
+      console.error(`[MotionDetector] Inference error #${this.consecutiveErrors}:`, error.message);
+      
+      // Report to diagnostics every 5 errors
+      if (this.consecutiveErrors % 5 === 0 && window.electronAPI?.notifyDetectorError) {
+        window.electronAPI.notifyDetectorError('motion', `inference_fail_x${this.consecutiveErrors}:${this.currentDelegate}:${error.message}`);
+      }
+      
+      // After maxConsecutiveErrors, attempt CPU fallback
+      if (this.consecutiveErrors >= this.maxConsecutiveErrors && !this.fallbackAttempted) {
+        this.fallbackAttempted = true;
+        console.warn(`[MotionDetector] ⚠️ ${this.maxConsecutiveErrors} consecutive inference failures — attempting CPU fallback...`);
+        this.attemptCpuFallback();
+      }
+      
+      // If fallback was already tried and still failing, release camera
+      if (this.consecutiveErrors >= this.maxConsecutiveErrors * 2 && this.fallbackAttempted) {
+        console.error('[MotionDetector] ✗ CPU fallback also failing — stopping detection');
+        if (window.electronAPI?.notifyDetectorError) {
+          window.electronAPI.notifyDetectorError('motion', `all_delegates_failed:${error.message}`);
+        }
+        if (window.electronAPI?.notifyMediaPipeFailed) {
+          window.electronAPI.notifyMediaPipeFailed();
+        }
+        this.stop();
+      }
+    }
+  }
+
+  /**
+   * Attempt runtime fallback from GPU to CPU delegate
+   */
+  async attemptCpuFallback() {
+    try {
+      console.log('[MotionDetector] 🔄 Reinitializing detector with CPU delegate...');
+      
+      // Close existing detector
+      if (this.detector) {
+        this.detector.close();
+        this.detector = null;
+      }
+      
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
+      );
+      
+      this.detector = await ObjectDetector.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: this.options.modelPath,
+          delegate: 'CPU',
+        },
+        runningMode: 'VIDEO',
+        maxResults: this.options.maxResults,
+        scoreThreshold: this.options.scoreThreshold,
+      });
+      
+      this.currentDelegate = 'CPU';
+      this.consecutiveErrors = 0;
+      this.inferenceConfirmed = false;
+      
+      console.log('[MotionDetector] ✓ CPU fallback initialized successfully');
+      
+      if (window.electronAPI?.notifyDetectorError) {
+        window.electronAPI.notifyDetectorError('motion', 'runtime_fallback_to_CPU_ok');
+      }
+    } catch (cpuError) {
+      console.error('[MotionDetector] ✗ CPU fallback failed:', cpuError.message);
+      
+      if (window.electronAPI?.notifyDetectorError) {
+        window.electronAPI.notifyDetectorError('motion', `runtime_cpu_fallback_failed:${cpuError.message}`);
+      }
+      if (window.electronAPI?.notifyMediaPipeFailed) {
+        window.electronAPI.notifyMediaPipeFailed();
+      }
+      this.stop();
     }
   }
 
