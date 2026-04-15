@@ -424,28 +424,34 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     }
   };
 
-  // CRITICAL FIX: Away mode is only valid when device is online
-  // If device is offline/sleeping, we show the stored mode but indicate unavailability
+  // SSOT: device_mode from DB determines AWAY state, NOT connection status
   const isDeviceReachable = connectionStatus === 'online';
-  const isAway = deviceMode === 'AWAY' && isDeviceReachable;
+  const isAway = deviceMode === 'AWAY';
+  const isAwayButUnreachable = isAway && !isDeviceReachable;
   const isPending = pendingMode !== null || isCommandLoading;
   const showError = commandState.status === 'failed' || commandState.status === 'timeout';
 
   // Get status label - must be defined before any conditional returns
   const getStatusLabel = () => {
     if (isPending) return t.statusPending;
-    if (connectionStatus === 'offline') return t.statusOffline;
-    if (connectionStatus === 'sleeping') return t.statusSleeping;
-    // Only show "Away Active" if device is actually reachable
-    if (deviceMode === 'AWAY' && isDeviceReachable) return t.statusAwayActive;
+    if (isAwayButUnreachable && connectionStatus === 'sleeping') {
+      return language === 'he' ? 'Away פעיל • שינה' : 'Away Active • Sleeping';
+    }
+    if (isAwayButUnreachable && connectionStatus === 'offline') {
+      return language === 'he' ? 'Away פעיל • לא זמין' : 'Away Active • Unavailable';
+    }
+    if (connectionStatus === 'offline' && !isAway) return t.statusOffline;
+    if (connectionStatus === 'sleeping' && !isAway) return t.statusSleeping;
+    if (isAway && isDeviceReachable) return t.statusAwayActive;
     return t.statusNormal;
   };
 
   // Get status color - must be defined before any conditional returns
   const getStatusColor = () => {
     if (isPending) return 'text-blue-400';
-    if (connectionStatus === 'offline') return 'text-red-400';
-    if (connectionStatus === 'sleeping') return 'text-yellow-400';
+    if (isAwayButUnreachable) return 'text-orange-400';
+    if (connectionStatus === 'offline' && !isAway) return 'text-red-400';
+    if (connectionStatus === 'sleeping' && !isAway) return 'text-yellow-400';
     if (isAway) return 'text-amber-400';
     return 'text-slate-500';
   };
@@ -464,7 +470,9 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
   return (
     <div className={`bg-gradient-to-br ${
       isAway 
-        ? 'from-amber-600/20 to-orange-800/20 border-amber-500/30' 
+        ? isAwayButUnreachable
+          ? 'from-orange-600/20 to-amber-800/20 border-orange-500/30'
+          : 'from-amber-600/20 to-orange-800/20 border-amber-500/30' 
         : connectionStatus === 'offline'
           ? 'from-red-900/20 to-slate-800/20 border-red-500/30'
           : connectionStatus === 'sleeping'
@@ -484,12 +492,12 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
         }`}>
           {isPending ? (
             <Loader2 className="w-6 h-6 text-white animate-spin" />
+          ) : isAway ? (
+            <Home className="w-6 h-6 text-white" />
           ) : connectionStatus === 'offline' ? (
             <WifiOff className="w-6 h-6 text-red-400" />
           ) : connectionStatus === 'sleeping' ? (
             <Moon className="w-6 h-6 text-yellow-400" />
-          ) : isAway ? (
-            <Home className="w-6 h-6 text-white" />
           ) : (
             <HomeIcon className="w-6 h-6 text-slate-400" />
           )}
@@ -551,8 +559,8 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
         </div>
       )}
 
-      {/* CRITICAL: Offline warning - Security NOT monitored! */}
-      {connectionStatus === 'offline' && !isPending && !showError && (
+      {/* CRITICAL: Offline warning when NOT in AWAY mode */}
+      {connectionStatus === 'offline' && !isAway && !isPending && !showError && (
         <div className="flex flex-col gap-2 px-3 py-3 bg-red-500/20 border-2 border-red-500/50 rounded-lg">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-red-400 animate-pulse" />
@@ -569,8 +577,8 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
         </div>
       )}
 
-      {/* CRITICAL: Sleeping warning - Security NOT monitored! */}
-      {connectionStatus === 'sleeping' && !isPending && !showError && (
+      {/* CRITICAL: Sleeping warning when NOT in AWAY mode */}
+      {connectionStatus === 'sleeping' && !isAway && !isPending && !showError && (
         <div className="flex flex-col gap-2 px-3 py-3 bg-yellow-500/20 border-2 border-yellow-500/50 rounded-lg">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-yellow-400 animate-pulse" />
@@ -587,10 +595,9 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
         </div>
       )}
 
-      {/* SENSOR STATUS INDICATOR - Shows active sensors (camera/mic) */}
-      {isAway && !isPending && !showError && (
+      {/* SENSOR STATUS - Away active and reachable */}
+      {isAway && !isAwayButUnreachable && !isPending && !showError && (
         <div className="space-y-2">
-          {/* Away mode active */}
           <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg">
             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
             <span className="text-amber-400 text-xs flex-1">
@@ -603,6 +610,25 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
               isArmed={securityStatus.security_enabled}
             />
           </div>
+        </div>
+      )}
+
+      {/* Away active but unreachable warning */}
+      {isAwayButUnreachable && !isPending && !showError && (
+        <div className="flex flex-col gap-2 px-3 py-3 bg-orange-500/15 border border-orange-500/40 rounded-lg">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-orange-400" />
+            <span className="text-orange-300 text-sm font-semibold">
+              {language === 'he' 
+                ? 'Away פעיל • המחשב לא זמין' 
+                : 'Away Active • PC Unavailable'}
+            </span>
+          </div>
+          <span className="text-orange-400/80 text-xs">
+            {language === 'he' 
+              ? 'הניטור יחודש אוטומטית כשהמחשב יתחבר מחדש' 
+              : 'Monitoring will resume automatically when reconnected'}
+          </span>
         </div>
       )}
 

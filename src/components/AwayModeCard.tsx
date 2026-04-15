@@ -325,33 +325,40 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
     // On success, the DB will be updated by Electron and we'll get the realtime update
   };
 
-  // CRITICAL FIX: Away mode is only valid when device is online
-  // If device is offline/sleeping, show the unavailability status instead
+  // SSOT: device_mode from DB determines AWAY state, NOT connection status
   const isDeviceReachable = connectionStatus === 'online';
-  const isAway = deviceMode === 'AWAY' && isDeviceReachable;
+  const isAway = deviceMode === 'AWAY';
+  const isAwayButUnreachable = isAway && !isDeviceReachable;
 
   // Get status label based on current state
   const getStatusLabel = () => {
     if (isUpdating) return t.updating;
-    if (connectionStatus === 'offline') return t.statusOffline;
-    if (connectionStatus === 'sleeping') return t.statusSleeping;
-    // Only show "Away Active" if device is actually reachable
-    if (deviceMode === 'AWAY' && isDeviceReachable) return t.statusAwayActive;
+    if (isAwayButUnreachable && connectionStatus === 'sleeping') {
+      return language === 'he' ? 'Away פעיל • המחשב במצב שינה' : 'Away Active • PC Sleeping';
+    }
+    if (isAwayButUnreachable && connectionStatus === 'offline') {
+      return language === 'he' ? 'Away פעיל • המחשב לא זמין' : 'Away Active • PC Unavailable';
+    }
+    if (connectionStatus === 'offline' && !isAway) return t.statusOffline;
+    if (connectionStatus === 'sleeping' && !isAway) return t.statusSleeping;
+    if (isAway && isDeviceReachable) return t.statusAwayActive;
     return t.statusNormal;
   };
 
   // Get status color
   const getStatusColor = () => {
-    if (connectionStatus === 'offline') return 'text-red-400';
-    if (connectionStatus === 'sleeping') return 'text-yellow-400';
+    if (isAwayButUnreachable) return 'text-orange-400';
+    if (connectionStatus === 'offline' && !isAway) return 'text-red-400';
+    if (connectionStatus === 'sleeping' && !isAway) return 'text-yellow-400';
     if (isAway) return 'text-amber-400';
     return 'text-slate-500';
   };
 
   // Get status icon
   const getStatusIcon = () => {
-    if (connectionStatus === 'offline') return <WifiOff className="w-3 h-3" />;
-    if (connectionStatus === 'sleeping') return <Moon className="w-3 h-3" />;
+    if (isAwayButUnreachable) return <AlertTriangle className="w-3 h-3" />;
+    if (connectionStatus === 'offline' && !isAway) return <WifiOff className="w-3 h-3" />;
+    if (connectionStatus === 'sleeping' && !isAway) return <Moon className="w-3 h-3" />;
     if (isAway) return <CheckCircle className="w-3 h-3" />;
     return null;
   };
@@ -371,7 +378,9 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
   return (
     <div className={`bg-gradient-to-br ${
       isAway 
-        ? 'from-amber-600/20 to-orange-800/20 border-amber-500/30' 
+        ? isAwayButUnreachable
+          ? 'from-orange-600/20 to-amber-800/20 border-orange-500/30'
+          : 'from-amber-600/20 to-orange-800/20 border-amber-500/30' 
         : connectionStatus === 'offline'
           ? 'from-red-900/20 to-slate-800/20 border-red-500/30'
           : connectionStatus === 'sleeping'
@@ -391,12 +400,12 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
         }`}>
           {isUpdating ? (
             <Loader2 className="w-7 h-7 text-white animate-spin" />
+          ) : isAway ? (
+            <Home className="w-7 h-7 text-white" />
           ) : connectionStatus === 'offline' ? (
             <WifiOff className="w-7 h-7 text-red-400" />
           ) : connectionStatus === 'sleeping' ? (
             <Moon className="w-7 h-7 text-yellow-400" />
-          ) : isAway ? (
-            <Home className="w-7 h-7 text-white" />
           ) : (
             <HomeIcon className="w-7 h-7 text-slate-400" />
           )}
@@ -451,11 +460,23 @@ export const AwayModeCard = forwardRef<HTMLDivElement, AwayModeCardProps>(({ cla
       )}
 
       {/* Active Status Bar */}
-      {isAway && !lastError && (
+      {isAway && !lastError && !isAwayButUnreachable && (
         <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 rounded-lg">
           <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
           <span className="text-amber-400 text-xs">
             {t.activeMessage}
+          </span>
+        </div>
+      )}
+
+      {/* Away active but unreachable warning */}
+      {isAwayButUnreachable && !lastError && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-orange-500/10 border border-orange-500/30 rounded-lg">
+          <AlertTriangle className="w-3.5 h-3.5 text-orange-400" />
+          <span className="text-orange-400 text-xs">
+            {language === 'he' 
+              ? 'Away פעיל אך המחשב אינו זמין כרגע - הניטור יחודש כשהמחשב יתחבר מחדש' 
+              : 'Away active but computer currently unavailable - monitoring will resume when reconnected'}
           </span>
         </div>
       )}
