@@ -252,6 +252,7 @@ const AdminDiagnostics = () => {
                     <TableHead>Motion</TableHead>
                     <TableHead>Sound</TableHead>
                     <TableHead>Last Report</TableHead>
+                    <TableHead>Events</TableHead>
                     <TableHead>Errors</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
