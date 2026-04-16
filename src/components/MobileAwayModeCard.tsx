@@ -146,9 +146,11 @@ export const MobileAwayModeCard = forwardRef<HTMLDivElement, MobileAwayModeCardP
     const now = new Date();
     const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
 
-    if (diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS) {
+    // Grace period of 30s to absorb clock drift between phone and server
+    const GRACE_SECONDS = 30;
+    if (diffSeconds <= DEVICE_ONLINE_THRESHOLD_SECONDS + GRACE_SECONDS) {
       setConnectionStatus('online');
-    } else if (diffSeconds <= 300) {
+    } else if (diffSeconds <= 300 + GRACE_SECONDS) {
       setConnectionStatus('sleeping');
     } else {
       setConnectionStatus('offline');
