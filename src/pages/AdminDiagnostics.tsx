@@ -27,6 +27,8 @@ interface DiagnosticRow {
   user_phone: string | null;
   user_country_code: string | null;
   device_mode: string | null;
+  total_events: number;
+  events_24h: number;
 }
 
 function formatUptime(seconds: number): string {
@@ -250,6 +252,7 @@ const AdminDiagnostics = () => {
                     <TableHead>Motion</TableHead>
                     <TableHead>Sound</TableHead>
                     <TableHead>Last Report</TableHead>
+                    <TableHead>Events</TableHead>
                     <TableHead>Errors</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
@@ -257,7 +260,7 @@ const AdminDiagnostics = () => {
                 <TableBody>
                   {diagnostics.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={14} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={15} className="text-center text-muted-foreground py-8">
                         {loading ? "Loading..." : "No diagnostic data yet"}
                       </TableCell>
                     </TableRow>
@@ -319,6 +322,16 @@ const AdminDiagnostics = () => {
                             <div className="text-[10px]">{getTimeSince(row.updated_at)}</div>
                           </TableCell>
                           <TableCell>
+                            <div className="text-center">
+                              <span className={`font-mono font-bold ${row.total_events === 0 && row.monitoring_active ? 'text-destructive' : ''}`}>
+                                {row.total_events}
+                              </span>
+                              <div className="text-[10px] text-muted-foreground">
+                                24h: {row.events_24h}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             {row.recent_errors && row.recent_errors.length > 0 ? (
                               <Badge variant="destructive" className="gap-1">
                                 <AlertTriangle className="h-3 w-3" />
@@ -345,7 +358,7 @@ const AdminDiagnostics = () => {
                         </TableRow>
                         {expandedDevice === row.id && (
                           <TableRow key={`${row.id}-detail`}>
-                            <TableCell colSpan={14} className="bg-muted/30 p-4">
+                            <TableCell colSpan={15} className="bg-muted/30 p-4">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                   <h4 className="font-semibold mb-2">System Info</h4>
