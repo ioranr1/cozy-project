@@ -322,6 +322,16 @@ const AdminDiagnostics = () => {
                             <div className="text-[10px]">{getTimeSince(row.updated_at)}</div>
                           </TableCell>
                           <TableCell>
+                            <div className="text-center">
+                              <span className={`font-mono font-bold ${row.total_events === 0 && row.monitoring_active ? 'text-destructive' : ''}`}>
+                                {row.total_events}
+                              </span>
+                              <div className="text-[10px] text-muted-foreground">
+                                24h: {row.events_24h}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
                             {row.recent_errors && row.recent_errors.length > 0 ? (
                               <Badge variant="destructive" className="gap-1">
                                 <AlertTriangle className="h-3 w-3" />
