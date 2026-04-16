@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.49.0 (2026-04-14)
+ * VERSION: 2.52.0 (2026-04-16)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -941,7 +941,21 @@ async function fetchAndSetDeviceAuthToken() {
       monitoringManager.setDeviceAuthToken(data.device_auth_token);
       console.log('[DeviceToken] [OK] Device auth token set for monitoring');
     } else {
-      console.warn('[DeviceToken] No device_auth_token found in DB - events will not be reported');
+      // Auto-generate token if missing (fixes devices paired before token generation was added)
+      console.warn('[DeviceToken] No token found - auto-generating...');
+      const crypto = require('crypto');
+      const newToken = crypto.randomBytes(32).toString('hex');
+      const { error: updateError } = await supabase
+        .from('devices')
+        .update({ device_auth_token: newToken, device_auth_token_created_at: new Date().toISOString() })
+        .eq('id', deviceId);
+      
+      if (updateError) {
+        console.error('[DeviceToken] Failed to save generated token:', updateError);
+      } else {
+        monitoringManager.setDeviceAuthToken(newToken);
+        console.log('[DeviceToken] [OK] Auto-generated and saved new device auth token');
+      }
     }
   } catch (err) {
     console.error('[DeviceToken] Unexpected error:', err);
