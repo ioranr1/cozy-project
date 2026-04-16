@@ -820,6 +820,7 @@ export type Database = {
           device_id: string
           device_mode: string
           device_name: string
+          events_24h: number
           id: string
           last_seen_at: string
           monitoring_active: boolean
@@ -827,6 +828,7 @@ export type Database = {
           recent_errors: Json
           sound_detector_status: string
           system_info: Json
+          total_events: number
           updated_at: string
           uptime_seconds: number
           user_country_code: string

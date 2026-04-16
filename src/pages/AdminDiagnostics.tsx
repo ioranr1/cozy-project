@@ -27,6 +27,8 @@ interface DiagnosticRow {
   user_phone: string | null;
   user_country_code: string | null;
   device_mode: string | null;
+  total_events: number;
+  events_24h: number;
 }
 
 function formatUptime(seconds: number): string {
