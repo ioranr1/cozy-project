@@ -289,7 +289,7 @@ export const translations = {
         eventStorage: {
           title: 'Event Storage',
           description: 'Every detected event is saved securely. Recordings are stored on your personal computer and alert snapshots are saved in the cloud for easy access.',
-          bullets: ['Recordings stored locally on your computer', 'Alert snapshots in the cloud', 'Easy access to event history'],
+          bullets: ['Recording stored locally in a folder on the desktop', 'Alert snapshots in the cloud', 'Easy access to event history'],
         },
       },
     },
