@@ -19,6 +19,7 @@ import soundStep2He from '@/assets/sound-step2-settings.png';
 import soundStep2En from '@/assets/sound-step2-settings-en.png';
 import soundStep3He from '@/assets/sound-step3-listen.png';
 import soundStep3En from '@/assets/sound-step3-listen-en.png';
+import securityClipsFolder from '@/assets/security-clips-folder.png';
 
 const IPhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="relative mx-auto" style={{ width: 280 }}>
@@ -121,9 +122,19 @@ const FeaturesDetail: React.FC = () => {
                       </p>
                       <ul className="space-y-2">
                         {feature.bullets.map((bullet, i) => (
-                          <li key={i} className="flex items-center gap-3 text-slate-700">
-                            <span className={`w-2 h-2 rounded-full bg-gradient-to-br ${feature.color} flex-shrink-0`} />
-                            {bullet}
+                          <li key={i} className="flex flex-col gap-2 text-slate-700">
+                            <div className="flex items-center gap-3">
+                              <span className={`w-2 h-2 rounded-full bg-gradient-to-br ${feature.color} flex-shrink-0`} />
+                              {bullet}
+                            </div>
+                            {index === 3 && i === 0 && (
+                              <img
+                                src={securityClipsFolder}
+                                alt={isRTL ? 'תיקיית SecurityClips על שולחן העבודה' : 'SecurityClips folder on the desktop'}
+                                className="ms-5 mt-1 w-40 rounded-lg border border-slate-200 shadow-sm"
+                                loading="lazy"
+                              />
+                            )}
                           </li>
                         ))}
                       </ul>
