@@ -47,6 +47,9 @@ const UpdateNotification = () => {
   const { language } = useLanguage();
   const updateWebAppRef = useRef<((reloadPage?: boolean) => Promise<void>) | null>(null);
 
+  // DB-driven version check (polls every 60s)
+  const { currentVersion: dbVersion } = usePwaVersion(true);
+
   const isHe = language === 'he';
   const isElectron = typeof window !== 'undefined' && Boolean((window as any).electronAPI?.onAutoUpdate);
   const isProtectedLiveRoute = useMemo(
