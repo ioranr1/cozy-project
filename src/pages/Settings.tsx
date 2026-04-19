@@ -1,6 +1,6 @@
-// Settings v1.1.0 — General, Account, Plan
-// SSOT: profile data is loaded fresh from the database (profiles table) on every mount.
-// localStorage is used ONLY as fallback for the profile_id, never for profile content.
+// Settings v1.2.0 — General, Account, Plan
+// SSOT: profile data loaded directly via validate_user_session RPC (SECURITY DEFINER, bypasses RLS).
+// localStorage is used ONLY as fallback for session token, never for profile content.
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -50,7 +50,7 @@ const Settings: React.FC = () => {
 
     const loadProfileFromDb = async () => {
       try {
-        // 1. Validate session via SSOT — get profile_id from server
+        // 1. Validate session via SSOT — RPC returns profile_data with SECURITY DEFINER (bypasses RLS)
         const sessionToken = localStorage.getItem('aiguard_session_token');
         if (!sessionToken) {
           navigate('/login', { replace: true });
@@ -70,25 +70,27 @@ const Settings: React.FC = () => {
           return;
         }
 
-        const profileId = sessionData[0].profile_id;
-
-        // 2. Fetch fresh profile data from DB (SSOT)
-        const { data: profileData, error: profileErr } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, phone_number, country_code, preferred_language')
-          .eq('id', profileId)
-          .maybeSingle();
-
-        if (profileErr || !profileData) {
-          console.error('[Settings] Failed to load profile:', profileErr);
+        const pd = sessionData[0].profile_data as any;
+        if (!pd || !pd.id) {
+          console.error('[Settings] Profile data missing in session response');
           navigate('/login', { replace: true });
           return;
         }
 
+        // 2. Build profile from RPC response (SSOT). preferred_language not in RPC — fallback to current language.
+        const profileFromRpc: UserProfile = {
+          id: pd.id,
+          full_name: pd.full_name || '',
+          email: pd.email || '',
+          phone_number: pd.phone_number || '',
+          country_code: pd.country_code || '+972',
+          preferred_language: pd.preferred_language || language,
+        };
+
         if (!cancelled) {
-          setProfile(profileData as UserProfile);
+          setProfile(profileFromRpc);
           // Refresh localStorage cache so other pages see the latest data too
-          localStorage.setItem('userProfile', JSON.stringify(profileData));
+          localStorage.setItem('userProfile', JSON.stringify(profileFromRpc));
           setLoading(false);
         }
       } catch (e) {
