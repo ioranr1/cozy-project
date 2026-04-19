@@ -1,6 +1,6 @@
-// Settings v1.1.0 — General, Account, Plan
-// SSOT: profile data is loaded fresh from the database (profiles table) on every mount.
-// localStorage is used ONLY as fallback for the profile_id, never for profile content.
+// Settings v1.2.0 — General, Account, Plan
+// SSOT: profile data loaded directly via validate_user_session RPC (SECURITY DEFINER, bypasses RLS).
+// localStorage is used ONLY as fallback for session token, never for profile content.
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
