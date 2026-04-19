@@ -441,6 +441,8 @@ const AdminDiagnostics = () => {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
