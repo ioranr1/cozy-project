@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { RefreshCw, Shield, Clock, Cpu, AlertTriangle, Trash2, LogOut, CalendarX } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RefreshCw, Shield, Clock, Cpu, AlertTriangle, Trash2, LogOut, CalendarX, Package } from "lucide-react";
+import PwaVersionsTab from "@/components/admin/PwaVersionsTab";
 
 const ADMIN_PASSWORD = "684Mr3411";
 
