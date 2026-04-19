@@ -155,6 +155,25 @@ const UpdateNotification = () => {
     };
   }, [isElectron]);
 
+  // ============================================================
+  // DB-driven version check (Web only) — independent from Service Worker.
+  // אם הגרסה ב-pwa_versions שונה מהגרסה שהמשתמש כבר אישר, נציג Toast.
+  // ============================================================
+  useEffect(() => {
+    if (isElectron || !dbVersion) return;
+
+    const acknowledged = localStorage.getItem(PWA_VERSION_STORAGE_KEY);
+    if (!acknowledged) {
+      localStorage.setItem(PWA_VERSION_STORAGE_KEY, dbVersion.version);
+      return;
+    }
+
+    if (acknowledged !== dbVersion.version) {
+      setWebUpdateReady(true);
+      setWebToastDismissed(false);
+    }
+  }, [dbVersion, isElectron]);
+
   useEffect(() => {
     if (isElectron) return;
 
