@@ -1,14 +1,16 @@
 /**
- * UpdateNotification - Electron Auto-Update UI
- * Shows update availability, download progress, and install prompt.
- * Only renders inside Electron (window.electronAPI exists).
+ * UpdateNotification v2.53.0
+ * Unified updater for Electron and Web PWA.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Download, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { toast } from '@/components/ui/sonner';
+import { registerSW } from 'virtual:pwa-register';
 
 interface UpdateEvent {
   type: 'update-available' | 'update-not-available' | 'download-progress' | 'update-downloaded' | 'error';
@@ -23,15 +25,29 @@ interface UpdateEvent {
 
 type UpdateState = 'idle' | 'available' | 'downloading' | 'downloaded' | 'error';
 
+const WEB_UPDATE_TOAST_ID = 'aiguard-web-update-ready';
+const WEB_UPDATE_CHECK_INTERVAL_MS = 60_000;
+const WEB_UPDATE_AUTO_REFRESH_MS = 5 * 60_000;
+const WEB_UPDATE_BLOCKED_ROUTE_PREFIXES = ['/viewer', '/live/', '/baby-monitor'];
+
 const UpdateNotification = () => {
+  const location = useLocation();
   const [state, setState] = useState<UpdateState>('idle');
   const [version, setVersion] = useState('');
   const [progress, setProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState('');
   const [dismissed, setDismissed] = useState(false);
+  const [webUpdateReady, setWebUpdateReady] = useState(false);
+  const [webToastDismissed, setWebToastDismissed] = useState(false);
   const { language } = useLanguage();
+  const updateWebAppRef = useRef<((reloadPage?: boolean) => Promise<void>) | null>(null);
 
   const isHe = language === 'he';
+  const isElectron = typeof window !== 'undefined' && Boolean((window as any).electronAPI?.onAutoUpdate);
+  const isProtectedLiveRoute = useMemo(
+    () => WEB_UPDATE_BLOCKED_ROUTE_PREFIXES.some((prefix) => location.pathname.startsWith(prefix)),
+    [location.pathname]
+  );
 
   const strings = {
     updateAvailable: isHe ? 'עדכון חדש זמין!' : 'New update available!',
@@ -42,7 +58,158 @@ const UpdateNotification = () => {
     download: isHe ? 'הורד עכשיו' : 'Download Now',
     dismiss: isHe ? 'אחר כך' : 'Later',
     error: isHe ? 'שגיאה בעדכון' : 'Update error',
+    webUpdateTitle: isHe ? 'גרסה חדשה זמינה' : 'New version available',
+    webUpdateDescription: isHe
+      ? 'האפליקציה תתרענן אוטומטית בעוד 5 דקות.'
+      : 'The app will refresh automatically in 5 minutes.',
+    refreshNow: isHe ? 'רענן עכשיו' : 'Refresh now',
   };
+
+  const applyWebUpdate = useCallback(async () => {
+    toast.dismiss(WEB_UPDATE_TOAST_ID);
+
+    if (!updateWebAppRef.current) {
+      window.location.reload();
+      return;
+    }
+
+    try {
+      await updateWebAppRef.current(true);
+    } catch (error) {
+      console.error('[PWA Update] Failed to apply update:', error);
+      window.location.reload();
+      return;
+    }
+
+    window.setTimeout(() => {
+      window.location.reload();
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    if (isElectron || typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    const isInIframe = (() => {
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
+    })();
+
+    const isPreviewHost = window.location.hostname.includes('id-preview--');
+
+    if (isInIframe || isPreviewHost) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          void registration.unregister();
+        });
+      }).catch(() => undefined);
+      return;
+    }
+
+    const updateSW = registerSW({
+      immediate: true,
+      onNeedRefresh() {
+        setWebUpdateReady(true);
+        setWebToastDismissed(false);
+      },
+      onRegisterError(error) {
+        console.error('[PWA Update] Service worker registration failed:', error);
+      },
+    });
+
+    updateWebAppRef.current = updateSW;
+
+    let isMounted = true;
+    let intervalId: number | null = null;
+
+    navigator.serviceWorker.ready.then((registration) => {
+      if (!isMounted) return;
+
+      if (registration.waiting) {
+        setWebUpdateReady(true);
+        setWebToastDismissed(false);
+      }
+
+      intervalId = window.setInterval(() => {
+        void registration.update();
+      }, WEB_UPDATE_CHECK_INTERVAL_MS);
+    }).catch((error) => {
+      console.error('[PWA Update] Failed to access service worker registration:', error);
+    });
+
+    return () => {
+      isMounted = false;
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [isElectron]);
+
+  useEffect(() => {
+    if (isElectron) return;
+
+    if (!webUpdateReady || isProtectedLiveRoute || webToastDismissed) {
+      toast.dismiss(WEB_UPDATE_TOAST_ID);
+      return;
+    }
+
+    toast.custom(
+      (toastId) => (
+        <div className="flex w-full flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+              <RefreshCw className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">{strings.webUpdateTitle}</p>
+              <p className="text-xs text-muted-foreground">{strings.webUpdateDescription}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              className="flex-1"
+              onClick={() => {
+                toast.dismiss(toastId);
+                void applyWebUpdate();
+              }}
+            >
+              {strings.refreshNow}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setWebToastDismissed(true);
+                toast.dismiss(toastId);
+              }}
+            >
+              {strings.dismiss}
+            </Button>
+          </div>
+        </div>
+      ),
+      {
+        id: WEB_UPDATE_TOAST_ID,
+        duration: Infinity,
+        closeButton: false,
+      }
+    );
+  }, [applyWebUpdate, isElectron, isProtectedLiveRoute, strings.dismiss, strings.refreshNow, strings.webUpdateDescription, strings.webUpdateTitle, webToastDismissed, webUpdateReady]);
+
+  useEffect(() => {
+    if (isElectron || !webUpdateReady || isProtectedLiveRoute) return;
+
+    const timerId = window.setTimeout(() => {
+      void applyWebUpdate();
+    }, WEB_UPDATE_AUTO_REFRESH_MS);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [applyWebUpdate, isElectron, isProtectedLiveRoute, webUpdateReady]);
 
   useEffect(() => {
     const api = (window as any).electronAPI;
@@ -87,7 +254,8 @@ const UpdateNotification = () => {
     api?.installUpdate?.();
   }, []);
 
-  // Don't render outside Electron or when idle/dismissed
+  // Web PWA notifications are handled via sonner toast above.
+  // Visual card below remains Electron-only.
   if (!(window as any).electronAPI?.onAutoUpdate) return null;
   if (state === 'idle' || dismissed) return null;
 
