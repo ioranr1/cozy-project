@@ -229,6 +229,65 @@ export const translations = {
       minLength: 'מינימום {min} תווים',
       maxLength: 'מקסימום {max} תווים',
     },
+    // Settings page
+    settings: {
+      title: 'הגדרות',
+      subtitle: 'נהל את ההעדפות והחשבון שלך',
+      // Section: General
+      general: {
+        title: 'כללי',
+        appVersion: 'גרסת תוכנה',
+        appVersionHint: 'גרסת אפליקציית המחשב (Electron)',
+        support: 'צור קשר / תמיכה',
+        supportEmail: 'ioranr1@gmail.com',
+        supportHint: 'לחץ לשליחת מייל',
+      },
+      // Section: Account
+      account: {
+        title: 'חשבון',
+        readOnlyNotice: 'פרטי החשבון נקבעים בעת ההרשמה ולא ניתנים לעריכה',
+        fullName: 'שם מלא',
+        email: 'אימייל',
+        phone: 'מספר טלפון',
+        language: 'שפה מועדפת',
+        languageHe: 'עברית',
+        languageEn: 'אנגלית',
+        deleteSection: 'אזור מסוכן',
+        deleteButton: 'מחק חשבון',
+        deleteHint: 'מחיקה מיידית ובלתי הפיכה של כל הנתונים',
+      },
+      // Section: Plan
+      plan: {
+        title: 'תוכנית',
+        currentPlan: 'התוכנית הנוכחית שלך',
+        free: 'חינם',
+      },
+      // Delete account dialog
+      deleteDialog: {
+        title: '⚠️ מחיקת חשבון - בלתי הפיכה',
+        intro: 'מחיקת החשבון תמחק לצמיתות את כל הפרטים הבאים:',
+        item1: 'הפרופיל שלך (שם, מייל, מספר טלפון)',
+        item2: 'כל המכשירים המצומדים והגדרות הניטור',
+        item3: 'כל היסטוריית האירועים, התמונות והקליפים בענן',
+        item4: 'כל הסשנים הפעילים ויש להירשם מחדש מאפס',
+        whatsappNote: '📱 כל ההתראות בוואטסאפ הקשורות לחשבון יופסקו מיד.',
+        electronTitle: '🖥️ אם התקנת את אפליקציית המחשב (Electron):',
+        electronStep1: '1. לחץ קליק ימני על אייקון AIGuard ב-System Tray (שעון)',
+        electronStep2: '2. בחר "Unpair Camera" (בטל צימוד מצלמה)',
+        electronStep3: '3. הסר את האפליקציה דרך הגדרות Windows / Applications במק',
+        electronNote: 'הקליפים המקומיים בתיקיית SecurityClips יישארו במחשב עד שתמחק אותם ידנית.',
+        confirmLabel: 'הקלד את המילה',
+        confirmWord: 'מחק',
+        confirmPlaceholder: 'הקלד "מחק" כדי לאשר',
+        cancel: 'ביטול',
+        confirmDelete: 'מחק את החשבון שלי',
+        deleting: 'מוחק...',
+        successTitle: 'החשבון נמחק בהצלחה',
+        successDesc: 'מחזיר אותך לדף ההתחברות',
+        errorTitle: 'מחיקת החשבון נכשלה',
+        errorDesc: 'אנא נסה שוב או צור קשר עם התמיכה',
+      },
+    },
   },
   en: {
     // Navigation
