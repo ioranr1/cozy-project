@@ -1,6 +1,8 @@
 /**
- * UpdateNotification v2.53.0
+ * UpdateNotification v2.54.0
  * Unified updater for Electron and Web PWA.
+ * Web: בודק גרסה מול pwa_versions בכל דקה, מציג Toast כשמזוהה גרסה חדשה.
+ *      גם משתמש ב-Service Worker (vite-plugin-pwa) כגיבוי.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -11,6 +13,9 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/ui/sonner';
 import { registerSW } from 'virtual:pwa-register';
+import { usePwaVersion } from '@/hooks/usePwaVersion';
+
+const PWA_VERSION_STORAGE_KEY = 'aiguard_pwa_acknowledged_version';
 
 interface UpdateEvent {
   type: 'update-available' | 'update-not-available' | 'download-progress' | 'update-downloaded' | 'error';
