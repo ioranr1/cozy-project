@@ -76,6 +76,15 @@ const UpdateNotification = () => {
   const applyWebUpdate = useCallback(async () => {
     toast.dismiss(WEB_UPDATE_TOAST_ID);
 
+    // עדכון הגרסה המאושרת לפני רענון, כדי שלא נראה Toast שוב מיד
+    if (dbVersion) {
+      try {
+        localStorage.setItem(PWA_VERSION_STORAGE_KEY, dbVersion.version);
+      } catch {
+        /* ignore */
+      }
+    }
+
     if (!updateWebAppRef.current) {
       window.location.reload();
       return;
@@ -92,7 +101,7 @@ const UpdateNotification = () => {
     window.setTimeout(() => {
       window.location.reload();
     }, 2000);
-  }, []);
+  }, [dbVersion]);
 
   useEffect(() => {
     if (isElectron || typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
