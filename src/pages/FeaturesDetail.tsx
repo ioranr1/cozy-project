@@ -137,12 +137,16 @@ const FeaturesDetail: React.FC = () => {
                               />
                             )}
                             {index === 3 && i === 2 && (
-                              <img
-                                src={eventsIconMarked}
-                                alt={isRTL ? 'איקון אירועים באפליקציה' : 'Events icon in the app'}
-                                className="ms-5 mt-1 w-72 rounded-lg border border-slate-200 shadow-sm"
-                                loading="lazy"
-                              />
+                              <div className="ms-5 mt-3 mb-2">
+                                <IPhoneFrame>
+                                  <img
+                                    src={eventsIconMarked}
+                                    alt={isRTL ? 'איקון אירועים באפליקציה' : 'Events icon in the app'}
+                                    className="w-full h-auto block"
+                                    loading="lazy"
+                                  />
+                                </IPhoneFrame>
+                              </div>
                             )}
                           </li>
                         ))}
