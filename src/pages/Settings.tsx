@@ -1,6 +1,6 @@
-// Settings v1.2.0 — General, Account, Plan
+// Settings v1.3.0 — General, Account, Plan + PWA version from DB
 // SSOT: profile data loaded directly via validate_user_session RPC (SECURITY DEFINER, bypasses RLS).
-// localStorage is used ONLY as fallback for session token, never for profile content.
+// PWA version is loaded from pwa_versions table (managed via Admin Console).
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
+import { usePwaVersion } from '@/hooks/usePwaVersion';
 import {
   Info,
   Mail,
@@ -23,6 +24,8 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   Loader2,
+  Smartphone,
+  Calendar,
 } from 'lucide-react';
 
 // Electron app version — keep in sync with electron-webrtc-example/package.json
