@@ -1,6 +1,6 @@
-// Settings v1.2.0 — General, Account, Plan
+// Settings v1.3.0 — General, Account, Plan + PWA version from DB
 // SSOT: profile data loaded directly via validate_user_session RPC (SECURITY DEFINER, bypasses RLS).
-// localStorage is used ONLY as fallback for session token, never for profile content.
+// PWA version is loaded from pwa_versions table (managed via Admin Console).
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
+import { usePwaVersion } from '@/hooks/usePwaVersion';
 import {
   Info,
   Mail,
@@ -23,6 +24,8 @@ import {
   Settings as SettingsIcon,
   Sparkles,
   Loader2,
+  Smartphone,
+  Calendar,
 } from 'lucide-react';
 
 // Electron app version — keep in sync with electron-webrtc-example/package.json
@@ -44,6 +47,7 @@ const Settings: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const { currentVersion: pwaVersion, loading: pwaLoading } = usePwaVersion(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +153,58 @@ const Settings: React.FC = () => {
               <Badge variant="outline" className="bg-slate-800 border-primary/30 text-primary font-mono">
                 v{ELECTRON_APP_VERSION}
               </Badge>
+            </div>
+
+            {/* PWA Web Version (managed from DB) */}
+            <div className="p-3 rounded-lg bg-slate-900/40">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <Smartphone className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-white font-medium">
+                      {language === 'he' ? 'גרסת אפליקציה (Web/PWA)' : 'App Version (Web/PWA)'}
+                    </div>
+                    <div className="text-white/50 text-xs mt-0.5">
+                      {language === 'he'
+                        ? 'הגרסה הנוכחית של האתר והאפליקציה במובייל'
+                        : 'Current version of the website and mobile app'}
+                    </div>
+                  </div>
+                </div>
+                {pwaLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white/50" />
+                ) : pwaVersion ? (
+                  <Badge variant="outline" className="bg-slate-800 border-cyan-500/30 text-cyan-400 font-mono">
+                    v{pwaVersion.version}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-slate-800 border-slate-600 text-white/50 font-mono">
+                    —
+                  </Badge>
+                )}
+              </div>
+              {pwaVersion && (pwaVersion.changelog_he || pwaVersion.changelog_en) && (
+                <div className="mt-3 pt-3 border-t border-slate-700/50">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-white/40" />
+                    <span className="text-white/60 text-xs">
+                      {language === 'he' ? 'מה חדש' : "What's new"} · {' '}
+                      {new Date(pwaVersion.released_at).toLocaleDateString(
+                        language === 'he' ? 'he-IL' : 'en-US',
+                        { day: '2-digit', month: '2-digit', year: 'numeric' }
+                      )}
+                    </span>
+                  </div>
+                  <div
+                    className="text-white/70 text-xs whitespace-pre-line"
+                    dir={language === 'he' ? 'rtl' : 'ltr'}
+                  >
+                    {language === 'he'
+                      ? pwaVersion.changelog_he || pwaVersion.changelog_en
+                      : pwaVersion.changelog_en || pwaVersion.changelog_he}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Support */}

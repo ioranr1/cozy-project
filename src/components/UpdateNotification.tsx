@@ -1,6 +1,8 @@
 /**
- * UpdateNotification v2.53.0
+ * UpdateNotification v2.54.0
  * Unified updater for Electron and Web PWA.
+ * Web: בודק גרסה מול pwa_versions בכל דקה, מציג Toast כשמזוהה גרסה חדשה.
+ *      גם משתמש ב-Service Worker (vite-plugin-pwa) כגיבוי.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -11,6 +13,9 @@ import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/ui/sonner';
 import { registerSW } from 'virtual:pwa-register';
+import { usePwaVersion } from '@/hooks/usePwaVersion';
+
+const PWA_VERSION_STORAGE_KEY = 'aiguard_pwa_acknowledged_version';
 
 interface UpdateEvent {
   type: 'update-available' | 'update-not-available' | 'download-progress' | 'update-downloaded' | 'error';
@@ -42,6 +47,9 @@ const UpdateNotification = () => {
   const { language } = useLanguage();
   const updateWebAppRef = useRef<((reloadPage?: boolean) => Promise<void>) | null>(null);
 
+  // DB-driven version check (polls every 60s)
+  const { currentVersion: dbVersion } = usePwaVersion(true);
+
   const isHe = language === 'he';
   const isElectron = typeof window !== 'undefined' && Boolean((window as any).electronAPI?.onAutoUpdate);
   const isProtectedLiveRoute = useMemo(
@@ -68,6 +76,15 @@ const UpdateNotification = () => {
   const applyWebUpdate = useCallback(async () => {
     toast.dismiss(WEB_UPDATE_TOAST_ID);
 
+    // עדכון הגרסה המאושרת לפני רענון, כדי שלא נראה Toast שוב מיד
+    if (dbVersion) {
+      try {
+        localStorage.setItem(PWA_VERSION_STORAGE_KEY, dbVersion.version);
+      } catch {
+        /* ignore */
+      }
+    }
+
     if (!updateWebAppRef.current) {
       window.location.reload();
       return;
@@ -84,7 +101,7 @@ const UpdateNotification = () => {
     window.setTimeout(() => {
       window.location.reload();
     }, 2000);
-  }, []);
+  }, [dbVersion]);
 
   useEffect(() => {
     if (isElectron || typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
@@ -146,6 +163,25 @@ const UpdateNotification = () => {
       }
     };
   }, [isElectron]);
+
+  // ============================================================
+  // DB-driven version check (Web only) — independent from Service Worker.
+  // אם הגרסה ב-pwa_versions שונה מהגרסה שהמשתמש כבר אישר, נציג Toast.
+  // ============================================================
+  useEffect(() => {
+    if (isElectron || !dbVersion) return;
+
+    const acknowledged = localStorage.getItem(PWA_VERSION_STORAGE_KEY);
+    if (!acknowledged) {
+      localStorage.setItem(PWA_VERSION_STORAGE_KEY, dbVersion.version);
+      return;
+    }
+
+    if (acknowledged !== dbVersion.version) {
+      setWebUpdateReady(true);
+      setWebToastDismissed(false);
+    }
+  }, [dbVersion, isElectron]);
 
   useEffect(() => {
     if (isElectron) return;

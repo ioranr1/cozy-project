@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { RefreshCw, Shield, Clock, Cpu, AlertTriangle, Trash2, LogOut, CalendarX } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RefreshCw, Shield, Clock, Cpu, AlertTriangle, Trash2, LogOut, CalendarX, Package } from "lucide-react";
+import PwaVersionsTab from "@/components/admin/PwaVersionsTab";
 
 const ADMIN_PASSWORD = "684Mr3411";
 
@@ -194,20 +196,38 @@ const AdminDiagnostics = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Cpu className="h-6 w-6" />
-            Device Diagnostics
-            <Badge variant="secondary">{diagnostics.length} devices</Badge>
+            Admin Console
           </h1>
-          <div className="flex items-center gap-2">
-            <Button onClick={fetchDiagnostics} disabled={loading} variant="outline" size="sm">
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-            <Button onClick={handleLogout} variant="ghost" size="sm">
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
-          </div>
+          <Button onClick={handleLogout} variant="ghost" size="sm">
+            <LogOut className="h-4 w-4 mr-2" />
+            Logout
+          </Button>
         </div>
+
+        <Tabs defaultValue="diagnostics" className="w-full">
+          <TabsList>
+            <TabsTrigger value="diagnostics" className="gap-2">
+              <Cpu className="h-4 w-4" />
+              Diagnostics
+              <Badge variant="secondary" className="ml-1">{diagnostics.length}</Badge>
+            </TabsTrigger>
+            <TabsTrigger value="pwa-versions" className="gap-2">
+              <Package className="h-4 w-4" />
+              PWA Versions
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="pwa-versions" className="mt-4">
+            <PwaVersionsTab />
+          </TabsContent>
+
+          <TabsContent value="diagnostics" className="mt-4 space-y-6">
+            <div className="flex items-center justify-end">
+              <Button onClick={fetchDiagnostics} disabled={loading} variant="outline" size="sm">
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
 
         {/* Bulk delete by date */}
         <Card>
@@ -421,6 +441,8 @@ const AdminDiagnostics = () => {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
