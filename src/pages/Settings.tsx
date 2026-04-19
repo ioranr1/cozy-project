@@ -1,7 +1,10 @@
-// Settings v1.0.0 — General, Account, Plan
+// Settings v1.1.0 — General, Account, Plan
+// SSOT: profile data is loaded fresh from the database (profiles table) on every mount.
+// localStorage is used ONLY as fallback for the profile_id, never for profile content.
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,8 +21,8 @@ import {
   Shield,
   Trash2,
   Settings as SettingsIcon,
-  Smartphone,
   Sparkles,
+  Loader2,
 } from 'lucide-react';
 
 // Electron app version — keep in sync with electron-webrtc-example/package.json
@@ -39,23 +42,75 @@ const Settings: React.FC = () => {
   const { t, language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('userProfile');
-    if (!stored) {
-      navigate('/login', { replace: true });
-      return;
-    }
-    try {
-      setProfile(JSON.parse(stored));
-    } catch {
-      navigate('/login', { replace: true });
-    }
+    let cancelled = false;
+
+    const loadProfileFromDb = async () => {
+      try {
+        // 1. Validate session via SSOT — get profile_id from server
+        const sessionToken = localStorage.getItem('aiguard_session_token');
+        if (!sessionToken) {
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        const { data: sessionData, error: sessionErr } = await supabase.rpc(
+          'validate_user_session',
+          { p_token: sessionToken }
+        );
+
+        if (sessionErr || !sessionData || sessionData.length === 0 || !sessionData[0].is_valid) {
+          console.warn('[Settings] Invalid session, redirecting to login');
+          localStorage.removeItem('userProfile');
+          localStorage.removeItem('aiguard_session_token');
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        const profileId = sessionData[0].profile_id;
+
+        // 2. Fetch fresh profile data from DB (SSOT)
+        const { data: profileData, error: profileErr } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, phone_number, country_code, preferred_language')
+          .eq('id', profileId)
+          .maybeSingle();
+
+        if (profileErr || !profileData) {
+          console.error('[Settings] Failed to load profile:', profileErr);
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        if (!cancelled) {
+          setProfile(profileData as UserProfile);
+          // Refresh localStorage cache so other pages see the latest data too
+          localStorage.setItem('userProfile', JSON.stringify(profileData));
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error('[Settings] Load error:', e);
+        if (!cancelled) navigate('/login', { replace: true });
+      }
+    };
+
+    loadProfileFromDb();
+    return () => {
+      cancelled = true;
+    };
   }, [navigate]);
 
-  if (!profile) {
-    return null;
+  if (loading || !profile) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+      </AppLayout>
+    );
   }
 
   const s = t.settings;
