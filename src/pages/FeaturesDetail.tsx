@@ -136,6 +136,14 @@ const FeaturesDetail: React.FC = () => {
                                 loading="lazy"
                               />
                             )}
+                            {index === 3 && i === 2 && (
+                              <img
+                                src={eventsIconMarked}
+                                alt={isRTL ? 'איקון אירועים באפליקציה' : 'Events icon in the app'}
+                                className="ms-5 mt-1 w-72 rounded-lg border border-slate-200 shadow-sm"
+                                loading="lazy"
+                              />
+                            )}
                           </li>
                         ))}
                       </ul>

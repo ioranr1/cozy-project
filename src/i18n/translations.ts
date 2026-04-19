@@ -60,7 +60,7 @@ export const translations = {
         eventStorage: {
           title: 'שמירת ארועים',
           description: 'כל ארוע שמזוהה נשמר באופן מאובטח. ההקלטות נשמרות במחשב האישי שלכם ( ראה תקייה במסך הבית של המחשב ) ותמונות ההתראה נשמרות בענן לגישה נוחה.',
-          bullets: ['הקלטה מאוחסנת מקומית בתיקיה במחשב בדף הבית', 'תמונות התראה בענן', 'גישה נוחה להיסטוריית ארועים'],
+          bullets: ['הקלטה מאוחסנת מקומית בתיקיה במחשב בדף הבית', 'תמונות התראה בענן', 'גישה נוחה להיסטוריית ארועים באפליקציה'],
         },
       },
     },
@@ -289,7 +289,7 @@ export const translations = {
         eventStorage: {
           title: 'Event Storage',
           description: 'Every detected event is saved securely. Recordings are stored on your personal computer and alert snapshots are saved in the cloud for easy access.',
-          bullets: ['Recording stored locally in a folder on the desktop', 'Alert snapshots in the cloud', 'Easy access to event history'],
+          bullets: ['Recording stored locally in a folder on the desktop', 'Alert snapshots in the cloud', 'Easy access to event history in the app'],
         },
       },
     },
