@@ -20,6 +20,7 @@ import soundStep2En from '@/assets/sound-step2-settings-en.png';
 import soundStep3He from '@/assets/sound-step3-listen.png';
 import soundStep3En from '@/assets/sound-step3-listen-en.png';
 import securityClipsFolder from '@/assets/security-clips-folder.png';
+import eventsIconMarked from '@/assets/events-icon-marked.png';
 
 const IPhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="relative mx-auto" style={{ width: 280 }}>
@@ -132,6 +133,14 @@ const FeaturesDetail: React.FC = () => {
                                 src={securityClipsFolder}
                                 alt={isRTL ? 'תיקיית SecurityClips על שולחן העבודה' : 'SecurityClips folder on the desktop'}
                                 className="ms-5 mt-1 w-40 rounded-lg border border-slate-200 shadow-sm"
+                                loading="lazy"
+                              />
+                            )}
+                            {index === 3 && i === 2 && (
+                              <img
+                                src={eventsIconMarked}
+                                alt={isRTL ? 'איקון אירועים באפליקציה' : 'Events icon in the app'}
+                                className="ms-5 mt-1 w-72 rounded-lg border border-slate-200 shadow-sm"
                                 loading="lazy"
                               />
                             )}
