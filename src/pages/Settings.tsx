@@ -47,6 +47,7 @@ const Settings: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const { currentVersion: pwaVersion, loading: pwaLoading } = usePwaVersion(true);
 
   useEffect(() => {
     let cancelled = false;
