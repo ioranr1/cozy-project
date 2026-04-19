@@ -700,6 +700,39 @@ export type Database = {
         }
         Relationships: []
       }
+      pwa_versions: {
+        Row: {
+          changelog_en: string
+          changelog_he: string
+          created_at: string
+          id: string
+          is_current: boolean
+          released_at: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          changelog_en?: string
+          changelog_he?: string
+          created_at?: string
+          id?: string
+          is_current?: boolean
+          released_at?: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          changelog_en?: string
+          changelog_he?: string
+          created_at?: string
+          id?: string
+          is_current?: boolean
+          released_at?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
       rtc_sessions: {
         Row: {
           created_at: string | null
@@ -761,6 +794,35 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "rtc_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          profile_id: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          profile_id: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          profile_id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -843,6 +905,13 @@ export type Database = {
           profile_exists: boolean
         }[]
       }
+      has_role: {
+        Args: {
+          _profile_id: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: boolean
+      }
       profile_exists: { Args: { _profile_id: string }; Returns: boolean }
       validate_access_token: {
         Args: { p_token: string }
@@ -862,7 +931,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -989,6 +1058,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
