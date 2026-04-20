@@ -129,9 +129,9 @@ const FeaturesDetail: React.FC = () => {
                               {bullet}
                             </div>
                             {index === 1 && i === 1 && (
-                              <p className="ms-5 mt-1 text-sm font-bold text-slate-800 bg-amber-50 border-s-4 border-amber-400 p-3 rounded-md leading-relaxed">
+                              <p className="ms-5 mt-1 text-sm font-bold text-slate-800 bg-amber-50 border-s-4 border-amber-400 p-3 rounded-md leading-relaxed whitespace-pre-line">
                                 {isRTL
-                                  ? 'לתשומת לב: לאחר קבלת ההתראה בוואטסאפ יש לצפות בפרטים, פעולה זו מאפסת את ההתראה. ללא כניסה וצפייה בפרטים לא תשלחנה התראות נוספות בוואטסאפ עבור ניטור חדש!'
+                                  ? 'לתשומת לב: לאחר קבלת ההתראה בוואטסאפ כנס לצפות בפרטים,\nללא כניסה וצפייה בפרטים לא תשלחנה התראות נוספות בוואטסאפ עבור ניטור חדש!'
                                   : 'Please note: After receiving the WhatsApp alert, you must view the details — this resets the alert. Without opening and viewing the details, no further WhatsApp notifications will be sent for new monitoring events!'}
                               </p>
                             )}
