@@ -128,6 +128,13 @@ const FeaturesDetail: React.FC = () => {
                               <span className={`w-2 h-2 rounded-full bg-gradient-to-br ${feature.color} flex-shrink-0`} />
                               {bullet}
                             </div>
+                            {index === 0 && i === 1 && (
+                              <p className="ms-5 mt-1 text-sm font-bold text-slate-800 bg-amber-50 border-s-4 border-amber-400 p-3 rounded-md leading-relaxed">
+                                {isRTL
+                                  ? 'לתשומת לב: לאחר קבלת ההתראה בוואטסאפ יש לצפות בפרטים, פעולה זו מאפסת את ההתראה. ללא כניסה וצפייה בפרטים לא תשלחנה התראות נוספות בוואטסאפ עבור ניטור חדש!'
+                                  : 'Please note: After receiving the WhatsApp alert, you must view the details — this resets the alert. Without opening and viewing the details, no further WhatsApp notifications will be sent for new monitoring events!'}
+                              </p>
+                            )}
                             {index === 3 && i === 0 && (
                               <img
                                 src={securityClipsFolder}
