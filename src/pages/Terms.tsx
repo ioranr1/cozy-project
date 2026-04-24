@@ -4,7 +4,7 @@ import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const TermsHe: React.FC = () => (
-  <article className="prose prose-slate max-w-none rtl text-right prose-h2:!font-bold prose-h2:!text-foreground prose-h2:!text-base prose-h2:mt-6 prose-h2:mb-2 prose-h2:border-0 prose-h2:pb-0 prose-h3:!font-bold prose-h3:!text-foreground prose-h3:!text-base prose-h3:mt-4 prose-h3:mb-2" dir="rtl">
+  <article className="max-w-none rtl text-right text-foreground leading-relaxed space-y-3" dir="rtl">
     <h1>תנאי שימוש</h1>
     <p><strong>תאריך תחילה:</strong> 01/04/2026</p>
 
