@@ -29,9 +29,9 @@ export const Footer = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>
 
           {/* Links */}
           <div className="flex items-center gap-6 text-white/60">
-            <a href="#" className="hover:text-white transition-colors">
+            <Link to="/privacy" className="hover:text-white transition-colors">
               {t.footer.privacy}
-            </a>
+            </Link>
             <Link to="/terms" className="hover:text-white transition-colors">
               {t.footer.terms}
             </Link>
