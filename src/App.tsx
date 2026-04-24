@@ -21,6 +21,7 @@ import FeaturesDetail from "./pages/FeaturesDetail";
 import AdminDiagnostics from "./pages/AdminDiagnostics";
 import Settings from "./pages/Settings";
 import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
 import UpdateNotification from "./components/UpdateNotification";
 
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="/admin/diagnostics" element={<AdminDiagnostics />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
