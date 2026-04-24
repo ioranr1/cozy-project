@@ -161,6 +161,8 @@ export const translations = {
       rights: 'כל הזכויות שמורות',
       privacy: 'מדיניות פרטיות',
       terms: 'תנאי שימוש',
+      contactTitle: 'תמיכת לקוחות',
+      contactText: 'צריכים את עזרתנו? פנו אלינו לכתובת',
     },
     // Common
     common: {
@@ -449,6 +451,8 @@ export const translations = {
       rights: 'All rights reserved',
       privacy: 'Privacy Policy',
       terms: 'Terms of Service',
+      contactTitle: 'Customer Support',
+      contactText: 'Need our help? Please reach out to the team at',
     },
     // Common
     common: {
