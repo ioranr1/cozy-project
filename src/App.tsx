@@ -20,6 +20,7 @@ import InstallationGuide from "./pages/InstallationGuide";
 import FeaturesDetail from "./pages/FeaturesDetail";
 import AdminDiagnostics from "./pages/AdminDiagnostics";
 import Settings from "./pages/Settings";
+import Terms from "./pages/Terms";
 import NotFound from "./pages/NotFound";
 import UpdateNotification from "./components/UpdateNotification";
 
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/features" element={<FeaturesDetail />} />
             <Route path="/admin/diagnostics" element={<AdminDiagnostics />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/terms" element={<Terms />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

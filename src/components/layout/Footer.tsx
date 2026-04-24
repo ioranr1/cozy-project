@@ -32,9 +32,9 @@ export const Footer = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>
             <a href="#" className="hover:text-white transition-colors">
               {t.footer.privacy}
             </a>
-            <a href="#" className="hover:text-white transition-colors">
+            <Link to="/terms" className="hover:text-white transition-colors">
               {t.footer.terms}
-            </a>
+            </Link>
             <Dialog>
               <DialogTrigger asChild>
                 <button
