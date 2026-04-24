@@ -4,7 +4,7 @@ import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const TermsHe: React.FC = () => (
-  <article className="prose prose-slate max-w-none rtl text-right prose-h2:font-bold prose-h2:!text-foreground prose-h2:text-base prose-h2:mt-6 prose-h2:mb-2 prose-h2:border-0 prose-h2:pb-0 prose-h3:font-bold prose-h3:!text-foreground prose-h3:text-base prose-h3:mt-4 prose-h3:mb-2" dir="rtl">
+  <article className="max-w-none rtl text-right text-foreground leading-relaxed space-y-3" dir="rtl">
     <h1>תנאי שימוש</h1>
     <p><strong>תאריך תחילה:</strong> 01/04/2026</p>
 
@@ -19,7 +19,7 @@ const TermsHe: React.FC = () => (
       לתוקף, אחרת השימוש שלכם באתר ובתוכן יהיה כפוף להסכם החדש.
     </p>
 
-    <h2>1. מידע אישי</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">1. מידע אישי</h2>
     <p>
       אנו מקבלים ושומרים מידע על חשבון, מיקום ומידע אישי אחר שאתם מזינים או מעלים לשירותים שלנו. תוכלו לעיין במדיניות
       הפרטיות שלנו על מנת ללמוד אילו סוגי מידע אישי נאספים. אנו עשויים לקבל מידע גם מצדדים שלישיים שמתממשקים עם
@@ -29,7 +29,7 @@ const TermsHe: React.FC = () => (
       שלה. כמו כן נשתמש בעוגיות (cookies) לזיהוי כל משתמש.
     </p>
 
-    <h2>2. אתם תמיד בשליטה</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">2. אתם תמיד בשליטה</h2>
     <p>
       אנו מתחייבים שאתם בלבד מחליטים לשתף את המידע האישי שלכם. אנו אינו מוכרים ואינו משכירים את המידע האישי שלכם לאיש,
       אך עשויים לספק לשותפינו מידע מצטבר שאינו מזהה. ברירת המחדל לכל מידע אישי היא שיוצג רק לאחרים בקבוצות הפרטיות
@@ -37,14 +37,14 @@ const TermsHe: React.FC = () => (
       רק כמתואר במדיניות הפרטיות, למעט במקרה שנדרש לכך בחוק או על ידי הרשויות המוסמכות.
     </p>
 
-    <h2>3. האם המידע האישי עליי מאובטח?</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">3. האם המידע האישי עליי מאובטח?</h2>
     <p>
       המידע האישי שלכם מוגן ב-AIGuard באמצעות שם המשתמש והסיסמה שלכם. אנו ממליצים בחום לבחור ולהגן על הסיסמה כראוי,
       ולהגביל את הגישה למחשב ולטלפון הנייד רק לאנשים שאתם סומכים עליהם, על מנת למנוע גישה בלתי מורשית לחשבון, למידע
       האישי ולתוכן. AIGuard פועלת לשמור על המידע האישי והתוכן באמצעות אמצעים פיזיים, אלקטרוניים ופרוצדורליים.
     </p>
 
-    <h2>4. שיתוף תוכן ומידע שלכם</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">4. שיתוף תוכן ומידע שלכם</h2>
     <p>
       אתם הבעלים של כל התוכן והמידע האישי שאתם מזינים או מפרסמים ב-AIGuard, ויכולים לשלוט באופן השיתוף שלהם דרך הגדרות
       הפרטיות והאפליקציה. בנוסף: עבור תוכן שמוגן בזכויות קניין רוחני כגון סרטוני וידאו, אתם נותנים לנו במפורש את הרשות
@@ -54,7 +54,7 @@ const TermsHe: React.FC = () => (
       בגינם, כשם שאתם אינכם מחויבים להציעם לנו.
     </p>
 
-    <h2>5. זכאות ובטיחות</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">5. זכאות ובטיחות</h2>
     <p>
       אתם רשאים להשתמש בשירותים ובמוצרים רק אם אתם יכולים ליצור חוזה מחייב עם AIGuard ורק בהתאם להסכם זה ולכל החוקים,
       התקנות והכללים המקומיים, המדינתיים, הלאומיים והבינלאומיים החלים. כל מי שגילו פחות מ-16 אינו רשאי בשום אופן להשתמש
@@ -118,7 +118,7 @@ const TermsHe: React.FC = () => (
       פעולה הקשורה לשימוש שלכם או הנובעת ממנו.
     </p>
 
-    <h2>6. סימנים מסחריים וזכויות יוצרים</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">6. סימנים מסחריים וזכויות יוצרים</h2>
     <p>
       שום דבר במוצרים או בשירותים לא יתפרש כמעניק רישיון תחת זכות קניין רוחני כלשהי, לרבות זכויות בסימני מסחר וזכויות
       יוצרים, של AIGuard או של כל צד שלישי, בין אם בדרך של מניעות, מכללא או אחרת. כל הסימנים והשמות המסחריים הם רכושם של
@@ -128,7 +128,7 @@ const TermsHe: React.FC = () => (
       בתחומי שיפוט אחרים החלים).
     </p>
 
-    <h2>7. הגנה על זכויות אחרים</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">7. הגנה על זכויות אחרים</h2>
     <p>
       אנו מכבדים את זכויותיהם של אחרים ומצפים שתעשו אותו דבר. לא תפרסמו תוכן ולא תנקטו פעולה ב-AIGuard המפרה, מנכסת או
       פוגעת בזכויותיו של אדם אחר או בחוקים ובתקנות החלים. אנו שומרים לעצמנו את הזכות להסיר כל תוכן או מידע אישי שתפרסמו
@@ -136,38 +136,38 @@ const TermsHe: React.FC = () => (
       להשבית את חשבונכם בהתאם לשיקול דעתנו הבלעדי. לבסוף, לא תפרסמו ב-AIGuard מסמכי זיהוי של אדם או מידע פיננסי רגיש.
     </p>
 
-    <h2>8. נייד ומכשירים אחרים</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">8. נייד ומכשירים אחרים</h2>
     <p>
       כיום אנו מספקים את שירותי הנייד ללא תשלום, אך שימו לב שתעריפי הספק שלכם, כגון דמי הודעות SMS ודמי נתונים, עדיין
       חלים. אתם מספקים את הסכמתכם וכל הזכויות הנחוצות כדי לאפשר למשתמשים בקבוצות AIGuard שלכם לסנכרן (לרבות באמצעות
       אפליקציה) את מכשיריהם עם תוכן או מידע אישי שלכם הנראה להם ב-AIGuard.
     </p>
 
-    <h2>9. מנוי פרימיום ומדיניות החזרים</h2>
-    <h3>9.1 מסלולים ופלטפורמות מנוי</h3>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">9. מנוי פרימיום ומדיניות החזרים</h2>
+    <h3 className="font-bold text-base mt-4 mb-2 text-foreground">9.1 מסלולים ופלטפורמות מנוי</h3>
     <p>
       AIGuard מציעה שני שדרוגים בתשלום. AIGuard Plus הוא תשלום חד-פעמי להסרה לצמיתות של פרסומות. Premium הוא חבילת
       מנוי חודשית או שנתית. התשלום מתבצע דרך Stripe, LLC ולכן כפוף לכללי הפלטפורמות הללו.
     </p>
-    <h3>9.2 תקופות ניסיון ופרסומיות</h3>
+    <h3 className="font-bold text-base mt-4 mb-2 text-foreground">9.2 תקופות ניסיון ופרסומיות</h3>
     <p>
       לעיתים אנו מציעים למשתמשים מסוימים תקופות ניסיון או מנויי קידום שונים למסלולי Premium, הכפופים לתנאים אלה למעט
       כפי שצוין אחרת בהצעות. מנויי הניסיון רשאים בכל עת לבחור שלא להמשיך למנוי בתשלום בסיום תקופת הניסיון. אם לא תכנסו
       למנוי בתשלום למסלול Premium לפני סיום תקופת הניסיון, סרטוני האירועים שלכם יפוגו ויימחקו אוטומטית.
     </p>
-    <h3>9.3 שירותי מנוי בחידוש אוטומטי</h3>
+    <h3 className="font-bold text-base mt-4 mb-2 text-foreground">9.3 שירותי מנוי בחידוש אוטומטי</h3>
     <p>
       אלא אם תודיעו לנו לפני חיוב כי ברצונכם לבטל או שאינכם מעוניינים בחידוש אוטומטי, אתם מבינים שמסלול ה-Premium יימשך
       אוטומטית ואתם מסמיכים את AIGuard (ללא הודעה לכם, אלא אם נדרש על פי דין) לגבות את דמי המנוי החלים וכל מיסים בעבור
       כל תקופה עוקבת, באמצעות כל אמצעי תשלום הקיים אצלנו לגביכם.
     </p>
-    <h3>9.4 מדיניות החזרים</h3>
+    <h3 className="font-bold text-base mt-4 mb-2 text-foreground">9.4 מדיניות החזרים</h3>
     <p>
       ככלל, כל חיובי הרכישה אינם ניתנים להחזר ואין החזרים בעבור תקופות שמומשו חלקית. ייתכן שנעשה חריג אם בקשת החזר על
       הצעת מנוי תתקבל בתוך שבעה ימים ממועד העסקה, או אם החוקים החלים בתחום השיפוט שלכם מחייבים החזרים.
     </p>
 
-    <h2>10. הוראות מיוחדות החלות על תוכנה</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">10. הוראות מיוחדות החלות על תוכנה</h2>
     <p>
       מעת לעת, AIGuard עשויה לפתח עדכונים, שדרוגים, טלאים ושינויים אחרים לשיפור ביצועי השירותים ו/או המוצרים או מכל
       סיבה אחרת לפי שיקול דעתה הבלעדי ("עדכונים"). אתם מסכימים ש-AIGuard רשאית להתקין עדכונים אוטומטית ללא הודעה
@@ -177,7 +177,7 @@ const TermsHe: React.FC = () => (
       הותר לכם במפורש לעשות זאת על פי רישיון קוד פתוח או שנתנו לכם הסכמה מפורשת בכתב.
     </p>
 
-    <h2>11. הגבלת אחריות</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">11. הגבלת אחריות</h2>
     <p>
       השירותים והמוצרים מסופקים "כמות שהם" (AS IS) וללא אחריות לסחירות או להתאמה למטרה מסוימת או כל אחריות אחרת,
       מפורשת או משתמעת. AIGuard אינה מצהירה ואינה מתחייבת ששימוש באפליקציית AIGuard לא יפר פטנטים או זכויות קניין
@@ -193,14 +193,14 @@ const TermsHe: React.FC = () => (
       או עקיפות של הפרת חוקים החלים.
     </p>
 
-    <h2>12. סיום</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">12. סיום</h2>
     <p>
       אם תפרו את לשון או רוח הסכם זה, או תיצרו עבורנו סיכון או חשיפה משפטית אפשרית, אנו שומרים לעצמנו את הזכות להפסיק
       לספק לכם את כל AIGuard או חלק ממנה. נודיע לכם בדוא"ל או בפעם הבאה שתנסו לגשת לחשבונכם. תוכלו גם להסיר את
       האפליקציה בכל עת.
     </p>
 
-    <h2>13. סכסוכים</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">13. סכסוכים</h2>
     <p>
       כל מחלוקת, סכסוך, הבדל או תביעה ("סכסוכים") שעשויים להתעורר בינכם לבין AIGuard, הנובעים או הקשורים לפרשנות או
       לביצוע הסכם זה, יוסדרו בין הצדדים בבוררות בהתאם לכללי הפישור והבוררות של לשכת המסחר הבינלאומית, על ידי בורר אחד
@@ -211,7 +211,7 @@ const TermsHe: React.FC = () => (
       מכל תביעה ונזק, ידועים ולא ידועים, הנובעים או קשורים לכל תביעה שיש לכם נגד צדדים שלישיים כאמור.
     </p>
 
-    <h2>14. שונות</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">14. שונות</h2>
     <p>
       הסכם זה מהווה את ההסכם המלא בין הצדדים בנוגע לשירותים ולמוצרים, ומחליף כל הסכם קודם, בכתב או בעל פה. אם חלק כלשהו
       מהסכם זה יימצא בלתי אכיף, יתר ההסכם יישאר בתוקפו המלא. אם לא נאכוף הוראה כלשהי, אין בכך משום ויתור עליה או על כל
@@ -223,7 +223,7 @@ const TermsHe: React.FC = () => (
       המשתמשים יהיו מחויבים לכל שינוי בהסכם בעת שימושם בשירותים לאחר שקיבלו הודעה לראשונה על שינויים אלה.
     </p>
 
-    <h2>15. אין שימוש לצרכי הצלת חיים, בטיחות או שימושים קריטיים; גיבויים</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">15. אין שימוש לצרכי הצלת חיים, בטיחות או שימושים קריטיים; גיבויים</h2>
     <p>
       אתם מאשרים שהמוצרים והשירותים אינם מיועדים למערכת התראות חירום בניטור צד שלישי ושאיננו מנטרים התראות חירום ולא
       נשגר רשויות חירום לביתכם במקרה חירום. AIGuard אינה מבטיחה ששימוש במוצרים או בשירותים ישפיע או יגביר רמת בטיחות
@@ -233,7 +233,7 @@ const TermsHe: React.FC = () => (
       התוכן שלכם למיקום אחר מחוץ לשירותים על מנת להימנע מאובדן.
     </p>
 
-    <h2>16. תמיכת לקוחות</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">16. תמיכת לקוחות</h2>
     <p>
       תוכלו ליצור קשר עם תמיכת AIGuard בכתובת{' '}
       <a href="mailto:ioranr1@gmail.com" dir="ltr">ioranr1@gmail.com</a> או דרך ערוץ ה"דווח על תקלה" (Report an Issue)
@@ -246,7 +246,7 @@ const TermsHe: React.FC = () => (
 );
 
 const TermsEn: React.FC = () => (
-  <article className="prose prose-slate max-w-none ltr text-left prose-h2:font-bold prose-h2:!text-foreground prose-h2:text-base prose-h2:mt-6 prose-h2:mb-2 prose-h2:border-0 prose-h2:pb-0 prose-h3:font-bold prose-h3:!text-foreground prose-h3:text-base prose-h3:mt-4 prose-h3:mb-2" dir="ltr">
+  <article className="max-w-none ltr text-left text-foreground leading-relaxed space-y-3" dir="ltr">
     <h1>Terms Of Service</h1>
     <p><strong>Effective:</strong> 01/04/2026</p>
 
@@ -263,7 +263,7 @@ const TermsEn: React.FC = () => (
       subject to the new Agreement.
     </p>
 
-    <h2>1. Personal Information</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">1. Personal Information</h2>
     <p>
       We receive and store account information, location, and other Personal Information that you enter or upload to
       our Services. You can refer to our Privacy Policy to find out what types of Personal Information are collected.
@@ -275,7 +275,7 @@ const TermsEn: React.FC = () => (
       will also use cookies to identify each user.
     </p>
 
-    <h2>2. You Are Always In Control</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">2. You Are Always In Control</h2>
     <p>
       We assure you that you are the sole person who may choose to share your Personal Information. We neither rent
       nor sell your Personal Information to anyone, though we may provide aggregate, non-personally identifiable
@@ -285,7 +285,7 @@ const TermsEn: React.FC = () => (
       Policy, except for when required by law or applicable authorities to release the information.
     </p>
 
-    <h2>3. Is Personal Information About Me Secure?</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">3. Is Personal Information About Me Secure?</h2>
     <p>
       Your Personal Information is protected on AIGuard by your username and password. We highly recommend that you
       select and protect your password appropriately, and limit access to your computer and mobile phone to only those
@@ -294,7 +294,7 @@ const TermsEn: React.FC = () => (
       private, through physical, electronic, and procedural measures.
     </p>
 
-    <h2>4. Sharing Your Content and Information</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">4. Sharing Your Content and Information</h2>
     <p>
       You own all of the content and Personal Information you enter or post on AIGuard, and can control how it is
       shared through your privacy and application settings. In addition: for content that is covered by intellectual
@@ -306,7 +306,7 @@ const TermsEn: React.FC = () => (
       have no obligation to offer them to us.
     </p>
 
-    <h2>5. Eligibility and Safety</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">5. Eligibility and Safety</h2>
     <p>
       You may use the Services and Products only if you can form a binding contract with AIGuard and only in
       compliance with this Agreement and all applicable local, state, provincial, national, and international laws,
@@ -386,7 +386,7 @@ const TermsEn: React.FC = () => (
       use of AIGuard.
     </p>
 
-    <h2>6. Trademarks and Copyrights</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">6. Trademarks and Copyrights</h2>
     <p>
       Nothing on or in the Products or Services shall be construed as conferring any license under any intellectual
       property right, including any right in the nature of trademark or copyright, of AIGuard or any third party,
@@ -398,7 +398,7 @@ const TermsEn: React.FC = () => (
       (and/or other applicable jurisdictions).
     </p>
 
-    <h2>7. Protecting Other People's Rights</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">7. Protecting Other People's Rights</h2>
     <p>
       We respect other people's rights, and expect you to do the same. You will not post content or take any action on
       AIGuard that infringes, misappropriates or violates someone else's rights or otherwise violates applicable laws,
@@ -408,7 +408,7 @@ const TermsEn: React.FC = () => (
       Lastly, you will not post anyone's identification documents or sensitive financial information on AIGuard.
     </p>
 
-    <h2>8. Mobile and Other Devices</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">8. Mobile and Other Devices</h2>
     <p>
       We currently provide our mobile services for free, but please be aware that your carrier's normal rates and
       fees, such as text messaging fees and data fees, will still apply. You provide consent and all rights necessary
@@ -416,14 +416,14 @@ const TermsEn: React.FC = () => (
       your Content and Personal Information that is visible to them on AIGuard.
     </p>
 
-    <h2>9. Premium Subscription and Refund Policy</h2>
-    <h3>9.1 Plans and Subscription Platforms</h3>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">9. Premium Subscription and Refund Policy</h2>
+    <h3 className="font-bold text-base mt-4 mb-2 text-foreground">9.1 Plans and Subscription Platforms</h3>
     <p>
       AIGuard offers two paid upgrades. AIGuard Plus is a one-time fee for permanent ad-removal. Premium is a monthly
       or yearly subscription service package. The payment goes through the Stripe, LLC. Therefore, it has to abide by
       the rules of these platforms.
     </p>
-    <h3>9.2 Promotional Trials</h3>
+    <h3 className="font-bold text-base mt-4 mb-2 text-foreground">9.2 Promotional Trials</h3>
     <p>
       We sometimes offer certain Users various trial or other promotional subscriptions to Premium Plans, which are
       subject to these Terms except as otherwise stated in the promotional offers. Trial subscribers may at any time
@@ -431,21 +431,21 @@ const TermsEn: React.FC = () => (
       subscription for an Premium Plan before the end of your trial period, if any, your event videos will be expired
       and automatically deleted.
     </p>
-    <h3>9.3 Auto-renewal Subscription Services</h3>
+    <h3 className="font-bold text-base mt-4 mb-2 text-foreground">9.3 Auto-renewal Subscription Services</h3>
     <p>
       Unless you notify us before a charge that you want to cancel or do not want to auto-renew, you understand your
       Premium Plan will automatically continue and you authorize AIGuard (without notice to you, unless required by
       applicable law) to collect the then-applicable subscription fees and any taxes for each successive term, using
       any payment method we have on record for you.
     </p>
-    <h3>9.4 Refund Policy</h3>
+    <h3 className="font-bold text-base mt-4 mb-2 text-foreground">9.4 Refund Policy</h3>
     <p>
       Generally, all charges for purchases are nonrefundable, and there are no refunds for partially used periods. We
       may make an exception if a refund for a subscription offering is requested within seven days of the transaction
       date, or if the laws applicable in your jurisdiction provide for refunds.
     </p>
 
-    <h2>10. Special Provisions Applicable to Software</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">10. Special Provisions Applicable to Software</h2>
     <p>
       From time to time, AIGuard may develop updates, upgrades, patches and other modifications to improve the
       performance of the Services and/or the Products or for other reasons in our sole discretion ("Updates"). You
@@ -458,7 +458,7 @@ const TermsEn: React.FC = () => (
       you express written permission.
     </p>
 
-    <h2>11. Limitation of Liability</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">11. Limitation of Liability</h2>
     <p>
       The Services and Products provided herein are provided "as is" and without warranty of merchantability or
       warranty of fitness for a particular purpose or any other warranty, express or implied. AIGuard makes no
@@ -481,14 +481,14 @@ const TermsEn: React.FC = () => (
       indirect results of violations of any and all applicable laws.
     </p>
 
-    <h2>12. Termination</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">12. Termination</h2>
     <p>
       If you violate the letter or spirit of this Agreement, or otherwise create risk or possible legal exposure for
       us, we reserve the right to stop providing all or part of AIGuard to you. We will notify you by email or at the
       next time you attempt to access your account. You may also uninstall your application at any time.
     </p>
 
-    <h2>13. Disputes</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">13. Disputes</h2>
     <p>
       Any and all disputes, controversies, differences, or claims ("Disputes") which may arise between you and
       AIGuard hereto out of or in relation to the interpretation or the performance of this Agreement shall be settled
@@ -505,7 +505,7 @@ const TermsEn: React.FC = () => (
       OR IN ANY WAY CONNECTED WITH ANY CLAIM YOU HAVE AGAINST ANY SUCH THIRD PARTIES.
     </p>
 
-    <h2>14. Other</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">14. Other</h2>
     <p>
       This Agreement makes up the entire agreement between the parties regarding the Services and Products, and
       supersedes any prior agreements, whether written or oral. If any portion of this Agreement is found to be
@@ -524,7 +524,7 @@ const TermsEn: React.FC = () => (
       after they have first been notified of such changes.
     </p>
 
-    <h2>15. No Life and Safety or Critical Uses; Backups</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">15. No Life and Safety or Critical Uses; Backups</h2>
     <p>
       You acknowledge that Products and Services are not intended for a third-party monitored emergency notification
       system and that we do not monitor emergency notifications and will not dispatch emergency authorities to your
@@ -538,7 +538,7 @@ const TermsEn: React.FC = () => (
       loss of your content and other data.
     </p>
 
-    <h2>16. Customer Support</h2>
+    <h2 className="font-bold text-base mt-6 mb-2 text-foreground">16. Customer Support</h2>
     <p>
       You may contact AIGuard Support via{' '}
       <a href="mailto:ioranr1@gmail.com" dir="ltr">ioranr1@gmail.com</a> or the in-app "Report an Issue" channel, the
