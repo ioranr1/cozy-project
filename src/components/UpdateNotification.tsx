@@ -34,6 +34,29 @@ const WEB_UPDATE_TOAST_ID = 'aiguard-web-update-ready';
 const WEB_UPDATE_CHECK_INTERVAL_MS = 60_000;
 const WEB_UPDATE_AUTO_REFRESH_MS = 5 * 60_000;
 const WEB_UPDATE_BLOCKED_ROUTE_PREFIXES = ['/viewer', '/live/', '/baby-monitor'];
+const PWA_PENDING_VERSION_STORAGE_KEY = 'aiguard_pwa_pending_version';
+const SERVICE_WORKER_WAIT_TIMEOUT_MS = 8_000;
+
+const waitForWaitingServiceWorker = async (registration: ServiceWorkerRegistration) => {
+  const deadline = Date.now() + SERVICE_WORKER_WAIT_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    if (registration.waiting) {
+      return registration.waiting;
+    }
+
+    await registration.update();
+    await new Promise((resolve) => window.setTimeout(resolve, 250));
+  }
+
+  return registration.waiting ?? null;
+};
+
+const forceRefreshFromNetwork = () => {
+  const nextUrl = new URL(window.location.href);
+  nextUrl.searchParams.set('app-update', Date.now().toString());
+  window.location.replace(nextUrl.toString());
+};
 
 const UpdateNotification = () => {
   const location = useLocation();
@@ -76,31 +99,70 @@ const UpdateNotification = () => {
   const applyWebUpdate = useCallback(async () => {
     toast.dismiss(WEB_UPDATE_TOAST_ID);
 
-    // עדכון הגרסה המאושרת לפני רענון, כדי שלא נראה Toast שוב מיד
-    if (dbVersion) {
+    if (dbVersion?.version) {
       try {
-        localStorage.setItem(PWA_VERSION_STORAGE_KEY, dbVersion.version);
+        sessionStorage.setItem(PWA_PENDING_VERSION_STORAGE_KEY, dbVersion.version);
       } catch {
         /* ignore */
       }
     }
 
-    if (!updateWebAppRef.current) {
-      window.location.reload();
-      return;
-    }
-
     try {
-      await updateWebAppRef.current(true);
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+
+        if (registration) {
+          const waitingWorker = await waitForWaitingServiceWorker(registration);
+
+          if (waitingWorker) {
+            const controllerChanged = await new Promise<boolean>((resolve) => {
+              let settled = false;
+
+              const finish = (value: boolean) => {
+                if (settled) return;
+                settled = true;
+                navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+                window.clearTimeout(timeoutId);
+                resolve(value);
+              };
+
+              const handleControllerChange = () => {
+                finish(true);
+                window.location.reload();
+              };
+
+              const timeoutId = window.setTimeout(() => finish(false), 4_000);
+              navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange, { once: true });
+              waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+            });
+
+            if (controllerChanged) {
+              return;
+            }
+          }
+        }
+      }
+
+      if (updateWebAppRef.current) {
+        await updateWebAppRef.current(true);
+      }
     } catch (error) {
       console.error('[PWA Update] Failed to apply update:', error);
-      window.location.reload();
-      return;
+    }
+
+    navigator.serviceWorker?.getRegistrations().then((registrations) => {
+      registrations.forEach((registration) => {
+        void registration.unregister();
+      });
+    }).catch(() => undefined);
+
+    if ('caches' in window) {
+      void caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))));
     }
 
     window.setTimeout(() => {
-      window.location.reload();
-    }, 2000);
+      forceRefreshFromNetwork();
+    }, 250);
   }, [dbVersion]);
 
   useEffect(() => {
@@ -170,6 +232,15 @@ const UpdateNotification = () => {
   // ============================================================
   useEffect(() => {
     if (isElectron || !dbVersion) return;
+
+    const pendingVersion = sessionStorage.getItem(PWA_PENDING_VERSION_STORAGE_KEY);
+    if (pendingVersion && pendingVersion === dbVersion.version) {
+      localStorage.setItem(PWA_VERSION_STORAGE_KEY, dbVersion.version);
+      sessionStorage.removeItem(PWA_PENDING_VERSION_STORAGE_KEY);
+      setWebUpdateReady(false);
+      setWebToastDismissed(false);
+      return;
+    }
 
     const acknowledged = localStorage.getItem(PWA_VERSION_STORAGE_KEY);
     if (!acknowledged) {
