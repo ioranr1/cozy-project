@@ -9,6 +9,23 @@ export const Footer = forwardRef<HTMLElement, React.HTMLAttributes<HTMLElement>>
   return (
     <footer ref={ref} {...props} className="bg-slate-800 border-t border-slate-700 py-12">
       <div className="container mx-auto px-4">
+        {/* Contact us */}
+        <div className="text-center mb-8 pb-8 border-b border-slate-700">
+          <h3 className="text-white font-semibold text-lg mb-2">
+            {t.footer.contactTitle}
+          </h3>
+          <p className="text-white/70 text-sm">
+            {t.footer.contactText}{' '}
+            <a
+              href="mailto:ioranr1@gmail.com"
+              className="text-cyan-400 hover:text-cyan-300 underline transition-colors"
+              dir="ltr"
+            >
+              ioranr1@gmail.com
+            </a>
+          </p>
+        </div>
+
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
