@@ -246,7 +246,7 @@ const TermsHe: React.FC = () => (
 );
 
 const TermsEn: React.FC = () => (
-  <article className="prose prose-slate max-w-none ltr text-left prose-h2:font-extrabold prose-h2:!text-foreground prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:border-border prose-h2:pb-2 prose-h3:font-extrabold prose-h3:!text-foreground prose-h3:text-xl prose-h3:mt-5 prose-h3:mb-2" dir="ltr">
+  <article className="prose prose-slate max-w-none ltr text-left prose-h2:font-bold prose-h2:!text-foreground prose-h2:text-base prose-h2:mt-6 prose-h2:mb-2 prose-h2:border-0 prose-h2:pb-0 prose-h3:font-bold prose-h3:!text-foreground prose-h3:text-base prose-h3:mt-4 prose-h3:mb-2" dir="ltr">
     <h1>Terms Of Service</h1>
     <p><strong>Effective:</strong> 01/04/2026</p>
 
