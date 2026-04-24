@@ -338,7 +338,7 @@ export const translations = {
         motionDetection: {
           title: 'Motion Detection',
           description: 'The system detects human movement and sends you instant alerts directly to WhatsApp. Stay informed in real-time about any suspicious activity.',
-          bullets: ['Human-only motion detection (reduces false alerts)', 'Instant WhatsApp notifications', 'Event snapshot included'],
+          bullets: ['AI-powered human-only motion detection (reduces false alerts)', 'Instant WhatsApp notifications', 'Event snapshot included'],
         },
         audioMonitoring: {
           title: 'Audio Monitoring',
