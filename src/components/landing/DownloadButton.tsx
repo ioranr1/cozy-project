@@ -7,7 +7,7 @@ const GITHUB_OWNER = 'ioranr1';
 const GITHUB_REPO = 'cozy-project';
 const RELEASE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest/download`;
 const WIN_FILE = 'Security-Camera-Agent-Setup.exe';
-const MAC_FILE = 'Security-Camera-Agent.dmg';
+const MAC_FILE = 'Security-Camera-Agent.dmg'; // stable name set via electron-builder artifactName in electron-webrtc-example/package.json
 
 type DetectedOS = 'windows' | 'mac' | 'unknown';
 
