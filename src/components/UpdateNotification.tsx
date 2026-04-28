@@ -14,6 +14,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from '@/components/ui/sonner';
 import { registerSW } from 'virtual:pwa-register';
 import { usePwaVersion } from '@/hooks/usePwaVersion';
+import { safeStorage } from '@/lib/safeStorage';
 
 const PWA_VERSION_STORAGE_KEY = 'aiguard_pwa_acknowledged_version';
 
@@ -101,7 +102,7 @@ const UpdateNotification = () => {
 
     if (dbVersion?.version) {
       try {
-        sessionStorage.setItem(PWA_PENDING_VERSION_STORAGE_KEY, dbVersion.version);
+        safeStorage.setItem('session', PWA_PENDING_VERSION_STORAGE_KEY, dbVersion.version);
       } catch {
         /* ignore */
       }
@@ -233,18 +234,18 @@ const UpdateNotification = () => {
   useEffect(() => {
     if (isElectron || !dbVersion) return;
 
-    const pendingVersion = sessionStorage.getItem(PWA_PENDING_VERSION_STORAGE_KEY);
+    const pendingVersion = safeStorage.getItem('session', PWA_PENDING_VERSION_STORAGE_KEY);
     if (pendingVersion && pendingVersion === dbVersion.version) {
-      localStorage.setItem(PWA_VERSION_STORAGE_KEY, dbVersion.version);
-      sessionStorage.removeItem(PWA_PENDING_VERSION_STORAGE_KEY);
+      safeStorage.setItem('local', PWA_VERSION_STORAGE_KEY, dbVersion.version);
+      safeStorage.removeItem('session', PWA_PENDING_VERSION_STORAGE_KEY);
       setWebUpdateReady(false);
       setWebToastDismissed(false);
       return;
     }
 
-    const acknowledged = localStorage.getItem(PWA_VERSION_STORAGE_KEY);
+    const acknowledged = safeStorage.getItem('local', PWA_VERSION_STORAGE_KEY);
     if (!acknowledged) {
-      localStorage.setItem(PWA_VERSION_STORAGE_KEY, dbVersion.version);
+      safeStorage.setItem('local', PWA_VERSION_STORAGE_KEY, dbVersion.version);
       return;
     }
 
