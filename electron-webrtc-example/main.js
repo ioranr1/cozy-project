@@ -793,7 +793,8 @@ function updateTrayMenu(caller = 'unknown') {
   const updateState = _downloadedUpdateInfo ? 'downloaded' : (_pendingUpdateInfo ? 'available' : 'none');
 
   // Build a hash of the menu content – skip rebuild if nothing changed
-  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}`;
+  const progressTag = _downloadProgress ? `dl${Math.floor(_downloadProgress.percent / 5) * 5}` : '';
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}|${progressTag}`;
 
   // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
   // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
@@ -828,12 +829,39 @@ function updateTrayMenu(caller = 'unknown') {
       click: () => { autoUpdater.quitAndInstall(false, true); }
     });
     updateMenuItems.push({ type: 'separator' });
+  } else if (_downloadProgress) {
+    updateMenuItems.push({
+      label: `⏳ Downloading update… ${Math.round(_downloadProgress.percent)}%`,
+      enabled: false,
+    });
+    updateMenuItems.push({ type: 'separator' });
   } else if (_pendingUpdateInfo) {
     updateMenuItems.push({
       label: `🌟 Download Update (v${_pendingUpdateInfo.version})`,
       click: () => {
         console.log('[AutoUpdater] Tray: Download clicked');
-        autoUpdater.downloadUpdate();
+        // v2.52.3: Immediate user feedback so it doesn't look frozen
+        _downloadProgress = { percent: 0 };
+        updateTrayMenu('download-clicked');
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'AIGuard Camera',
+            body: `Downloading v${_pendingUpdateInfo.version}… You'll be notified when it's ready to install.`,
+            icon: getIconPath(),
+          }).show();
+        }
+        autoUpdater.downloadUpdate().catch((err) => {
+          console.error('[AutoUpdater] downloadUpdate failed:', err?.message || err);
+          _downloadProgress = null;
+          updateTrayMenu('download-failed');
+          if (Notification.isSupported()) {
+            new Notification({
+              title: 'AIGuard Camera - Update Failed',
+              body: `Could not download update: ${err?.message || 'Unknown error'}`,
+              icon: getIconPath(),
+            }).show();
+          }
+        });
       }
     });
     updateMenuItems.push({ type: 'separator' });
