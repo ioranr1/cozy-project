@@ -2336,6 +2336,8 @@ app.whenReady().then(async () => {
 let _pendingUpdateInfo = null;   // { version } when update-available
 let _downloadedUpdateInfo = null; // { version } when update-downloaded
 let _updateCheckInterval = null;
+// v2.52.3: Live download progress shown in tray menu
+let _downloadProgress = null; // { percent } while downloading
 
 function initAutoUpdater() {
   console.log('[AutoUpdater] Initializing (v2.41.0 - silent tray mode + badge icon, 1min test interval)...');
