@@ -1,6 +1,6 @@
 {
   "name": "security-camera-agent",
-  "version": "2.52.2",
+  "version": "2.52.3",
   "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
   "main": "main.js",
   "scripts": {
@@ -40,7 +40,13 @@
     },
     "mac": {
       "target": "dmg",
-      "artifactName": "Security-Camera-Agent.${ext}"
+      "artifactName": "Security-Camera-Agent.${ext}",
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "notarize": true
     },
     "dmg": {
       "artifactName": "Security-Camera-Agent.${ext}"

@@ -793,7 +793,8 @@ function updateTrayMenu(caller = 'unknown') {
   const updateState = _downloadedUpdateInfo ? 'downloaded' : (_pendingUpdateInfo ? 'available' : 'none');
 
   // Build a hash of the menu content – skip rebuild if nothing changed
-  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}`;
+  const progressTag = _downloadProgress ? `dl${Math.floor(_downloadProgress.percent / 5) * 5}` : '';
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}|${progressTag}`;
 
   // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
   // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
@@ -828,12 +829,39 @@ function updateTrayMenu(caller = 'unknown') {
       click: () => { autoUpdater.quitAndInstall(false, true); }
     });
     updateMenuItems.push({ type: 'separator' });
+  } else if (_downloadProgress) {
+    updateMenuItems.push({
+      label: `⏳ Downloading update… ${Math.round(_downloadProgress.percent)}%`,
+      enabled: false,
+    });
+    updateMenuItems.push({ type: 'separator' });
   } else if (_pendingUpdateInfo) {
     updateMenuItems.push({
       label: `🌟 Download Update (v${_pendingUpdateInfo.version})`,
       click: () => {
         console.log('[AutoUpdater] Tray: Download clicked');
-        autoUpdater.downloadUpdate();
+        // v2.52.3: Immediate user feedback so it doesn't look frozen
+        _downloadProgress = { percent: 0 };
+        updateTrayMenu('download-clicked');
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'AIGuard Camera',
+            body: `Downloading v${_pendingUpdateInfo.version}… You'll be notified when it's ready to install.`,
+            icon: getIconPath(),
+          }).show();
+        }
+        autoUpdater.downloadUpdate().catch((err) => {
+          console.error('[AutoUpdater] downloadUpdate failed:', err?.message || err);
+          _downloadProgress = null;
+          updateTrayMenu('download-failed');
+          if (Notification.isSupported()) {
+            new Notification({
+              title: 'AIGuard Camera - Update Failed',
+              body: `Could not download update: ${err?.message || 'Unknown error'}`,
+              icon: getIconPath(),
+            }).show();
+          }
+        });
       }
     });
     updateMenuItems.push({ type: 'separator' });
@@ -2336,6 +2364,8 @@ app.whenReady().then(async () => {
 let _pendingUpdateInfo = null;   // { version } when update-available
 let _downloadedUpdateInfo = null; // { version } when update-downloaded
 let _updateCheckInterval = null;
+// v2.52.3: Live download progress shown in tray menu
+let _downloadProgress = null; // { percent } while downloading
 
 function initAutoUpdater() {
   console.log('[AutoUpdater] Initializing (v2.41.0 - silent tray mode + badge icon, 1min test interval)...');
@@ -2389,6 +2419,8 @@ function initAutoUpdater() {
 
   autoUpdater.on('download-progress', (progress) => {
     console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`);
+    _downloadProgress = { percent: progress.percent };
+    updateTrayMenu('download-progress');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'download-progress', percent: progress.percent, bytesPerSecond: progress.bytesPerSecond, transferred: progress.transferred, total: progress.total });
     }
@@ -2397,6 +2429,7 @@ function initAutoUpdater() {
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version);
     _pendingUpdateInfo = null;
+    _downloadProgress = null;
     _downloadedUpdateInfo = { version: info.version };
 
     // Notify renderer
@@ -2427,15 +2460,27 @@ function initAutoUpdater() {
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err?.message || err);
     _pendingUpdateInfo = null;
+    _downloadProgress = null;
+    updateTrayMenu('update-error');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'error', message: err?.message || 'Unknown error' });
+    }
+    // v2.52.3: Surface error to user — silent failures are why "nothing happens" on Mac
+    if (Notification.isSupported()) {
+      new Notification({
+        title: 'AIGuard Camera - Update Error',
+        body: err?.message || 'Unknown auto-update error',
+        icon: getIconPath(),
+      }).show();
     }
   });
 
   // IPC: renderer requests download
   ipcMain.handle('auto-update-download', () => {
     console.log('[AutoUpdater] Download requested by renderer');
-    autoUpdater.downloadUpdate();
+    _downloadProgress = { percent: 0 };
+    updateTrayMenu('download-ipc');
+    return autoUpdater.downloadUpdate();
   });
 
   // IPC: renderer requests quit-and-install
