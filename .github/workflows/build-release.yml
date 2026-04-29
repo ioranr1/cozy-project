@@ -85,14 +85,32 @@ jobs:
           echo "✅ Entitlements available for both working directories"
           ls -l build/entitlements.mac.plist ../build/entitlements.mac.plist
 
-      - name: Build & Publish
+      - name: Build & Publish Windows
+        if: matrix.os == 'windows-latest'
         run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS code signing (Apple Developer ID)
+
+      - name: Build & Publish macOS with notarization retry
+        if: matrix.os == 'macos-latest'
+        run: |
+          for attempt in 1 2 3; do
+            echo "macOS build/notarization attempt ${attempt}/3"
+            if npx electron-builder --publish always; then
+              echo "✅ macOS build and notarization succeeded"
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "❌ macOS build and notarization failed after 3 attempts"
+              exit 1
+            fi
+            echo "⚠️ Apple notarization can return temporary HTTP 500 errors; retrying in $((attempt * 60)) seconds..."
+            sleep $((attempt * 60))
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          # macOS notarization (Apple ID + app-specific password)
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
