@@ -51,6 +51,21 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: Prepare macOS entitlements
+        if: matrix.os == 'macos-latest'
+        run: |
+          test -f build/entitlements.mac.plist || { echo "❌ Missing build/entitlements.mac.plist"; exit 1; }
+          python3 - <<'PY'
+          import plistlib
+          with open('build/entitlements.mac.plist', 'rb') as f:
+              plistlib.load(f)
+          print('✅ Entitlements plist is readable')
+          PY
+          mkdir -p ../build
+          cp build/entitlements.mac.plist ../build/entitlements.mac.plist
+          echo "✅ Entitlements available for both working directories"
+          ls -l build/entitlements.mac.plist ../build/entitlements.mac.plist
+
       - name: Build & Publish
         run: npx electron-builder --publish always
         env:
