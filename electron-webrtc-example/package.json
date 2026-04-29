@@ -46,7 +46,9 @@
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "notarize": false
+      "notarize": {
+        "teamId": "PLACEHOLDER_TEAM_ID"
+      }
     },
     "dmg": {
       "artifactName": "Security-Camera-Agent.${ext}"
