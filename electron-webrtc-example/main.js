@@ -2419,6 +2419,8 @@ function initAutoUpdater() {
 
   autoUpdater.on('download-progress', (progress) => {
     console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`);
+    _downloadProgress = { percent: progress.percent };
+    updateTrayMenu('download-progress');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'download-progress', percent: progress.percent, bytesPerSecond: progress.bytesPerSecond, transferred: progress.transferred, total: progress.total });
     }
@@ -2427,6 +2429,7 @@ function initAutoUpdater() {
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version);
     _pendingUpdateInfo = null;
+    _downloadProgress = null;
     _downloadedUpdateInfo = { version: info.version };
 
     // Notify renderer
@@ -2457,15 +2460,27 @@ function initAutoUpdater() {
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err?.message || err);
     _pendingUpdateInfo = null;
+    _downloadProgress = null;
+    updateTrayMenu('update-error');
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'error', message: err?.message || 'Unknown error' });
+    }
+    // v2.52.3: Surface error to user — silent failures are why "nothing happens" on Mac
+    if (Notification.isSupported()) {
+      new Notification({
+        title: 'AIGuard Camera - Update Error',
+        body: err?.message || 'Unknown auto-update error',
+        icon: getIconPath(),
+      }).show();
     }
   });
 
   // IPC: renderer requests download
   ipcMain.handle('auto-update-download', () => {
     console.log('[AutoUpdater] Download requested by renderer');
-    autoUpdater.downloadUpdate();
+    _downloadProgress = { percent: 0 };
+    updateTrayMenu('download-ipc');
+    return autoUpdater.downloadUpdate();
   });
 
   // IPC: renderer requests quit-and-install
