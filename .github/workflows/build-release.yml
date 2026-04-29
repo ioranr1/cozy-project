@@ -30,6 +30,27 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Verify macOS signing secrets
+        if: matrix.os == 'macos-latest'
+        run: |
+          echo "Checking required signing secrets..."
+          if [ -z "$CSC_LINK" ]; then echo "❌ CSC_LINK is MISSING"; exit 1; else echo "✅ CSC_LINK present (length: ${#CSC_LINK})"; fi
+          if [ -z "$CSC_KEY_PASSWORD" ]; then echo "❌ CSC_KEY_PASSWORD is MISSING"; exit 1; else echo "✅ CSC_KEY_PASSWORD present"; fi
+          if [ -z "$APPLE_ID" ]; then echo "❌ APPLE_ID is MISSING"; exit 1; else echo "✅ APPLE_ID present"; fi
+          if [ -z "$APPLE_APP_SPECIFIC_PASSWORD" ]; then echo "❌ APPLE_APP_SPECIFIC_PASSWORD is MISSING"; exit 1; else echo "✅ APPLE_APP_SPECIFIC_PASSWORD present"; fi
+          if [ -z "$APPLE_TEAM_ID" ]; then echo "❌ APPLE_TEAM_ID is MISSING"; exit 1; else echo "✅ APPLE_TEAM_ID present: $APPLE_TEAM_ID"; fi
+          echo "Decoding CSC_LINK to verify it's valid base64..."
+          echo "$CSC_LINK" | base64 --decode > /tmp/cert.p12 2>&1 && echo "✅ Base64 decode OK ($(wc -c < /tmp/cert.p12) bytes)" || echo "❌ Base64 decode FAILED"
+          echo "Verifying .p12 with provided password..."
+          openssl pkcs12 -in /tmp/cert.p12 -noout -passin pass:"$CSC_KEY_PASSWORD" && echo "✅ .p12 password OK" || echo "❌ .p12 password WRONG or file corrupt"
+          rm -f /tmp/cert.p12
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
       - name: Build & Publish
         run: npx electron-builder --publish always
         env:
