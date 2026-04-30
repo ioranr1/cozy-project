@@ -789,15 +789,174 @@ function startTrayHealthMonitor() {
 // Global tray-update counter for diagnostics
 let _trayUpdateCounter = 0;
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getUpdateWindowState() {
+  const version = _downloadedUpdateInfo?.version || _pendingUpdateInfo?.version || 'latest';
+  const percent = Math.max(0, Math.min(100, Math.round(_downloadProgress?.percent || 0)));
+  const status = _downloadedUpdateInfo
+    ? 'downloaded'
+    : (_isUpdateDownloadInProgress ? 'downloading' : (_lastUpdateError ? 'error' : (_pendingUpdateInfo ? 'available' : 'checking')));
+
+  return {
+    status,
+    version,
+    percent,
+    error: _lastUpdateError || '',
+    lang: currentLanguage === 'he' ? 'he' : 'en',
+  };
+}
+
+function renderUpdateWindowHtml() {
+  const state = getUpdateWindowState();
+  const isHe = state.lang === 'he';
+  const text = isHe ? {
+    title: 'עדכון AIGuard',
+    available: 'עדכון מוכן להורדה',
+    checking: 'בודק עדכון זמין…',
+    downloading: 'מוריד עדכון…',
+    downloaded: 'העדכון ירד ומוכן להתקנה',
+    error: 'ההורדה נכשלה',
+    download: 'הורד עכשיו',
+    install: 'התקן עכשיו',
+    close: 'סגור',
+    version: 'גרסה',
+    note: 'נא לא ללחוץ שוב — ההורדה ממשיכה בחלון זה.',
+  } : {
+    title: 'AIGuard Update',
+    available: 'Update ready to download',
+    checking: 'Checking for updates…',
+    downloading: 'Downloading update…',
+    downloaded: 'Update downloaded and ready to install',
+    error: 'Download failed',
+    download: 'Download now',
+    install: 'Install now',
+    close: 'Close',
+    version: 'Version',
+    note: 'Do not click again — the download continues in this window.',
+  };
+
+  return `<!doctype html>
+<html lang="${state.lang}" dir="${isHe ? 'rtl' : 'ltr'}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(text.title)}</title>
+  <style>
+    body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:#efefef;color:#1f2937;user-select:none}
+    .wrap{padding:22px 24px 18px}.title{font-size:20px;font-weight:650;margin-bottom:8px}.sub{font-size:14px;color:#4b5563;margin-bottom:18px;min-height:22px}
+    .panel{border:1px solid #c8c8c8;background:#f8f8f8;border-radius:4px;padding:16px;box-shadow:inset 0 1px 0 #fff}.row{display:flex;justify-content:space-between;gap:12px;font-size:13px;margin-bottom:10px;color:#374151}
+    .bar{height:21px;border:1px solid #9ca3af;background:#fff;border-radius:3px;overflow:hidden}.fill{height:100%;width:0%;background:linear-gradient(90deg,#2563eb,#38bdf8);transition:width .2s ease}.pct{font-size:13px;color:#374151;margin-top:8px;text-align:center;min-height:18px}.err{font-size:12px;color:#b91c1c;margin-top:10px;min-height:16px;word-break:break-word}
+    .note{font-size:12px;color:#6b7280;margin-top:12px}.buttons{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}button{min-width:96px;padding:7px 14px;border:1px solid #9ca3af;border-radius:3px;background:#f3f4f6;color:#111827;font-size:13px;cursor:pointer}button:hover:not(:disabled){background:#fff}button.primary{background:#2563eb;border-color:#1d4ed8;color:#fff}button.primary:hover:not(:disabled){background:#1d4ed8}button:disabled{opacity:.55;cursor:default}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="title">${escapeHtml(text.title)}</div>
+    <div id="subtitle" class="sub"></div>
+    <div class="panel">
+      <div class="row"><span>${escapeHtml(text.version)}</span><strong id="version"></strong></div>
+      <div class="bar"><div id="fill" class="fill"></div></div>
+      <div id="pct" class="pct"></div>
+      <div id="err" class="err"></div>
+      <div id="note" class="note">${escapeHtml(text.note)}</div>
+    </div>
+    <div class="buttons">
+      <button id="download" class="primary" onclick="location.href='aiguard-update://download'">${escapeHtml(text.download)}</button>
+      <button id="install" class="primary" onclick="location.href='aiguard-update://install'">${escapeHtml(text.install)}</button>
+      <button onclick="location.href='aiguard-update://close'">${escapeHtml(text.close)}</button>
+    </div>
+  </div>
+  <script>
+    const labels=${JSON.stringify(text)};
+    window.__setUpdateState=function(s){
+      const title=s.status==='downloaded'?labels.downloaded:s.status==='downloading'?labels.downloading:s.status==='error'?labels.error:s.status==='checking'?labels.checking:labels.available;
+      document.getElementById('subtitle').textContent=title;
+      document.getElementById('version').textContent='v'+s.version;
+      document.getElementById('fill').style.width=(s.status==='downloaded'?100:s.percent)+'%';
+      document.getElementById('pct').textContent=s.status==='downloaded'?'100%':(s.status==='downloading'?s.percent+'%':'');
+      document.getElementById('err').textContent=s.error||'';
+      document.getElementById('download').disabled=s.status==='downloading'||s.status==='downloaded'||s.status==='checking';
+      document.getElementById('install').style.display=s.status==='downloaded'?'inline-block':'none';
+      document.getElementById('note').style.display=s.status==='downloading'?'block':'none';
+    };
+    window.__setUpdateState(${JSON.stringify(state)});
+  </script>
+</body>
+</html>`;
+}
+
+function refreshUpdateWindow() {
+  if (!_updateWindow || _updateWindow.isDestroyed?.()) return;
+  const state = getUpdateWindowState();
+  if (_updateWindow.webContents.isLoading()) return;
+  _updateWindow.webContents.executeJavaScript(`window.__setUpdateState && window.__setUpdateState(${JSON.stringify(state)})`).catch(() => {});
+}
+
+function setUpdateTaskbarProgress(percentOrNull) {
+  const value = typeof percentOrNull === 'number' ? Math.max(0, Math.min(1, percentOrNull)) : -1;
+  try { if (mainWindow && !mainWindow.isDestroyed?.()) mainWindow.setProgressBar(value); } catch (_) {}
+  try { if (_updateWindow && !_updateWindow.isDestroyed?.()) _updateWindow.setProgressBar(value); } catch (_) {}
+}
+
+function openUpdateWindow({ autoStart = false } = {}) {
+  if (_updateWindow && !_updateWindow.isDestroyed?.()) {
+    _updateWindow.show();
+    _updateWindow.focus();
+    refreshUpdateWindow();
+    if (autoStart) startUpdateDownload('update-window-existing');
+    return;
+  }
+
+  _updateWindow = new BrowserWindow({
+    width: 460,
+    height: 300,
+    resizable: false,
+    minimizable: true,
+    maximizable: false,
+    title: currentLanguage === 'he' ? 'עדכון AIGuard' : 'AIGuard Update',
+    backgroundColor: '#efefef',
+    show: false,
+    parent: mainWindow && !mainWindow.isDestroyed?.() ? mainWindow : undefined,
+    modal: false,
+    webPreferences: { contextIsolation: true, nodeIntegration: false },
+  });
+
+  _updateWindow.setMenuBarVisibility(false);
+  _updateWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(renderUpdateWindowHtml()));
+  _updateWindow.once('ready-to-show', () => {
+    _updateWindow.show();
+    refreshUpdateWindow();
+    if (autoStart) startUpdateDownload('update-window');
+  });
+  _updateWindow.on('closed', () => { _updateWindow = null; });
+  _updateWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('aiguard-update://')) return;
+    event.preventDefault();
+    if (url.includes('download')) startUpdateDownload('update-window-button');
+    if (url.includes('install')) autoUpdater.quitAndInstall(false, true);
+    if (url.includes('close') && _updateWindow && !_updateWindow.isDestroyed?.()) _updateWindow.close();
+  });
+}
+
 function startUpdateDownload(source = 'unknown') {
   if (_isUpdateDownloadInProgress) {
     log.info(`[AutoUpdater] Download already in progress; ignoring duplicate request from ${source}`);
+    openUpdateWindow({ autoStart: false });
+    refreshUpdateWindow();
     return Promise.resolve([]);
   }
 
   if (_downloadedUpdateInfo) {
-    log.info(`[AutoUpdater] Update already downloaded; opening installer flow from ${source}`);
-    autoUpdater.quitAndInstall(false, true);
+    log.info(`[AutoUpdater] Update already downloaded; showing install window from ${source}`);
+    openUpdateWindow({ autoStart: false });
     return Promise.resolve([]);
   }
 
@@ -806,8 +965,12 @@ function startUpdateDownload(source = 'unknown') {
   log.info(`[AutoUpdater] Starting download from ${source} for v${requestedVersion}`);
 
   _isUpdateDownloadInProgress = true;
+  _lastUpdateError = null;
   _downloadProgress = { percent: 0 };
   updateTrayMenu(`download-start-${source}`);
+  openUpdateWindow({ autoStart: false });
+  refreshUpdateWindow();
+  setUpdateTaskbarProgress(0);
 
   if (Notification.isSupported()) {
     new Notification({
@@ -828,7 +991,10 @@ function startUpdateDownload(source = 'unknown') {
       log.error('[AutoUpdater] downloadUpdate failed:', err);
       _isUpdateDownloadInProgress = false;
       _downloadProgress = null;
+      _lastUpdateError = message;
       updateTrayMenu(`download-failed-${source}`);
+      refreshUpdateWindow();
+      setUpdateTaskbarProgress(null);
       if (Notification.isSupported()) {
         new Notification({
           title: 'AIGuard Camera - Update Failed',
@@ -887,19 +1053,19 @@ function updateTrayMenu(caller = 'unknown') {
   if (_downloadedUpdateInfo) {
     updateMenuItems.push({
       label: `🚀 Install Update (v${_downloadedUpdateInfo.version})`,
-      click: () => { autoUpdater.quitAndInstall(false, true); }
+      click: () => { openUpdateWindow({ autoStart: false }); }
     });
     updateMenuItems.push({ type: 'separator' });
   } else if (_downloadProgress) {
     updateMenuItems.push({
       label: `⏳ Downloading update… ${Math.round(_downloadProgress.percent)}%`,
-      enabled: false,
+      click: () => { openUpdateWindow({ autoStart: false }); }
     });
     updateMenuItems.push({ type: 'separator' });
   } else if (_pendingUpdateInfo) {
     updateMenuItems.push({
       label: `🌟 Download Update (v${_pendingUpdateInfo.version})`,
-      click: () => { startUpdateDownload('tray'); }
+      click: () => { openUpdateWindow({ autoStart: true }); }
     });
     updateMenuItems.push({ type: 'separator' });
   }
@@ -2401,17 +2567,19 @@ app.whenReady().then(async () => {
 let _pendingUpdateInfo = null;   // { version } when update-available
 let _downloadedUpdateInfo = null; // { version } when update-downloaded
 let _updateCheckInterval = null;
+let _updateWindow = null;
+let _lastUpdateError = null;
 // v2.52.3: Live download progress shown in tray menu
 let _downloadProgress = null; // { percent } while downloading
 let _isUpdateDownloadInProgress = false;
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.52.16 - silent tray mode, full Windows downloads, 12h interval)...');
+  console.log('[AutoUpdater] Initializing (v2.52.17 - Windows progress window, full downloads, 12h interval)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
-  // v2.52.16: On Windows, differential NSIS downloads can stall before
+  // v2.52.17: On Windows, differential NSIS downloads can stall before
   // update-downloaded (seen from 2.52.7 -> 2.52.15 around 86%). Force the
   // complete installer download instead of patch/blockmap reconstruction.
   autoUpdater.disableDifferentialDownload = true;
@@ -2424,6 +2592,7 @@ function initAutoUpdater() {
     console.log('[AutoUpdater] Update available:', info.version);
     _pendingUpdateInfo = { version: info.version };
     _downloadedUpdateInfo = null;
+    _lastUpdateError = null;
 
     // Notify renderer (for in-app UI if visible)
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2440,7 +2609,7 @@ function initAutoUpdater() {
       notification.on('click', () => {
         // When user clicks notification, start download immediately
         console.log('[AutoUpdater] Notification clicked - starting download');
-        startUpdateDownload('notification');
+        openUpdateWindow({ autoStart: true });
       });
       notification.show();
     }
@@ -2467,6 +2636,8 @@ function initAutoUpdater() {
     console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`);
     _downloadProgress = { percent: progress.percent };
     updateTrayMenu('download-progress');
+    refreshUpdateWindow();
+    setUpdateTaskbarProgress(progress.percent / 100);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'download-progress', percent: progress.percent, bytesPerSecond: progress.bytesPerSecond, transferred: progress.transferred, total: progress.total });
     }
@@ -2478,6 +2649,8 @@ function initAutoUpdater() {
     _pendingUpdateInfo = null;
     _downloadProgress = null;
     _downloadedUpdateInfo = { version: info.version };
+    _lastUpdateError = null;
+    setUpdateTaskbarProgress(null);
 
     // Notify renderer
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2502,6 +2675,8 @@ function initAutoUpdater() {
 
     // Update tray menu to show install option
     updateTrayMenu('update-downloaded');
+    openUpdateWindow({ autoStart: false });
+    refreshUpdateWindow();
   });
 
   autoUpdater.on('error', (err) => {
@@ -2509,7 +2684,10 @@ function initAutoUpdater() {
     log.error('[AutoUpdater] Error:', err);
     _isUpdateDownloadInProgress = false;
     _downloadProgress = null;
+    _lastUpdateError = err?.message || 'Unknown auto-update error';
+    setUpdateTaskbarProgress(null);
     updateTrayMenu('update-error');
+    refreshUpdateWindow();
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'error', message: err?.message || 'Unknown error' });
     }
@@ -2549,7 +2727,7 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.52.16: Production interval. Avoid repeated checks during a manual
+  // v2.52.17: Production interval. Avoid repeated checks during a manual
   // download because electron-updater can reset/cancel in-flight state.
   _updateCheckInterval = setInterval(() => {
     if (_isUpdateDownloadInProgress || _downloadedUpdateInfo) return;

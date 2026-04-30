@@ -1,6 +1,6 @@
 {
   "name": "security-camera-agent",
-  "version": "2.52.16",
+  "version": "2.52.17",
   "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
   "main": "main.js",
   "scripts": {
@@ -34,7 +34,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "runAfterFinish": true,
-      "artifactName": "Security-Camera-Agent-Setup.${ext}"
+      "differentialPackage": false,
+      "artifactName": "Security-Camera-Agent-Setup-${version}.${ext}"
     },
     "win": {
       "target": "nsis"
