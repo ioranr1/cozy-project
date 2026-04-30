@@ -2661,7 +2661,7 @@ function clearStaleWindowsUpdateCache() {
 }
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.52.18 - single-click Windows update window, full downloads, no tray progress)...');
+  console.log('[AutoUpdater] Initializing (v2.52.19 - Windows opens native browser download; Mac keeps auto-updater download flow)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
@@ -2729,7 +2729,7 @@ function initAutoUpdater() {
   autoUpdater.on('download-progress', (progress) => {
     console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`);
     _downloadProgress = { percent: progress.percent };
-    updateTrayMenu('download-progress');
+    if (process.platform !== 'win32') updateTrayMenu('download-progress');
     refreshUpdateWindow();
     setUpdateTaskbarProgress(progress.percent / 100);
     if (mainWindow && !mainWindow.isDestroyed()) {
