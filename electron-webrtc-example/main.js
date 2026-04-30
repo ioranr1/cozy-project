@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.0 (2026-04-16)
+ * VERSION: 2.52.24 (2026-04-30)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -803,7 +803,9 @@ function escapeHtml(value) {
 function getUpdateWindowState() {
   const version = _downloadedUpdateInfo?.version || _pendingUpdateInfo?.version || 'latest';
   const percent = Math.max(0, Math.min(100, Math.round(_downloadProgress?.percent || 0)));
-  const status = _downloadedUpdateInfo
+  const status = _isInstallingUpdate
+    ? 'installing'
+    : _downloadedUpdateInfo
     ? 'downloaded'
     : (_isUpdateDownloadInProgress ? 'downloading' : (_lastUpdateError ? 'error' : (_pendingUpdateInfo ? 'available' : 'checking')));
 
@@ -825,6 +827,7 @@ function renderUpdateWindowHtml() {
     checking: 'בודק עדכון זמין…',
     downloading: 'מוריד עדכון…',
     downloaded: 'העדכון ירד ומוכן להתקנה',
+    installing: 'מתקין עדכון…',
     error: 'ההורדה נכשלה',
     download: 'הורד עכשיו',
     install: 'התקן עכשיו',
@@ -837,6 +840,7 @@ function renderUpdateWindowHtml() {
     checking: 'Checking for updates…',
     downloading: 'Downloading update…',
     downloaded: 'Update downloaded and ready to install',
+    installing: 'Installing update…',
     error: 'Download failed',
     download: 'Download now',
     install: 'Install now',
@@ -879,15 +883,16 @@ function renderUpdateWindowHtml() {
   <script>
     const labels=${JSON.stringify(text)};
     window.__setUpdateState=function(s){
-      const title=s.status==='downloaded'?labels.downloaded:s.status==='downloading'?labels.downloading:s.status==='error'?labels.error:s.status==='checking'?labels.checking:labels.available;
+      const title=s.status==='installing'?labels.installing:s.status==='downloaded'?labels.downloaded:s.status==='downloading'?labels.downloading:s.status==='error'?labels.error:s.status==='checking'?labels.checking:labels.available;
       document.getElementById('subtitle').textContent=title;
       document.getElementById('version').textContent='v'+s.version;
-      document.getElementById('fill').style.width=(s.status==='downloaded'?100:s.percent)+'%';
-      document.getElementById('pct').textContent=s.status==='downloaded'?'100%':(s.status==='downloading'?s.percent+'%':'');
+      document.getElementById('fill').style.width=((s.status==='downloaded'||s.status==='installing')?100:s.percent)+'%';
+      document.getElementById('pct').textContent=(s.status==='downloaded'||s.status==='installing')?'100%':(s.status==='downloading'?s.percent+'%':'');
       document.getElementById('err').textContent=s.error||'';
-      document.getElementById('download').disabled=s.status==='downloading'||s.status==='downloaded'||s.status==='checking';
-      document.getElementById('install').style.display=s.status==='downloaded'?'inline-block':'none';
-      document.getElementById('note').style.display=s.status==='downloading'?'block':'none';
+      document.getElementById('download').disabled=s.status==='downloading'||s.status==='downloaded'||s.status==='checking'||s.status==='installing';
+      document.getElementById('install').style.display=(s.status==='downloaded'||s.status==='installing')?'inline-block':'none';
+      document.getElementById('install').disabled=s.status!=='downloaded';
+      document.getElementById('note').style.display=(s.status==='downloading'||s.status==='installing')?'block':'none';
     };
     window.__setUpdateState(${JSON.stringify(state)});
   </script>
@@ -906,6 +911,37 @@ function setUpdateTaskbarProgress(percentOrNull) {
   const value = typeof percentOrNull === 'number' ? Math.max(0, Math.min(1, percentOrNull)) : -1;
   try { if (mainWindow && !mainWindow.isDestroyed?.()) mainWindow.setProgressBar(value); } catch (_) {}
   try { if (_updateWindow && !_updateWindow.isDestroyed?.()) _updateWindow.setProgressBar(value); } catch (_) {}
+}
+
+function installDownloadedUpdate(source = 'unknown') {
+  if (!_downloadedUpdateInfo) {
+    log.warn(`[AutoUpdater] Install requested from ${source} but no downloaded update is registered`);
+    openUpdateWindow({ autoStart: false });
+    refreshUpdateWindow();
+    return;
+  }
+
+  const version = _downloadedUpdateInfo.version;
+  console.log(`[AutoUpdater] Installing downloaded update v${version} from ${source}`);
+  log.info(`[AutoUpdater] Installing downloaded update v${version} from ${source}`);
+  _isInstallingUpdate = true;
+  refreshUpdateWindow();
+  updateTrayMenu(`install-start-${source}`);
+
+  setTimeout(async () => {
+    try {
+      await performQuitCleanup('update-install');
+      app.isQuitting = true;
+      autoUpdater.quitAndInstall(false, true);
+    } catch (err) {
+      _isInstallingUpdate = false;
+      app.isQuitting = false;
+      _lastUpdateError = err?.message || String(err || 'Failed to install update');
+      log.error('[AutoUpdater] quitAndInstall failed:', err);
+      updateTrayMenu(`install-failed-${source}`);
+      refreshUpdateWindow();
+    }
+  }, 250);
 }
 
 function openUpdateWindow({ autoStart = false } = {}) {
@@ -952,7 +988,7 @@ function openUpdateWindow({ autoStart = false } = {}) {
     if (!url.startsWith('aiguard-update://')) return;
     event.preventDefault();
     if (url.includes('download')) startUpdateDownload('update-window-button');
-    if (url.includes('install')) autoUpdater.quitAndInstall(false, true);
+    if (url.includes('install')) installDownloadedUpdate('update-window-button');
     if (url.includes('close') && _updateWindow && !_updateWindow.isDestroyed?.()) _updateWindow.close();
   });
 }
@@ -1048,7 +1084,7 @@ function updateTrayMenu(caller = 'unknown') {
   const updateVersion = _downloadedUpdateInfo?.version || _pendingUpdateInfo?.version || '';
 
   // Build a hash of the menu content – skip rebuild if nothing changed
-  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}|${updateVersion}`;
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}|${updateVersion}|${_isInstallingUpdate ? 'installing' : 'idle'}`;
 
   // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
   // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
@@ -1079,8 +1115,9 @@ function updateTrayMenu(caller = 'unknown') {
   const updateMenuItems = [];
   if (_downloadedUpdateInfo) {
     updateMenuItems.push({
-      label: `🚀 Install Update (v${_downloadedUpdateInfo.version})`,
-      click: () => { openUpdateWindow({ autoStart: false }); }
+      label: `${_isInstallingUpdate ? '⏳ Installing Update' : '🚀 Install Update'} (v${_downloadedUpdateInfo.version})`,
+      enabled: !_isInstallingUpdate,
+      click: () => { installDownloadedUpdate('tray-install'); }
     });
     updateMenuItems.push({ type: 'separator' });
   } else if (_downloadProgress) {
@@ -2599,6 +2636,7 @@ let _lastUpdateError = null;
 // v2.52.3: Live download progress shown in tray menu
 let _downloadProgress = null; // { percent } while downloading
 let _isUpdateDownloadInProgress = false;
+let _isInstallingUpdate = false;
 let _updateDownloadPromise = null;
 let _lastWindowsInstallerOpenAt = 0;
 
@@ -2761,7 +2799,7 @@ function initAutoUpdater() {
         icon: getIconPath(),
       });
       notification.on('click', () => {
-        autoUpdater.quitAndInstall(false, true);
+        installDownloadedUpdate('notification-click');
       });
       notification.show();
     }
@@ -2806,7 +2844,7 @@ function initAutoUpdater() {
   // IPC: renderer requests quit-and-install
   ipcMain.handle('auto-update-install', () => {
     console.log('[AutoUpdater] Quit and install requested by renderer');
-    autoUpdater.quitAndInstall(false, true);
+    installDownloadedUpdate('renderer');
   });
 
   // IPC: renderer requests manual check
@@ -2997,12 +3035,17 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', async (event) => {
-  if (!app.isQuitting) {
-    event.preventDefault();
-    app.isQuitting = true;
-    
-    console.log('[App] Shutting down - marking device as inactive and resetting Away Mode...');
+app.on('before-quit-for-update', () => {
+  app.isQuitting = true;
+});
+
+let _quitCleanupPromise = null;
+
+function performQuitCleanup(reason = 'quit') {
+  if (_quitCleanupPromise) return _quitCleanupPromise;
+
+  _quitCleanupPromise = (async () => {
+    console.log(`[App] Shutting down (${reason}) - marking device as inactive and resetting Away Mode...`);
 
     // Cleanup intervals
     if (heartbeatInterval) {
@@ -3073,6 +3116,17 @@ app.on('before-quit', async (event) => {
     if (deviceStatusSubscription) {
       supabase.removeChannel(deviceStatusSubscription);
     }
+  })();
+
+  return _quitCleanupPromise;
+}
+
+app.on('before-quit', async (event) => {
+  if (!app.isQuitting) {
+    event.preventDefault();
+    app.isQuitting = true;
+
+    await performQuitCleanup('quit');
 
     app.quit();
     return;
