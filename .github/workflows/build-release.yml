@@ -3,6 +3,9 @@ name: Build & Release Electron App
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -30,6 +33,23 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Ensure GitHub release tag exists
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}"
+          git fetch --tags --force
+          if git rev-parse "${TAG}" >/dev/null 2>&1; then
+            echo "✅ Release tag ${TAG} already exists"
+          else
+            echo "Creating release tag ${TAG}"
+            git tag "${TAG}"
+            git push origin "${TAG}" || {
+              git fetch --tags --force
+              git rev-parse "${TAG}" >/dev/null 2>&1
+            }
+          fi
+
       - name: Verify macOS signing secrets
         if: matrix.os == 'macos-latest'
         run: |
@@ -54,9 +74,8 @@ jobs:
       - name: Prepare macOS entitlements
         if: matrix.os == 'macos-latest'
         run: |
-          mkdir -p build
-          if [ ! -f build/entitlements.mac.plist ]; then
-            echo "⚠️ Missing build/entitlements.mac.plist — generating via python"
+          if [ ! -f entitlements.mac.plist ]; then
+            echo "⚠️ Missing entitlements.mac.plist — generating via python"
             python3 - <<'PY'
           import plistlib
           data = {
@@ -69,21 +88,18 @@ jobs:
               'com.apple.security.network.client': True,
               'com.apple.security.network.server': True,
           }
-          with open('build/entitlements.mac.plist', 'wb') as f:
+          with open('entitlements.mac.plist', 'wb') as f:
               plistlib.dump(data, f)
           print('✅ Generated entitlements plist')
           PY
           fi
           python3 - <<'PY'
           import plistlib
-          with open('build/entitlements.mac.plist', 'rb') as f:
+          with open('entitlements.mac.plist', 'rb') as f:
               plistlib.load(f)
           print('✅ Entitlements plist is readable')
           PY
-          mkdir -p ../build
-          cp build/entitlements.mac.plist ../build/entitlements.mac.plist
-          echo "✅ Entitlements available for both working directories"
-          ls -l build/entitlements.mac.plist ../build/entitlements.mac.plist
+          ls -l entitlements.mac.plist
 
       - name: Build & Publish Windows
         if: matrix.os == 'windows-latest'
