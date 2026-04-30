@@ -2821,15 +2821,15 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.52.17: Production interval. Avoid repeated checks during a manual
-  // download because electron-updater can reset/cancel in-flight state.
+  // v2.52.21: Frequent check (3 min) so users get new releases within minutes
+  // of publication. Skip during active downloads to avoid resetting state.
   _updateCheckInterval = setInterval(() => {
     if (_isUpdateDownloadInProgress || _downloadedUpdateInfo) return;
-    console.log('[AutoUpdater] Periodic check (12h interval)...');
+    console.log('[AutoUpdater] Periodic check (3min interval)...');
     autoUpdater.checkForUpdates().catch((err) => {
       console.warn('[AutoUpdater] Periodic check failed:', err?.message);
     });
-  }, 12 * 60 * 60 * 1000);
+  }, 3 * 60 * 1000);
 }
 
 // =============================================================================
