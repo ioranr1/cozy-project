@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.25 (2026-04-30)
+ * VERSION: 2.52.26 (2026-04-30)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -2868,10 +2868,11 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.52.21: Frequent check (3 min) so users get new releases within minutes
-  // of publication. Skip during active downloads to avoid resetting state.
+  // v2.52.26: Keep checking even if an older update is already downloaded.
+  // Otherwise macOS can stay stuck on "Install Update (v2.52.23)" forever
+  // and never replace it with a newer published release.
   _updateCheckInterval = setInterval(() => {
-    if (_isUpdateDownloadInProgress || _downloadedUpdateInfo) return;
+    if (_isUpdateDownloadInProgress || _isInstallingUpdate) return;
     console.log('[AutoUpdater] Periodic check (3min interval)...');
     autoUpdater.checkForUpdates().catch((err) => {
       console.warn('[AutoUpdater] Periodic check failed:', err?.message);
