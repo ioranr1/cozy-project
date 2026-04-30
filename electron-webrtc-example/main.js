@@ -21,11 +21,13 @@
 
 const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog, Notification } = require('electron');
 const path = require('path');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const Store = require('electron-store');
 const { createClient } = require('@supabase/supabase-js');
 const { EventEmitter } = require('events');
 const http = require('http');
+const https = require('https');
+const crypto = require('crypto');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 
