@@ -2403,13 +2403,18 @@ let _downloadedUpdateInfo = null; // { version } when update-downloaded
 let _updateCheckInterval = null;
 // v2.52.3: Live download progress shown in tray menu
 let _downloadProgress = null; // { percent } while downloading
+let _isUpdateDownloadInProgress = false;
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.41.0 - silent tray mode + badge icon, 1min test interval)...');
+  console.log('[AutoUpdater] Initializing (v2.52.16 - silent tray mode, full Windows downloads, 12h interval)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
+  // v2.52.16: On Windows, differential NSIS downloads can stall before
+  // update-downloaded (seen from 2.52.7 -> 2.52.15 around 86%). Force the
+  // complete installer download instead of patch/blockmap reconstruction.
+  autoUpdater.disableDifferentialDownload = true;
 
   autoUpdater.on('checking-for-update', () => {
     console.log('[AutoUpdater] Checking for update...');
@@ -2435,7 +2440,7 @@ function initAutoUpdater() {
       notification.on('click', () => {
         // When user clicks notification, start download immediately
         console.log('[AutoUpdater] Notification clicked - starting download');
-        autoUpdater.downloadUpdate();
+        startUpdateDownload('notification');
       });
       notification.show();
     }
@@ -2448,7 +2453,11 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('[AutoUpdater] No update available. Current:', info.version);
-    _pendingUpdateInfo = null;
+    if (!_isUpdateDownloadInProgress) {
+      _pendingUpdateInfo = null;
+      _downloadProgress = null;
+      updateTrayMenu('update-not-available');
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'update-not-available', version: info.version });
     }
@@ -2465,6 +2474,7 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version);
+    _isUpdateDownloadInProgress = false;
     _pendingUpdateInfo = null;
     _downloadProgress = null;
     _downloadedUpdateInfo = { version: info.version };
@@ -2496,7 +2506,8 @@ function initAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err?.message || err);
-    _pendingUpdateInfo = null;
+    log.error('[AutoUpdater] Error:', err);
+    _isUpdateDownloadInProgress = false;
     _downloadProgress = null;
     updateTrayMenu('update-error');
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2515,9 +2526,7 @@ function initAutoUpdater() {
   // IPC: renderer requests download
   ipcMain.handle('auto-update-download', () => {
     console.log('[AutoUpdater] Download requested by renderer');
-    _downloadProgress = { percent: 0 };
-    updateTrayMenu('download-ipc');
-    return autoUpdater.downloadUpdate();
+    return startUpdateDownload('renderer');
   });
 
   // IPC: renderer requests quit-and-install
@@ -2540,13 +2549,15 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.39.0: Periodic check every 1 minute (TEMPORARY - for testing; revert to 12h for production)
+  // v2.52.16: Production interval. Avoid repeated checks during a manual
+  // download because electron-updater can reset/cancel in-flight state.
   _updateCheckInterval = setInterval(() => {
-    console.log('[AutoUpdater] Periodic check (1min test interval)...');
+    if (_isUpdateDownloadInProgress || _downloadedUpdateInfo) return;
+    console.log('[AutoUpdater] Periodic check (12h interval)...');
     autoUpdater.checkForUpdates().catch((err) => {
       console.warn('[AutoUpdater] Periodic check failed:', err?.message);
     });
-  }, 60 * 1000);
+  }, 12 * 60 * 60 * 1000);
 }
 
 // =============================================================================
