@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.0 (2026-04-16)
+ * VERSION: 2.52.24 (2026-04-30)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -3033,6 +3033,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit-for-update', () => {
+  app.isQuitting = true;
 });
 
 let _quitCleanupPromise = null;
