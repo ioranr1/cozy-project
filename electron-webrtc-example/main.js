@@ -27,6 +27,14 @@ const { createClient } = require('@supabase/supabase-js');
 const { EventEmitter } = require('events');
 const http = require('http');
 const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
+
+// v2.52.15: Wire electron-log into autoUpdater so download/install failures
+// are written to disk (%APPDATA%/security-camera-agent/logs/main.log on Win,
+// ~/Library/Logs/security-camera-agent/main.log on Mac). Without this the
+// "Download Update" tray click can fail silently and the user sees nothing.
+log.transports.file.level = 'info';
+autoUpdater.logger = log;
 
 // CRITICAL FIX: Import AwayManager to replace old Away Mode implementation
 const AwayManager = require('./away/away-manager');
