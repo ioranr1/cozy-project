@@ -925,15 +925,17 @@ function installDownloadedUpdate(source = 'unknown') {
   console.log(`[AutoUpdater] Installing downloaded update v${version} from ${source}`);
   log.info(`[AutoUpdater] Installing downloaded update v${version} from ${source}`);
   _isInstallingUpdate = true;
-  app.isQuitting = true;
   refreshUpdateWindow();
   updateTrayMenu(`install-start-${source}`);
 
-  setTimeout(() => {
+  setTimeout(async () => {
     try {
+      await performQuitCleanup('update-install');
+      app.isQuitting = true;
       autoUpdater.quitAndInstall(false, true);
     } catch (err) {
       _isInstallingUpdate = false;
+      app.isQuitting = false;
       _lastUpdateError = err?.message || String(err || 'Failed to install update');
       log.error('[AutoUpdater] quitAndInstall failed:', err);
       updateTrayMenu(`install-failed-${source}`);
