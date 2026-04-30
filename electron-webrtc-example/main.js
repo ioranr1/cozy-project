@@ -1082,7 +1082,7 @@ function updateTrayMenu(caller = 'unknown') {
   const updateVersion = _downloadedUpdateInfo?.version || _pendingUpdateInfo?.version || '';
 
   // Build a hash of the menu content – skip rebuild if nothing changed
-  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}|${updateVersion}`;
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}|${updateVersion}|${_isInstallingUpdate ? 'installing' : 'idle'}`;
 
   // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
   // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
@@ -1113,8 +1113,9 @@ function updateTrayMenu(caller = 'unknown') {
   const updateMenuItems = [];
   if (_downloadedUpdateInfo) {
     updateMenuItems.push({
-      label: `🚀 Install Update (v${_downloadedUpdateInfo.version})`,
-      click: () => { openUpdateWindow({ autoStart: false }); }
+      label: `${_isInstallingUpdate ? '⏳ Installing Update' : '🚀 Install Update'} (v${_downloadedUpdateInfo.version})`,
+      enabled: !_isInstallingUpdate,
+      click: () => { installDownloadedUpdate('tray-install'); }
     });
     updateMenuItems.push({ type: 'separator' });
   } else if (_downloadProgress) {
@@ -2633,6 +2634,7 @@ let _lastUpdateError = null;
 // v2.52.3: Live download progress shown in tray menu
 let _downloadProgress = null; // { percent } while downloading
 let _isUpdateDownloadInProgress = false;
+let _isInstallingUpdate = false;
 let _updateDownloadPromise = null;
 let _lastWindowsInstallerOpenAt = 0;
 
@@ -2795,7 +2797,7 @@ function initAutoUpdater() {
         icon: getIconPath(),
       });
       notification.on('click', () => {
-        autoUpdater.quitAndInstall(false, true);
+        installDownloadedUpdate('notification-click');
       });
       notification.show();
     }
@@ -2840,7 +2842,7 @@ function initAutoUpdater() {
   // IPC: renderer requests quit-and-install
   ipcMain.handle('auto-update-install', () => {
     console.log('[AutoUpdater] Quit and install requested by renderer');
-    autoUpdater.quitAndInstall(false, true);
+    installDownloadedUpdate('renderer');
   });
 
   // IPC: renderer requests manual check
