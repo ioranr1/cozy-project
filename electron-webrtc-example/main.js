@@ -2579,7 +2579,7 @@ function initAutoUpdater() {
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
-  // v2.52.16: On Windows, differential NSIS downloads can stall before
+  // v2.52.17: On Windows, differential NSIS downloads can stall before
   // update-downloaded (seen from 2.52.7 -> 2.52.15 around 86%). Force the
   // complete installer download instead of patch/blockmap reconstruction.
   autoUpdater.disableDifferentialDownload = true;

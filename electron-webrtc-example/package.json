@@ -34,7 +34,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "runAfterFinish": true,
-      "artifactName": "Security-Camera-Agent-Setup.${ext}"
+      "artifactName": "Security-Camera-Agent-Setup-${version}.${ext}"
     },
     "win": {
       "target": "nsis"
