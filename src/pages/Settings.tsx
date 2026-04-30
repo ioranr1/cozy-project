@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
 import { usePwaVersion } from '@/hooks/usePwaVersion';
+import { DESKTOP_AGENT_VERSION } from '@/lib/desktopAgentDownloads';
 import {
   Info,
   Mail,
@@ -28,8 +29,6 @@ import {
   Calendar,
 } from 'lucide-react';
 
-// Electron app version — keep in sync with electron-webrtc-example/package.json
-const ELECTRON_APP_VERSION = '2.52.0';
 const SUPPORT_EMAIL = 'ioranr1@gmail.com';
 
 interface UserProfile {
@@ -151,7 +150,7 @@ const Settings: React.FC = () => {
                 </div>
               </div>
               <Badge variant="outline" className="bg-slate-800 border-primary/30 text-primary font-mono">
-                v{ELECTRON_APP_VERSION}
+                v{DESKTOP_AGENT_VERSION}
               </Badge>
             </div>
 

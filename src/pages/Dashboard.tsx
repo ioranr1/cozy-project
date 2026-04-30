@@ -22,6 +22,7 @@ import { MobileAwayModeCard } from '@/components/MobileAwayModeCard';
 import { SecurityModeComingSoon } from '@/components/SecurityModeComingSoon';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useSessionManager } from '@/hooks/useSessionManager';
+import { DESKTOP_AGENT_DOWNLOAD_URLS, detectDesktopPlatform } from '@/lib/desktopAgentDownloads';
 
 
 interface UserProfile {
@@ -46,6 +47,7 @@ const Dashboard: React.FC = () => {
   const capabilities = useCapabilities();
   const { flags: featureFlags, isLoading: isFlagsLoading } = useFeatureFlags();
   const { prepareLiveView } = useSessionManager();
+  const desktopPlatform = useMemo(() => detectDesktopPlatform(), []);
 
   // Get profile ID for device loading
   const profileId = useMemo(() => {
@@ -733,15 +735,15 @@ const Dashboard: React.FC = () => {
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
-              {(typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)) ? (
-                <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent-Setup.exe" download>
+              {desktopPlatform === 'windows' ? (
+                <a href={DESKTOP_AGENT_DOWNLOAD_URLS.windows} target="_top" rel="noopener noreferrer">
                   <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                     <Monitor className="w-5 h-5" />
                     {language === 'he' ? 'הורד ל-Windows' : 'Download for Windows'}
                   </Button>
                 </a>
-              ) : (typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)) ? (
-                <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent.dmg" download>
+              ) : desktopPlatform === 'mac' ? (
+                <a href={DESKTOP_AGENT_DOWNLOAD_URLS.mac} target="_top" rel="noopener noreferrer">
                   <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                     <Monitor className="w-5 h-5" />
                     {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
@@ -749,13 +751,13 @@ const Dashboard: React.FC = () => {
                 </a>
               ) : (
                 <>
-                  <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent-Setup.exe" download>
+                  <a href={DESKTOP_AGENT_DOWNLOAD_URLS.windows} target="_top" rel="noopener noreferrer">
                     <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                       <Monitor className="w-5 h-5" />
                       {language === 'he' ? 'הורד ל-Windows' : 'Download for Windows'}
                     </Button>
                   </a>
-                  <a href="https://github.com/ioranr1/cozy-project/releases/latest/download/Security-Camera-Agent.dmg" download>
+                  <a href={DESKTOP_AGENT_DOWNLOAD_URLS.mac} target="_top" rel="noopener noreferrer">
                     <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                       <Monitor className="w-5 h-5" />
                       {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
