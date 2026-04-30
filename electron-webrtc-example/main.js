@@ -19,7 +19,7 @@
  *   macOS: uses built-in pmset
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog, Notification } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog, Notification, shell } = require('electron');
 const path = require('path');
 const { exec, spawn } = require('child_process');
 const Store = require('electron-store');
@@ -2579,6 +2579,43 @@ let _lastUpdateError = null;
 let _downloadProgress = null; // { percent } while downloading
 let _isUpdateDownloadInProgress = false;
 let _updateDownloadPromise = null;
+let _lastWindowsInstallerOpenAt = 0;
+
+function getWindowsInstallerDownloadUrl(version) {
+  const cleanVersion = String(version || _pendingUpdateInfo?.version || app.getVersion()).replace(/^v/i, '');
+  return `https://github.com/ioranr1/cozy-project/releases/download/v${cleanVersion}/Security-Camera-Agent-Setup-${cleanVersion}.exe`;
+}
+
+async function openWindowsInstallerDownload(source = 'unknown') {
+  const version = _pendingUpdateInfo?.version || _downloadedUpdateInfo?.version || 'latest';
+  const now = Date.now();
+
+  if (now - _lastWindowsInstallerOpenAt < 8000) {
+    log.info(`[AutoUpdater] Windows installer download already opened recently; ignoring duplicate from ${source}`);
+    return { ok: true, skippedDuplicate: true };
+  }
+
+  _lastWindowsInstallerOpenAt = now;
+  _isUpdateDownloadInProgress = false;
+  _downloadProgress = null;
+  _lastUpdateError = null;
+  setTrayBadge(false);
+  updateTrayMenu(`windows-installer-open-${source}`);
+
+  const url = getWindowsInstallerDownloadUrl(version);
+  log.info(`[AutoUpdater] Opening Windows installer download in default browser from ${source}: ${url}`);
+  await shell.openExternal(url);
+
+  if (Notification.isSupported()) {
+    new Notification({
+      title: 'AIGuard Camera',
+      body: `Opening Windows installer download for v${version}. Run the downloaded .exe to update.`,
+      icon: getIconPath(),
+    }).show();
+  }
+
+  return { ok: true, url };
+}
 
 function getUpdaterCacheCandidates() {
   if (process.platform !== 'win32') return [];
