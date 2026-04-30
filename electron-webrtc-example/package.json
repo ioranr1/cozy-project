@@ -1,6 +1,6 @@
 {
   "name": "security-camera-agent",
-  "version": "2.52.21",
+  "version": "2.52.22",
   "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
   "main": "main.js",
   "scripts": {
@@ -41,7 +41,10 @@
       "target": "nsis"
     },
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "artifactName": "Security-Camera-Agent.${ext}",
       "category": "public.app-category.utilities",
       "hardenedRuntime": true,
