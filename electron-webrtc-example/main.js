@@ -19,7 +19,7 @@
  *   macOS: uses built-in pmset
  */
 
-const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog, Notification } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog, Notification, shell } = require('electron');
 const path = require('path');
 const { exec, spawn } = require('child_process');
 const Store = require('electron-store');
@@ -909,6 +909,15 @@ function setUpdateTaskbarProgress(percentOrNull) {
 }
 
 function openUpdateWindow({ autoStart = false } = {}) {
+  if (process.platform === 'win32') {
+    if (autoStart) openWindowsInstallerDownload('update-window-autostart').catch((err) => {
+      _lastUpdateError = err?.message || String(err || 'Failed to open installer download');
+      log.error('[AutoUpdater] Failed to open Windows installer download:', err);
+      refreshUpdateWindow();
+    });
+    return;
+  }
+
   if (_updateWindow && !_updateWindow.isDestroyed?.()) {
     _updateWindow.show();
     _updateWindow.focus();
@@ -949,6 +958,16 @@ function openUpdateWindow({ autoStart = false } = {}) {
 }
 
 function startUpdateDownload(source = 'unknown') {
+  if (process.platform === 'win32') {
+    return openWindowsInstallerDownload(source).catch((err) => {
+      const message = err?.message || String(err || 'Failed to open installer download');
+      _lastUpdateError = message;
+      log.error('[AutoUpdater] Windows installer download open failed:', err);
+      updateTrayMenu(`windows-installer-open-failed-${source}`);
+      return { ok: false, error: message };
+    });
+  }
+
   if (_isUpdateDownloadInProgress) {
     log.info(`[AutoUpdater] Download already in progress; ignoring duplicate request from ${source}`);
     openUpdateWindow({ autoStart: false });
@@ -2579,6 +2598,43 @@ let _lastUpdateError = null;
 let _downloadProgress = null; // { percent } while downloading
 let _isUpdateDownloadInProgress = false;
 let _updateDownloadPromise = null;
+let _lastWindowsInstallerOpenAt = 0;
+
+function getWindowsInstallerDownloadUrl(version) {
+  const cleanVersion = String(version || _pendingUpdateInfo?.version || app.getVersion()).replace(/^v/i, '');
+  return `https://github.com/ioranr1/cozy-project/releases/download/v${cleanVersion}/Security-Camera-Agent-Setup-${cleanVersion}.exe`;
+}
+
+async function openWindowsInstallerDownload(source = 'unknown') {
+  const version = _pendingUpdateInfo?.version || _downloadedUpdateInfo?.version || 'latest';
+  const now = Date.now();
+
+  if (now - _lastWindowsInstallerOpenAt < 8000) {
+    log.info(`[AutoUpdater] Windows installer download already opened recently; ignoring duplicate from ${source}`);
+    return { ok: true, skippedDuplicate: true };
+  }
+
+  _lastWindowsInstallerOpenAt = now;
+  _isUpdateDownloadInProgress = false;
+  _downloadProgress = null;
+  _lastUpdateError = null;
+  setTrayBadge(false);
+  updateTrayMenu(`windows-installer-open-${source}`);
+
+  const url = getWindowsInstallerDownloadUrl(version);
+  log.info(`[AutoUpdater] Opening Windows installer download in default browser from ${source}: ${url}`);
+  await shell.openExternal(url);
+
+  if (Notification.isSupported()) {
+    new Notification({
+      title: 'AIGuard Camera',
+      body: `Opening Windows installer download for v${version}. Run the downloaded .exe to update.`,
+      icon: getIconPath(),
+    }).show();
+  }
+
+  return { ok: true, url };
+}
 
 function getUpdaterCacheCandidates() {
   if (process.platform !== 'win32') return [];
@@ -2605,7 +2661,7 @@ function clearStaleWindowsUpdateCache() {
 }
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.52.18 - single-click Windows update window, full downloads, no tray progress)...');
+  console.log('[AutoUpdater] Initializing (v2.52.19 - Windows opens native browser download; Mac keeps auto-updater download flow)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
@@ -2673,7 +2729,7 @@ function initAutoUpdater() {
   autoUpdater.on('download-progress', (progress) => {
     console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`);
     _downloadProgress = { percent: progress.percent };
-    updateTrayMenu('download-progress');
+    if (process.platform !== 'win32') updateTrayMenu('download-progress');
     refreshUpdateWindow();
     setUpdateTaskbarProgress(progress.percent / 100);
     if (mainWindow && !mainWindow.isDestroyed()) {
