@@ -1042,11 +1042,13 @@ function updateTrayMenu(caller = 'unknown') {
   const awayStatus = awayManager.getTrayStatus();
   const modeStatus = awayStatus.statusText;
 
-  // v2.38.0: Include update state in menu hash so tray rebuilds when update status changes
+  // v2.52.23: Include update version in menu hash so macOS tray refreshes when
+  // a newer release replaces a previous pending update (e.g. v2.52.21 -> v2.52.22).
   const updateState = _downloadedUpdateInfo ? 'downloaded' : (_downloadProgress ? 'downloading' : (_pendingUpdateInfo ? 'available' : (_lastUpdateError ? 'error' : 'none')));
+  const updateVersion = _downloadedUpdateInfo?.version || _pendingUpdateInfo?.version || '';
 
   // Build a hash of the menu content – skip rebuild if nothing changed
-  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}`;
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}|${updateVersion}`;
 
   // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
   // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
