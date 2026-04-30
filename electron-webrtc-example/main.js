@@ -3035,12 +3035,13 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', async (event) => {
-  if (!app.isQuitting) {
-    event.preventDefault();
-    app.isQuitting = true;
-    
-    console.log('[App] Shutting down - marking device as inactive and resetting Away Mode...');
+let _quitCleanupPromise = null;
+
+function performQuitCleanup(reason = 'quit') {
+  if (_quitCleanupPromise) return _quitCleanupPromise;
+
+  _quitCleanupPromise = (async () => {
+    console.log(`[App] Shutting down (${reason}) - marking device as inactive and resetting Away Mode...`);
 
     // Cleanup intervals
     if (heartbeatInterval) {
@@ -3111,6 +3112,17 @@ app.on('before-quit', async (event) => {
     if (deviceStatusSubscription) {
       supabase.removeChannel(deviceStatusSubscription);
     }
+  })();
+
+  return _quitCleanupPromise;
+}
+
+app.on('before-quit', async (event) => {
+  if (!app.isQuitting) {
+    event.preventDefault();
+    app.isQuitting = true;
+
+    await performQuitCleanup('quit');
 
     app.quit();
     return;
