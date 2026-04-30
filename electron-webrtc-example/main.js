@@ -951,7 +951,7 @@ function startUpdateDownload(source = 'unknown') {
     log.info(`[AutoUpdater] Download already in progress; ignoring duplicate request from ${source}`);
     openUpdateWindow({ autoStart: false });
     refreshUpdateWindow();
-    return Promise.resolve([]);
+    return _updateDownloadPromise || Promise.resolve([]);
   }
 
   if (_downloadedUpdateInfo) {
@@ -967,6 +967,8 @@ function startUpdateDownload(source = 'unknown') {
   _isUpdateDownloadInProgress = true;
   _lastUpdateError = null;
   _downloadProgress = { percent: 0 };
+  clearStaleWindowsUpdateCache();
+  setTrayBadge(false);
   updateTrayMenu(`download-start-${source}`);
   openUpdateWindow({ autoStart: false });
   refreshUpdateWindow();
@@ -980,7 +982,7 @@ function startUpdateDownload(source = 'unknown') {
     }).show();
   }
 
-  const downloadPromise = autoUpdater.downloadUpdate()
+  _updateDownloadPromise = autoUpdater.downloadUpdate()
     .then((files) => {
       log.info('[AutoUpdater] downloadUpdate resolved:', files);
       return files;
@@ -1002,10 +1004,13 @@ function startUpdateDownload(source = 'unknown') {
           icon: getIconPath(),
         }).show();
       }
-      throw err;
+      return [];
+    })
+    .finally(() => {
+      _updateDownloadPromise = null;
     });
 
-  return downloadPromise;
+  return _updateDownloadPromise;
 }
 
 function updateTrayMenu(caller = 'unknown') {
@@ -1017,11 +1022,10 @@ function updateTrayMenu(caller = 'unknown') {
   const modeStatus = awayStatus.statusText;
 
   // v2.38.0: Include update state in menu hash so tray rebuilds when update status changes
-  const updateState = _downloadedUpdateInfo ? 'downloaded' : (_pendingUpdateInfo ? 'available' : 'none');
+  const updateState = _downloadedUpdateInfo ? 'downloaded' : (_downloadProgress ? 'downloading' : (_pendingUpdateInfo ? 'available' : (_lastUpdateError ? 'error' : 'none')));
 
   // Build a hash of the menu content – skip rebuild if nothing changed
-  const progressTag = _downloadProgress ? `dl${Math.floor(_downloadProgress.percent / 5) * 5}` : '';
-  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}|${progressTag}`;
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}`;
 
   // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
   // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
@@ -1058,7 +1062,7 @@ function updateTrayMenu(caller = 'unknown') {
     updateMenuItems.push({ type: 'separator' });
   } else if (_downloadProgress) {
     updateMenuItems.push({
-      label: `⏳ Downloading update… ${Math.round(_downloadProgress.percent)}%`,
+      label: '⏳ Update download window',
       click: () => { openUpdateWindow({ autoStart: false }); }
     });
     updateMenuItems.push({ type: 'separator' });
