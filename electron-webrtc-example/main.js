@@ -2572,9 +2572,34 @@ let _lastUpdateError = null;
 // v2.52.3: Live download progress shown in tray menu
 let _downloadProgress = null; // { percent } while downloading
 let _isUpdateDownloadInProgress = false;
+let _updateDownloadPromise = null;
+
+function getUpdaterCacheCandidates() {
+  if (process.platform !== 'win32') return [];
+  const localAppData = process.env.LOCALAPPDATA || path.join(app.getPath('home'), 'AppData', 'Local');
+  return [
+    path.join(localAppData, `${app.getName()}-updater`, 'pending'),
+    path.join(localAppData, `${app.getName().replace(/\s+/g, '-')}-updater`, 'pending'),
+    path.join(localAppData, `${app.getName().toLowerCase().replace(/\s+/g, '-')}-updater`, 'pending'),
+    path.join(localAppData, 'security-camera-agent-updater', 'pending'),
+  ];
+}
+
+function clearStaleWindowsUpdateCache() {
+  if (process.platform !== 'win32') return;
+  for (const cacheDir of [...new Set(getUpdaterCacheCandidates())]) {
+    try {
+      if (!fs.existsSync(cacheDir)) continue;
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+      log.info('[AutoUpdater] Cleared stale Windows updater cache:', cacheDir);
+    } catch (err) {
+      log.warn('[AutoUpdater] Failed to clear Windows updater cache:', cacheDir, err?.message || err);
+    }
+  }
+}
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.52.17 - Windows progress window, full downloads, 12h interval)...');
+  console.log('[AutoUpdater] Initializing (v2.52.18 - single-click Windows update window, full downloads, no tray progress)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
@@ -2583,6 +2608,9 @@ function initAutoUpdater() {
   // update-downloaded (seen from 2.52.7 -> 2.52.15 around 86%). Force the
   // complete installer download instead of patch/blockmap reconstruction.
   autoUpdater.disableDifferentialDownload = true;
+  autoUpdater.allowDowngrade = false;
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };
 
   autoUpdater.on('checking-for-update', () => {
     console.log('[AutoUpdater] Checking for update...');
@@ -2590,6 +2618,10 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-available', (info) => {
     console.log('[AutoUpdater] Update available:', info.version);
+    if (_isUpdateDownloadInProgress) {
+      log.info('[AutoUpdater] Ignoring update-available while a download is already running:', info.version);
+      return;
+    }
     _pendingUpdateInfo = { version: info.version };
     _downloadedUpdateInfo = null;
     _lastUpdateError = null;
