@@ -2736,6 +2736,9 @@ function initAutoUpdater() {
       log.info('[AutoUpdater] Ignoring update-available while a download is already running:', info.version);
       return;
     }
+    if (_downloadedUpdateInfo && _downloadedUpdateInfo.version !== info.version) {
+      log.info(`[AutoUpdater] Replacing previously downloaded update v${_downloadedUpdateInfo.version} with newer v${info.version}`);
+    }
     _pendingUpdateInfo = { version: info.version };
     _downloadedUpdateInfo = null;
     _lastUpdateError = null;
@@ -2875,7 +2878,7 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.52.26: Keep checking even if an older update is already downloaded.
+  // v2.52.27: Keep checking even if an older update is already downloaded.
   // Otherwise macOS can stay stuck on "Install Update (v2.52.23)" forever
   // and never replace it with a newer published release.
   _updateCheckInterval = setInterval(() => {
