@@ -1,7 +1,7 @@
 const GITHUB_OWNER = 'ioranr1';
 const GITHUB_REPO = 'cozy-project';
 
-export const DESKTOP_AGENT_VERSION = '2.52.28';
+export const DESKTOP_AGENT_VERSION = '2.52.29';
 
 const RELEASE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/v${DESKTOP_AGENT_VERSION}`;
 
