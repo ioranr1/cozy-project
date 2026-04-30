@@ -789,6 +789,59 @@ function startTrayHealthMonitor() {
 // Global tray-update counter for diagnostics
 let _trayUpdateCounter = 0;
 
+function startUpdateDownload(source = 'unknown') {
+  if (_isUpdateDownloadInProgress) {
+    log.info(`[AutoUpdater] Download already in progress; ignoring duplicate request from ${source}`);
+    return Promise.resolve([]);
+  }
+
+  if (_downloadedUpdateInfo) {
+    log.info(`[AutoUpdater] Update already downloaded; opening installer flow from ${source}`);
+    autoUpdater.quitAndInstall(false, true);
+    return Promise.resolve([]);
+  }
+
+  const requestedVersion = _pendingUpdateInfo?.version || 'latest';
+  console.log(`[AutoUpdater] Starting download from ${source} for v${requestedVersion}`);
+  log.info(`[AutoUpdater] Starting download from ${source} for v${requestedVersion}`);
+
+  _isUpdateDownloadInProgress = true;
+  _downloadProgress = { percent: 0 };
+  updateTrayMenu(`download-start-${source}`);
+
+  if (Notification.isSupported()) {
+    new Notification({
+      title: 'AIGuard Camera',
+      body: `Downloading v${requestedVersion}… You'll be notified when it's ready to install.`,
+      icon: getIconPath(),
+    }).show();
+  }
+
+  const downloadPromise = autoUpdater.downloadUpdate()
+    .then((files) => {
+      log.info('[AutoUpdater] downloadUpdate resolved:', files);
+      return files;
+    })
+    .catch((err) => {
+      const message = err?.message || String(err || 'Unknown error');
+      console.error('[AutoUpdater] downloadUpdate failed:', message);
+      log.error('[AutoUpdater] downloadUpdate failed:', err);
+      _isUpdateDownloadInProgress = false;
+      _downloadProgress = null;
+      updateTrayMenu(`download-failed-${source}`);
+      if (Notification.isSupported()) {
+        new Notification({
+          title: 'AIGuard Camera - Update Failed',
+          body: `Could not download update: ${message}`,
+          icon: getIconPath(),
+        }).show();
+      }
+      throw err;
+    });
+
+  return downloadPromise;
+}
+
 function updateTrayMenu(caller = 'unknown') {
   if (!tray) return;
 
@@ -846,45 +899,7 @@ function updateTrayMenu(caller = 'unknown') {
   } else if (_pendingUpdateInfo) {
     updateMenuItems.push({
       label: `🌟 Download Update (v${_pendingUpdateInfo.version})`,
-      click: () => {
-        console.log('[AutoUpdater] Tray: Download clicked');
-        log.info('[AutoUpdater] Tray: Download clicked for v' + _pendingUpdateInfo.version);
-        // v2.52.3: Immediate user feedback so it doesn't look frozen
-        _downloadProgress = { percent: 0 };
-        updateTrayMenu('download-clicked');
-        if (Notification.isSupported()) {
-          new Notification({
-            title: 'AIGuard Camera',
-            body: `Downloading v${_pendingUpdateInfo.version}… You'll be notified when it's ready to install.`,
-            icon: getIconPath(),
-          }).show();
-        }
-        // v2.52.15: Force a fresh checkForUpdates() before downloadUpdate().
-        // On Windows, calling downloadUpdate() too long after the original
-        // update-available event can fail silently because electron-updater's
-        // internal updateInfo state has expired. Re-checking restores it.
-        autoUpdater.checkForUpdates()
-          .then((res) => {
-            log.info('[AutoUpdater] Re-check before download result:', res?.updateInfo?.version);
-            return autoUpdater.downloadUpdate();
-          })
-          .then((files) => {
-            log.info('[AutoUpdater] downloadUpdate resolved:', files);
-          })
-          .catch((err) => {
-            console.error('[AutoUpdater] downloadUpdate failed:', err?.message || err);
-            log.error('[AutoUpdater] downloadUpdate failed:', err);
-            _downloadProgress = null;
-            updateTrayMenu('download-failed');
-            if (Notification.isSupported()) {
-              new Notification({
-                title: 'AIGuard Camera - Update Failed',
-                body: `Could not download update: ${err?.message || 'Unknown error'}`,
-                icon: getIconPath(),
-              }).show();
-            }
-          });
-      }
+      click: () => { startUpdateDownload('tray'); }
     });
     updateMenuItems.push({ type: 'separator' });
   }
@@ -2388,13 +2403,18 @@ let _downloadedUpdateInfo = null; // { version } when update-downloaded
 let _updateCheckInterval = null;
 // v2.52.3: Live download progress shown in tray menu
 let _downloadProgress = null; // { percent } while downloading
+let _isUpdateDownloadInProgress = false;
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.41.0 - silent tray mode + badge icon, 1min test interval)...');
+  console.log('[AutoUpdater] Initializing (v2.52.16 - silent tray mode, full Windows downloads, 12h interval)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
+  // v2.52.16: On Windows, differential NSIS downloads can stall before
+  // update-downloaded (seen from 2.52.7 -> 2.52.15 around 86%). Force the
+  // complete installer download instead of patch/blockmap reconstruction.
+  autoUpdater.disableDifferentialDownload = true;
 
   autoUpdater.on('checking-for-update', () => {
     console.log('[AutoUpdater] Checking for update...');
@@ -2420,7 +2440,7 @@ function initAutoUpdater() {
       notification.on('click', () => {
         // When user clicks notification, start download immediately
         console.log('[AutoUpdater] Notification clicked - starting download');
-        autoUpdater.downloadUpdate();
+        startUpdateDownload('notification');
       });
       notification.show();
     }
@@ -2433,7 +2453,11 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('[AutoUpdater] No update available. Current:', info.version);
-    _pendingUpdateInfo = null;
+    if (!_isUpdateDownloadInProgress) {
+      _pendingUpdateInfo = null;
+      _downloadProgress = null;
+      updateTrayMenu('update-not-available');
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'update-not-available', version: info.version });
     }
@@ -2450,6 +2474,7 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[AutoUpdater] Update downloaded:', info.version);
+    _isUpdateDownloadInProgress = false;
     _pendingUpdateInfo = null;
     _downloadProgress = null;
     _downloadedUpdateInfo = { version: info.version };
@@ -2481,7 +2506,8 @@ function initAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err?.message || err);
-    _pendingUpdateInfo = null;
+    log.error('[AutoUpdater] Error:', err);
+    _isUpdateDownloadInProgress = false;
     _downloadProgress = null;
     updateTrayMenu('update-error');
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2500,9 +2526,7 @@ function initAutoUpdater() {
   // IPC: renderer requests download
   ipcMain.handle('auto-update-download', () => {
     console.log('[AutoUpdater] Download requested by renderer');
-    _downloadProgress = { percent: 0 };
-    updateTrayMenu('download-ipc');
-    return autoUpdater.downloadUpdate();
+    return startUpdateDownload('renderer');
   });
 
   // IPC: renderer requests quit-and-install
@@ -2525,13 +2549,15 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.39.0: Periodic check every 1 minute (TEMPORARY - for testing; revert to 12h for production)
+  // v2.52.16: Production interval. Avoid repeated checks during a manual
+  // download because electron-updater can reset/cancel in-flight state.
   _updateCheckInterval = setInterval(() => {
-    console.log('[AutoUpdater] Periodic check (1min test interval)...');
+    if (_isUpdateDownloadInProgress || _downloadedUpdateInfo) return;
+    console.log('[AutoUpdater] Periodic check (12h interval)...');
     autoUpdater.checkForUpdates().catch((err) => {
       console.warn('[AutoUpdater] Periodic check failed:', err?.message);
     });
-  }, 60 * 1000);
+  }, 12 * 60 * 60 * 1000);
 }
 
 // =============================================================================
