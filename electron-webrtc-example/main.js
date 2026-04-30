@@ -1053,19 +1053,19 @@ function updateTrayMenu(caller = 'unknown') {
   if (_downloadedUpdateInfo) {
     updateMenuItems.push({
       label: `🚀 Install Update (v${_downloadedUpdateInfo.version})`,
-      click: () => { autoUpdater.quitAndInstall(false, true); }
+      click: () => { openUpdateWindow({ autoStart: false }); }
     });
     updateMenuItems.push({ type: 'separator' });
   } else if (_downloadProgress) {
     updateMenuItems.push({
       label: `⏳ Downloading update… ${Math.round(_downloadProgress.percent)}%`,
-      enabled: false,
+      click: () => { openUpdateWindow({ autoStart: false }); }
     });
     updateMenuItems.push({ type: 'separator' });
   } else if (_pendingUpdateInfo) {
     updateMenuItems.push({
       label: `🌟 Download Update (v${_pendingUpdateInfo.version})`,
-      click: () => { startUpdateDownload('tray'); }
+      click: () => { openUpdateWindow({ autoStart: true }); }
     });
     updateMenuItems.push({ type: 'separator' });
   }
