@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.24 (2026-04-30)
+ * VERSION: 2.52.25 (2026-04-30)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -433,6 +433,7 @@ function hideMainWindowToTray() {
 let _cachedTrayIcon = null;
 // v2.41.0: Cached badge icon (tray icon with red dot overlay)
 let _cachedTrayIconWithBadge = null;
+let _trayBadgeVisible = false;
 
 // Throttle state for updateTrayMenu – prevents rapid rebuilds that cause
 // the Windows tray icon to flash black.
@@ -597,6 +598,8 @@ function createBadgedIcon(baseIcon) {
  */
 function setTrayBadge(show) {
   if (!tray || tray.isDestroyed?.()) return;
+
+  _trayBadgeVisible = !!show;
 
   if (show && _cachedTrayIconWithBadge) {
     tray.setImage(_cachedTrayIconWithBadge);
@@ -1152,10 +1155,12 @@ function updateTrayMenu(caller = 'unknown') {
   tray.setToolTip(`${t('trayTooltip')} - ${liveStatus}`);
   console.log(`[Tray:Diag] setContextMenu call #${_setContextMenuCallCount} completed`);
 
-  // REMOVED: tray.setImage() after setContextMenu.
-  // The icon is set ONCE in initTray() and never touched again at runtime.
-  // Calling setImage during context menu rebuilds was causing the Windows
-  // tray icon to flash black.
+  // v2.52.25: macOS may visually lose the update badge after setContextMenu.
+  // Re-apply it on Mac only; Windows still avoids setImage here to prevent
+  // the historical black tray icon regression.
+  if (process.platform === 'darwin') {
+    setTrayBadge(_trayBadgeVisible || !!_pendingUpdateInfo || !!_downloadedUpdateInfo);
+  }
 }
 
 // =============================================================================
@@ -2804,8 +2809,10 @@ function initAutoUpdater() {
       notification.show();
     }
 
-    // v2.41.0: Revert tray icon to normal (download complete)
-    setTrayBadge(false);
+    // v2.52.25: Keep the update badge visible until the update is installed.
+    // On macOS the user expects the tray indicator to remain for the pending
+    // install state as well, not only for the pre-download state.
+    setTrayBadge(true);
 
     // Update tray menu to show install option
     updateTrayMenu('update-downloaded');
