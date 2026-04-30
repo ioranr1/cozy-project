@@ -2809,8 +2809,10 @@ function initAutoUpdater() {
       notification.show();
     }
 
-    // v2.41.0: Revert tray icon to normal (download complete)
-    setTrayBadge(false);
+    // v2.52.25: Keep the update badge visible until the update is installed.
+    // On macOS the user expects the tray indicator to remain for the pending
+    // install state as well, not only for the pre-download state.
+    setTrayBadge(true);
 
     // Update tray menu to show install option
     updateTrayMenu('update-downloaded');
