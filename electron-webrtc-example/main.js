@@ -21,11 +21,13 @@
 
 const { app, BrowserWindow, Tray, Menu, ipcMain, powerSaveBlocker, nativeImage, powerMonitor, dialog, Notification } = require('electron');
 const path = require('path');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const Store = require('electron-store');
 const { createClient } = require('@supabase/supabase-js');
 const { EventEmitter } = require('events');
 const http = require('http');
+const https = require('https');
+const crypto = require('crypto');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 
@@ -951,7 +953,7 @@ function startUpdateDownload(source = 'unknown') {
     log.info(`[AutoUpdater] Download already in progress; ignoring duplicate request from ${source}`);
     openUpdateWindow({ autoStart: false });
     refreshUpdateWindow();
-    return Promise.resolve([]);
+    return _updateDownloadPromise || Promise.resolve([]);
   }
 
   if (_downloadedUpdateInfo) {
@@ -967,6 +969,8 @@ function startUpdateDownload(source = 'unknown') {
   _isUpdateDownloadInProgress = true;
   _lastUpdateError = null;
   _downloadProgress = { percent: 0 };
+  clearStaleWindowsUpdateCache();
+  setTrayBadge(false);
   updateTrayMenu(`download-start-${source}`);
   openUpdateWindow({ autoStart: false });
   refreshUpdateWindow();
@@ -980,7 +984,7 @@ function startUpdateDownload(source = 'unknown') {
     }).show();
   }
 
-  const downloadPromise = autoUpdater.downloadUpdate()
+  _updateDownloadPromise = autoUpdater.downloadUpdate()
     .then((files) => {
       log.info('[AutoUpdater] downloadUpdate resolved:', files);
       return files;
@@ -1002,10 +1006,13 @@ function startUpdateDownload(source = 'unknown') {
           icon: getIconPath(),
         }).show();
       }
-      throw err;
+      return [];
+    })
+    .finally(() => {
+      _updateDownloadPromise = null;
     });
 
-  return downloadPromise;
+  return _updateDownloadPromise;
 }
 
 function updateTrayMenu(caller = 'unknown') {
@@ -1017,11 +1024,10 @@ function updateTrayMenu(caller = 'unknown') {
   const modeStatus = awayStatus.statusText;
 
   // v2.38.0: Include update state in menu hash so tray rebuilds when update status changes
-  const updateState = _downloadedUpdateInfo ? 'downloaded' : (_pendingUpdateInfo ? 'available' : 'none');
+  const updateState = _downloadedUpdateInfo ? 'downloaded' : (_downloadProgress ? 'downloading' : (_pendingUpdateInfo ? 'available' : (_lastUpdateError ? 'error' : 'none')));
 
   // Build a hash of the menu content – skip rebuild if nothing changed
-  const progressTag = _downloadProgress ? `dl${Math.floor(_downloadProgress.percent / 5) * 5}` : '';
-  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}|${progressTag}`;
+  const menuHash = `${liveStatus}|${modeStatus}|${currentLanguage}|${updateState}`;
 
   // CRITICAL FIX: If content hasn't changed, NEVER rebuild.
   // On Windows, every tray.setContextMenu() call can corrupt the PNG icon
@@ -1058,7 +1064,7 @@ function updateTrayMenu(caller = 'unknown') {
     updateMenuItems.push({ type: 'separator' });
   } else if (_downloadProgress) {
     updateMenuItems.push({
-      label: `⏳ Downloading update… ${Math.round(_downloadProgress.percent)}%`,
+      label: '⏳ Update download window',
       click: () => { openUpdateWindow({ autoStart: false }); }
     });
     updateMenuItems.push({ type: 'separator' });
@@ -2572,9 +2578,34 @@ let _lastUpdateError = null;
 // v2.52.3: Live download progress shown in tray menu
 let _downloadProgress = null; // { percent } while downloading
 let _isUpdateDownloadInProgress = false;
+let _updateDownloadPromise = null;
+
+function getUpdaterCacheCandidates() {
+  if (process.platform !== 'win32') return [];
+  const localAppData = process.env.LOCALAPPDATA || path.join(app.getPath('home'), 'AppData', 'Local');
+  return [
+    path.join(localAppData, `${app.getName()}-updater`, 'pending'),
+    path.join(localAppData, `${app.getName().replace(/\s+/g, '-')}-updater`, 'pending'),
+    path.join(localAppData, `${app.getName().toLowerCase().replace(/\s+/g, '-')}-updater`, 'pending'),
+    path.join(localAppData, 'security-camera-agent-updater', 'pending'),
+  ];
+}
+
+function clearStaleWindowsUpdateCache() {
+  if (process.platform !== 'win32') return;
+  for (const cacheDir of [...new Set(getUpdaterCacheCandidates())]) {
+    try {
+      if (!fs.existsSync(cacheDir)) continue;
+      fs.rmSync(cacheDir, { recursive: true, force: true });
+      log.info('[AutoUpdater] Cleared stale Windows updater cache:', cacheDir);
+    } catch (err) {
+      log.warn('[AutoUpdater] Failed to clear Windows updater cache:', cacheDir, err?.message || err);
+    }
+  }
+}
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.52.17 - Windows progress window, full downloads, 12h interval)...');
+  console.log('[AutoUpdater] Initializing (v2.52.18 - single-click Windows update window, full downloads, no tray progress)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
@@ -2583,6 +2614,9 @@ function initAutoUpdater() {
   // update-downloaded (seen from 2.52.7 -> 2.52.15 around 86%). Force the
   // complete installer download instead of patch/blockmap reconstruction.
   autoUpdater.disableDifferentialDownload = true;
+  autoUpdater.allowDowngrade = false;
+  autoUpdater.allowPrerelease = false;
+  autoUpdater.requestHeaders = { 'Cache-Control': 'no-cache' };
 
   autoUpdater.on('checking-for-update', () => {
     console.log('[AutoUpdater] Checking for update...');
@@ -2590,6 +2624,10 @@ function initAutoUpdater() {
 
   autoUpdater.on('update-available', (info) => {
     console.log('[AutoUpdater] Update available:', info.version);
+    if (_isUpdateDownloadInProgress) {
+      log.info('[AutoUpdater] Ignoring update-available while a download is already running:', info.version);
+      return;
+    }
     _pendingUpdateInfo = { version: info.version };
     _downloadedUpdateInfo = null;
     _lastUpdateError = null;
