@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.26 (2026-04-30)
+ * VERSION: 2.52.27 (2026-04-30)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -550,8 +550,11 @@ function createBadgedIcon(baseIcon) {
     const h = size.height;
     const bitmap = Buffer.from(baseIcon.toBitmap()); // copy
 
-    // Draw a red circle (radius ~3px) in the top-right corner
-    const dotRadius = Math.max(3, Math.round(w * 0.2));
+    // Draw a high-visibility update badge in the top-right corner.
+    // v2.52.27: macOS menu bar icons are tiny/retina-rendered; the previous
+    // small red dot could be visually swallowed by the base icon. Use the
+    // same cyan/blue update cue the user expects from AIGuard.
+    const dotRadius = Math.max(5, Math.round(w * 0.32));
     const cx = w - dotRadius - 1; // center x
     const cy = dotRadius + 1;     // center y
 
@@ -562,18 +565,22 @@ function createBadgedIcon(baseIcon) {
         const dist = Math.sqrt(dx * dx + dy * dy);
         const idx = (y * w + x) * 4;
 
-        if (dist <= dotRadius - 0.5) {
-          // Solid red
-          bitmap[idx] = 255;     // R
-          bitmap[idx + 1] = 50;  // G
-          bitmap[idx + 2] = 50;  // B
+        if (dist <= dotRadius - 1.5) {
+          bitmap[idx] = 59;      // R - cyan/blue update badge
+          bitmap[idx + 1] = 130; // G
+          bitmap[idx + 2] = 246; // B
           bitmap[idx + 3] = 255; // A
+        } else if (dist <= dotRadius - 0.5) {
+          bitmap[idx] = 255;
+          bitmap[idx + 1] = 255;
+          bitmap[idx + 2] = 255;
+          bitmap[idx + 3] = 255;
         } else if (dist <= dotRadius + 0.5) {
           // Anti-aliased edge
           const alpha = Math.max(0, Math.min(255, Math.round((dotRadius + 0.5 - dist) * 255)));
-          bitmap[idx] = 255;
-          bitmap[idx + 1] = 50;
-          bitmap[idx + 2] = 50;
+          bitmap[idx] = 59;
+          bitmap[idx + 1] = 130;
+          bitmap[idx + 2] = 246;
           bitmap[idx + 3] = Math.max(bitmap[idx + 3], alpha);
         }
       }
@@ -584,7 +591,7 @@ function createBadgedIcon(baseIcon) {
       console.warn('[Tray] Badge icon creation resulted in empty image');
       return null;
     }
-    console.log('[Tray] [OK] Badge icon created (red dot overlay)');
+    console.log('[Tray] [OK] Badge icon created (blue update overlay)');
     return badged;
   } catch (err) {
     console.error('[Tray] Failed to create badge icon:', err);
@@ -2729,6 +2736,9 @@ function initAutoUpdater() {
       log.info('[AutoUpdater] Ignoring update-available while a download is already running:', info.version);
       return;
     }
+    if (_downloadedUpdateInfo && _downloadedUpdateInfo.version !== info.version) {
+      log.info(`[AutoUpdater] Replacing previously downloaded update v${_downloadedUpdateInfo.version} with newer v${info.version}`);
+    }
     _pendingUpdateInfo = { version: info.version };
     _downloadedUpdateInfo = null;
     _lastUpdateError = null;
@@ -2868,7 +2878,7 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.52.26: Keep checking even if an older update is already downloaded.
+  // v2.52.27: Keep checking even if an older update is already downloaded.
   // Otherwise macOS can stay stuck on "Install Update (v2.52.23)" forever
   // and never replace it with a newer published release.
   _updateCheckInterval = setInterval(() => {
