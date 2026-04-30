@@ -803,7 +803,9 @@ function escapeHtml(value) {
 function getUpdateWindowState() {
   const version = _downloadedUpdateInfo?.version || _pendingUpdateInfo?.version || 'latest';
   const percent = Math.max(0, Math.min(100, Math.round(_downloadProgress?.percent || 0)));
-  const status = _downloadedUpdateInfo
+  const status = _isInstallingUpdate
+    ? 'installing'
+    : _downloadedUpdateInfo
     ? 'downloaded'
     : (_isUpdateDownloadInProgress ? 'downloading' : (_lastUpdateError ? 'error' : (_pendingUpdateInfo ? 'available' : 'checking')));
 
@@ -825,6 +827,7 @@ function renderUpdateWindowHtml() {
     checking: 'בודק עדכון זמין…',
     downloading: 'מוריד עדכון…',
     downloaded: 'העדכון ירד ומוכן להתקנה',
+    installing: 'מתקין עדכון…',
     error: 'ההורדה נכשלה',
     download: 'הורד עכשיו',
     install: 'התקן עכשיו',
@@ -837,6 +840,7 @@ function renderUpdateWindowHtml() {
     checking: 'Checking for updates…',
     downloading: 'Downloading update…',
     downloaded: 'Update downloaded and ready to install',
+    installing: 'Installing update…',
     error: 'Download failed',
     download: 'Download now',
     install: 'Install now',
@@ -879,15 +883,16 @@ function renderUpdateWindowHtml() {
   <script>
     const labels=${JSON.stringify(text)};
     window.__setUpdateState=function(s){
-      const title=s.status==='downloaded'?labels.downloaded:s.status==='downloading'?labels.downloading:s.status==='error'?labels.error:s.status==='checking'?labels.checking:labels.available;
+      const title=s.status==='installing'?labels.installing:s.status==='downloaded'?labels.downloaded:s.status==='downloading'?labels.downloading:s.status==='error'?labels.error:s.status==='checking'?labels.checking:labels.available;
       document.getElementById('subtitle').textContent=title;
       document.getElementById('version').textContent='v'+s.version;
-      document.getElementById('fill').style.width=(s.status==='downloaded'?100:s.percent)+'%';
-      document.getElementById('pct').textContent=s.status==='downloaded'?'100%':(s.status==='downloading'?s.percent+'%':'');
+      document.getElementById('fill').style.width=((s.status==='downloaded'||s.status==='installing')?100:s.percent)+'%';
+      document.getElementById('pct').textContent=(s.status==='downloaded'||s.status==='installing')?'100%':(s.status==='downloading'?s.percent+'%':'');
       document.getElementById('err').textContent=s.error||'';
-      document.getElementById('download').disabled=s.status==='downloading'||s.status==='downloaded'||s.status==='checking';
-      document.getElementById('install').style.display=s.status==='downloaded'?'inline-block':'none';
-      document.getElementById('note').style.display=s.status==='downloading'?'block':'none';
+      document.getElementById('download').disabled=s.status==='downloading'||s.status==='downloaded'||s.status==='checking'||s.status==='installing';
+      document.getElementById('install').style.display=(s.status==='downloaded'||s.status==='installing')?'inline-block':'none';
+      document.getElementById('install').disabled=s.status!=='downloaded';
+      document.getElementById('note').style.display=(s.status==='downloading'||s.status==='installing')?'block':'none';
     };
     window.__setUpdateState(${JSON.stringify(state)});
   </script>
