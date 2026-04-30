@@ -2567,12 +2567,14 @@ app.whenReady().then(async () => {
 let _pendingUpdateInfo = null;   // { version } when update-available
 let _downloadedUpdateInfo = null; // { version } when update-downloaded
 let _updateCheckInterval = null;
+let _updateWindow = null;
+let _lastUpdateError = null;
 // v2.52.3: Live download progress shown in tray menu
 let _downloadProgress = null; // { percent } while downloading
 let _isUpdateDownloadInProgress = false;
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.52.16 - silent tray mode, full Windows downloads, 12h interval)...');
+  console.log('[AutoUpdater] Initializing (v2.52.17 - Windows progress window, full downloads, 12h interval)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
@@ -2590,6 +2592,7 @@ function initAutoUpdater() {
     console.log('[AutoUpdater] Update available:', info.version);
     _pendingUpdateInfo = { version: info.version };
     _downloadedUpdateInfo = null;
+    _lastUpdateError = null;
 
     // Notify renderer (for in-app UI if visible)
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2606,7 +2609,7 @@ function initAutoUpdater() {
       notification.on('click', () => {
         // When user clicks notification, start download immediately
         console.log('[AutoUpdater] Notification clicked - starting download');
-        startUpdateDownload('notification');
+        openUpdateWindow({ autoStart: true });
       });
       notification.show();
     }
@@ -2633,6 +2636,8 @@ function initAutoUpdater() {
     console.log(`[AutoUpdater] Download: ${Math.round(progress.percent)}%`);
     _downloadProgress = { percent: progress.percent };
     updateTrayMenu('download-progress');
+    refreshUpdateWindow();
+    setUpdateTaskbarProgress(progress.percent / 100);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'download-progress', percent: progress.percent, bytesPerSecond: progress.bytesPerSecond, transferred: progress.transferred, total: progress.total });
     }
@@ -2644,6 +2649,8 @@ function initAutoUpdater() {
     _pendingUpdateInfo = null;
     _downloadProgress = null;
     _downloadedUpdateInfo = { version: info.version };
+    _lastUpdateError = null;
+    setUpdateTaskbarProgress(null);
 
     // Notify renderer
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2668,6 +2675,8 @@ function initAutoUpdater() {
 
     // Update tray menu to show install option
     updateTrayMenu('update-downloaded');
+    openUpdateWindow({ autoStart: false });
+    refreshUpdateWindow();
   });
 
   autoUpdater.on('error', (err) => {
@@ -2675,7 +2684,10 @@ function initAutoUpdater() {
     log.error('[AutoUpdater] Error:', err);
     _isUpdateDownloadInProgress = false;
     _downloadProgress = null;
+    _lastUpdateError = err?.message || 'Unknown auto-update error';
+    setUpdateTaskbarProgress(null);
     updateTrayMenu('update-error');
+    refreshUpdateWindow();
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('auto-update', { type: 'error', message: err?.message || 'Unknown error' });
     }
