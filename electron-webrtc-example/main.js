@@ -789,6 +789,59 @@ function startTrayHealthMonitor() {
 // Global tray-update counter for diagnostics
 let _trayUpdateCounter = 0;
 
+function startUpdateDownload(source = 'unknown') {
+  if (_isUpdateDownloadInProgress) {
+    log.info(`[AutoUpdater] Download already in progress; ignoring duplicate request from ${source}`);
+    return Promise.resolve([]);
+  }
+
+  if (_downloadedUpdateInfo) {
+    log.info(`[AutoUpdater] Update already downloaded; opening installer flow from ${source}`);
+    autoUpdater.quitAndInstall(false, true);
+    return Promise.resolve([]);
+  }
+
+  const requestedVersion = _pendingUpdateInfo?.version || 'latest';
+  console.log(`[AutoUpdater] Starting download from ${source} for v${requestedVersion}`);
+  log.info(`[AutoUpdater] Starting download from ${source} for v${requestedVersion}`);
+
+  _isUpdateDownloadInProgress = true;
+  _downloadProgress = { percent: 0 };
+  updateTrayMenu(`download-start-${source}`);
+
+  if (Notification.isSupported()) {
+    new Notification({
+      title: 'AIGuard Camera',
+      body: `Downloading v${requestedVersion}… You'll be notified when it's ready to install.`,
+      icon: getIconPath(),
+    }).show();
+  }
+
+  const downloadPromise = autoUpdater.downloadUpdate()
+    .then((files) => {
+      log.info('[AutoUpdater] downloadUpdate resolved:', files);
+      return files;
+    })
+    .catch((err) => {
+      const message = err?.message || String(err || 'Unknown error');
+      console.error('[AutoUpdater] downloadUpdate failed:', message);
+      log.error('[AutoUpdater] downloadUpdate failed:', err);
+      _isUpdateDownloadInProgress = false;
+      _downloadProgress = null;
+      updateTrayMenu(`download-failed-${source}`);
+      if (Notification.isSupported()) {
+        new Notification({
+          title: 'AIGuard Camera - Update Failed',
+          body: `Could not download update: ${message}`,
+          icon: getIconPath(),
+        }).show();
+      }
+      throw err;
+    });
+
+  return downloadPromise;
+}
+
 function updateTrayMenu(caller = 'unknown') {
   if (!tray) return;
 
@@ -846,45 +899,7 @@ function updateTrayMenu(caller = 'unknown') {
   } else if (_pendingUpdateInfo) {
     updateMenuItems.push({
       label: `🌟 Download Update (v${_pendingUpdateInfo.version})`,
-      click: () => {
-        console.log('[AutoUpdater] Tray: Download clicked');
-        log.info('[AutoUpdater] Tray: Download clicked for v' + _pendingUpdateInfo.version);
-        // v2.52.3: Immediate user feedback so it doesn't look frozen
-        _downloadProgress = { percent: 0 };
-        updateTrayMenu('download-clicked');
-        if (Notification.isSupported()) {
-          new Notification({
-            title: 'AIGuard Camera',
-            body: `Downloading v${_pendingUpdateInfo.version}… You'll be notified when it's ready to install.`,
-            icon: getIconPath(),
-          }).show();
-        }
-        // v2.52.15: Force a fresh checkForUpdates() before downloadUpdate().
-        // On Windows, calling downloadUpdate() too long after the original
-        // update-available event can fail silently because electron-updater's
-        // internal updateInfo state has expired. Re-checking restores it.
-        autoUpdater.checkForUpdates()
-          .then((res) => {
-            log.info('[AutoUpdater] Re-check before download result:', res?.updateInfo?.version);
-            return autoUpdater.downloadUpdate();
-          })
-          .then((files) => {
-            log.info('[AutoUpdater] downloadUpdate resolved:', files);
-          })
-          .catch((err) => {
-            console.error('[AutoUpdater] downloadUpdate failed:', err?.message || err);
-            log.error('[AutoUpdater] downloadUpdate failed:', err);
-            _downloadProgress = null;
-            updateTrayMenu('download-failed');
-            if (Notification.isSupported()) {
-              new Notification({
-                title: 'AIGuard Camera - Update Failed',
-                body: `Could not download update: ${err?.message || 'Unknown error'}`,
-                icon: getIconPath(),
-              }).show();
-            }
-          });
-      }
+      click: () => { startUpdateDownload('tray'); }
     });
     updateMenuItems.push({ type: 'separator' });
   }
