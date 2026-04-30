@@ -34,6 +34,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "runAfterFinish": true,
+      "differentialPackage": false,
       "artifactName": "Security-Camera-Agent-Setup-${version}.${ext}"
     },
     "win": {

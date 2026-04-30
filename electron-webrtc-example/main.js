@@ -2727,7 +2727,7 @@ function initAutoUpdater() {
     });
   }, 10000);
 
-  // v2.52.16: Production interval. Avoid repeated checks during a manual
+  // v2.52.17: Production interval. Avoid repeated checks during a manual
   // download because electron-updater can reset/cancel in-flight state.
   _updateCheckInterval = setInterval(() => {
     if (_isUpdateDownloadInProgress || _downloadedUpdateInfo) return;
