@@ -3,6 +3,9 @@ name: Build & Release Electron App
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -41,7 +44,10 @@ jobs:
           else
             echo "Creating release tag ${TAG}"
             git tag "${TAG}"
-            git push origin "${TAG}"
+            git push origin "${TAG}" || {
+              git fetch --tags --force
+              git rev-parse "${TAG}" >/dev/null 2>&1
+            }
           fi
 
       - name: Verify macOS signing secrets
