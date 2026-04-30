@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.24 (2026-04-30)
+ * VERSION: 2.52.25 (2026-04-30)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -433,6 +433,7 @@ function hideMainWindowToTray() {
 let _cachedTrayIcon = null;
 // v2.41.0: Cached badge icon (tray icon with red dot overlay)
 let _cachedTrayIconWithBadge = null;
+let _trayBadgeVisible = false;
 
 // Throttle state for updateTrayMenu – prevents rapid rebuilds that cause
 // the Windows tray icon to flash black.
