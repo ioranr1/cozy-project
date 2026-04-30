@@ -913,6 +913,35 @@ function setUpdateTaskbarProgress(percentOrNull) {
   try { if (_updateWindow && !_updateWindow.isDestroyed?.()) _updateWindow.setProgressBar(value); } catch (_) {}
 }
 
+function installDownloadedUpdate(source = 'unknown') {
+  if (!_downloadedUpdateInfo) {
+    log.warn(`[AutoUpdater] Install requested from ${source} but no downloaded update is registered`);
+    openUpdateWindow({ autoStart: false });
+    refreshUpdateWindow();
+    return;
+  }
+
+  const version = _downloadedUpdateInfo.version;
+  console.log(`[AutoUpdater] Installing downloaded update v${version} from ${source}`);
+  log.info(`[AutoUpdater] Installing downloaded update v${version} from ${source}`);
+  _isInstallingUpdate = true;
+  app.isQuitting = true;
+  refreshUpdateWindow();
+  updateTrayMenu(`install-start-${source}`);
+
+  setTimeout(() => {
+    try {
+      autoUpdater.quitAndInstall(false, true);
+    } catch (err) {
+      _isInstallingUpdate = false;
+      _lastUpdateError = err?.message || String(err || 'Failed to install update');
+      log.error('[AutoUpdater] quitAndInstall failed:', err);
+      updateTrayMenu(`install-failed-${source}`);
+      refreshUpdateWindow();
+    }
+  }, 250);
+}
+
 function openUpdateWindow({ autoStart = false } = {}) {
   if (process.platform === 'win32') {
     if (autoStart) openWindowsInstallerDownload('update-window-autostart').catch((err) => {
@@ -957,7 +986,7 @@ function openUpdateWindow({ autoStart = false } = {}) {
     if (!url.startsWith('aiguard-update://')) return;
     event.preventDefault();
     if (url.includes('download')) startUpdateDownload('update-window-button');
-    if (url.includes('install')) autoUpdater.quitAndInstall(false, true);
+    if (url.includes('install')) installDownloadedUpdate('update-window-button');
     if (url.includes('close') && _updateWindow && !_updateWindow.isDestroyed?.()) _updateWindow.close();
   });
 }
