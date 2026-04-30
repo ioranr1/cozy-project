@@ -27,6 +27,14 @@ const { createClient } = require('@supabase/supabase-js');
 const { EventEmitter } = require('events');
 const http = require('http');
 const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
+
+// v2.52.15: Wire electron-log into autoUpdater so download/install failures
+// are written to disk (%APPDATA%/security-camera-agent/logs/main.log on Win,
+// ~/Library/Logs/security-camera-agent/main.log on Mac). Without this the
+// "Download Update" tray click can fail silently and the user sees nothing.
+log.transports.file.level = 'info';
+autoUpdater.logger = log;
 
 // CRITICAL FIX: Import AwayManager to replace old Away Mode implementation
 const AwayManager = require('./away/away-manager');
@@ -840,6 +848,7 @@ function updateTrayMenu(caller = 'unknown') {
       label: `🌟 Download Update (v${_pendingUpdateInfo.version})`,
       click: () => {
         console.log('[AutoUpdater] Tray: Download clicked');
+        log.info('[AutoUpdater] Tray: Download clicked for v' + _pendingUpdateInfo.version);
         // v2.52.3: Immediate user feedback so it doesn't look frozen
         _downloadProgress = { percent: 0 };
         updateTrayMenu('download-clicked');
@@ -850,18 +859,31 @@ function updateTrayMenu(caller = 'unknown') {
             icon: getIconPath(),
           }).show();
         }
-        autoUpdater.downloadUpdate().catch((err) => {
-          console.error('[AutoUpdater] downloadUpdate failed:', err?.message || err);
-          _downloadProgress = null;
-          updateTrayMenu('download-failed');
-          if (Notification.isSupported()) {
-            new Notification({
-              title: 'AIGuard Camera - Update Failed',
-              body: `Could not download update: ${err?.message || 'Unknown error'}`,
-              icon: getIconPath(),
-            }).show();
-          }
-        });
+        // v2.52.15: Force a fresh checkForUpdates() before downloadUpdate().
+        // On Windows, calling downloadUpdate() too long after the original
+        // update-available event can fail silently because electron-updater's
+        // internal updateInfo state has expired. Re-checking restores it.
+        autoUpdater.checkForUpdates()
+          .then((res) => {
+            log.info('[AutoUpdater] Re-check before download result:', res?.updateInfo?.version);
+            return autoUpdater.downloadUpdate();
+          })
+          .then((files) => {
+            log.info('[AutoUpdater] downloadUpdate resolved:', files);
+          })
+          .catch((err) => {
+            console.error('[AutoUpdater] downloadUpdate failed:', err?.message || err);
+            log.error('[AutoUpdater] downloadUpdate failed:', err);
+            _downloadProgress = null;
+            updateTrayMenu('download-failed');
+            if (Notification.isSupported()) {
+              new Notification({
+                title: 'AIGuard Camera - Update Failed',
+                body: `Could not download update: ${err?.message || 'Unknown error'}`,
+                icon: getIconPath(),
+              }).show();
+            }
+          });
       }
     });
     updateMenuItems.push({ type: 'separator' });

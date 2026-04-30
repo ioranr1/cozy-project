@@ -1,6 +1,6 @@
 {
   "name": "security-camera-agent",
-  "version": "2.52.14",
+  "version": "2.52.15",
   "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
   "main": "main.js",
   "scripts": {
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.90.1",
+    "electron-log": "^5.4.3",
     "electron-store": "7.0.3",
     "electron-updater": "^6.3.9"
   },
