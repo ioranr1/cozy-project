@@ -909,6 +909,15 @@ function setUpdateTaskbarProgress(percentOrNull) {
 }
 
 function openUpdateWindow({ autoStart = false } = {}) {
+  if (process.platform === 'win32') {
+    if (autoStart) openWindowsInstallerDownload('update-window-autostart').catch((err) => {
+      _lastUpdateError = err?.message || String(err || 'Failed to open installer download');
+      log.error('[AutoUpdater] Failed to open Windows installer download:', err);
+      refreshUpdateWindow();
+    });
+    return;
+  }
+
   if (_updateWindow && !_updateWindow.isDestroyed?.()) {
     _updateWindow.show();
     _updateWindow.focus();
@@ -949,6 +958,16 @@ function openUpdateWindow({ autoStart = false } = {}) {
 }
 
 function startUpdateDownload(source = 'unknown') {
+  if (process.platform === 'win32') {
+    return openWindowsInstallerDownload(source).catch((err) => {
+      const message = err?.message || String(err || 'Failed to open installer download');
+      _lastUpdateError = message;
+      log.error('[AutoUpdater] Windows installer download open failed:', err);
+      updateTrayMenu(`windows-installer-open-failed-${source}`);
+      return { ok: false, error: message };
+    });
+  }
+
   if (_isUpdateDownloadInProgress) {
     log.info(`[AutoUpdater] Download already in progress; ignoring duplicate request from ${source}`);
     openUpdateWindow({ autoStart: false });
