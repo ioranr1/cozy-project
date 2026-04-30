@@ -599,6 +599,8 @@ function createBadgedIcon(baseIcon) {
 function setTrayBadge(show) {
   if (!tray || tray.isDestroyed?.()) return;
 
+  _trayBadgeVisible = !!show;
+
   if (show && _cachedTrayIconWithBadge) {
     tray.setImage(_cachedTrayIconWithBadge);
     tray.setToolTip('Update Available! Right-click to download.');
@@ -1153,10 +1155,12 @@ function updateTrayMenu(caller = 'unknown') {
   tray.setToolTip(`${t('trayTooltip')} - ${liveStatus}`);
   console.log(`[Tray:Diag] setContextMenu call #${_setContextMenuCallCount} completed`);
 
-  // REMOVED: tray.setImage() after setContextMenu.
-  // The icon is set ONCE in initTray() and never touched again at runtime.
-  // Calling setImage during context menu rebuilds was causing the Windows
-  // tray icon to flash black.
+  // v2.52.25: macOS may visually lose the update badge after setContextMenu.
+  // Re-apply it on Mac only; Windows still avoids setImage here to prevent
+  // the historical black tray icon regression.
+  if (process.platform === 'darwin') {
+    setTrayBadge(_trayBadgeVisible || !!_pendingUpdateInfo || !!_downloadedUpdateInfo);
+  }
 }
 
 // =============================================================================
