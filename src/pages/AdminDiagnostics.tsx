@@ -71,10 +71,22 @@ function formatDateTime(dateStr: string): string {
 function getPlatformLabel(systemInfo: Record<string, unknown> | null): string {
   if (!systemInfo || !systemInfo.platform) return "—";
   const p = String(systemInfo.platform).toLowerCase();
-  if (p.includes("win")) return "🪟 WIN";
   if (p.includes("darwin")) return "🍎 MAC";
+  if (p.includes("win")) return "🪟 WIN";
   if (p.includes("linux")) return "🐧 Linux";
   return String(systemInfo.platform).toUpperCase();
+}
+
+function getCpuLabel(systemInfo: Record<string, unknown> | null): string {
+  if (!systemInfo) return "—";
+  const arch = systemInfo.arch ? String(systemInfo.arch).toLowerCase() : "";
+  const count = systemInfo.cpuCount ? String(systemInfo.cpuCount) : "";
+  let label = "";
+  if (arch === "arm64") label = "ARM64";
+  else if (arch === "x64" || arch === "amd64") label = "x64";
+  else if (arch) label = arch.toUpperCase();
+  else label = "—";
+  return count ? `${label} · ${count} cores` : label;
 }
 
 function isStale(dateStr: string): boolean {
@@ -264,6 +276,7 @@ const AdminDiagnostics = () => {
                     <TableHead>User</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>OS</TableHead>
+                    <TableHead>CPU</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Uptime</TableHead>
                     <TableHead>Away</TableHead>
@@ -280,7 +293,7 @@ const AdminDiagnostics = () => {
                 <TableBody>
                   {diagnostics.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={15} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={16} className="text-center text-muted-foreground py-8">
                         {loading ? "Loading..." : "No diagnostic data yet"}
                       </TableCell>
                     </TableRow>
@@ -308,6 +321,9 @@ const AdminDiagnostics = () => {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{getPlatformLabel(row.system_info)}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {getCpuLabel(row.system_info)}
                           </TableCell>
                           <TableCell>
                             {row.agent_version}
@@ -378,7 +394,7 @@ const AdminDiagnostics = () => {
                         </TableRow>
                         {expandedDevice === row.id && (
                           <TableRow key={`${row.id}-detail`}>
-                            <TableCell colSpan={15} className="bg-muted/30 p-4">
+                           <TableCell colSpan={16} className="bg-muted/30 p-4">
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                   <h4 className="font-semibold mb-2">System Info</h4>
