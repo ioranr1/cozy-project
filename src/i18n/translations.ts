@@ -403,6 +403,8 @@ export const translations = {
       twoStepsTitle: '2 steps to install:',
       twoStepsLaptop: '1. Start with the laptop side',
       twoStepsPhone: '2. Mobile phone side',
+     sectionLaptopTitle: 'Laptop Installation',
+     sectionPhoneTitle: 'Mobile Phone Installation',
       steps: {
         download: {
           title: 'Download the App',
