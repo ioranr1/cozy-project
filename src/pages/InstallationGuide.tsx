@@ -16,9 +16,11 @@ import trayBlueBadgeImg from '@/assets/tray-icon-blue-badge.png';
 import trayUpdateMenuImg from '@/assets/tray-update-menu.png';
 import smartscreen1Img from '@/assets/win-smartscreen-1-marked.png';
 import smartscreen2Img from '@/assets/win-smartscreen-2-marked.png';
+import continueToPairingHeImg from '@/assets/continue-to-pairing-he.png';
+import continueToPairingEnImg from '@/assets/continue-to-pairing-en.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw, AlertTriangle, Link2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -44,6 +46,12 @@ const InstallationGuide: React.FC = () => {
       title: guide.steps.install.title,
       description: guide.steps.install.description,
       details: guide.steps.install.details,
+    },
+    {
+      icon: Link2,
+      title: guide.steps.afterInstall.title,
+      description: guide.steps.afterInstall.description,
+      details: guide.steps.afterInstall.details,
     },
     {
       icon: Shield,
@@ -117,13 +125,13 @@ const InstallationGuide: React.FC = () => {
                   {guide.sectionLaptopTitle}
                 </h2>
               )}
-              {index === 4 && (
+              {index === 5 && (
                 <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
                   <Smartphone className="w-7 h-7 text-cyan-600" />
                   {guide.sectionPhoneTitle}
                 </h2>
               )}
-              {index === 5 && (
+              {index === 6 && (
                 <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
                   <RefreshCw className="w-7 h-7 text-cyan-600" />
                   {guide.sectionGeneralTitle}
@@ -158,7 +166,7 @@ const InstallationGuide: React.FC = () => {
                           <li className="flex items-start gap-2 text-slate-600">
                             <CheckCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />
                             <span className="flex items-center gap-1 flex-wrap">
-                              {index === 3 && i === 3 ? (
+                              {index === 4 && i === 3 ? (
                                 <>
                                   {detail.split(',')[0]}
                                   <img
@@ -212,8 +220,18 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {/* Show devices button image after first detail in setup step */}
+                          {/* New "After Installation" step image */}
                           {index === 3 && i === 0 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={isRTL ? continueToPairingHeImg : continueToPairingEnImg}
+                                alt={isRTL ? 'לחץ על המשך לצימוד' : 'Click Continue to Pairing'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-sm"
+                              />
+                            </li>
+                          )}
+                          {/* Show devices button image after first detail in setup step */}
+                          {index === 4 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? devicesButtonImg : devicesButtonEnImg}
@@ -222,7 +240,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 3 && i === 1 && (
+                          {index === 4 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pairCameraButtonImg : pairCameraButtonEnImg}
@@ -231,7 +249,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 3 && i === 2 && (
+                          {index === 4 && i === 2 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pairingCodeExampleImg : pairingCodeExampleEnImg}
@@ -240,7 +258,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 3 && i === 3 && (
+                          {index === 4 && i === 3 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pasteCodeImg : pasteCodeEnImg}
@@ -250,7 +268,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show blue badge tray icon image after first detail in update step */}
-                          {index === 5 && i === 0 && (
+                          {index === 6 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayBlueBadgeImg}
@@ -259,7 +277,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 5 && i === 1 && (
+                          {index === 6 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayUpdateMenuImg}

@@ -138,6 +138,13 @@ export const translations = {
             'אפשר גישה למצלמה ולמיקרופון כשתתבקש',
           ],
         },
+        afterInstall: {
+          title: 'לאחר ההתקנה',
+          description: 'בסיום ההתקנה ייפתח חלון סוכן המצלמה',
+          details: [
+            'לחץ על הכפתור "המשך לצימוד" (מסומן באדום בתמונה)',
+          ],
+        },
         setup: {
           title: 'צימוד מצלמת הלפטופ לאפליקאציה',
           description: 'השלבים  לצימוד  המצלמה:',
@@ -440,6 +447,13 @@ export const translations = {
             'Open the downloaded installation file',
             'Follow the installation instructions',
             'Allow access to camera and microphone when prompted',
+          ],
+        },
+        afterInstall: {
+          title: 'After Installation',
+          description: 'When installation completes, the Camera Agent window will open',
+          details: [
+            'Click the "Continue to Pairing" button (circled in red in the image)',
           ],
         },
         setup: {
