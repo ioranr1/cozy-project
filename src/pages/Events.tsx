@@ -286,6 +286,34 @@ const Events: React.FC = () => {
           </div>
         </div>
 
+        {/* Pending acknowledgement banner — shown when WA notification cycle is blocked */}
+        {pendingAckEvents.length > 0 && (
+          <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 flex items-start gap-3">
+            <BellOff className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-200 font-medium text-sm">
+                {language === 'he'
+                  ? `${pendingAckEvents.length} התראות ממתינות לאישור — התראות חדשות חסומות עד לסימון כנצפו`
+                  : `${pendingAckEvents.length} pending alert(s) — new alerts blocked until acknowledged`}
+              </p>
+              <p className="text-amber-200/70 text-xs mt-1">
+                {language === 'he'
+                  ? 'בדרך כלל הקישור מוואטסאפ מאפס את המחזור. ניתן לאשר ידנית כאן.'
+                  : 'Normally the WhatsApp link resets the cycle. You can acknowledge here manually.'}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={handleAcknowledgeAll}
+              disabled={acknowledging}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-medium flex-shrink-0"
+            >
+              {acknowledging && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+              {language === 'he' ? 'סמן הכל כנצפה' : 'Mark all viewed'}
+            </Button>
+          </div>
+        )}
+
         {/* Tab Switcher */}
         <div className="flex gap-2 mb-6">
           <Button
