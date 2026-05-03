@@ -472,8 +472,8 @@ export const translations = {
           description: 'Connect from your phone and watch the live stream',
           details: [
             'Go to https://aiguard24.com from your mobile',
-            'Log in with the same account',
-            'To keep the app icon permanently on your home screen, tap "Add to Home Screen" (no need to download from the app store)',
+            'Log in with the same account you used on the laptop, receive a verification code via WhatsApp, and you can start watching and activating monitoring',
+            'To keep the app icon permanently on your mobile home screen, tap "Add to Home Screen" (no need to download from the app store)',
           ],
         },
         update: {
