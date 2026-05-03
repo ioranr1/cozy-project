@@ -425,6 +425,14 @@ export const translations = {
             'Wait for the download to complete',
           ],
         },
+        smartscreen: {
+          title: 'Windows SmartScreen Warning (Windows only)',
+          description: 'When opening the installer on Windows, a blue Microsoft Defender SmartScreen warning may appear. This is normal — approve the installation in two steps:',
+          details: [
+            'In the first dialog, click "More info" (circled in red in the image)',
+            'Then click "Run anyway" (circled in red in the image) to continue the installation',
+          ],
+        },
         install: {
           title: 'Install on Computer',
           description: 'Install the app on the computer that will serve as a camera',
