@@ -110,6 +110,7 @@ export const translations = {
       twoStepsPhone: '2. צד הטלפון הנייד',
      sectionLaptopTitle: 'התקנה בלאפטופ',
      sectionPhoneTitle: 'התקנה בטלפון הנייד',
+     sectionGeneralTitle: 'כללי',
       steps: {
         download: {
           title: 'הורדת האפליקציה',
@@ -405,6 +406,7 @@ export const translations = {
       twoStepsPhone: '2. Mobile phone side',
      sectionLaptopTitle: 'Laptop Installation',
      sectionPhoneTitle: 'Mobile Phone Installation',
+     sectionGeneralTitle: 'General',
       steps: {
         download: {
           title: 'Download the App',
