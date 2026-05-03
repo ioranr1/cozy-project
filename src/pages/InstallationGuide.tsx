@@ -115,6 +115,12 @@ const InstallationGuide: React.FC = () => {
                   {guide.sectionPhoneTitle}
                 </h2>
               )}
+              {index === 4 && (
+                <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
+                  <RefreshCw className="w-7 h-7 text-cyan-600" />
+                  {guide.sectionGeneralTitle}
+                </h2>
+              )}
               <div
                 className="relative bg-gradient-to-br from-white to-slate-50 rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
               >
