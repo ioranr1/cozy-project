@@ -121,6 +121,14 @@ export const translations = {
             'המתן לסיום ההורדה',
           ],
         },
+        smartscreen: {
+          title: 'אזהרת Windows SmartScreen (עבור Windows בלבד)',
+          description: 'בעת פתיחת קובץ ההתקנה במחשב Windows עשויה להופיע אזהרה כחולה של Microsoft Defender SmartScreen. זהו שלב רגיל - יש לאשר את ההתקנה בשני שלבים:',
+          details: [
+            'בחלון הראשון לחץ על "More info" (מסומן באדום בתמונה)',
+            'לאחר מכן לחץ על "Run anyway" (מסומן באדום בתמונה) כדי להמשיך בהתקנה',
+          ],
+        },
         install: {
           title: 'התקנה על המחשב',
           description: 'התקן את האפליקציה על המחשב שישמש כמצלמה',
