@@ -2120,8 +2120,7 @@ async function handleStopLiveView() {
   // in-memory state looks inactive after display sleep, but the user intent is
   // still AWAY + motion enabled.
   // Use a short delay to let camera hardware release first.
-  if (true) {
-    setTimeout(async () => {
+  setTimeout(async () => {
       try {
         const { data: dbStatus } = await supabase
           .from('device_status')
@@ -2139,8 +2138,23 @@ async function handleStopLiveView() {
             motion_enabled: dbStatus?.motion_enabled,
             baby_monitor_enabled: dbStatus?.baby_monitor_enabled,
           });
+          const resumeAckPromise = waitForMonitoringStartAck({ timeoutMs: 60000 });
           const resumeResult = await monitoringManager.enable();
           if (resumeResult.success) {
+            const startedStatus = await resumeAckPromise;
+            _selfWriteTimestamp = Date.now();
+            const { error: statusError } = await supabase
+              .from('device_status')
+              .update({
+                security_enabled: true,
+                motion_enabled: startedStatus?.motion ?? dbStatus?.motion_enabled ?? false,
+                sound_enabled: startedStatus?.sound ?? false,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('device_id', deviceId);
+            if (statusError) {
+              console.warn('[RTC] Failed to sync DB after monitoring resume:', statusError.message || statusError);
+            }
             console.log('[RTC] Motion monitoring resumed successfully');
           } else {
             console.warn('[RTC] Failed to resume monitoring:', resumeResult.error);
@@ -2158,8 +2172,7 @@ async function handleStopLiveView() {
       } catch (err) {
         console.warn('[RTC] Error checking monitoring resume:', err?.message);
       }
-    }, 2000); // 2s delay for camera hardware release
-  }
+  }, 2000); // 2s delay for camera hardware release
 }
 
 // =============================================================================
