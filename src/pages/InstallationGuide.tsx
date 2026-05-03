@@ -156,7 +156,7 @@ const InstallationGuide: React.FC = () => {
                                   <img
                                     src={trayIconImg}
                                     alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
-                                    className="inline-block w-6 h-6"
+                                    className="inline-block w-12 h-12 align-middle"
                                   />
                                   ,{detail.split(',').slice(1).join(',')}
                                 </>
