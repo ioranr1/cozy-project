@@ -105,6 +105,9 @@ export const translations = {
       subtitle: 'מדריך שלב אחר שלב להתקנה והפעלה של המערכת',
       backToHome: 'חזרה לדף הבית',
       button: 'הוראות התקנה',
+      twoStepsTitle: '2 שלבים להתקנה:',
+      twoStepsLaptop: '1. נתחיל בצד הלאפטופ',
+      twoStepsPhone: '2. צד הטלפון הנייד',
       steps: {
         download: {
           title: 'הורדת האפליקציה',
@@ -395,6 +398,9 @@ export const translations = {
       subtitle: 'Step-by-step guide to install and set up the system',
       backToHome: 'Back to Home',
       button: 'Installation Guide',
+      twoStepsTitle: '2 steps to install:',
+      twoStepsLaptop: '1. Start with the laptop side',
+      twoStepsPhone: '2. Mobile phone side',
       steps: {
         download: {
           title: 'Download the App',
