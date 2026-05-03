@@ -292,6 +292,11 @@ const BabyMonitorViewer: React.FC = () => {
     // Properly disconnect: stops RTC, sends STOP_LIVE_VIEW to Electron
     await disconnectCurrent();
 
+    // CRITICAL: Wait ~300ms for OS to fully release the microphone device before
+    // the Viewer requests camera+mic. Mirrors WebRTC Stop Sequence pattern and
+    // prevents NotReadableError / device-busy on START_LIVE_VIEW_FULL.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     // Navigate to Viewer with from=baby-monitor (for back button + START_LIVE_VIEW_FULL)
     // User will click "Start Viewing" like in normal live view — no race conditions
     navigate('/viewer?from=baby-monitor');
