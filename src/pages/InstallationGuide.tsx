@@ -81,6 +81,24 @@ const InstallationGuide: React.FC = () => {
             <div className="w-24 h-1 bg-gradient-to-r from-cyan-500 to-sky-500 mx-auto rounded-full mt-6" />
           </div>
 
+          {/* Two steps overview */}
+          <div className="mb-12 bg-gradient-to-br from-cyan-50 to-sky-50 border border-cyan-200 rounded-2xl p-6 md:p-8 text-center">
+            <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-4">
+              {guide.twoStepsTitle}
+            </h2>
+            <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8">
+              <div className="flex items-center gap-3 text-slate-700 text-lg font-medium">
+                <Monitor className="w-6 h-6 text-cyan-600" />
+                <span>{guide.twoStepsLaptop}</span>
+              </div>
+              <div className="hidden md:block w-px h-8 bg-cyan-300" />
+              <div className="flex items-center gap-3 text-slate-700 text-lg font-medium">
+                <Smartphone className="w-6 h-6 text-cyan-600" />
+                <span>{guide.twoStepsPhone}</span>
+              </div>
+            </div>
+          </div>
+
           {/* Steps */}
           <div className="space-y-12">
             {steps.map((step, index) => (
