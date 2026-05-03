@@ -154,10 +154,11 @@ const Events: React.FC = () => {
     }
   };
 
-  // Unviewed events that already triggered a WhatsApp notification —
-  // these block the notification cycle until acknowledged.
+  // Banner mirrors WhatsApp behaviour: any real, unviewed event triggers it,
+  // regardless of whether the WhatsApp send itself succeeded. Acknowledging
+  // marks viewed_at, which also resets the notification cycle in the DB.
   const pendingAckEvents = events.filter(
-    (e) => e.notification_sent === true && e.viewed_at == null && e.ai_is_real === true
+    (e) => e.ai_is_real === true && e.viewed_at == null
   );
 
   const handleAcknowledgeAll = async () => {
