@@ -14,9 +14,11 @@ import pasteCodeImg from '@/assets/paste-code-connect.png';
 import pasteCodeEnImg from '@/assets/paste-code-connect-en.png';
 import trayBlueBadgeImg from '@/assets/tray-icon-blue-badge.png';
 import trayUpdateMenuImg from '@/assets/tray-update-menu.png';
+import smartscreen1Img from '@/assets/win-smartscreen-1-marked.png';
+import smartscreen2Img from '@/assets/win-smartscreen-2-marked.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
+import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -30,6 +32,12 @@ const InstallationGuide: React.FC = () => {
       title: guide.steps.download.title,
       description: guide.steps.download.description,
       details: guide.steps.download.details,
+    },
+    {
+      icon: AlertTriangle,
+      title: guide.steps.smartscreen.title,
+      description: guide.steps.smartscreen.description,
+      details: guide.steps.smartscreen.details,
     },
     {
       icon: Monitor,
