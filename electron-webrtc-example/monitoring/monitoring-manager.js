@@ -237,6 +237,41 @@ class MonitoringManager {
         baby_monitor_enabled: babyMonitorEnabled,
       });
 
+      // ─── SSOT CROSS-CHECK (v0.10.3) ────────────────────────────────
+      // monitoring_config can be stale/cached on the Electron side, while
+      // device_status reflects the user's latest intent (set by the mobile UI
+      // immediately before sending SET_MONITORING:ON). If device_status has
+      // motion_enabled / baby_monitor_enabled = true but monitoring_config
+      // doesn't, trust device_status — otherwise the toggle bounces back to
+      // OFF after 2-3 seconds because enable() rejects with "No sensors enabled".
+      if (this.deviceId && (!motionEnabled && !babyMonitorEnabled)) {
+        try {
+          const { data: dsRow } = await this.supabase
+            .from('device_status')
+            .select('motion_enabled, baby_monitor_enabled')
+            .eq('device_id', this.deviceId)
+            .maybeSingle();
+          if (dsRow?.motion_enabled === true) {
+            console.warn('[MonitoringManager] SSOT mismatch — device_status.motion_enabled=true, forcing motion ON');
+            motionEnabled = true;
+            this.config = {
+              ...this.config,
+              sensors: {
+                ...this.config?.sensors,
+                motion: { ...(this.config?.sensors?.motion || {}), enabled: true },
+              },
+            };
+          }
+          if (dsRow?.baby_monitor_enabled === true) {
+            console.warn('[MonitoringManager] SSOT mismatch — device_status.baby_monitor_enabled=true, forcing baby monitor ON');
+            babyMonitorEnabled = true;
+            this.config = { ...this.config, baby_monitor_enabled: true };
+          }
+        } catch (e) {
+          console.warn('[MonitoringManager] device_status cross-check failed:', e?.message);
+        }
+      }
+
       // CRITICAL: Sensor preflight check - skip if ALL sensors disabled
       if (!motionEnabled && !babyMonitorEnabled) {
         console.log('[MonitoringManager] No sensors enabled - skipping activation');
