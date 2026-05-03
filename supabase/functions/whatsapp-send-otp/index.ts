@@ -20,9 +20,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    // TEST NUMBERS - bypass WhatsApp send, use fixed code
+    // Used for QA on devices without WhatsApp installed
+    const TEST_NUMBERS: Record<string, string> = {
+      "+972526040921": "424242",
+    };
+    const fullPhoneKey = `${country_code}${phone_number.replace(/^0+/, "")}`;
+    const isTestNumber = TEST_NUMBERS[fullPhoneKey] !== undefined;
+
+    // Generate 6-digit OTP (or use fixed code for test numbers)
+    const otp = isTestNumber
+      ? TEST_NUMBERS[fullPhoneKey]
+      : Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + (isTestNumber ? 30 : 5) * 60 * 1000);
 
     // Initialize Supabase client
     const supabase = createClient(
@@ -41,6 +51,15 @@ Deno.serve(async (req) => {
     if (dbError) {
       console.error("Database error:", dbError);
       throw new Error("Failed to store OTP");
+    }
+
+    // For test numbers, skip WhatsApp send entirely
+    if (isTestNumber) {
+      console.log(`[TEST NUMBER] OTP stored for ${fullPhoneKey} - skipping WhatsApp send`);
+      return new Response(
+        JSON.stringify({ success: true, message: "OTP sent successfully", test_mode: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Send WhatsApp message
