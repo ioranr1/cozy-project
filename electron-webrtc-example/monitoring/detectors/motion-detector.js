@@ -1,7 +1,7 @@
 /**
  * Motion Detector - MediaPipe Tasks Vision Integration
  * =====================================================
- * VERSION: 0.4.0 (2026-04-15)
+ * VERSION: 0.4.1 (2026-05-03)
  * 
  * Runs in Electron RENDERER process.
  * Uses MediaPipe Object Detection for local detection (person, animal, vehicle).
@@ -71,6 +71,7 @@ class MotionDetector {
     // Detection loop timing
     this.detectionIntervalMs = options.detectionIntervalMs || 200; // 5 FPS for detection
     this.lastFrameTime = 0;
+    this.detectionLoopTimer = null;
     
     // Inference error tracking for runtime fallback
     this.consecutiveErrors = 0;
@@ -214,15 +215,24 @@ class MotionDetector {
   stop() {
     console.log('[MotionDetector] Stopping');
     this.isRunning = false;
+    if (this.detectionLoopTimer) {
+      clearTimeout(this.detectionLoopTimer);
+      this.detectionLoopTimer = null;
+    }
     this.videoElement = null;
     this.lastDetectionTime = {};
   }
 
   /**
-   * Main detection loop using requestAnimationFrame
+   * Main detection loop.
+   * IMPORTANT: Do not use requestAnimationFrame here. On macOS, display sleep can
+   * pause RAF even while Electron stays alive, which leaves diagnostics looking
+   * healthy but stops actual motion inference. A timer loop keeps parity with
+   * Windows monitor-off behavior when background throttling is disabled.
    */
   runDetectionLoop() {
     if (!this.isRunning || !this.videoElement || !this.detector) {
+      this.detectionLoopTimer = null;
       return;
     }
 
@@ -240,8 +250,8 @@ class MotionDetector {
       }
     }
 
-    // Schedule next frame
-    requestAnimationFrame(() => this.runDetectionLoop());
+    // Schedule next inference independently of display repaint/refresh state.
+    this.detectionLoopTimer = setTimeout(() => this.runDetectionLoop(), 50);
   }
 
   /**
