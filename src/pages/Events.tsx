@@ -14,7 +14,8 @@ import {
   Volume2,
   Copy,
   Archive,
-  Loader2
+  Loader2,
+  BellOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -38,6 +39,8 @@ interface EventData {
   severity: string;
   has_local_clip: boolean;
   created_at: string;
+  notification_sent?: boolean;
+  viewed_at?: string | null;
 }
 
 interface ArchivedEventData {
@@ -66,6 +69,7 @@ const Events: React.FC = () => {
   const [tab, setTab] = useState<'active' | 'archive'>('active');
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [acknowledging, setAcknowledging] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -147,6 +151,38 @@ const Events: React.FC = () => {
     setTab(newTab);
     if (newTab === 'archive') {
       fetchArchivedEvents();
+    }
+  };
+
+  // Unviewed events that already triggered a WhatsApp notification —
+  // these block the notification cycle until acknowledged.
+  const pendingAckEvents = events.filter(
+    (e) => e.notification_sent === true && e.viewed_at == null && e.ai_is_real === true
+  );
+
+  const handleAcknowledgeAll = async () => {
+    if (pendingAckEvents.length === 0 || acknowledging) return;
+    setAcknowledging(true);
+    try {
+      // Group by device — one call per device resets that device's cycle.
+      const seenDevices = new Set<string>();
+      const oneEventPerDevice = pendingAckEvents.filter((e) => {
+        if (seenDevices.has(e.device_id)) return false;
+        seenDevices.add(e.device_id);
+        return true;
+      });
+      await Promise.all(
+        oneEventPerDevice.map((e) =>
+          supabase.functions.invoke('mark-event-viewed', { body: { event_id: e.id } })
+        )
+      );
+      toast.success(language === 'he' ? 'ההתראות סומנו כנצפו' : 'Alerts marked as viewed');
+      await fetchEvents();
+    } catch (err) {
+      console.error('[Events] Acknowledge failed:', err);
+      toast.error(language === 'he' ? 'שגיאה בסימון ההתראות' : 'Failed to mark alerts');
+    } finally {
+      setAcknowledging(false);
     }
   };
 
