@@ -2107,7 +2107,7 @@ async function handleStopLiveView() {
   liveViewState.isActive = false;
   liveViewState.currentSessionId = null;
   liveViewState.pendingForceFullMode = false; // Clear pending flag on stop
-  const shouldResumeMonitoring = liveViewState._monitoringWasPaused === true;
+  const wasMonitoringPausedForLiveView = liveViewState._monitoringWasPaused === true;
   liveViewState._monitoringWasPaused = false; // Reset flag
   updateTrayMenu('live-view-stop');
 
@@ -2115,20 +2115,30 @@ async function handleStopLiveView() {
   mainWindow?.webContents.send('stop-live-view');
 
   // ── RESUME MONITORING (v2.23.0) ────────────────────────────────────
-  // If monitoring was paused when live view started, check DB to see if
-  // the user still wants it active (motion_enabled + is_armed).
+  // If monitoring was paused when live view started OR DB still says AWAY/armed,
+  // resume from the database SSOT. This fixes macOS cases where the renderer/main
+  // in-memory state looks inactive after display sleep, but the user intent is
+  // still AWAY + motion enabled.
   // Use a short delay to let camera hardware release first.
-  if (shouldResumeMonitoring) {
+  if (true) {
     setTimeout(async () => {
       try {
         const { data: dbStatus } = await supabase
           .from('device_status')
-          .select('is_armed, motion_enabled')
+          .select('device_mode, is_armed, motion_enabled, baby_monitor_enabled, security_enabled')
           .eq('device_id', deviceId)
           .single();
 
-        if (dbStatus?.is_armed && dbStatus?.motion_enabled) {
-          console.log('[RTC] Resuming motion monitoring after live view ended');
+        const shouldResumeFromDb = dbStatus?.device_mode === 'AWAY'
+          && dbStatus?.is_armed === true
+          && (dbStatus?.motion_enabled === true || dbStatus?.baby_monitor_enabled === true);
+
+        if (shouldResumeFromDb && !monitoringManager.isMonitoringActive()) {
+          console.log('[RTC] Resuming monitoring after live view ended', {
+            wasMonitoringPausedForLiveView,
+            motion_enabled: dbStatus?.motion_enabled,
+            baby_monitor_enabled: dbStatus?.baby_monitor_enabled,
+          });
           const resumeResult = await monitoringManager.enable();
           if (resumeResult.success) {
             console.log('[RTC] Motion monitoring resumed successfully');
@@ -2136,7 +2146,14 @@ async function handleStopLiveView() {
             console.warn('[RTC] Failed to resume monitoring:', resumeResult.error);
           }
         } else {
-          console.log('[RTC] Monitoring not resumed (is_armed:', dbStatus?.is_armed, 'motion_enabled:', dbStatus?.motion_enabled, ')');
+          console.log('[RTC] Monitoring not resumed', {
+            wasMonitoringPausedForLiveView,
+            device_mode: dbStatus?.device_mode,
+            is_armed: dbStatus?.is_armed,
+            motion_enabled: dbStatus?.motion_enabled,
+            baby_monitor_enabled: dbStatus?.baby_monitor_enabled,
+            already_active: monitoringManager.isMonitoringActive(),
+          });
         }
       } catch (err) {
         console.warn('[RTC] Error checking monitoring resume:', err?.message);
