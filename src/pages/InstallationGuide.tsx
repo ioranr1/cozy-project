@@ -231,7 +231,7 @@ const InstallationGuide: React.FC = () => {
                               <img
                                 src={trayBlueBadgeImg}
                                 alt={isRTL ? 'אייקון עם תג כחול לעדכון' : 'Tray icon with blue update badge'}
-                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-xs"
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-2xl"
                               />
                             </li>
                           )}
