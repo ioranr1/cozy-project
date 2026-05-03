@@ -14,9 +14,11 @@ import pasteCodeImg from '@/assets/paste-code-connect.png';
 import pasteCodeEnImg from '@/assets/paste-code-connect-en.png';
 import trayBlueBadgeImg from '@/assets/tray-icon-blue-badge.png';
 import trayUpdateMenuImg from '@/assets/tray-update-menu.png';
+import smartscreen1Img from '@/assets/win-smartscreen-1-marked.png';
+import smartscreen2Img from '@/assets/win-smartscreen-2-marked.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw } from 'lucide-react';
+import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 
@@ -30,6 +32,12 @@ const InstallationGuide: React.FC = () => {
       title: guide.steps.download.title,
       description: guide.steps.download.description,
       details: guide.steps.download.details,
+    },
+    {
+      icon: AlertTriangle,
+      title: guide.steps.smartscreen.title,
+      description: guide.steps.smartscreen.description,
+      details: guide.steps.smartscreen.details,
     },
     {
       icon: Monitor,
@@ -109,13 +117,13 @@ const InstallationGuide: React.FC = () => {
                   {guide.sectionLaptopTitle}
                 </h2>
               )}
-              {index === 3 && (
+              {index === 4 && (
                 <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
                   <Smartphone className="w-7 h-7 text-cyan-600" />
                   {guide.sectionPhoneTitle}
                 </h2>
               )}
-              {index === 4 && (
+              {index === 5 && (
                 <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
                   <RefreshCw className="w-7 h-7 text-cyan-600" />
                   {guide.sectionGeneralTitle}
@@ -150,7 +158,7 @@ const InstallationGuide: React.FC = () => {
                           <li className="flex items-start gap-2 text-slate-600">
                             <CheckCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />
                             <span className="flex items-center gap-1 flex-wrap">
-                              {index === 2 && i === 3 ? (
+                              {index === 3 && i === 3 ? (
                                 <>
                                   {detail.split(',')[0]}
                                   <img
@@ -175,8 +183,27 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {/* Show installation setup image after first detail in step 2 */}
+                          {/* Show SmartScreen images for the new Windows warning step */}
                           {index === 1 && i === 0 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={smartscreen1Img}
+                                alt={isRTL ? 'אזהרת SmartScreen - לחץ More info' : 'SmartScreen warning - click More info'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
+                          {index === 1 && i === 1 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={smartscreen2Img}
+                                alt={isRTL ? 'אזהרת SmartScreen - לחץ Run anyway' : 'SmartScreen warning - click Run anyway'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
+                          {/* Show installation setup image after first detail in step 3 (install) */}
+                          {index === 2 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={installationSetupImg}
@@ -185,8 +212,8 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {/* Show devices button image after first detail in step 3 */}
-                          {index === 2 && i === 0 && (
+                          {/* Show devices button image after first detail in setup step */}
+                          {index === 3 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? devicesButtonImg : devicesButtonEnImg}
@@ -195,8 +222,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {/* Show pair camera button image after second detail in step 3 */}
-                          {index === 2 && i === 1 && (
+                          {index === 3 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pairCameraButtonImg : pairCameraButtonEnImg}
@@ -205,8 +231,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {/* Show pairing code example image after third detail in step 3 */}
-                          {index === 2 && i === 2 && (
+                          {index === 3 && i === 2 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pairingCodeExampleImg : pairingCodeExampleEnImg}
@@ -215,8 +240,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {/* Show paste code & connect image after fourth detail in step 3 */}
-                          {index === 2 && i === 3 && (
+                          {index === 3 && i === 3 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pasteCodeImg : pasteCodeEnImg}
@@ -225,8 +249,8 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {/* Show blue badge tray icon image after first detail in step 5 */}
-                          {index === 4 && i === 0 && (
+                          {/* Show blue badge tray icon image after first detail in update step */}
+                          {index === 5 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayBlueBadgeImg}
@@ -235,8 +259,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {/* Show update menu image after second detail in step 5 */}
-                          {index === 4 && i === 1 && (
+                          {index === 5 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayUpdateMenuImg}

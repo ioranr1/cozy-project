@@ -121,6 +121,14 @@ export const translations = {
             'המתן לסיום ההורדה',
           ],
         },
+        smartscreen: {
+          title: 'אזהרת Windows SmartScreen (עבור Windows בלבד)',
+          description: 'בעת פתיחת קובץ ההתקנה במחשב Windows עשויה להופיע אזהרה כחולה של Microsoft Defender SmartScreen. זהו שלב רגיל - יש לאשר את ההתקנה בשני שלבים:',
+          details: [
+            'בחלון הראשון לחץ על "More info" (מסומן באדום בתמונה)',
+            'לאחר מכן לחץ על "Run anyway" (מסומן באדום בתמונה) כדי להמשיך בהתקנה',
+          ],
+        },
         install: {
           title: 'התקנה על המחשב',
           description: 'התקן את האפליקציה על המחשב שישמש כמצלמה',
@@ -415,6 +423,14 @@ export const translations = {
             'Enter full name, email, mobile phone number and receive a verification code via WhatsApp',
             'In the "Control Panel" click the download button (automatic detection for WIN or MAC)',
             'Wait for the download to complete',
+          ],
+        },
+        smartscreen: {
+          title: 'Windows SmartScreen Warning (Windows only)',
+          description: 'When opening the installer on Windows, a blue Microsoft Defender SmartScreen warning may appear. This is normal — approve the installation in two steps:',
+          details: [
+            'In the first dialog, click "More info" (circled in red in the image)',
+            'Then click "Run anyway" (circled in red in the image) to continue the installation',
           ],
         },
         install: {
