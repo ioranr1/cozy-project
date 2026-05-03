@@ -153,7 +153,7 @@ export const translations = {
             'לחץ על כפתור "+ צימוד מצלמה חדשה" כבתמונה',
             '​העתק את הקוד כבתמונה ( חד פעמי ) ',
             'לחץ על האיקון בסרגל המשימות, הדבק הקוד ותתחבר כבתמונה',
-            'זהו, המצלמה מחוברת - נא הקפד לא לסגור את הלפטופ. המסך יכבה על פי ההגדרות הקודמות שלך אבל המערכת תעבוד ברקע. עבור לשלב 4 בכדי לבדוק ולהפעיל',
+            'זהו, המצלמה מחוברת - נא הקפד לא לסגור את הלפטופ. המסך יכבה על פי ההגדרות הקודמות שלך אבל המערכת תעבוד ברקע. עבור לשלב 6 בכדי לבדוק ולהפעיל',
           ],
         },
         connect: {
@@ -464,7 +464,7 @@ export const translations = {
             'Click on the "+ Pair new camera" button as in the image',
             'Copy the code as in the image (one-time)',
             'Click the icon in the taskbar, paste the code and connect as in the image',
-            'That\'s it, the camera is connected - make sure not to close the laptop. The screen will turn off according to your previous settings but the system will work in the background. Go to step 4 to test and activate',
+            'That\'s it, the camera is connected - make sure not to close the laptop. The screen will turn off according to your previous settings but the system will work in the background. Go to step 6 to test and activate',
           ],
         },
         connect: {
