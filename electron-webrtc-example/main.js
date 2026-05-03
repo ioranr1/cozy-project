@@ -2138,10 +2138,9 @@ async function handleStopLiveView() {
             motion_enabled: dbStatus?.motion_enabled,
             baby_monitor_enabled: dbStatus?.baby_monitor_enabled,
           });
-          const resumeAckPromise = waitForMonitoringStartAck({ timeoutMs: 60000 });
           const resumeResult = await monitoringManager.enable();
           if (resumeResult.success) {
-            const startedStatus = await resumeAckPromise;
+            const startedStatus = await waitForMonitoringStartAck({ timeoutMs: 60000 });
             _selfWriteTimestamp = Date.now();
             const { error: statusError } = await supabase
               .from('device_status')
