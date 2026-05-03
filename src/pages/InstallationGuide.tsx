@@ -102,8 +102,20 @@ const InstallationGuide: React.FC = () => {
           {/* Steps */}
           <div className="space-y-12">
             {steps.map((step, index) => (
+              <React.Fragment key={index}>
+              {index === 0 && (
+                <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3">
+                  <Monitor className="w-7 h-7 text-cyan-600" />
+                  {guide.sectionLaptopTitle}
+                </h2>
+              )}
+              {index === 3 && (
+                <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
+                  <Smartphone className="w-7 h-7 text-cyan-600" />
+                  {guide.sectionPhoneTitle}
+                </h2>
+              )}
               <div
-                key={index}
                 className="relative bg-gradient-to-br from-white to-slate-50 rounded-2xl p-8 border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start gap-6">
@@ -233,6 +245,7 @@ const InstallationGuide: React.FC = () => {
                   </div>
                 </div>
               </div>
+              </React.Fragment>
             ))}
           </div>
         </div>
