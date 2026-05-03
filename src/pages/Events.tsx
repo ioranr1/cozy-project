@@ -14,7 +14,8 @@ import {
   Volume2,
   Copy,
   Archive,
-  Loader2
+  Loader2,
+  BellOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -38,6 +39,8 @@ interface EventData {
   severity: string;
   has_local_clip: boolean;
   created_at: string;
+  notification_sent?: boolean;
+  viewed_at?: string | null;
 }
 
 interface ArchivedEventData {
@@ -66,6 +69,7 @@ const Events: React.FC = () => {
   const [tab, setTab] = useState<'active' | 'archive'>('active');
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [acknowledging, setAcknowledging] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -147,6 +151,38 @@ const Events: React.FC = () => {
     setTab(newTab);
     if (newTab === 'archive') {
       fetchArchivedEvents();
+    }
+  };
+
+  // Unviewed events that already triggered a WhatsApp notification —
+  // these block the notification cycle until acknowledged.
+  const pendingAckEvents = events.filter(
+    (e) => e.notification_sent === true && e.viewed_at == null && e.ai_is_real === true
+  );
+
+  const handleAcknowledgeAll = async () => {
+    if (pendingAckEvents.length === 0 || acknowledging) return;
+    setAcknowledging(true);
+    try {
+      // Group by device — one call per device resets that device's cycle.
+      const seenDevices = new Set<string>();
+      const oneEventPerDevice = pendingAckEvents.filter((e) => {
+        if (seenDevices.has(e.device_id)) return false;
+        seenDevices.add(e.device_id);
+        return true;
+      });
+      await Promise.all(
+        oneEventPerDevice.map((e) =>
+          supabase.functions.invoke('mark-event-viewed', { body: { event_id: e.id } })
+        )
+      );
+      toast.success(language === 'he' ? 'ההתראות סומנו כנצפו' : 'Alerts marked as viewed');
+      await fetchEvents();
+    } catch (err) {
+      console.error('[Events] Acknowledge failed:', err);
+      toast.error(language === 'he' ? 'שגיאה בסימון ההתראות' : 'Failed to mark alerts');
+    } finally {
+      setAcknowledging(false);
     }
   };
 
@@ -249,6 +285,34 @@ const Events: React.FC = () => {
             </Button>
           </div>
         </div>
+
+        {/* Pending acknowledgement banner — shown when WA notification cycle is blocked */}
+        {pendingAckEvents.length > 0 && (
+          <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 flex items-start gap-3">
+            <BellOff className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-amber-200 font-medium text-sm">
+                {language === 'he'
+                  ? `${pendingAckEvents.length} התראות ממתינות לאישור — התראות חדשות חסומות עד לסימון כנצפו`
+                  : `${pendingAckEvents.length} pending alert(s) — new alerts blocked until acknowledged`}
+              </p>
+              <p className="text-amber-200/70 text-xs mt-1">
+                {language === 'he'
+                  ? 'בדרך כלל הקישור מוואטסאפ מאפס את המחזור. ניתן לאשר ידנית כאן.'
+                  : 'Normally the WhatsApp link resets the cycle. You can acknowledge here manually.'}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={handleAcknowledgeAll}
+              disabled={acknowledging}
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-medium flex-shrink-0"
+            >
+              {acknowledging && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />}
+              {language === 'he' ? 'סמן הכל כנצפה' : 'Mark all viewed'}
+            </Button>
+          </div>
+        )}
 
         {/* Tab Switcher */}
         <div className="flex gap-2 mb-6">
