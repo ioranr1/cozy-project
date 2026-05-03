@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.27 (2026-04-30)
+ * VERSION: 2.52.32 (2026-05-03)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -57,6 +57,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const store = new Store();
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// v2.52.32: macOS display sleep can still throttle Chromium renderer work.
+// Monitoring inference must continue while the monitor is off in AWAY mode.
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
 // Initialize AwayManager
 const awayManager = new AwayManager({ supabase });
@@ -2101,7 +2107,7 @@ async function handleStopLiveView() {
   liveViewState.isActive = false;
   liveViewState.currentSessionId = null;
   liveViewState.pendingForceFullMode = false; // Clear pending flag on stop
-  const shouldResumeMonitoring = liveViewState._monitoringWasPaused === true;
+  const wasMonitoringPausedForLiveView = liveViewState._monitoringWasPaused === true;
   liveViewState._monitoringWasPaused = false; // Reset flag
   updateTrayMenu('live-view-stop');
 
@@ -2109,34 +2115,63 @@ async function handleStopLiveView() {
   mainWindow?.webContents.send('stop-live-view');
 
   // ── RESUME MONITORING (v2.23.0) ────────────────────────────────────
-  // If monitoring was paused when live view started, check DB to see if
-  // the user still wants it active (motion_enabled + is_armed).
+  // If monitoring was paused when live view started OR DB still says AWAY/armed,
+  // resume from the database SSOT. This fixes macOS cases where the renderer/main
+  // in-memory state looks inactive after display sleep, but the user intent is
+  // still AWAY + motion enabled.
   // Use a short delay to let camera hardware release first.
-  if (shouldResumeMonitoring) {
-    setTimeout(async () => {
+  setTimeout(async () => {
       try {
         const { data: dbStatus } = await supabase
           .from('device_status')
-          .select('is_armed, motion_enabled')
+          .select('device_mode, is_armed, motion_enabled, baby_monitor_enabled, security_enabled')
           .eq('device_id', deviceId)
           .single();
 
-        if (dbStatus?.is_armed && dbStatus?.motion_enabled) {
-          console.log('[RTC] Resuming motion monitoring after live view ended');
+        const shouldResumeFromDb = dbStatus?.device_mode === 'AWAY'
+          && dbStatus?.is_armed === true
+          && (dbStatus?.motion_enabled === true || dbStatus?.baby_monitor_enabled === true);
+
+        if (shouldResumeFromDb && !monitoringManager.isMonitoringActive()) {
+          console.log('[RTC] Resuming monitoring after live view ended', {
+            wasMonitoringPausedForLiveView,
+            motion_enabled: dbStatus?.motion_enabled,
+            baby_monitor_enabled: dbStatus?.baby_monitor_enabled,
+          });
           const resumeResult = await monitoringManager.enable();
           if (resumeResult.success) {
+            const startedStatus = await waitForMonitoringStartAck({ timeoutMs: 60000 });
+            _selfWriteTimestamp = Date.now();
+            const { error: statusError } = await supabase
+              .from('device_status')
+              .update({
+                security_enabled: true,
+                motion_enabled: startedStatus?.motion ?? dbStatus?.motion_enabled ?? false,
+                sound_enabled: startedStatus?.sound ?? false,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('device_id', deviceId);
+            if (statusError) {
+              console.warn('[RTC] Failed to sync DB after monitoring resume:', statusError.message || statusError);
+            }
             console.log('[RTC] Motion monitoring resumed successfully');
           } else {
             console.warn('[RTC] Failed to resume monitoring:', resumeResult.error);
           }
         } else {
-          console.log('[RTC] Monitoring not resumed (is_armed:', dbStatus?.is_armed, 'motion_enabled:', dbStatus?.motion_enabled, ')');
+          console.log('[RTC] Monitoring not resumed', {
+            wasMonitoringPausedForLiveView,
+            device_mode: dbStatus?.device_mode,
+            is_armed: dbStatus?.is_armed,
+            motion_enabled: dbStatus?.motion_enabled,
+            baby_monitor_enabled: dbStatus?.baby_monitor_enabled,
+            already_active: monitoringManager.isMonitoringActive(),
+          });
         }
       } catch (err) {
         console.warn('[RTC] Error checking monitoring resume:', err?.message);
       }
-    }, 2000); // 2s delay for camera hardware release
-  }
+  }, 2000); // 2s delay for camera hardware release
 }
 
 // =============================================================================
@@ -2576,7 +2611,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('===============================================================');
-console.log('[Main] BUILD ID: main-js-2026-03-06-v2.38.0');
+console.log('[Main] BUILD ID: main-js-2026-05-03-v2.52.32-mac-monitoring-display-sleep');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');
