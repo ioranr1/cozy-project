@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.2.0 (2026-04-14)
+ * VERSION: 2.3.0 (2026-05-03)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-04-14-v2.2.0';
+    this.__buildId = 'away-manager-2026-05-03-v2.3.0';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -781,11 +781,12 @@ class AwayManager {
     const platform = process.platform;
 
     if (platform === 'darwin') {
-      // caffeinate -i: prevent idle sleep (NOT display sleep)
-      // -i = prevent idle sleep only; display still sleeps per OS settings
+      // caffeinate -i -s: prevent idle sleep and keep the system active.
+      // Display is still allowed to sleep; this is needed so macOS keeps camera
+      // capture/inference alive when the monitor is off, matching Windows.
       // Process stays alive as long as Away Mode is active
       try {
-        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-i'], {
+        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-i', '-s'], {
           stdio: 'ignore',
           detached: false,
         });
@@ -797,7 +798,7 @@ class AwayManager {
           console.log('[AwayManager] caffeinate exited with code:', code);
           this._nativeSleepBlockerProcess = null;
         });
-        console.log('[AwayManager] ✅ macOS: caffeinate -i started (prevents idle sleep, allows display sleep)');
+        console.log('[AwayManager] ✅ macOS: caffeinate -i -s started (keeps camera/inference active, allows display sleep)');
       } catch (err) {
         console.error('[AwayManager] Failed to start caffeinate:', err);
       }
