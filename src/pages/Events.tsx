@@ -216,15 +216,28 @@ const Events: React.FC = () => {
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    const isSameDay =
+      date.getFullYear() === now.getFullYear() &&
+      date.getMonth() === now.getMonth() &&
+      date.getDate() === now.getDate();
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    if (isSameDay) return `${hh}:${mm}`;
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mo = String(date.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mo} ${hh}:${mm}`;
+  };
 
-    if (diffMins < 1) return language === 'he' ? 'עכשיו' : 'Just now';
-    if (diffMins < 60) return language === 'he' ? `לפני ${diffMins} דק'` : `${diffMins}m ago`;
-    if (diffHours < 24) return language === 'he' ? `לפני ${diffHours} שע'` : `${diffHours}h ago`;
-    return language === 'he' ? `לפני ${diffDays} ימים` : `${diffDays}d ago`;
+  const shortDeviceId = (id: string) => (id ? id.slice(-8) : '');
+
+  const formatFullDateTime = (dateString: string) => {
+    const d = new Date(dateString);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${dd}/${mo}/${yy} ${hh}:${mm}`;
   };
 
   const parseLabels = (labels: Json): LabelItem[] => {
@@ -416,6 +429,13 @@ const Events: React.FC = () => {
                           <Badge variant="outline" className="text-xs border-slate-600 text-white/60">
                             {event.event_type}
                           </Badge>
+                          <Badge
+                            variant="outline"
+                            className="text-xs border-slate-600 text-white/50 font-mono"
+                            title={event.device_id}
+                          >
+                            {language === 'he' ? 'מצלמה' : 'cam'} {shortDeviceId(event.device_id)}
+                          </Badge>
                           {event.ai_validated && (
                             event.ai_is_real ? (
                               <CheckCircle className="w-4 h-4 text-red-400" />
@@ -441,7 +461,10 @@ const Events: React.FC = () => {
 
                       {/* Time & Copy */}
                       <div className="flex flex-col items-end gap-2 flex-shrink-0">
-                        <div className="flex items-center gap-1 text-white/40 text-sm">
+                        <div
+                          className="flex items-center gap-1 text-white/40 text-sm"
+                          title={formatFullDateTime(event.created_at)}
+                        >
                           <Clock className="w-3 h-3" />
                           <span>{formatTimeAgo(event.created_at)}</span>
                         </div>
@@ -527,6 +550,13 @@ const Events: React.FC = () => {
                           <Badge variant="outline" className="text-xs border-slate-600 text-white/60">
                             {event.event_type}
                           </Badge>
+                          <Badge
+                            variant="outline"
+                            className="text-xs border-slate-600 text-white/50 font-mono"
+                            title={event.device_id}
+                          >
+                            {language === 'he' ? 'מצלמה' : 'cam'} {shortDeviceId(event.device_id)}
+                          </Badge>
                           {event.ai_is_real !== null && (
                             event.ai_is_real ? (
                               <CheckCircle className="w-4 h-4 text-red-400" />
@@ -553,7 +583,10 @@ const Events: React.FC = () => {
 
                       {/* Time */}
                       <div className="flex flex-col items-end flex-shrink-0">
-                        <div className="flex items-center gap-1 text-white/40 text-sm">
+                        <div
+                          className="flex items-center gap-1 text-white/40 text-sm"
+                          title={formatFullDateTime(event.created_at)}
+                        >
                           <Clock className="w-3 h-3" />
                           <span>{formatTimeAgo(event.created_at)}</span>
                         </div>
