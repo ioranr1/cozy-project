@@ -2331,6 +2331,7 @@ function setupIpcHandlers() {
 
   ipcMain.on('webrtc-start-failed', (event, payload) => {
     console.error('[IPC] [FAIL] WebRTC start failed:', payload);
+    stopMacCameraAwake('live-view-start-failed');
     // Ensure state doesn't get stuck on "active" if renderer failed.
     liveViewState.isActive = false;
     // CRITICAL: Also clear currentSessionId so START retries won't be skipped.
@@ -2353,6 +2354,7 @@ function setupIpcHandlers() {
 
   ipcMain.on('webrtc-session-ended', (event, sessionId) => {
     console.log('[IPC] WebRTC session ended:', sessionId);
+    stopMacCameraAwake('live-view-session-ended');
     liveViewState.isActive = false;
     liveViewState.currentSessionId = null;
     liveViewState.offerSentForSessionId = null;
