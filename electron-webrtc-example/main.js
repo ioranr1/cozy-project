@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.32 (2026-05-03)
+ * VERSION: 2.52.34 (2026-05-04)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -58,7 +58,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const store = new Store();
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// v2.52.32: macOS display sleep can still throttle Chromium renderer work.
+// v2.52.34: macOS display sleep can still throttle Chromium renderer work.
 // Monitoring inference must continue while the monitor is off in AWAY mode.
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
@@ -92,6 +92,62 @@ let liveViewState = {
   pendingForceFullMode: false, // Set by START_LIVE_VIEW_FULL when no pending session yet
   _monitoringWasPaused: false, // v2.23.0: Track if monitoring was paused for live view
 };
+
+let liveViewMacPowerBlockerId = null;
+let liveViewMacCaffeinateProcess = null;
+
+function startMacCameraAwake(reason = 'live-view') {
+  if (process.platform !== 'darwin') return;
+
+  try {
+    if (liveViewMacPowerBlockerId === null) {
+      liveViewMacPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+      console.log('[MacCameraAwake] Electron prevent-display-sleep started:', liveViewMacPowerBlockerId, 'reason:', reason);
+    }
+
+    if (!liveViewMacCaffeinateProcess) {
+      liveViewMacCaffeinateProcess = spawn('caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+        stdio: 'ignore',
+        detached: false,
+      });
+      liveViewMacCaffeinateProcess.on('error', (err) => {
+        console.error('[MacCameraAwake] caffeinate failed:', err.message);
+        liveViewMacCaffeinateProcess = null;
+      });
+      liveViewMacCaffeinateProcess.on('exit', (code) => {
+        console.log('[MacCameraAwake] caffeinate exited:', code);
+        liveViewMacCaffeinateProcess = null;
+      });
+      console.log('[MacCameraAwake] caffeinate -dimsu started for active camera, reason:', reason);
+    }
+  } catch (err) {
+    console.error('[MacCameraAwake] Failed to start:', err?.message || err);
+  }
+}
+
+function stopMacCameraAwake(reason = 'camera-stopped') {
+  if (process.platform !== 'darwin') return;
+
+  if (liveViewMacCaffeinateProcess) {
+    try {
+      liveViewMacCaffeinateProcess.kill('SIGTERM');
+      console.log('[MacCameraAwake] caffeinate stopped, reason:', reason);
+    } catch (err) {
+      console.warn('[MacCameraAwake] Failed to stop caffeinate:', err?.message || err);
+    }
+    liveViewMacCaffeinateProcess = null;
+  }
+
+  if (liveViewMacPowerBlockerId !== null) {
+    try {
+      powerSaveBlocker.stop(liveViewMacPowerBlockerId);
+      console.log('[MacCameraAwake] Electron prevent-display-sleep stopped:', liveViewMacPowerBlockerId, 'reason:', reason);
+    } catch (err) {
+      console.warn('[MacCameraAwake] Failed to stop Electron blocker:', err?.message || err);
+    }
+    liveViewMacPowerBlockerId = null;
+  }
+}
 
 // IPC events from renderer (used to correctly ACK/FAIL DB commands)
 const rtcIpcEvents = new EventEmitter();
@@ -1996,6 +2052,9 @@ async function startNewSession(session, forceFullMode = false) {
   }
   const mode = forceFullMode ? 'full' : (isBabyMonitorActive ? 'audio_only' : 'full');
   console.log('[RTC] Starting live view for session:', session.id, 'mode:', mode, 'forceFullMode:', forceFullMode, 'babyMonitorDB:', isBabyMonitorActive);
+  if (mode === 'full') {
+    startMacCameraAwake('live-view-start');
+  }
   // Tell renderer to start WebRTC (pass mode so renderer knows if audio-only)
   mainWindow?.webContents.send('start-live-view', { sessionId: session.id, mode });
 }
@@ -2109,6 +2168,7 @@ async function handleStopLiveView() {
   liveViewState.pendingForceFullMode = false; // Clear pending flag on stop
   const wasMonitoringPausedForLiveView = liveViewState._monitoringWasPaused === true;
   liveViewState._monitoringWasPaused = false; // Reset flag
+  stopMacCameraAwake('live-view-stop');
   updateTrayMenu('live-view-stop');
 
   // Tell renderer to stop WebRTC
@@ -2271,6 +2331,7 @@ function setupIpcHandlers() {
 
   ipcMain.on('webrtc-start-failed', (event, payload) => {
     console.error('[IPC] [FAIL] WebRTC start failed:', payload);
+    stopMacCameraAwake('live-view-start-failed');
     // Ensure state doesn't get stuck on "active" if renderer failed.
     liveViewState.isActive = false;
     // CRITICAL: Also clear currentSessionId so START retries won't be skipped.
@@ -2293,6 +2354,7 @@ function setupIpcHandlers() {
 
   ipcMain.on('webrtc-session-ended', (event, sessionId) => {
     console.log('[IPC] WebRTC session ended:', sessionId);
+    stopMacCameraAwake('live-view-session-ended');
     liveViewState.isActive = false;
     liveViewState.currentSessionId = null;
     liveViewState.offerSentForSessionId = null;
@@ -2611,7 +2673,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('===============================================================');
-console.log('[Main] BUILD ID: main-js-2026-05-03-v2.52.32-mac-monitoring-display-sleep');
+console.log('[Main] BUILD ID: main-js-2026-05-04-v2.52.34-mac-camera-awake');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');

@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.10.2 (2026-04-14)
+ * VERSION: 0.11.1 (2026-05-04)
  * 
  * CHANGELOG:
  * - v0.8.0: Baby Monitor support - enable() activates mic immediately when baby_monitor_enabled.
@@ -23,6 +23,7 @@
  * Triggers local clip recording for validated events.
  */
 
+const { powerSaveBlocker } = require('electron');
 const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config');
 const { spawn, exec } = require('child_process');
 
@@ -66,6 +67,7 @@ class MonitoringManager {
     
     // OS-native sleep prevention (keeps camera/inference alive when display sleeps)
     this._nativeSleepBlockerProcess = null;
+    this._macCameraPowerBlockerId = null;
 
     console.log('[MonitoringManager] Initialized (v0.3.0)');
   }
@@ -510,15 +512,21 @@ class MonitoringManager {
   // ===========================================================================
   // OS-NATIVE SLEEP PREVENTION (v0.11.0)
   // Keeps camera + inference alive when the display sleeps.
-  // Mac: caffeinate -i -s   |   Windows: SetThreadExecutionState (ES_CONTINUOUS|ES_SYSTEM_REQUIRED)
-  // Display is allowed to power off — only system sleep is blocked.
+  // macOS camera capture can be suspended by deep display sleep unless both
+  // Chromium and the OS hold active assertions. On Mac only, we intentionally
+  // use prevent-display-sleep + caffeinate -dimsu while monitoring is active.
+  // Windows keeps the display policy unchanged and only blocks system sleep.
   // ===========================================================================
   _startNativeSleepBlocker() {
     if (this._nativeSleepBlockerProcess) return;
     const platform = process.platform;
     try {
       if (platform === 'darwin') {
-        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-i', '-s'], {
+        if (this._macCameraPowerBlockerId === null) {
+          this._macCameraPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+          console.log('[MonitoringManager] ✅ macOS: Electron prevent-display-sleep started for active camera:', this._macCameraPowerBlockerId);
+        }
+        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
           stdio: 'ignore', detached: false,
         });
         this._nativeSleepBlockerProcess.on('error', (err) => {
@@ -529,7 +537,7 @@ class MonitoringManager {
           console.log('[MonitoringManager] caffeinate exited:', code);
           this._nativeSleepBlockerProcess = null;
         });
-        console.log('[MonitoringManager] ✅ macOS: caffeinate -i -s started (camera stays alive when display sleeps)');
+        console.log('[MonitoringManager] ✅ macOS: caffeinate -dimsu started (camera stays alive during display sleep)');
       } else if (platform === 'win32') {
         const psScript = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport("kernel32.dll")]public static extern uint SetThreadExecutionState(uint esFlags);}';[SleepBlocker]::SetThreadExecutionState(0x80000001);while($true){Start-Sleep -Seconds 30;[SleepBlocker]::SetThreadExecutionState(0x80000001)}`;
         this._nativeSleepBlockerProcess = spawn('powershell', [
@@ -553,14 +561,24 @@ class MonitoringManager {
   }
 
   _stopNativeSleepBlocker() {
-    if (!this._nativeSleepBlockerProcess) return;
-    try {
-      this._nativeSleepBlockerProcess.kill('SIGTERM');
-      console.log('[MonitoringManager] ✅ Native sleep blocker stopped');
-    } catch (err) {
-      console.error('[MonitoringManager] Failed to stop native sleep blocker:', err);
+    if (this._nativeSleepBlockerProcess) {
+      try {
+        this._nativeSleepBlockerProcess.kill('SIGTERM');
+        console.log('[MonitoringManager] ✅ Native sleep blocker stopped');
+      } catch (err) {
+        console.error('[MonitoringManager] Failed to stop native sleep blocker:', err);
+      }
+      this._nativeSleepBlockerProcess = null;
     }
-    this._nativeSleepBlockerProcess = null;
+    if (this._macCameraPowerBlockerId !== null) {
+      try {
+        powerSaveBlocker.stop(this._macCameraPowerBlockerId);
+        console.log('[MonitoringManager] ✅ macOS Electron camera power blocker stopped:', this._macCameraPowerBlockerId);
+      } catch (err) {
+        console.error('[MonitoringManager] Failed to stop macOS camera power blocker:', err);
+      }
+      this._macCameraPowerBlockerId = null;
+    }
     if (process.platform === 'win32') {
       exec('powershell -Command "Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport(\\\"kernel32.dll\\\")]public static extern uint SetThreadExecutionState(uint esFlags);}\';[SleepBlocker]::SetThreadExecutionState(0x80000000)"', (err) => {
         if (err) console.warn('[MonitoringManager] Failed to clear execution state:', err.message);
