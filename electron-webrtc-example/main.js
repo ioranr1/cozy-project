@@ -95,6 +95,19 @@ let liveViewState = {
 
 let liveViewMacPowerBlockerId = null;
 let liveViewMacCaffeinateProcess = null;
+let liveViewMacWatchdogTimer = null;
+const MAC_CAFFEINATE_PATH = '/usr/bin/caffeinate';
+
+function _spawnMacCaffeinate(label) {
+  const proc = spawn(MAC_CAFFEINATE_PATH, ['-d', '-i', '-m', '-s', '-u'], {
+    stdio: 'ignore',
+    detached: false,
+  });
+  proc.on('error', (err) => {
+    console.error(`[${label}] caffeinate spawn error:`, err.message);
+  });
+  return proc;
+}
 
 function startMacCameraAwake(reason = 'live-view') {
   if (process.platform !== 'darwin') return;
@@ -106,19 +119,30 @@ function startMacCameraAwake(reason = 'live-view') {
     }
 
     if (!liveViewMacCaffeinateProcess) {
-      liveViewMacCaffeinateProcess = spawn('caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
-        stdio: 'ignore',
-        detached: false,
-      });
-      liveViewMacCaffeinateProcess.on('error', (err) => {
-        console.error('[MacCameraAwake] caffeinate failed:', err.message);
-        liveViewMacCaffeinateProcess = null;
-      });
+      liveViewMacCaffeinateProcess = _spawnMacCaffeinate('MacCameraAwake');
       liveViewMacCaffeinateProcess.on('exit', (code) => {
         console.log('[MacCameraAwake] caffeinate exited:', code);
         liveViewMacCaffeinateProcess = null;
       });
       console.log('[MacCameraAwake] caffeinate -dimsu started for active camera, reason:', reason);
+    }
+
+    // v2.52.35: Watchdog re-asserts every 20s in case caffeinate dies or PATH issues.
+    if (!liveViewMacWatchdogTimer) {
+      liveViewMacWatchdogTimer = setInterval(() => {
+        if (liveViewMacPowerBlockerId !== null && !powerSaveBlocker.isStarted(liveViewMacPowerBlockerId)) {
+          console.warn('[MacCameraAwake] Watchdog: powerSaveBlocker dropped — restarting');
+          liveViewMacPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+        }
+        if (!liveViewMacCaffeinateProcess) {
+          console.warn('[MacCameraAwake] Watchdog: caffeinate missing — respawning');
+          liveViewMacCaffeinateProcess = _spawnMacCaffeinate('MacCameraAwake-Watchdog');
+          liveViewMacCaffeinateProcess.on('exit', (code) => {
+            console.log('[MacCameraAwake] caffeinate (watchdog) exited:', code);
+            liveViewMacCaffeinateProcess = null;
+          });
+        }
+      }, 20000);
     }
   } catch (err) {
     console.error('[MacCameraAwake] Failed to start:', err?.message || err);
@@ -127,6 +151,11 @@ function startMacCameraAwake(reason = 'live-view') {
 
 function stopMacCameraAwake(reason = 'camera-stopped') {
   if (process.platform !== 'darwin') return;
+
+  if (liveViewMacWatchdogTimer) {
+    clearInterval(liveViewMacWatchdogTimer);
+    liveViewMacWatchdogTimer = null;
+  }
 
   if (liveViewMacCaffeinateProcess) {
     try {
