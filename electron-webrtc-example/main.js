@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.32 (2026-05-03)
+ * VERSION: 2.52.34 (2026-05-04)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -92,6 +92,62 @@ let liveViewState = {
   pendingForceFullMode: false, // Set by START_LIVE_VIEW_FULL when no pending session yet
   _monitoringWasPaused: false, // v2.23.0: Track if monitoring was paused for live view
 };
+
+let liveViewMacPowerBlockerId = null;
+let liveViewMacCaffeinateProcess = null;
+
+function startMacCameraAwake(reason = 'live-view') {
+  if (process.platform !== 'darwin') return;
+
+  try {
+    if (liveViewMacPowerBlockerId === null) {
+      liveViewMacPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+      console.log('[MacCameraAwake] Electron prevent-display-sleep started:', liveViewMacPowerBlockerId, 'reason:', reason);
+    }
+
+    if (!liveViewMacCaffeinateProcess) {
+      liveViewMacCaffeinateProcess = spawn('caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+        stdio: 'ignore',
+        detached: false,
+      });
+      liveViewMacCaffeinateProcess.on('error', (err) => {
+        console.error('[MacCameraAwake] caffeinate failed:', err.message);
+        liveViewMacCaffeinateProcess = null;
+      });
+      liveViewMacCaffeinateProcess.on('exit', (code) => {
+        console.log('[MacCameraAwake] caffeinate exited:', code);
+        liveViewMacCaffeinateProcess = null;
+      });
+      console.log('[MacCameraAwake] caffeinate -dimsu started for active camera, reason:', reason);
+    }
+  } catch (err) {
+    console.error('[MacCameraAwake] Failed to start:', err?.message || err);
+  }
+}
+
+function stopMacCameraAwake(reason = 'camera-stopped') {
+  if (process.platform !== 'darwin') return;
+
+  if (liveViewMacCaffeinateProcess) {
+    try {
+      liveViewMacCaffeinateProcess.kill('SIGTERM');
+      console.log('[MacCameraAwake] caffeinate stopped, reason:', reason);
+    } catch (err) {
+      console.warn('[MacCameraAwake] Failed to stop caffeinate:', err?.message || err);
+    }
+    liveViewMacCaffeinateProcess = null;
+  }
+
+  if (liveViewMacPowerBlockerId !== null) {
+    try {
+      powerSaveBlocker.stop(liveViewMacPowerBlockerId);
+      console.log('[MacCameraAwake] Electron prevent-display-sleep stopped:', liveViewMacPowerBlockerId, 'reason:', reason);
+    } catch (err) {
+      console.warn('[MacCameraAwake] Failed to stop Electron blocker:', err?.message || err);
+    }
+    liveViewMacPowerBlockerId = null;
+  }
+}
 
 // IPC events from renderer (used to correctly ACK/FAIL DB commands)
 const rtcIpcEvents = new EventEmitter();
