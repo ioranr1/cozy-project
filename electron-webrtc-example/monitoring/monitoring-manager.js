@@ -561,14 +561,24 @@ class MonitoringManager {
   }
 
   _stopNativeSleepBlocker() {
-    if (!this._nativeSleepBlockerProcess) return;
-    try {
-      this._nativeSleepBlockerProcess.kill('SIGTERM');
-      console.log('[MonitoringManager] ✅ Native sleep blocker stopped');
-    } catch (err) {
-      console.error('[MonitoringManager] Failed to stop native sleep blocker:', err);
+    if (this._nativeSleepBlockerProcess) {
+      try {
+        this._nativeSleepBlockerProcess.kill('SIGTERM');
+        console.log('[MonitoringManager] ✅ Native sleep blocker stopped');
+      } catch (err) {
+        console.error('[MonitoringManager] Failed to stop native sleep blocker:', err);
+      }
+      this._nativeSleepBlockerProcess = null;
     }
-    this._nativeSleepBlockerProcess = null;
+    if (this._macCameraPowerBlockerId !== null) {
+      try {
+        powerSaveBlocker.stop(this._macCameraPowerBlockerId);
+        console.log('[MonitoringManager] ✅ macOS Electron camera power blocker stopped:', this._macCameraPowerBlockerId);
+      } catch (err) {
+        console.error('[MonitoringManager] Failed to stop macOS camera power blocker:', err);
+      }
+      this._macCameraPowerBlockerId = null;
+    }
     if (process.platform === 'win32') {
       exec('powershell -Command "Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport(\\\"kernel32.dll\\\")]public static extern uint SetThreadExecutionState(uint esFlags);}\';[SleepBlocker]::SetThreadExecutionState(0x80000000)"', (err) => {
         if (err) console.warn('[MonitoringManager] Failed to clear execution state:', err.message);
