@@ -24,6 +24,7 @@
  */
 
 const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config');
+const { spawn, exec } = require('child_process');
 
 // Sound detection removed (v0.5.0) - replaced by Baby Monitor mode
 
@@ -63,6 +64,9 @@ class MonitoringManager {
     this.pendingEvents = [];
     this.eventQueueTimer = null;
     
+    // OS-native sleep prevention (keeps camera/inference alive when display sleeps)
+    this._nativeSleepBlockerProcess = null;
+
     console.log('[MonitoringManager] Initialized (v0.3.0)');
   }
 
