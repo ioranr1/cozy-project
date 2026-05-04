@@ -4,6 +4,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchUserEvents } from '@/lib/eventsApi';
 import { 
   Bell, 
   Clock, 
@@ -77,20 +78,15 @@ const Events: React.FC = () => {
 
   const fetchEvents = async () => {
     try {
-      const { data, error } = await supabase
-        .from('monitoring_events')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(0, PAGE_SIZE - 1);
-
-      if (error) {
-        console.error('Error fetching events:', error);
-      } else {
-        const fetched = (data || []) as unknown as EventData[];
-        setEvents(fetched);
-        setHasMore(fetched.length === PAGE_SIZE);
-        setPage(1);
-      }
+      // Fetch via Edge Function — server enforces ownership.
+      // We request PAGE_SIZE * 5 up-front (max 500) so client-side pagination still works
+      // without needing range queries. RLS will be tightened later.
+      const fetched = (await fetchUserEvents({ limit: 500 })) as unknown as EventData[];
+      setEvents(fetched.slice(0, PAGE_SIZE));
+      setHasMore(fetched.length > PAGE_SIZE);
+      // Stash the full set on the window for loadMore (simple in-memory cache)
+      (window as unknown as { __eventsCache?: EventData[] }).__eventsCache = fetched;
+      setPage(1);
     } catch (error) {
       console.error('Error:', error);
     } finally {
@@ -102,22 +98,13 @@ const Events: React.FC = () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     try {
+      const cache = (window as unknown as { __eventsCache?: EventData[] }).__eventsCache ?? [];
       const from = page * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
-      const { data, error } = await supabase
-        .from('monitoring_events')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .range(from, to);
-
-      if (error) {
-        console.error('Error loading more events:', error);
-      } else {
-        const fetched = (data || []) as unknown as EventData[];
-        setEvents(prev => [...prev, ...fetched]);
-        setHasMore(fetched.length === PAGE_SIZE);
-        setPage(prev => prev + 1);
-      }
+      const to = from + PAGE_SIZE;
+      const slice = cache.slice(from, to);
+      setEvents(prev => [...prev, ...slice]);
+      setHasMore(cache.length > to);
+      setPage(prev => prev + 1);
     } catch (error) {
       console.error('Error:', error);
     } finally {
