@@ -506,6 +506,67 @@ class MonitoringManager {
       detectorStatus: this.detectorStatus,
     };
   }
+
+  // ===========================================================================
+  // OS-NATIVE SLEEP PREVENTION (v0.11.0)
+  // Keeps camera + inference alive when the display sleeps.
+  // Mac: caffeinate -i -s   |   Windows: SetThreadExecutionState (ES_CONTINUOUS|ES_SYSTEM_REQUIRED)
+  // Display is allowed to power off — only system sleep is blocked.
+  // ===========================================================================
+  _startNativeSleepBlocker() {
+    if (this._nativeSleepBlockerProcess) return;
+    const platform = process.platform;
+    try {
+      if (platform === 'darwin') {
+        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-i', '-s'], {
+          stdio: 'ignore', detached: false,
+        });
+        this._nativeSleepBlockerProcess.on('error', (err) => {
+          console.error('[MonitoringManager] caffeinate failed:', err.message);
+          this._nativeSleepBlockerProcess = null;
+        });
+        this._nativeSleepBlockerProcess.on('exit', (code) => {
+          console.log('[MonitoringManager] caffeinate exited:', code);
+          this._nativeSleepBlockerProcess = null;
+        });
+        console.log('[MonitoringManager] ✅ macOS: caffeinate -i -s started (camera stays alive when display sleeps)');
+      } else if (platform === 'win32') {
+        const psScript = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport("kernel32.dll")]public static extern uint SetThreadExecutionState(uint esFlags);}';[SleepBlocker]::SetThreadExecutionState(0x80000001);while($true){Start-Sleep -Seconds 30;[SleepBlocker]::SetThreadExecutionState(0x80000001)}`;
+        this._nativeSleepBlockerProcess = spawn('powershell', [
+          '-WindowStyle', 'Hidden', '-Command', psScript,
+        ], { stdio: 'ignore', detached: false });
+        this._nativeSleepBlockerProcess.on('error', (err) => {
+          console.error('[MonitoringManager] PowerShell sleep blocker failed:', err.message);
+          this._nativeSleepBlockerProcess = null;
+        });
+        this._nativeSleepBlockerProcess.on('exit', (code) => {
+          console.log('[MonitoringManager] PowerShell sleep blocker exited:', code);
+          this._nativeSleepBlockerProcess = null;
+        });
+        console.log('[MonitoringManager] ✅ Windows: SetThreadExecutionState started (camera stays alive when display sleeps)');
+      } else {
+        console.log('[MonitoringManager] ℹ️ No native sleep blocker for platform:', platform);
+      }
+    } catch (err) {
+      console.error('[MonitoringManager] Failed to start native sleep blocker:', err);
+    }
+  }
+
+  _stopNativeSleepBlocker() {
+    if (!this._nativeSleepBlockerProcess) return;
+    try {
+      this._nativeSleepBlockerProcess.kill('SIGTERM');
+      console.log('[MonitoringManager] ✅ Native sleep blocker stopped');
+    } catch (err) {
+      console.error('[MonitoringManager] Failed to stop native sleep blocker:', err);
+    }
+    this._nativeSleepBlockerProcess = null;
+    if (process.platform === 'win32') {
+      exec('powershell -Command "Add-Type -TypeDefinition \'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport(\\\"kernel32.dll\\\")]public static extern uint SetThreadExecutionState(uint esFlags);}\';[SleepBlocker]::SetThreadExecutionState(0x80000000)"', (err) => {
+        if (err) console.warn('[MonitoringManager] Failed to clear execution state:', err.message);
+      });
+    }
+  }
 }
 
 module.exports = MonitoringManager;
