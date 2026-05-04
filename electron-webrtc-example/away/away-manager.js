@@ -799,6 +799,22 @@ class AwayManager {
           this._nativeSleepBlockerProcess = null;
         });
         console.log('[AwayManager] ✅ macOS: caffeinate -dimsu started (keeps camera/inference active)');
+        // Watchdog: respawn caffeinate if it dies while Away Mode is active.
+        if (this._macWatchdogTimer) clearInterval(this._macWatchdogTimer);
+        this._macWatchdogTimer = setInterval(() => {
+          try {
+            if (!this._nativeSleepBlockerProcess) {
+              console.warn('[AwayManager] Watchdog: caffeinate missing — respawning');
+              this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+                stdio: 'ignore', detached: false,
+              });
+              this._nativeSleepBlockerProcess.on('exit', () => { this._nativeSleepBlockerProcess = null; });
+              this._nativeSleepBlockerProcess.on('error', () => { this._nativeSleepBlockerProcess = null; });
+            }
+          } catch (e) {
+            console.error('[AwayManager] Watchdog error:', e?.message || e);
+          }
+        }, 20000);
       } catch (err) {
         console.error('[AwayManager] Failed to start caffeinate:', err);
       }
@@ -838,6 +854,10 @@ class AwayManager {
   }
 
   _stopNativeSleepBlocker() {
+    if (this._macWatchdogTimer) {
+      clearInterval(this._macWatchdogTimer);
+      this._macWatchdogTimer = null;
+    }
     if (!this._nativeSleepBlockerProcess) {
       return;
     }
