@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.35 (2026-05-04)
+ * VERSION: 2.52.36 (2026-05-04)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -2702,7 +2702,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('===============================================================');
-console.log('[Main] BUILD ID: main-js-2026-05-04-v2.52.35-mac-camera-awake');
+console.log('[Main] BUILD ID: main-js-2026-05-04-v2.52.36-monitoring-watchdog');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');
