@@ -412,6 +412,9 @@ class MonitoringManager {
       this.isStarting = false;
       this.detectorStatus = { motion: false, sound: false };
 
+      // Release OS sleep blocker — hardware is going down
+      this._stopNativeSleepBlocker();
+
       // Clear any pending events
       if (this.eventQueueTimer) {
         clearTimeout(this.eventQueueTimer);
