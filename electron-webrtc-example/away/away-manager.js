@@ -498,7 +498,7 @@ class AwayManager {
     // blocking the display timeout. Electron's 'prevent-display-sleep' was
     // keeping the screen on forever; 'prevent-app-suspension' didn't prevent
     // system sleep reliably. OS-native approach solves both:
-    //   - macOS: caffeinate -i (prevents idle sleep, allows display sleep)
+    //   - macOS: caffeinate -dimsu (keeps camera capture alive during display-off)
     //   - Windows: SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED)
     //              (prevents system sleep, allows monitor power-off)
     // ═══════════════════════════════════════════════════════════════════════════
