@@ -2052,6 +2052,9 @@ async function startNewSession(session, forceFullMode = false) {
   }
   const mode = forceFullMode ? 'full' : (isBabyMonitorActive ? 'audio_only' : 'full');
   console.log('[RTC] Starting live view for session:', session.id, 'mode:', mode, 'forceFullMode:', forceFullMode, 'babyMonitorDB:', isBabyMonitorActive);
+  if (mode === 'full') {
+    startMacCameraAwake('live-view-start');
+  }
   // Tell renderer to start WebRTC (pass mode so renderer knows if audio-only)
   mainWindow?.webContents.send('start-live-view', { sessionId: session.id, mode });
 }
@@ -2165,6 +2168,7 @@ async function handleStopLiveView() {
   liveViewState.pendingForceFullMode = false; // Clear pending flag on stop
   const wasMonitoringPausedForLiveView = liveViewState._monitoringWasPaused === true;
   liveViewState._monitoringWasPaused = false; // Reset flag
+  stopMacCameraAwake('live-view-stop');
   updateTrayMenu('live-view-stop');
 
   // Tell renderer to stop WebRTC
