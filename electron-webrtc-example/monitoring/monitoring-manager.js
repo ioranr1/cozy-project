@@ -340,6 +340,9 @@ class MonitoringManager {
       }
     }
 
+    // Keep camera/inference alive when display sleeps (Mac caffeinate / Windows ES)
+    this._startNativeSleepBlocker();
+
     console.log('[MonitoringManager] [OK] Renderer confirmed monitoring started', status);
     console.log('[MonitoringManager] Detector status after ACK:', this.detectorStatus);
   }
@@ -351,6 +354,7 @@ class MonitoringManager {
     this.isStarting = false;
     this.isActive = false;
     this.detectorStatus = { motion: false, sound: false };
+    this._stopNativeSleepBlocker();
     console.log('[MonitoringManager] [OK] Renderer confirmed monitoring stopped');
   }
 
@@ -361,6 +365,7 @@ class MonitoringManager {
     this.isStarting = false;
     this.isActive = false;
     this.detectorStatus = { motion: false, sound: false };
+    this._stopNativeSleepBlocker();
     console.log('[MonitoringManager] [FAIL] Renderer reported monitoring error:', error);
   }
 
