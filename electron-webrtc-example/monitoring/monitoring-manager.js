@@ -1,7 +1,7 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.10.2 (2026-04-14)
+ * VERSION: 0.11.1 (2026-05-04)
  * 
  * CHANGELOG:
  * - v0.8.0: Baby Monitor support - enable() activates mic immediately when baby_monitor_enabled.
@@ -23,6 +23,7 @@
  * Triggers local clip recording for validated events.
  */
 
+const { powerSaveBlocker } = require('electron');
 const { mergeWithDefaults, validateSensorConfig } = require('./monitoring-config');
 const { spawn, exec } = require('child_process');
 
@@ -66,6 +67,7 @@ class MonitoringManager {
     
     // OS-native sleep prevention (keeps camera/inference alive when display sleeps)
     this._nativeSleepBlockerProcess = null;
+    this._macCameraPowerBlockerId = null;
 
     console.log('[MonitoringManager] Initialized (v0.3.0)');
   }
