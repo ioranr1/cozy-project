@@ -5,6 +5,7 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchEventDetails } from '@/lib/eventsApi';
 import { Shield, ArrowLeft, Video, AlertTriangle, Clock, Calendar, Laptop, CheckCircle, XCircle, Film, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Json } from '@/integrations/supabase/types';
@@ -54,19 +55,8 @@ const EventDetails: React.FC = () => {
       if (!eventId) return;
 
       try {
-        // Fetch event from monitoring_events table
-        const { data: eventData, error: eventError } = await supabase
-          .from('monitoring_events')
-          .select('*')
-          .eq('id', eventId)
-          .maybeSingle();
-
-        if (eventError) {
-          console.error('Error fetching event:', eventError);
-          toast.error(language === 'he' ? 'שגיאה בטעינת האירוע' : 'Error loading event');
-          setLoading(false);
-          return;
-        }
+        // Fetch via Edge Function — server enforces ownership and returns a fresh signed URL.
+        const { event: eventData, signed_snapshot_url } = await fetchEventDetails(eventId);
 
         if (!eventData) {
           console.log('Event not found:', eventId);
@@ -74,7 +64,12 @@ const EventDetails: React.FC = () => {
           return;
         }
 
-        setEvent(eventData);
+        // Prefer fresh signed URL from server (15min TTL) over stale stored URL.
+        const merged = {
+          ...eventData,
+          snapshot_url: signed_snapshot_url ?? eventData.snapshot_url,
+        } as unknown as EventData;
+        setEvent(merged);
 
         // Mark event as viewed (for notification reminder logic)
         markEventAsViewed(eventId);
@@ -91,9 +86,14 @@ const EventDetails: React.FC = () => {
         }
 
         setLoading(false);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Error fetching event:', error);
-        toast.error(language === 'he' ? 'שגיאה בטעינת האירוע' : 'Error loading event');
+        const msg = error instanceof Error ? error.message : '';
+        if (msg.includes('Forbidden') || msg.includes('403')) {
+          toast.error(language === 'he' ? 'אין הרשאה לצפות באירוע זה' : 'Not authorized to view this event');
+        } else {
+          toast.error(language === 'he' ? 'שגיאה בטעינת האירוע' : 'Error loading event');
+        }
         setLoading(false);
       }
     };
