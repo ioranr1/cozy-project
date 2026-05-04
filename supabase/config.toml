@@ -35,3 +35,9 @@ verify_jwt = false
 
 [functions.delete-account]
 verify_jwt = false
+
+[functions.get-user-events]
+verify_jwt = false
+
+[functions.get-event-details]
+verify_jwt = false
