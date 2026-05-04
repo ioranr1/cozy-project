@@ -786,7 +786,7 @@ class AwayManager {
       // active enough to prevent Chromium camera capture from being suspended.
       // Process stays alive as long as Away Mode is active
       try {
-        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+        this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
           stdio: 'ignore',
           detached: false,
         });

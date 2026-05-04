@@ -526,7 +526,7 @@ class MonitoringManager {
           this._macCameraPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
           console.log('[MonitoringManager] ✅ macOS: Electron prevent-display-sleep started for active camera:', this._macCameraPowerBlockerId);
         }
-        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+        this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
           stdio: 'ignore', detached: false,
         });
         this._nativeSleepBlockerProcess.on('error', (err) => {
