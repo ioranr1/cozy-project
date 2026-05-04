@@ -512,15 +512,21 @@ class MonitoringManager {
   // ===========================================================================
   // OS-NATIVE SLEEP PREVENTION (v0.11.0)
   // Keeps camera + inference alive when the display sleeps.
-  // Mac: caffeinate -i -s   |   Windows: SetThreadExecutionState (ES_CONTINUOUS|ES_SYSTEM_REQUIRED)
-  // Display is allowed to power off — only system sleep is blocked.
+  // macOS camera capture can be suspended by deep display sleep unless both
+  // Chromium and the OS hold active assertions. On Mac only, we intentionally
+  // use prevent-display-sleep + caffeinate -dimsu while monitoring is active.
+  // Windows keeps the display policy unchanged and only blocks system sleep.
   // ===========================================================================
   _startNativeSleepBlocker() {
     if (this._nativeSleepBlockerProcess) return;
     const platform = process.platform;
     try {
       if (platform === 'darwin') {
-        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-i', '-s'], {
+        if (this._macCameraPowerBlockerId === null) {
+          this._macCameraPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+          console.log('[MonitoringManager] ✅ macOS: Electron prevent-display-sleep started for active camera:', this._macCameraPowerBlockerId);
+        }
+        this._nativeSleepBlockerProcess = spawn('caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
           stdio: 'ignore', detached: false,
         });
         this._nativeSleepBlockerProcess.on('error', (err) => {
@@ -531,7 +537,7 @@ class MonitoringManager {
           console.log('[MonitoringManager] caffeinate exited:', code);
           this._nativeSleepBlockerProcess = null;
         });
-        console.log('[MonitoringManager] ✅ macOS: caffeinate -i -s started (camera stays alive when display sleeps)');
+        console.log('[MonitoringManager] ✅ macOS: caffeinate -dimsu started (camera stays alive during display sleep)');
       } else if (platform === 'win32') {
         const psScript = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport("kernel32.dll")]public static extern uint SetThreadExecutionState(uint esFlags);}';[SleepBlocker]::SetThreadExecutionState(0x80000001);while($true){Start-Sleep -Seconds 30;[SleepBlocker]::SetThreadExecutionState(0x80000001)}`;
         this._nativeSleepBlockerProcess = spawn('powershell', [
