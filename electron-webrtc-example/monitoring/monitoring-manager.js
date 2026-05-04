@@ -1,9 +1,12 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.11.1 (2026-05-04)
+ * VERSION: 0.11.2 (2026-05-04)
  * 
  * CHANGELOG:
+ * - v0.11.2: Mac watchdog re-asserts powerSaveBlocker + caffeinate every 20s
+ *           while monitoring is active. Fixes case where caffeinate dies in
+ *           background and camera capture gets suspended on display-off.
  * - v0.8.0: Baby Monitor support - enable() activates mic immediately when baby_monitor_enabled.
  *           Mic stays on after Live View closes. Only SET_MONITORING:OFF stops mic.
  *           The Renderer (index.html) is the SOLE reporter to events-report edge function.
@@ -538,6 +541,28 @@ class MonitoringManager {
           this._nativeSleepBlockerProcess = null;
         });
         console.log('[MonitoringManager] ✅ macOS: caffeinate -dimsu started (camera stays alive during display sleep)');
+        // v0.11.2 watchdog: re-assert every 20s in case caffeinate dies or
+        // powerSaveBlocker drops (Chromium can suspend camera on display sleep).
+        if (this._macWatchdogTimer) clearInterval(this._macWatchdogTimer);
+        this._macWatchdogTimer = setInterval(() => {
+          try {
+            if (this._macCameraPowerBlockerId === null ||
+                !powerSaveBlocker.isStarted(this._macCameraPowerBlockerId)) {
+              console.warn('[MonitoringManager] Watchdog: powerSaveBlocker dropped — restarting');
+              this._macCameraPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+            }
+            if (!this._nativeSleepBlockerProcess) {
+              console.warn('[MonitoringManager] Watchdog: caffeinate missing — respawning');
+              this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+                stdio: 'ignore', detached: false,
+              });
+              this._nativeSleepBlockerProcess.on('exit', () => { this._nativeSleepBlockerProcess = null; });
+              this._nativeSleepBlockerProcess.on('error', () => { this._nativeSleepBlockerProcess = null; });
+            }
+          } catch (e) {
+            console.error('[MonitoringManager] Watchdog error:', e?.message || e);
+          }
+        }, 20000);
       } else if (platform === 'win32') {
         const psScript = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class SleepBlocker{[DllImport("kernel32.dll")]public static extern uint SetThreadExecutionState(uint esFlags);}';[SleepBlocker]::SetThreadExecutionState(0x80000001);while($true){Start-Sleep -Seconds 30;[SleepBlocker]::SetThreadExecutionState(0x80000001)}`;
         this._nativeSleepBlockerProcess = spawn('powershell', [
@@ -561,6 +586,10 @@ class MonitoringManager {
   }
 
   _stopNativeSleepBlocker() {
+    if (this._macWatchdogTimer) {
+      clearInterval(this._macWatchdogTimer);
+      this._macWatchdogTimer = null;
+    }
     if (this._nativeSleepBlockerProcess) {
       try {
         this._nativeSleepBlockerProcess.kill('SIGTERM');
