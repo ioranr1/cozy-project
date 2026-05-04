@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.34 (2026-05-04)
+ * VERSION: 2.52.35 (2026-05-04)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -58,7 +58,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const store = new Store();
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// v2.52.34: macOS display sleep can still throttle Chromium renderer work.
+// v2.52.35: macOS display sleep can still throttle Chromium renderer work.
 // Monitoring inference must continue while the monitor is off in AWAY mode.
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
@@ -2702,7 +2702,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('===============================================================');
-console.log('[Main] BUILD ID: main-js-2026-05-04-v2.52.34-mac-camera-awake');
+console.log('[Main] BUILD ID: main-js-2026-05-04-v2.52.35-mac-camera-awake');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');
