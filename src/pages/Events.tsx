@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { cn } from '@/lib/utils';
 import type { Json } from '@/integrations/supabase/types';
+import { getSessionToken } from '@/hooks/useSession';
 
 interface LabelItem {
   label: string;
@@ -71,6 +72,7 @@ const Events: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const [acknowledging, setAcknowledging] = useState(false);
+  const [loadError, setLoadError] = useState<'auth' | 'general' | null>(null);
 
   useEffect(() => {
     fetchEvents();
@@ -78,6 +80,13 @@ const Events: React.FC = () => {
 
   const fetchEvents = async () => {
     try {
+      setLoadError(null);
+      if (!getSessionToken()) {
+        setEvents([]);
+        setHasMore(false);
+        setLoadError('auth');
+        return;
+      }
       // Fetch via Edge Function — server enforces ownership.
       // We request PAGE_SIZE * 5 up-front (max 500) so client-side pagination still works
       // without needing range queries. RLS will be tightened later.
@@ -89,6 +98,7 @@ const Events: React.FC = () => {
       setPage(1);
     } catch (error) {
       console.error('Error:', error);
+      setLoadError('general');
     } finally {
       setLoading(false);
     }
@@ -340,6 +350,23 @@ const Events: React.FC = () => {
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            ) : loadError === 'auth' ? (
+              <div className="text-center py-12">
+                <Bell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                <p className="text-white/70 mb-4">
+                  {language === 'he' ? 'צריך להתחבר כדי לראות אירועים' : 'Sign in to view events'}
+                </p>
+                <Button onClick={() => navigate('/login')} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                  {language === 'he' ? 'התחברות' : 'Sign in'}
+                </Button>
+              </div>
+            ) : loadError === 'general' ? (
+              <div className="text-center py-12">
+                <Bell className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+                <p className="text-white/60">
+                  {language === 'he' ? 'שגיאה בטעינת האירועים' : 'Failed to load events'}
+                </p>
               </div>
             ) : filteredEvents.length === 0 ? (
               <div className="text-center py-12">
