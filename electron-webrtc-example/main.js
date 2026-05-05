@@ -635,7 +635,6 @@ function createValidatedTrayIcon(iconPath) {
  * composited in the top-right corner. Works by manipulating the raw RGBA bitmap.
  */
 function createBadgedIcon(baseIcon) {
-  if (process.platform === 'win32') return null;
   if (!baseIcon || baseIcon.isEmpty()) return null;
 
   try {
@@ -701,14 +700,6 @@ function setTrayBadge(show) {
   if (!tray || tray.isDestroyed?.()) return;
 
   _trayBadgeVisible = !!show;
-
-  // Windows tray icons are most stable when the original ICO is never replaced
-  // with a dynamically generated nativeImage. Keep the update state in the menu.
-  if (process.platform === 'win32') {
-    tray.setToolTip(show ? 'Update Available! Right-click to download.' : t('trayTooltip'));
-    console.log('[Tray] Windows badge state recorded without setImage');
-    return;
-  }
 
   if (show && _cachedTrayIconWithBadge) {
     tray.setImage(_cachedTrayIconWithBadge);
