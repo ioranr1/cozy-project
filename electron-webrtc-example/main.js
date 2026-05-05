@@ -890,8 +890,21 @@ function startTrayHealthMonitor() {
     if (bounds.width === 0 && bounds.height === 0 && _cachedTrayIcon) {
       console.log('[Tray:Health] WARNING: Tray bounds are 0x0, attempting recovery...');
       try {
-        tray.setImage(_cachedTrayIcon);
-        console.log('[Tray:Health] Recovery: setImage applied');
+        if (process.platform === 'win32') {
+          const recoveredIconPath = getIconPath();
+          tray.destroy();
+          tray = new Tray(recoveredIconPath || _cachedTrayIcon);
+          tray.setToolTip(t('trayTooltip'));
+          tray.on('click', () => {
+            showMainWindowFromTray();
+          });
+          _lastTrayMenuHash = '';
+          updateTrayMenu('tray-health-recreate');
+          console.log('[Tray:Health] Windows recovery: Tray recreated from stable icon path');
+        } else {
+          tray.setImage(_cachedTrayIcon);
+          console.log('[Tray:Health] Recovery: setImage applied');
+        }
       } catch (e) {
         console.error('[Tray:Health] Recovery failed:', e.message);
       }
