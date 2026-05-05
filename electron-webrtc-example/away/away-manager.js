@@ -781,12 +781,13 @@ class AwayManager {
     const platform = process.platform;
 
     if (platform === 'darwin') {
-      // caffeinate -dimsu: stronger Mac assertion for camera workloads.
-      // -i/-s block system sleep, -m blocks disk sleep, -d/-u keep display path
-      // active enough to prevent Chromium camera capture from being suspended.
-      // Process stays alive as long as Away Mode is active
+      // v2.52.37: caffeinate -ims ONLY (no -d, no -u).
+      // -i blocks idle sleep, -s blocks system sleep on AC, -m blocks disk sleep.
+      // We intentionally OMIT -d (prevent display sleep) and -u (declare user active)
+      // so that the display CAN turn off while the camera/inference stays alive.
+      // This is the user-requested behavior for Away Mode on Mac (battery + privacy).
       try {
-        this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+        this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-i', '-m', '-s'], {
           stdio: 'ignore',
           detached: false,
         });
@@ -798,14 +799,14 @@ class AwayManager {
           console.log('[AwayManager] caffeinate exited with code:', code);
           this._nativeSleepBlockerProcess = null;
         });
-        console.log('[AwayManager] ✅ macOS: caffeinate -dimsu started (keeps camera/inference active)');
+        console.log('[AwayManager] ✅ macOS: caffeinate -ims started (system awake, display CAN sleep)');
         // Watchdog: respawn caffeinate if it dies while Away Mode is active.
         if (this._macWatchdogTimer) clearInterval(this._macWatchdogTimer);
         this._macWatchdogTimer = setInterval(() => {
           try {
             if (!this._nativeSleepBlockerProcess) {
               console.warn('[AwayManager] Watchdog: caffeinate missing — respawning');
-              this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+              this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-i', '-m', '-s'], {
                 stdio: 'ignore', detached: false,
               });
               this._nativeSleepBlockerProcess.on('exit', () => { this._nativeSleepBlockerProcess = null; });
