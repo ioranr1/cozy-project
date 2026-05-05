@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.4.0 (2026-05-04)
+ * VERSION: 2.4.1 (2026-05-05)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-04-v2.4.0-mac-camera-awake';
+    this.__buildId = 'away-manager-2026-05-05-v2.4.1-mac-display-off-loop';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -521,9 +521,12 @@ class AwayManager {
     
     // Display behavior differs between modes
     if (!skipDisplayOff) {
-      // MANUAL MODE: Turn off display ONCE immediately
-      // After that, OS power settings control display behavior (including screen timeout)
-      console.log('[AwayManager] 📴 Manual Away: Turning display off ONCE');
+      // MANUAL MODE: Turn off display immediately and keep reinforcing it.
+      // This is required on macOS because starting camera capture for motion
+      // monitoring can wake/keep the panel on even though caffeinate omits -d/-u.
+      console.log('[AwayManager] 📴 Manual Away: Turning display off + starting reinforcement loop');
+      this._startDisplayOffLoop();
+      this._startUserActivityWatch();
       this._turnOffDisplay();
     } else {
       // AUTO-AWAY MODE: 
