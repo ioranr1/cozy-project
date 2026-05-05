@@ -525,11 +525,9 @@ class MonitoringManager {
     const platform = process.platform;
     try {
       if (platform === 'darwin') {
-        if (this._macCameraPowerBlockerId === null) {
-          this._macCameraPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-          console.log('[MonitoringManager] ✅ macOS: Electron prevent-display-sleep started for active camera:', this._macCameraPowerBlockerId);
-        }
-        this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+        // v2.52.37: User-requested — display CAN turn off while monitoring.
+        // No prevent-display-sleep, no -d/-u. Only block idle/system/disk sleep.
+        this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-i', '-m', '-s'], {
           stdio: 'ignore', detached: false,
         });
         this._nativeSleepBlockerProcess.on('error', (err) => {
@@ -540,20 +538,15 @@ class MonitoringManager {
           console.log('[MonitoringManager] caffeinate exited:', code);
           this._nativeSleepBlockerProcess = null;
         });
-        console.log('[MonitoringManager] ✅ macOS: caffeinate -dimsu started (camera stays alive during display sleep)');
+        console.log('[MonitoringManager] ✅ macOS: caffeinate -ims started (system awake, display CAN sleep)');
         // v0.11.2 watchdog: re-assert every 20s in case caffeinate dies or
         // powerSaveBlocker drops (Chromium can suspend camera on display sleep).
         if (this._macWatchdogTimer) clearInterval(this._macWatchdogTimer);
         this._macWatchdogTimer = setInterval(() => {
           try {
-            if (this._macCameraPowerBlockerId === null ||
-                !powerSaveBlocker.isStarted(this._macCameraPowerBlockerId)) {
-              console.warn('[MonitoringManager] Watchdog: powerSaveBlocker dropped — restarting');
-              this._macCameraPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-            }
             if (!this._nativeSleepBlockerProcess) {
               console.warn('[MonitoringManager] Watchdog: caffeinate missing — respawning');
-              this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-d', '-i', '-m', '-s', '-u'], {
+              this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-i', '-m', '-s'], {
                 stdio: 'ignore', detached: false,
               });
               this._nativeSleepBlockerProcess.on('exit', () => { this._nativeSleepBlockerProcess = null; });
