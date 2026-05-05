@@ -999,6 +999,7 @@
           if (!silent) console.log('[Monitoring] Releasing existing resources...');
           
           detectionLoopActive = false;
+          stopTrackHealthWatch();
 
           if (detectionLoopTimer) {
             clearTimeout(detectionLoopTimer);
@@ -1162,6 +1163,10 @@
                 
                 videoElement.srcObject = monitoringStream;
                 await videoElement.play();
+                monitoringStream.getVideoTracks().forEach(track => {
+                  track.onended = () => scheduleMonitoringRestart('video track ended');
+                  track.onmute = () => scheduleMonitoringRestart('video track muted');
+                });
                 
                 // Initialize MediaPipe detector if not done
                 if (!isDetectorReady) {
@@ -1181,6 +1186,7 @@
                   motionStarted = true;
                   console.log('[Monitoring] Motion detection loop started');
                   runDetectionLoop();
+                  startTrackHealthWatch();
                 } else {
                   console.error('[Monitoring] ✗ isDetectorReady=false - releasing camera to avoid misleading LED');
                   // Release camera since detection won't work anyway
@@ -1266,6 +1272,7 @@
           detectionLoopActive = false;
           isMonitoring = false;
           monitoringStartedAt = null;
+          stopTrackHealthWatch();
 
           if (detectionLoopTimer) {
             clearTimeout(detectionLoopTimer);
