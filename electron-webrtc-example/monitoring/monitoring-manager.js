@@ -517,11 +517,11 @@ class MonitoringManager {
   }
 
   // ===========================================================================
-  // OS-NATIVE SLEEP PREVENTION (v0.11.0)
+  // OS-NATIVE SLEEP PREVENTION (v0.11.3)
   // Keeps camera + inference alive when the display sleeps.
-  // macOS camera capture can be suspended by deep display sleep unless both
-  // Chromium and the OS hold active assertions. On Mac only, we intentionally
-  // use prevent-display-sleep + caffeinate -dimsu while monitoring is active.
+  // macOS: keep the app/renderer active with prevent-app-suspension + caffeinate -ims,
+  // but DO NOT use prevent-display-sleep or caffeinate -d/-u because those keep
+  // the screen awake and would break the requested AWAY behavior.
   // Windows keeps the display policy unchanged and only blocks system sleep.
   // ===========================================================================
   _startNativeSleepBlocker() {
@@ -529,7 +529,12 @@ class MonitoringManager {
     const platform = process.platform;
     try {
       if (platform === 'darwin') {
-        // v2.52.37: User-requested — display CAN turn off while monitoring.
+        if (this._macCameraPowerBlockerId === null) {
+          this._macCameraPowerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+          console.log('[MonitoringManager] ✅ macOS Electron prevent-app-suspension started:', this._macCameraPowerBlockerId);
+        }
+
+        // User-requested: display CAN turn off while monitoring.
         // No prevent-display-sleep, no -d/-u. Only block idle/system/disk sleep.
         this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-i', '-m', '-s'], {
           stdio: 'ignore', detached: false,
@@ -548,6 +553,10 @@ class MonitoringManager {
         if (this._macWatchdogTimer) clearInterval(this._macWatchdogTimer);
         this._macWatchdogTimer = setInterval(() => {
           try {
+            if (this._macCameraPowerBlockerId !== null && !powerSaveBlocker.isStarted(this._macCameraPowerBlockerId)) {
+              console.warn('[MonitoringManager] Watchdog: macOS prevent-app-suspension dropped — restarting');
+              this._macCameraPowerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+            }
             if (!this._nativeSleepBlockerProcess) {
               console.warn('[MonitoringManager] Watchdog: caffeinate missing — respawning');
               this._nativeSleepBlockerProcess = spawn('/usr/bin/caffeinate', ['-i', '-m', '-s'], {
