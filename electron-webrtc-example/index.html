@@ -691,7 +691,7 @@
       // If you don't see this line in the Electron console, you're not
       // running the updated index.html file.
       // ============================================================
-      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-02-26-v2.28.0";
+      const __ELECTRON_INDEX_BUILD_ID__ = "electron-index-2026-05-05-v2.28.1-monitoring-track-recovery";
       console.log(`[UI] index.html build: ${__ELECTRON_INDEX_BUILD_ID__}`);
       
       // ============================================================
@@ -718,6 +718,8 @@
         let cachedVisionModule = null; // Cache vision module for re-init
         let deviceAuthToken = null;
         let deviceId = null;
+        let restartInProgress = false;
+        let monitorTrackHealthTimer = null;
         
         // Debouncing
         const lastDetectionTime = {};
@@ -1016,6 +1018,38 @@
           }
           
           // Sound detection removed (v2.13.0)
+        }
+
+        function stopTrackHealthWatch() {
+          if (monitorTrackHealthTimer) {
+            clearInterval(monitorTrackHealthTimer);
+            monitorTrackHealthTimer = null;
+          }
+        }
+
+        function scheduleMonitoringRestart(reason) {
+          if (!isMonitoring || restartInProgress || !currentConfig) return;
+          restartInProgress = true;
+          console.warn('[Monitoring] Camera track unhealthy, restarting monitoring:', reason);
+          setTimeout(async () => {
+            try {
+              await startMonitoring(currentConfig);
+            } finally {
+              restartInProgress = false;
+            }
+          }, 1500);
+        }
+
+        function startTrackHealthWatch() {
+          stopTrackHealthWatch();
+          monitorTrackHealthTimer = setInterval(() => {
+            if (!isMonitoring || !monitoringStream || !videoElement) return;
+            const videoTrack = monitoringStream.getVideoTracks?.()[0];
+            if (!videoTrack) return;
+            if (videoTrack.readyState === 'ended' || videoElement.readyState === 0) {
+              scheduleMonitoringRestart(`readyState=${videoTrack.readyState}, videoReady=${videoElement.readyState}`);
+            }
+          }, 5000);
         }
         
         // ============================================================
