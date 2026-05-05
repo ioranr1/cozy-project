@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.4.1 (2026-05-05)
+ * VERSION: 2.4.2 (2026-05-05)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-05-v2.4.1-mac-display-off-loop';
+    this.__buildId = 'away-manager-2026-05-05-v2.4.2-db-manual-away-enforces-display-off';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -242,11 +242,17 @@ class AwayManager {
    */
   syncWithDatabaseStatus(status) {
     if (status.device_mode === 'AWAY' && !this.state.isActive) {
-      // IMPORTANT: On cold start/resync we default to NON-enforcing behavior to avoid
-      // surprise screen blackouts. Manual enforcement is only enabled by an explicit
-      // manual enable() call or the user pressing "Keep Away Mode".
-      console.log('[AwayManager] Syncing: DB says AWAY, activating locally (safe: skipDisplayOff=true)');
-      this._activateLocal({ skipDisplayOff: true });
+      // IMPORTANT: Cold start / auto-away remains NON-enforcing to avoid surprise blackouts.
+      // But web-initiated manual actions (Away toggle / Arm monitoring) write last_command
+      // directly to device_status before the local Agent handles a command. Those MUST enforce
+      // display-off on macOS too, otherwise the Mac screen stays on while AWAY is active.
+      const manualAwayCommands = new Set(['ENTER_AWAY', 'ARM', 'SET_DEVICE_MODE:AWAY']);
+      const shouldEnforceDisplayOff = manualAwayCommands.has(status.last_command);
+      console.log('[AwayManager] Syncing: DB says AWAY, activating locally', {
+        last_command: status.last_command,
+        skipDisplayOff: !shouldEnforceDisplayOff,
+      });
+      this._activateLocal({ skipDisplayOff: !shouldEnforceDisplayOff });
     } else if (status.device_mode === 'NORMAL' && this.state.isActive) {
       console.log('[AwayManager] Syncing: DB says NORMAL, deactivating locally');
       this._deactivateLocal();
