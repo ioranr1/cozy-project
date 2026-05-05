@@ -553,9 +553,10 @@ function getIconPath() {
   // Search order: extraResources first (packaged), then __dirname (dev)
   const possiblePaths = isWin
     ? [
-        // Packaged build - extraResources
-        path.join(resourcesDir, 'tray-icon.png'),
+        // Packaged build - extraResources. Windows must prefer ICO; PNG can
+        // disappear or turn black after runtime tray menu/icon updates.
         path.join(resourcesDir, 'icon.ico'),
+        path.join(resourcesDir, 'tray-icon.png'),
         // Dev mode - __dirname
         path.join(__dirname, 'icon.ico'),
         path.join(__dirname, 'assets', 'icon.ico'),
@@ -633,6 +634,7 @@ function createValidatedTrayIcon(iconPath) {
  * composited in the top-right corner. Works by manipulating the raw RGBA bitmap.
  */
 function createBadgedIcon(baseIcon) {
+  if (process.platform === 'win32') return null;
   if (!baseIcon || baseIcon.isEmpty()) return null;
 
   try {
@@ -698,6 +700,14 @@ function setTrayBadge(show) {
   if (!tray || tray.isDestroyed?.()) return;
 
   _trayBadgeVisible = !!show;
+
+  // Windows tray icons are most stable when the original ICO is never replaced
+  // with a dynamically generated nativeImage. Keep the update state in the menu.
+  if (process.platform === 'win32') {
+    tray.setToolTip(show ? 'Update Available! Right-click to download.' : t('trayTooltip'));
+    console.log('[Tray] Windows badge state recorded without setImage');
+    return;
+  }
 
   if (show && _cachedTrayIconWithBadge) {
     tray.setImage(_cachedTrayIconWithBadge);
