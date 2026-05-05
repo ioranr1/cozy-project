@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-05-v2.4.2-db-manual-away-enforces-display-off';
+    this.__buildId = 'away-manager-2026-05-05-v2.4.3-persistent-display-off-enforcement';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -220,20 +220,13 @@ class AwayManager {
       return;
     }
 
-    // Avoid repeated loop stops.
-    if (this.state.userReturnedNotified) return;
-    
-    console.log('[AwayManager] 👤 User returned detected - STOPPING display-off loop');
-    console.log('[AwayManager] ℹ️ Away Mode remains active (control from Dashboard)');
-
-    this.state.userReturnedNotified = true;
-    
-    // CRITICAL FIX: Stop the 30-second display-off loop immediately
-    // This prevents the screen from turning off while the user is working
-    this._stopDisplayOffLoop();
-    this._stopUserActivityWatch();
-    
-    // NOTE: No modal shown - user disables Away Mode manually from Dashboard
+    // v2.4.3: Manual AWAY must KEEP enforcing display-off while AWAY is active.
+    // Previously we latched userReturnedNotified=true on first activity and stopped
+    // the loop, which meant the screen never turned off again until the user
+    // disabled AWAY. The user explicitly wants the screen to keep turning off
+    // every cycle while AWAY remains active. So: do nothing here — let the
+    // 30s display-off loop continue running and re-issue display-off.
+    return;
   }
   
   /**
