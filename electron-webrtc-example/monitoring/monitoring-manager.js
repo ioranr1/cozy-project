@@ -1,9 +1,12 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.11.2 (2026-05-04)
+ * VERSION: 0.11.3 (2026-05-05)
  * 
  * CHANGELOG:
+ * - v0.11.3: macOS motion monitoring now also holds Electron prevent-app-suspension
+ *           while keeping caffeinate on -ims only, so display policy remains unchanged
+ *           but Chromium/AV capture is less likely to suspend after display-off.
  * - v0.11.2: Mac watchdog re-asserts powerSaveBlocker + caffeinate every 20s
  *           while monitoring is active. Fixes case where caffeinate dies in
  *           background and camera capture gets suspended on display-off.
@@ -71,8 +74,9 @@ class MonitoringManager {
     // OS-native sleep prevention (keeps camera/inference alive when display sleeps)
     this._nativeSleepBlockerProcess = null;
     this._macCameraPowerBlockerId = null;
+    this._macWatchdogTimer = null;
 
-    console.log('[MonitoringManager] Initialized (v0.3.0)');
+    console.log('[MonitoringManager] Initialized (v0.11.3)');
   }
 
   // ===========================================================================
