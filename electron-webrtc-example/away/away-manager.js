@@ -477,6 +477,27 @@ class AwayManager {
       errors: []
     };
   }
+
+  _shouldEnforceDisplayOffFromStatus(status) {
+    const manualAwayCommands = new Set(['ENTER_AWAY', 'ARM', 'SET_DEVICE_MODE:AWAY']);
+    const lastCommand = status?.last_command || null;
+    const lastCommandAt = status?.last_command_at ? Date.parse(status.last_command_at) : 0;
+    const commandAgeMs = Number.isFinite(lastCommandAt) && lastCommandAt > 0 ? Date.now() - lastCommandAt : null;
+
+    // Manual commands stay manual for this AWAY session. Auto-Away uses
+    // awayManager.enable({ skipDisplayOff: true }) locally and should not force
+    // the display off unless the user later performs a manual AWAY / ARM action.
+    const isManualAwayCommand = manualAwayCommands.has(lastCommand);
+
+    // If last_command is unavailable/old because of a Realtime race, still treat
+    // an active armed motion/baby-monitor state as user intent, but only when the
+    // command timestamp is recent enough to avoid converting old Auto-Away on
+    // cold start into forced black-screen behavior.
+    const hasManualSensorIntent = !!(status?.is_armed && (status?.motion_enabled || status?.baby_monitor_enabled));
+    const hasRecentCommand = typeof commandAgeMs === 'number' && commandAgeMs >= 0 && commandAgeMs <= 2 * 60 * 1000;
+
+    return isManualAwayCommand || (hasManualSensorIntent && hasRecentCommand);
+  }
   
   /**
    * Activate Away Mode locally
