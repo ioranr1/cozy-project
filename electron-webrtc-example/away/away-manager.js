@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-05-v2.4.3-persistent-display-off-enforcement';
+    this.__buildId = 'away-manager-2026-05-05-v2.4.4-mac-camera-vs-display-coexist';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -240,9 +240,25 @@ class AwayManager {
       // directly to device_status before the local Agent handles a command. Those MUST enforce
       // display-off on macOS too, otherwise the Mac screen stays on while AWAY is active.
       const manualAwayCommands = new Set(['ENTER_AWAY', 'ARM', 'SET_DEVICE_MODE:AWAY']);
-      const shouldEnforceDisplayOff = manualAwayCommands.has(status.last_command);
+      let shouldEnforceDisplayOff = manualAwayCommands.has(status.last_command);
+
+      // v2.4.4: macOS-specific guardrail.
+      // On macOS, AVFoundation suspends the camera ~15-20s after the display
+      // is turned off via `pmset displaysleepnow`, which breaks AWAY + Motion
+      // Monitoring (camera goes dark even though monitoring is "ON").
+      // Windows uses SetThreadExecutionState which keeps the camera pipeline
+      // alive even with monitor off, so this guard does not apply there.
+      // Rule: if motion monitoring is armed/enabled on macOS, NEVER force
+      // display off — let the user's macOS sleep settings handle the screen.
+      const motionActive = !!(status.is_armed && status.motion_enabled);
+      if (process.platform === 'darwin' && motionActive && shouldEnforceDisplayOff) {
+        console.log('[AwayManager] 🍎 macOS: motion monitoring active — skipping display-off to keep camera alive');
+        shouldEnforceDisplayOff = false;
+      }
+
       console.log('[AwayManager] Syncing: DB says AWAY, activating locally', {
         last_command: status.last_command,
+        motionActive,
         skipDisplayOff: !shouldEnforceDisplayOff,
       });
       this._activateLocal({ skipDisplayOff: !shouldEnforceDisplayOff });
