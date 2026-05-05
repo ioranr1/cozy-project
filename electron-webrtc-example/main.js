@@ -659,9 +659,9 @@ function createBadgedIcon(baseIcon) {
         const idx = (y * w + x) * 4;
 
         if (dist <= dotRadius - 1.5) {
-          bitmap[idx] = 59;      // R - cyan/blue update badge
-          bitmap[idx + 1] = 130; // G
-          bitmap[idx + 2] = 246; // B
+          bitmap[idx] = 249;     // R - orange update badge
+          bitmap[idx + 1] = 115; // G
+          bitmap[idx + 2] = 22;  // B
           bitmap[idx + 3] = 255; // A
         } else if (dist <= dotRadius - 0.5) {
           bitmap[idx] = 255;
@@ -671,9 +671,9 @@ function createBadgedIcon(baseIcon) {
         } else if (dist <= dotRadius + 0.5) {
           // Anti-aliased edge
           const alpha = Math.max(0, Math.min(255, Math.round((dotRadius + 0.5 - dist) * 255)));
-          bitmap[idx] = 59;
-          bitmap[idx + 1] = 130;
-          bitmap[idx + 2] = 246;
+          bitmap[idx] = 249;
+          bitmap[idx + 1] = 115;
+          bitmap[idx + 2] = 22;
           bitmap[idx + 3] = Math.max(bitmap[idx + 3], alpha);
         }
       }
