@@ -1,6 +1,6 @@
 {
   "name": "security-camera-agent",
-  "version": "2.52.39",
+  "version": "2.52.40",
   "description": "Electron Security Camera Agent with WebRTC Live View and Away Mode",
   "main": "main.js",
   "scripts": {
@@ -39,7 +39,8 @@
       "artifactName": "Security-Camera-Agent-Setup-${version}.${ext}"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "icon.ico"
     },
     "mac": {
       "target": [
@@ -51,7 +52,8 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "entitlements.mac.plist",
-      "entitlementsInherit": "entitlements.mac.plist"
+      "entitlementsInherit": "entitlements.mac.plist",
+      "icon": "icon.png"
     },
     "dmg": {
       "artifactName": "Security-Camera-Agent.${ext}"
