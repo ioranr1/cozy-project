@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.4.2 (2026-05-05)
+ * VERSION: 2.4.5 (2026-05-05)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-05-v2.4.4-mac-camera-vs-display-coexist';
+    this.__buildId = 'away-manager-2026-05-05-v2.4.5-mac-manual-away-display-enforcement';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -234,33 +234,38 @@ class AwayManager {
    * @param {object} status - device_status row
    */
   syncWithDatabaseStatus(status) {
-    if (status.device_mode === 'AWAY' && !this.state.isActive) {
+    if (status.device_mode === 'AWAY') {
       // IMPORTANT: Cold start / auto-away remains NON-enforcing to avoid surprise blackouts.
       // But web-initiated manual actions (Away toggle / Arm monitoring) write last_command
       // directly to device_status before the local Agent handles a command. Those MUST enforce
       // display-off on macOS too, otherwise the Mac screen stays on while AWAY is active.
-      const manualAwayCommands = new Set(['ENTER_AWAY', 'ARM', 'SET_DEVICE_MODE:AWAY']);
-      let shouldEnforceDisplayOff = manualAwayCommands.has(status.last_command);
-
-      // v2.4.4: macOS-specific guardrail.
-      // On macOS, AVFoundation suspends the camera ~15-20s after the display
-      // is turned off via `pmset displaysleepnow`, which breaks AWAY + Motion
-      // Monitoring (camera goes dark even though monitoring is "ON").
-      // Windows uses SetThreadExecutionState which keeps the camera pipeline
-      // alive even with monitor off, so this guard does not apply there.
-      // Rule: if motion monitoring is armed/enabled on macOS, NEVER force
-      // display off — let the user's macOS sleep settings handle the screen.
-      const motionActive = !!(status.is_armed && status.motion_enabled);
-      if (process.platform === 'darwin' && motionActive && shouldEnforceDisplayOff) {
-        console.log('[AwayManager] 🍎 macOS: motion monitoring active — skipping display-off to keep camera alive');
-        shouldEnforceDisplayOff = false;
-      }
+      const shouldEnforceDisplayOff = this._shouldEnforceDisplayOffFromStatus(status);
 
       console.log('[AwayManager] Syncing: DB says AWAY, activating locally', {
         last_command: status.last_command,
-        motionActive,
+        last_command_at: status.last_command_at,
+        alreadyActive: this.state.isActive,
+        currentEnforceDisplayOff: this.state.enforceDisplayOff,
         skipDisplayOff: !shouldEnforceDisplayOff,
       });
+
+      if (this.state.isActive) {
+        // v2.4.5: If Auto-Away was already active and the user later turns on
+        // manual AWAY / ARM, upgrade the active session to display enforcement.
+        // Previously sync ignored AWAY updates while already active, so the Mac
+        // stayed awake forever until the user toggled AWAY off/on manually.
+        if (shouldEnforceDisplayOff && !this.state.enforceDisplayOff) {
+          console.log('[AwayManager] 📴 Upgrading active AWAY to display-off enforcement');
+          this.state.enforceDisplayOff = true;
+          this.state.userReturnedNotified = false;
+          this.state.activatedAtMs = Date.now();
+          this._startDisplayOffLoop();
+          this._startUserActivityWatch();
+          this._turnOffDisplay();
+        }
+        return;
+      }
+
       this._activateLocal({ skipDisplayOff: !shouldEnforceDisplayOff });
     } else if (status.device_mode === 'NORMAL' && this.state.isActive) {
       console.log('[AwayManager] Syncing: DB says NORMAL, deactivating locally');
@@ -471,6 +476,27 @@ class AwayManager {
       success: true,
       errors: []
     };
+  }
+
+  _shouldEnforceDisplayOffFromStatus(status) {
+    const manualAwayCommands = new Set(['ENTER_AWAY', 'ARM', 'SET_DEVICE_MODE:AWAY']);
+    const lastCommand = status?.last_command || null;
+    const lastCommandAt = status?.last_command_at ? Date.parse(status.last_command_at) : 0;
+    const commandAgeMs = Number.isFinite(lastCommandAt) && lastCommandAt > 0 ? Date.now() - lastCommandAt : null;
+
+    // Manual commands stay manual for this AWAY session. Auto-Away uses
+    // awayManager.enable({ skipDisplayOff: true }) locally and should not force
+    // the display off unless the user later performs a manual AWAY / ARM action.
+    const isManualAwayCommand = manualAwayCommands.has(lastCommand);
+
+    // If last_command is unavailable/old because of a Realtime race, still treat
+    // an active armed motion/baby-monitor state as user intent, but only when the
+    // command timestamp is recent enough to avoid converting old Auto-Away on
+    // cold start into forced black-screen behavior.
+    const hasManualSensorIntent = !!(status?.is_armed && (status?.motion_enabled || status?.baby_monitor_enabled));
+    const hasRecentCommand = typeof commandAgeMs === 'number' && commandAgeMs >= 0 && commandAgeMs <= 2 * 60 * 1000;
+
+    return isManualAwayCommand || (hasManualSensorIntent && hasRecentCommand);
   }
   
   /**
