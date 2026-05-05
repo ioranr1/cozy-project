@@ -553,19 +553,20 @@ function getIconPath() {
   // Search order: extraResources first (packaged), then __dirname (dev)
   const possiblePaths = isWin
     ? [
-        // Packaged build - extraResources. Windows must prefer ICO; PNG can
-        // disappear or turn black after runtime tray menu/icon updates.
-        path.join(resourcesDir, 'icon.ico'),
+        // FIX v2.52.41: prefer tray-icon.png (green shield, sized for tray).
+        // The app icon.ico is 256x256 and renders as a black square in the
+        // Windows system tray. Use it only as a last-resort fallback.
         path.join(resourcesDir, 'tray-icon.png'),
-        // Dev mode - __dirname
+        path.join(__dirname, 'tray-icon.png'),
+        path.join(__dirname, 'assets', 'tray-icon.png'),
+        path.join(__dirname, 'icon.png'),
+        path.join(__dirname, 'assets', 'icon.png'),
+        path.join(__dirname, 'build', 'icon.png'),
+        // Last-resort fallback only
+        path.join(resourcesDir, 'icon.ico'),
         path.join(__dirname, 'icon.ico'),
         path.join(__dirname, 'assets', 'icon.ico'),
         path.join(__dirname, 'build', 'icon.ico'),
-        path.join(__dirname, 'tray-icon.png'),
-        path.join(__dirname, 'icon.png'),
-        path.join(__dirname, 'assets', 'tray-icon.png'),
-        path.join(__dirname, 'assets', 'icon.png'),
-        path.join(__dirname, 'build', 'icon.png'),
       ]
     : [
         // Packaged build - extraResources
