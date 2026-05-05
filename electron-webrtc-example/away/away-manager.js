@@ -784,7 +784,7 @@ class AwayManager {
     const platform = process.platform;
 
     if (platform === 'darwin') {
-      // v2.52.37: caffeinate -ims ONLY (no -d, no -u).
+      // v2.52.39: caffeinate -ims ONLY (no -d, no -u).
       // -i blocks idle sleep, -s blocks system sleep on AC, -m blocks disk sleep.
       // We intentionally OMIT -d (prevent display sleep) and -u (declare user active)
       // so that the display CAN turn off while the camera/inference stays alive.
