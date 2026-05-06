@@ -515,8 +515,9 @@ class AwayManager {
     // Reset "user returned" latch on each activation.
     this.state.userReturnedNotified = false;
 
-    // Auto-Away MUST NOT force the screen off.
-    // Also: if we were previously in manual enforcement, stop any existing loop/watch.
+    // v2.4.6: AWAY must always force the screen off, including Auto-Away/startup.
+    // Keep skipDisplayOff support only for legacy callers, but DB sync/startup now
+    // passes skipDisplayOff=false so installed/updated agents behave consistently.
     this.state.enforceDisplayOff = !skipDisplayOff;
     if (skipDisplayOff) {
       this._stopDisplayOffLoop();
@@ -530,9 +531,8 @@ class AwayManager {
     //   1. Away Mode is manually disabled from Dashboard
     //   2. Electron application is closed
     // 
-    // The DIFFERENCE between modes is ONLY about display:
-    //   - Manual Away: Forces display off + 30s reinforcement loop
-    //   - Auto-Away: Display follows OS power settings (no forced off)
+    // Display behavior:
+    //   - AWAY: forces display off + 30s reinforcement loop, while preventing system sleep
     //
     // v2.2.0 FIX: Use OS-native commands to prevent system sleep WITHOUT
     // blocking the display timeout. Electron's 'prevent-display-sleep' was
@@ -561,10 +561,10 @@ class AwayManager {
     
     // Display behavior differs between modes
     if (!skipDisplayOff) {
-      // MANUAL MODE: Turn off display immediately and keep reinforcing it.
+      // AWAY MODE: Turn off display immediately and keep reinforcing it.
       // This is required on macOS because starting camera capture for motion
       // monitoring can wake/keep the panel on even though caffeinate omits -d/-u.
-      console.log('[AwayManager] 📴 Manual Away: Turning display off + starting reinforcement loop');
+      console.log('[AwayManager] 📴 Away Mode: Turning display off + starting reinforcement loop');
       this._startDisplayOffLoop();
       this._startUserActivityWatch();
       this._turnOffDisplay();
