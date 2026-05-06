@@ -524,7 +524,7 @@ class AwayManager {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // CRITICAL: BOTH Auto-Away AND Manual Away MUST prevent system sleep!
+    // CRITICAL: AWAY MUST prevent system sleep!
     // The computer should NEVER enter full sleep while ANY Away Mode is active.
     // Sleep is ONLY allowed when:
     //   1. Away Mode is manually disabled from Dashboard
