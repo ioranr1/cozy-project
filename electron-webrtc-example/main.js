@@ -2303,6 +2303,32 @@ function subscribeToDeviceStatus() {
     .subscribe();
 
   console.log('[DeviceStatus] Subscribed');
+  syncInitialDeviceStatus('subscribeToDeviceStatus');
+}
+
+async function syncInitialDeviceStatus(reason = 'startup') {
+  if (!deviceId) return;
+
+  try {
+    console.log('[DeviceStatus] Fetching initial status for local sync. Reason:', reason);
+    const { data, error } = await supabase
+      .from('device_status')
+      .select('*')
+      .eq('device_id', deviceId)
+      .single();
+
+    if (error) {
+      console.error('[DeviceStatus] Initial sync failed:', error.message || error);
+      return;
+    }
+
+    if (data) {
+      console.log('[DeviceStatus] Initial sync row:', data);
+      handleDeviceStatusUpdate(data);
+    }
+  } catch (err) {
+    console.error('[DeviceStatus] Initial sync unexpected error:', err?.message || err);
+  }
 }
 
 // Global counter for debugging tray/device_status update frequency
