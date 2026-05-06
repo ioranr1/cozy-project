@@ -743,16 +743,14 @@ class AwayManager {
     if (process.platform !== 'darwin') return;
 
     try {
-      // v2.4.9: macOS can inherit a display-awake assertion from camera/WebRTC
-      // startup. Reassert only AWAY's sleep policy right before re-darkening:
-      // keep system awake for monitoring, but never declare user/display active.
-      execSync('/usr/bin/caffeinate -u -t 1 >/dev/null 2>&1 || true', {
-        timeout: 1500,
-        stdio: 'ignore',
-      });
-      if (!this._nativeSleepBlockerProcess) {
-        this._startNativeSleepBlocker();
+      // v2.4.9: macOS can have camera/Chromium activity at the same time AWAY is
+      // active. Reassert only AWAY's policy: keep system awake for monitoring,
+      // but never hold display-awake or user-active assertions (-d/-u).
+      if (this._nativeSleepBlockerProcess) {
+        try { this._nativeSleepBlockerProcess.kill('SIGTERM'); } catch (_) { /* noop */ }
+        this._nativeSleepBlockerProcess = null;
       }
+      this._startNativeSleepBlocker();
       console.log('[AwayManager] macOS AWAY sleep policy reasserted before display-off');
     } catch (err) {
       console.warn('[AwayManager] macOS AWAY sleep policy reassert failed:', err?.message || err);
