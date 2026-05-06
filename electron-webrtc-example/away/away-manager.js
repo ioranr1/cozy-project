@@ -235,10 +235,9 @@ class AwayManager {
    */
   syncWithDatabaseStatus(status) {
     if (status.device_mode === 'AWAY') {
-      // IMPORTANT: Cold start / auto-away remains NON-enforcing to avoid surprise blackouts.
-      // But web-initiated manual actions (Away toggle / Arm monitoring) write last_command
-      // directly to device_status before the local Agent handles a command. Those MUST enforce
-      // display-off on macOS too, otherwise the Mac screen stays on while AWAY is active.
+      // v2.4.6: Any DB state of AWAY means the display must be turned off and kept
+      // under OS user display timeout rules. This fixes the install/update/startup
+      // case where Auto-Away restored AWAY but left the screen permanently on.
       const shouldEnforceDisplayOff = this._shouldEnforceDisplayOffFromStatus(status);
 
       console.log('[AwayManager] Syncing: DB says AWAY, activating locally', {
@@ -255,7 +254,7 @@ class AwayManager {
         // Previously sync ignored AWAY updates while already active, so the Mac
         // stayed awake forever until the user toggled AWAY off/on manually.
         if (shouldEnforceDisplayOff && !this.state.enforceDisplayOff) {
-          console.log('[AwayManager] 📴 Upgrading active AWAY to display-off enforcement');
+          console.log('[AwayManager] 📴 Enforcing display-off for active AWAY');
           this.state.enforceDisplayOff = true;
           this.state.userReturnedNotified = false;
           this.state.activatedAtMs = Date.now();
@@ -484,9 +483,9 @@ class AwayManager {
     const lastCommandAt = status?.last_command_at ? Date.parse(status.last_command_at) : 0;
     const commandAgeMs = Number.isFinite(lastCommandAt) && lastCommandAt > 0 ? Date.now() - lastCommandAt : null;
 
-    // Manual commands stay manual for this AWAY session. Auto-Away uses
-    // awayManager.enable({ skipDisplayOff: true }) locally and should not force
-    // the display off unless the user later performs a manual AWAY / ARM action.
+    // v2.4.6: Product requirement changed — if device_status says AWAY, the
+    // screen must turn off within seconds after install/startup/restart as well.
+    // Keep command detection only for diagnostics/backward context; return true.
     const isManualAwayCommand = manualAwayCommands.has(lastCommand);
 
     // If last_command is unavailable/old because of a Realtime race, still treat
@@ -496,7 +495,7 @@ class AwayManager {
     const hasManualSensorIntent = !!(status?.is_armed && (status?.motion_enabled || status?.baby_monitor_enabled));
     const hasRecentCommand = typeof commandAgeMs === 'number' && commandAgeMs >= 0 && commandAgeMs <= 2 * 60 * 1000;
 
-    return isManualAwayCommand || (hasManualSensorIntent && hasRecentCommand);
+    return true;
   }
   
   /**
