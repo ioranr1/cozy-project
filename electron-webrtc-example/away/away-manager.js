@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.4.5 (2026-05-05)
+ * VERSION: 2.4.6 (2026-05-06)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-05-v2.4.5-mac-manual-away-display-enforcement';
+    this.__buildId = 'away-manager-2026-05-06-v2.4.6-all-away-display-enforcement';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -45,8 +45,8 @@ class AwayManager {
       featureEnabled: false,
       displayOffLoopId: null, // Interval ID for periodic display-off
 
-      // Manual Away Mode enforces a forced display-off + 30s reinforcement loop.
-      // Auto-Away MUST NEVER force the display off.
+      // Every active AWAY session enforces display-off + 30s reinforcement loop.
+      // This includes AWAY restored after install/update/startup.
       enforceDisplayOff: false,
 
       // Short-interval safety watcher to stop enforcement quickly on real user activity.
