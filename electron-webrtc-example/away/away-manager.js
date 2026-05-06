@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.4.5 (2026-05-05)
+ * VERSION: 2.4.6 (2026-05-06)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-05-v2.4.5-mac-manual-away-display-enforcement';
+    this.__buildId = 'away-manager-2026-05-06-v2.4.6-all-away-display-enforcement';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -45,8 +45,8 @@ class AwayManager {
       featureEnabled: false,
       displayOffLoopId: null, // Interval ID for periodic display-off
 
-      // Manual Away Mode enforces a forced display-off + 30s reinforcement loop.
-      // Auto-Away MUST NEVER force the display off.
+      // Every active AWAY session enforces display-off + 30s reinforcement loop.
+      // This includes AWAY restored after install/update/startup.
       enforceDisplayOff: false,
 
       // Short-interval safety watcher to stop enforcement quickly on real user activity.
@@ -124,7 +124,7 @@ class AwayManager {
   /**
    * Enable Away Mode
    * @param {Object} options - Optional configuration
-   * @param {boolean} options.skipDisplayOff - If true, don't turn off display (used for Auto-Away on startup)
+   * @param {boolean} options.skipDisplayOff - Legacy/testing only. Production AWAY should keep this false.
    * @returns {Promise<{ success: boolean, error?: string }>}
    */
   async enable(options = {}) {
@@ -162,7 +162,7 @@ class AwayManager {
       
       console.log('[AwayManager] ✓ Away Mode enabled successfully');
       if (skipDisplayOff) {
-        console.log('[AwayManager] ℹ️ Display off SKIPPED (Auto-Away mode)');
+        console.log('[AwayManager] ℹ️ Display off skipped by legacy option');
       }
       this.awayModeIPC?.sendEnabled();
       
@@ -235,10 +235,9 @@ class AwayManager {
    */
   syncWithDatabaseStatus(status) {
     if (status.device_mode === 'AWAY') {
-      // IMPORTANT: Cold start / auto-away remains NON-enforcing to avoid surprise blackouts.
-      // But web-initiated manual actions (Away toggle / Arm monitoring) write last_command
-      // directly to device_status before the local Agent handles a command. Those MUST enforce
-      // display-off on macOS too, otherwise the Mac screen stays on while AWAY is active.
+      // v2.4.6: Any DB state of AWAY means the display must be turned off and kept
+      // under OS user display timeout rules. This fixes the install/update/startup
+      // case where Auto-Away restored AWAY but left the screen permanently on.
       const shouldEnforceDisplayOff = this._shouldEnforceDisplayOffFromStatus(status);
 
       console.log('[AwayManager] Syncing: DB says AWAY, activating locally', {
@@ -250,12 +249,9 @@ class AwayManager {
       });
 
       if (this.state.isActive) {
-        // v2.4.5: If Auto-Away was already active and the user later turns on
-        // manual AWAY / ARM, upgrade the active session to display enforcement.
-        // Previously sync ignored AWAY updates while already active, so the Mac
-        // stayed awake forever until the user toggled AWAY off/on manually.
+        // If AWAY is active without display enforcement, upgrade immediately.
         if (shouldEnforceDisplayOff && !this.state.enforceDisplayOff) {
-          console.log('[AwayManager] 📴 Upgrading active AWAY to display-off enforcement');
+          console.log('[AwayManager] 📴 Enforcing display-off for active AWAY');
           this.state.enforceDisplayOff = true;
           this.state.userReturnedNotified = false;
           this.state.activatedAtMs = Date.now();
@@ -364,9 +360,8 @@ class AwayManager {
     
     try {
       // Re-activate locally - use the saved display enforcement setting
-      // For Auto-Away (skipDisplayOff=true): won't turn off display
-      // For Manual Away (skipDisplayOff=false): will turn off display once
-      const skipDisplayOff = !this.state.wasEnforceDisplayOffBeforeSleep;
+      // AWAY must continue enforcing display-off after wake as well.
+      const skipDisplayOff = false;
       this._activateLocal({ skipDisplayOff });
       
       // Update database to ensure consistency
@@ -484,10 +479,11 @@ class AwayManager {
     const lastCommandAt = status?.last_command_at ? Date.parse(status.last_command_at) : 0;
     const commandAgeMs = Number.isFinite(lastCommandAt) && lastCommandAt > 0 ? Date.now() - lastCommandAt : null;
 
-    // Manual commands stay manual for this AWAY session. Auto-Away uses
-    // awayManager.enable({ skipDisplayOff: true }) locally and should not force
-    // the display off unless the user later performs a manual AWAY / ARM action.
+    // v2.4.6: Product requirement changed — if device_status says AWAY, the
+    // screen must turn off within seconds after install/startup/restart as well.
+    // Keep command detection only for diagnostics/backward context; return true.
     const isManualAwayCommand = manualAwayCommands.has(lastCommand);
+    void isManualAwayCommand;
 
     // If last_command is unavailable/old because of a Realtime race, still treat
     // an active armed motion/baby-monitor state as user intent, but only when the
@@ -495,8 +491,10 @@ class AwayManager {
     // cold start into forced black-screen behavior.
     const hasManualSensorIntent = !!(status?.is_armed && (status?.motion_enabled || status?.baby_monitor_enabled));
     const hasRecentCommand = typeof commandAgeMs === 'number' && commandAgeMs >= 0 && commandAgeMs <= 2 * 60 * 1000;
+    void hasManualSensorIntent;
+    void hasRecentCommand;
 
-    return isManualAwayCommand || (hasManualSensorIntent && hasRecentCommand);
+    return true;
   }
   
   /**
@@ -516,8 +514,9 @@ class AwayManager {
     // Reset "user returned" latch on each activation.
     this.state.userReturnedNotified = false;
 
-    // Auto-Away MUST NOT force the screen off.
-    // Also: if we were previously in manual enforcement, stop any existing loop/watch.
+    // v2.4.6: AWAY must always force the screen off, including Auto-Away/startup.
+    // Keep skipDisplayOff support only for legacy callers, but DB sync/startup now
+    // passes skipDisplayOff=false so installed/updated agents behave consistently.
     this.state.enforceDisplayOff = !skipDisplayOff;
     if (skipDisplayOff) {
       this._stopDisplayOffLoop();
@@ -525,15 +524,14 @@ class AwayManager {
     }
     
     // ═══════════════════════════════════════════════════════════════════════════
-    // CRITICAL: BOTH Auto-Away AND Manual Away MUST prevent system sleep!
+    // CRITICAL: AWAY MUST prevent system sleep!
     // The computer should NEVER enter full sleep while ANY Away Mode is active.
     // Sleep is ONLY allowed when:
     //   1. Away Mode is manually disabled from Dashboard
     //   2. Electron application is closed
     // 
-    // The DIFFERENCE between modes is ONLY about display:
-    //   - Manual Away: Forces display off + 30s reinforcement loop
-    //   - Auto-Away: Display follows OS power settings (no forced off)
+    // Display behavior:
+    //   - AWAY: forces display off + 30s reinforcement loop, while preventing system sleep
     //
     // v2.2.0 FIX: Use OS-native commands to prevent system sleep WITHOUT
     // blocking the display timeout. Electron's 'prevent-display-sleep' was
@@ -560,21 +558,18 @@ class AwayManager {
       this.awayModeIPC.sendPowerBlockerStatus('STARTED', this.state.powerBlockerId);
     }
     
-    // Display behavior differs between modes
+    // Display behavior
     if (!skipDisplayOff) {
-      // MANUAL MODE: Turn off display immediately and keep reinforcing it.
+      // AWAY MODE: Turn off display immediately and keep reinforcing it.
       // This is required on macOS because starting camera capture for motion
       // monitoring can wake/keep the panel on even though caffeinate omits -d/-u.
-      console.log('[AwayManager] 📴 Manual Away: Turning display off + starting reinforcement loop');
+      console.log('[AwayManager] 📴 Away Mode: Turning display off + starting reinforcement loop');
       this._startDisplayOffLoop();
       this._startUserActivityWatch();
       this._turnOffDisplay();
     } else {
-      // AUTO-AWAY MODE: 
-      // - Do NOT turn off display (let OS power settings manage it)
-      // - OS-native sleep blocker IS active (prevents full system sleep)
-      // - Display WILL turn off per OS timeout settings ✓
-      console.log('[AwayManager] ℹ️ Auto-Away: Display follows OS power settings');
+      // Legacy/testing only. Production AWAY should not use skipDisplayOff.
+      console.log('[AwayManager] ℹ️ Legacy skipDisplayOff requested: Display follows OS power settings');
     }
   }
   

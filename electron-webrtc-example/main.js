@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.36 (2026-05-04)
+ * VERSION: 2.52.47 (2026-05-06)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1442,8 +1442,8 @@ async function maybeEnableAutoAway(reason) {
     return;
   }
 
-  console.log('[AutoAway] Enabled in profile -> enabling Away Mode (skipDisplayOff=true)');
-  const result = await awayManager.enable({ skipDisplayOff: true });
+  console.log('[AutoAway] Enabled in profile -> enabling Away Mode with display-off enforcement');
+  const result = await awayManager.enable({ skipDisplayOff: false });
 
   if (!result.success) {
     console.error('[AutoAway] awayManager.enable failed:', result.error);
@@ -1451,7 +1451,7 @@ async function maybeEnableAutoAway(reason) {
     return;
   }
 
-  console.log('[AutoAway] [OK] Away Mode enabled successfully (Auto-Away)');
+  console.log('[AutoAway] [OK] Away Mode enabled successfully (Auto-Away + display off)');
 }
 
 function startHeartbeat() {
@@ -2303,6 +2303,32 @@ function subscribeToDeviceStatus() {
     .subscribe();
 
   console.log('[DeviceStatus] Subscribed');
+  syncInitialDeviceStatus('subscribeToDeviceStatus');
+}
+
+async function syncInitialDeviceStatus(reason = 'startup') {
+  if (!deviceId) return;
+
+  try {
+    console.log('[DeviceStatus] Fetching initial status for local sync. Reason:', reason);
+    const { data, error } = await supabase
+      .from('device_status')
+      .select('*')
+      .eq('device_id', deviceId)
+      .single();
+
+    if (error) {
+      console.error('[DeviceStatus] Initial sync failed:', error.message || error);
+      return;
+    }
+
+    if (data) {
+      console.log('[DeviceStatus] Initial sync row:', data);
+      awayManager.syncWithDatabaseStatus(data);
+    }
+  } catch (err) {
+    console.error('[DeviceStatus] Initial sync unexpected error:', err?.message || err);
+  }
 }
 
 // Global counter for debugging tray/device_status update frequency
@@ -2520,15 +2546,14 @@ function setupIpcHandlers() {
           if (row && row.profile_exists && row.auto_away_enabled === true) {
             console.log('[IPC] ===================================================');
             console.log('[IPC] [AUTO] AUTO-AWAY: Profile has auto_away_enabled=true');
-            console.log('[IPC] [AUTO] Enabling Away Mode with skipDisplayOff=true');
+            console.log('[IPC] [AUTO] Enabling Away Mode with display-off enforcement');
             console.log('[IPC] ===================================================');
             
-            // Enable Away Mode WITHOUT turning off display
-            // This is the key difference from manual mode
-            const result = await awayManager.enable({ skipDisplayOff: true });
+            // Enable Away Mode and enforce display-off immediately after pairing/login.
+            const result = await awayManager.enable({ skipDisplayOff: false });
             
             if (result.success) {
-              console.log('[IPC] [OK] Auto-Away enabled successfully (display follows OS settings)');
+              console.log('[IPC] [OK] Auto-Away enabled successfully (display off enforced)');
             } else {
               console.log('[IPC] [WARN] Auto-Away could not be enabled:', result.error);
             }
@@ -2717,7 +2742,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('===============================================================');
-console.log('[Main] BUILD ID: main-js-2026-05-04-v2.52.36-monitoring-watchdog');
+console.log('[Main] BUILD ID: main-js-2026-05-06-v2.52.47-away-display-enforcement');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');
