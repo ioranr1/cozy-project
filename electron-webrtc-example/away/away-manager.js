@@ -634,6 +634,10 @@ class AwayManager {
           this.state.userReturnedNotified = false;
         }
 
+        if (process.platform === 'darwin') {
+          this._reassertMacAwaySleepPolicy();
+        }
+
         console.log('[AwayManager] 🔄 Periodic display-off check (Away Mode active). idleTime=', idleSeconds);
         this._turnOffDisplay();
       }
@@ -733,6 +737,26 @@ class AwayManager {
     this.state.displaySleepSeconds = fallbackSeconds;
     this.state.displaySleepSettingCheckedAtMs = now;
     return fallbackSeconds;
+  }
+
+  _reassertMacAwaySleepPolicy() {
+    if (process.platform !== 'darwin') return;
+
+    try {
+      // v2.4.9: macOS can inherit a display-awake assertion from camera/WebRTC
+      // startup. Reassert only AWAY's sleep policy right before re-darkening:
+      // keep system awake for monitoring, but never declare user/display active.
+      execSync('/usr/bin/caffeinate -u -t 1 >/dev/null 2>&1 || true', {
+        timeout: 1500,
+        stdio: 'ignore',
+      });
+      if (!this._nativeSleepBlockerProcess) {
+        this._startNativeSleepBlocker();
+      }
+      console.log('[AwayManager] macOS AWAY sleep policy reasserted before display-off');
+    } catch (err) {
+      console.warn('[AwayManager] macOS AWAY sleep policy reassert failed:', err?.message || err);
+    }
   }
 
   _deactivateLocal() {
