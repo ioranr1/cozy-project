@@ -2520,15 +2520,14 @@ function setupIpcHandlers() {
           if (row && row.profile_exists && row.auto_away_enabled === true) {
             console.log('[IPC] ===================================================');
             console.log('[IPC] [AUTO] AUTO-AWAY: Profile has auto_away_enabled=true');
-            console.log('[IPC] [AUTO] Enabling Away Mode with skipDisplayOff=true');
+            console.log('[IPC] [AUTO] Enabling Away Mode with display-off enforcement');
             console.log('[IPC] ===================================================');
             
-            // Enable Away Mode WITHOUT turning off display
-            // This is the key difference from manual mode
-            const result = await awayManager.enable({ skipDisplayOff: true });
+            // Enable Away Mode and enforce display-off immediately after pairing/login.
+            const result = await awayManager.enable({ skipDisplayOff: false });
             
             if (result.success) {
-              console.log('[IPC] [OK] Auto-Away enabled successfully (display follows OS settings)');
+              console.log('[IPC] [OK] Auto-Away enabled successfully (display off enforced)');
             } else {
               console.log('[IPC] [WARN] Auto-Away could not be enabled:', result.error);
             }
