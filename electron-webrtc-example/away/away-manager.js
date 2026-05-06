@@ -589,8 +589,8 @@ class AwayManager {
     }
     
     // Check every 30 seconds - if in Away Mode and display might be on, turn it off.
-    // CRITICAL SAFETY: If we detect recent user activity (idle time is low), we treat
-    // it as "user returned" and STOP the loop instead of turning the screen off.
+    // CRITICAL SAFETY: If we detect recent user activity (idle time is low), we pause
+    // display-off until the OS idle display timeout is reached again.
     this.state.displayOffLoopId = setInterval(() => {
       if (this.state.isActive) {
         if (!this.state.enforceDisplayOff) {
@@ -718,7 +718,7 @@ class AwayManager {
         timeout: 1500,
         stdio: ['ignore', 'pipe', 'ignore'],
       });
-      const match = output.match(/^\s*displaysleep\s+(\d+)/m);
+      const match = output.match(/^\s*displaysleep\s+(\d+)\b/m);
       if (match) {
         const minutes = Number(match[1]);
         this.state.displaySleepSeconds = minutes > 0 ? Math.max(60, minutes * 60) : null;
