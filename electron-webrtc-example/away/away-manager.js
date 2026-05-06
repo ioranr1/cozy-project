@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-06-v2.4.6-all-away-display-enforcement';
+    this.__buildId = 'away-manager-2026-05-06-v2.4.7-stop-enforcement-on-user-return';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
