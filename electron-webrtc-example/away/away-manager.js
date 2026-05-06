@@ -32,7 +32,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-06-v2.4.6-all-away-display-enforcement';
+    this.__buildId = 'away-manager-2026-05-06-v2.4.7-stop-enforcement-on-user-return';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -220,12 +220,17 @@ class AwayManager {
       return;
     }
 
-    // v2.4.3: Manual AWAY must KEEP enforcing display-off while AWAY is active.
-    // Previously we latched userReturnedNotified=true on first activity and stopped
-    // the loop, which meant the screen never turned off again until the user
-    // disabled AWAY. The user explicitly wants the screen to keep turning off
-    // every cycle while AWAY remains active. So: do nothing here — let the
-    // 30s display-off loop continue running and re-issue display-off.
+    // v2.4.7: After the initial display-off, if the user returns (mouse/keyboard),
+    // the screen must stay on according to the user's OS display settings.
+    // We latch userReturnedNotified=true and STOP the enforcement loops so the
+    // 30s loop does not keep forcing the screen off while the user is active.
+    // AWAY remains ON (powerSaveBlocker stays). To re-arm display enforcement,
+    // the user must toggle AWAY off and back on.
+    console.log('[AwayManager] 👤 User returned -> stopping display-off enforcement (AWAY stays ON)');
+    this.state.userReturnedNotified = true;
+    this.state.enforceDisplayOff = false;
+    this._stopDisplayOffLoop();
+    this._stopUserActivityWatch();
     return;
   }
   
