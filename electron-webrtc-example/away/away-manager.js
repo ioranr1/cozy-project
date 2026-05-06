@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.4.8 (2026-05-06)
+ * VERSION: 2.4.9 (2026-05-06)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -31,7 +31,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-06-v2.4.8-mac-idle-display-resleep';
+    this.__buildId = 'away-manager-2026-05-06-v2.4.9-mac-monitoring-resleep-reassert';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
