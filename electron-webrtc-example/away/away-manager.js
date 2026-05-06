@@ -124,7 +124,7 @@ class AwayManager {
   /**
    * Enable Away Mode
    * @param {Object} options - Optional configuration
-   * @param {boolean} options.skipDisplayOff - If true, don't turn off display (used for Auto-Away on startup)
+   * @param {boolean} options.skipDisplayOff - Legacy/testing only. Production AWAY should keep this false.
    * @returns {Promise<{ success: boolean, error?: string }>}
    */
   async enable(options = {}) {
@@ -162,7 +162,7 @@ class AwayManager {
       
       console.log('[AwayManager] ✓ Away Mode enabled successfully');
       if (skipDisplayOff) {
-        console.log('[AwayManager] ℹ️ Display off SKIPPED (Auto-Away mode)');
+        console.log('[AwayManager] ℹ️ Display off skipped by legacy option');
       }
       this.awayModeIPC?.sendEnabled();
       
@@ -249,10 +249,7 @@ class AwayManager {
       });
 
       if (this.state.isActive) {
-        // v2.4.5: If Auto-Away was already active and the user later turns on
-        // manual AWAY / ARM, upgrade the active session to display enforcement.
-        // Previously sync ignored AWAY updates while already active, so the Mac
-        // stayed awake forever until the user toggled AWAY off/on manually.
+        // If AWAY is active without display enforcement, upgrade immediately.
         if (shouldEnforceDisplayOff && !this.state.enforceDisplayOff) {
           console.log('[AwayManager] 📴 Enforcing display-off for active AWAY');
           this.state.enforceDisplayOff = true;
