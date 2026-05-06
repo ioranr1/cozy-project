@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.4.6 (2026-05-06)
+ * VERSION: 2.4.8 (2026-05-06)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -20,8 +20,7 @@
  */
 
 const { powerSaveBlocker, ipcMain, powerMonitor } = require('electron');
-const { spawn } = require('child_process');
-const { exec } = require('child_process');
+const { spawn, exec, execSync } = require('child_process');
 const path = require('path');
 const { getAwayString, getAwayStrings } = require('./away-strings');
 const { AwayModeIPC, AWAY_IPC_CHANNELS } = require('./away-ipc');
@@ -32,7 +31,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-06-v2.4.7-stop-enforcement-on-user-return';
+    this.__buildId = 'away-manager-2026-05-06-v2.4.8-mac-idle-display-resleep';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -60,7 +59,12 @@ class AwayManager {
       
       // CRITICAL: Track state before sleep to restore on wake
       wasActiveBeforeSleep: false,
-      wasEnforceDisplayOffBeforeSleep: false
+      wasEnforceDisplayOffBeforeSleep: false,
+
+      // Cache active macOS Display Sleep setting so AWAY can re-darken after
+      // the user wakes the monitor, without forcing it off while they are active.
+      displaySleepSeconds: null,
+      displaySleepSettingCheckedAtMs: 0
     };
     
     this.language = 'en';
@@ -203,8 +207,10 @@ class AwayManager {
   
   /**
    * Handle user return (focus/resume/unlock)
-   * CRITICAL: Stop the display-off loop so the screen stays on while user is working
-   * NOTE: User Returned modal removed - Away Mode is controlled from Dashboard only
+   * NOTE: User Returned modal removed - Away Mode is controlled from Dashboard only.
+   * AWAY stays active, but display enforcement pauses until the OS idle display
+   * timeout is reached again. This fixes macOS where camera/renderer activity can
+   * prevent the panel from darkening after the user wakes it with the mouse.
    */
   handleUserReturned() {
     if (!this.state.isActive) return;
@@ -220,18 +226,13 @@ class AwayManager {
       return;
     }
 
-    // v2.4.7: After the initial display-off, if the user returns (mouse/keyboard),
-    // the screen must stay on according to the user's OS display settings.
-    // We latch userReturnedNotified=true and STOP the enforcement loops so the
-    // 30s loop does not keep forcing the screen off while the user is active.
-    // AWAY remains ON (powerSaveBlocker stays). To re-arm display enforcement,
-    // the user must toggle AWAY off and back on.
-    console.log('[AwayManager] 👤 User returned -> stopping display-off enforcement (AWAY stays ON)');
+    // v2.4.8: Do NOT disable display enforcement permanently. When the user
+    // moves the mouse, pause enforcement while they are active; once macOS idle
+    // time reaches the configured Display Sleep timeout, turn the screen off again.
+    console.log('[AwayManager] 👤 User activity detected -> pausing display-off until OS idle display timeout');
     this.state.userReturnedNotified = true;
-    this.state.enforceDisplayOff = false;
-    this._stopDisplayOffLoop();
-    this._stopUserActivityWatch();
-    return;
+    this._startDisplayOffLoop();
+    this._startUserActivityWatch();
   }
   
   /**
@@ -588,15 +589,10 @@ class AwayManager {
     }
     
     // Check every 30 seconds - if in Away Mode and display might be on, turn it off.
-    // CRITICAL SAFETY: If we detect recent user activity (idle time is low), we treat
-    // it as "user returned" and STOP the loop instead of turning the screen off.
+    // CRITICAL SAFETY: If we detect recent user activity (idle time is low), we pause
+    // display-off until the OS idle display timeout is reached again.
     this.state.displayOffLoopId = setInterval(() => {
       if (this.state.isActive) {
-        // If we already detected user return, never force display off.
-        if (this.state.userReturnedNotified) {
-          return;
-        }
-
         if (!this.state.enforceDisplayOff) {
           return;
         }
@@ -612,12 +608,30 @@ class AwayManager {
           idleSeconds = null;
         }
 
-        // If user has interacted recently, assume they've returned and stop forcing display off.
-        // Threshold chosen to be safely below the 30s interval.
+        // If user has interacted recently, pause enforcement but keep the loop alive.
+        // Once idle time reaches the OS Display Sleep setting, AWAY will darken again.
         if (typeof idleSeconds === 'number' && idleSeconds <= 8) {
-          console.log('[AwayManager] 👤 Detected recent user activity via idleTime=', idleSeconds, 's -> treating as User Returned');
+          console.log('[AwayManager] 👤 Detected recent user activity via idleTime=', idleSeconds, 's -> pausing display-off');
           this.handleUserReturned();
           return;
+        }
+
+        if (this.state.userReturnedNotified) {
+          const displaySleepSeconds = this._getDisplaySleepIdleSeconds();
+          if (displaySleepSeconds === null) {
+            console.log('[AwayManager] ⏸️ Display Sleep is set to Never; not forcing display off after user return');
+            return;
+          }
+          if (typeof idleSeconds !== 'number') {
+            console.log('[AwayManager] ⏸️ Waiting for readable idle time before re-darkening after user return');
+            return;
+          }
+          if (idleSeconds < displaySleepSeconds) {
+            console.log('[AwayManager] ⏸️ User returned; waiting for OS display timeout. idleTime=', idleSeconds, 'required=', displaySleepSeconds);
+            return;
+          }
+          console.log('[AwayManager] 📴 OS display timeout reached after user return. idleTime=', idleSeconds, 'required=', displaySleepSeconds);
+          this.state.userReturnedNotified = false;
         }
 
         console.log('[AwayManager] 🔄 Periodic display-off check (Away Mode active). idleTime=', idleSeconds);
@@ -678,6 +692,49 @@ class AwayManager {
     }
   }
   
+  _getDisplaySleepIdleSeconds() {
+    // Only macOS needs this explicit re-darken behavior; other OSes can use
+    // the same safe default if Electron exposes idle time reliably.
+    const fallbackSeconds = 5 * 60;
+    const cacheTtlMs = 5 * 60 * 1000;
+    const now = Date.now();
+
+    if (
+      typeof this.state.displaySleepSeconds !== 'undefined' &&
+      now - this.state.displaySleepSettingCheckedAtMs < cacheTtlMs
+    ) {
+      return this.state.displaySleepSeconds;
+    }
+
+    if (process.platform !== 'darwin') {
+      this.state.displaySleepSeconds = fallbackSeconds;
+      this.state.displaySleepSettingCheckedAtMs = now;
+      return fallbackSeconds;
+    }
+
+    try {
+      const output = execSync('/usr/bin/pmset -g', {
+        encoding: 'utf8',
+        timeout: 1500,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      const match = output.match(/^\s*displaysleep\s+(\d+)\b/m);
+      if (match) {
+        const minutes = Number(match[1]);
+        this.state.displaySleepSeconds = minutes > 0 ? Math.max(60, minutes * 60) : null;
+        this.state.displaySleepSettingCheckedAtMs = now;
+        console.log('[AwayManager] macOS active displaysleep setting:', minutes, 'minutes');
+        return this.state.displaySleepSeconds;
+      }
+    } catch (err) {
+      console.warn('[AwayManager] Could not read macOS displaysleep setting, using 5 minutes:', err?.message || err);
+    }
+
+    this.state.displaySleepSeconds = fallbackSeconds;
+    this.state.displaySleepSettingCheckedAtMs = now;
+    return fallbackSeconds;
+  }
+
   _deactivateLocal() {
     console.log('[AwayManager] Deactivating locally');
     this.state.isActive = false;
