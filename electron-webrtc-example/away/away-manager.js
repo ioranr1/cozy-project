@@ -788,7 +788,12 @@ class AwayManager {
       // active. Reassert only AWAY's policy: keep system awake for monitoring,
       // but never hold display-awake or user-active assertions (-d/-u).
       if (this._nativeSleepBlockerProcess) {
-        try { this._nativeSleepBlockerProcess.kill('SIGTERM'); } catch (_) { /* noop */ }
+        const oldProcess = this._nativeSleepBlockerProcess;
+        try {
+          oldProcess.removeAllListeners('exit');
+          oldProcess.removeAllListeners('error');
+          oldProcess.kill('SIGTERM');
+        } catch (_) { /* noop */ }
         this._nativeSleepBlockerProcess = null;
       }
       this._startNativeSleepBlocker();
