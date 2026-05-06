@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.49 (2026-05-06)
+ * VERSION: 2.52.50 (2026-05-06)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1761,6 +1761,11 @@ async function handleCommand(command) {
           console.log('[Commands] Waiting for renderer ACK (timeout: 60s)...');
           const startedStatus = await waitForMonitoringStartAck({ timeoutMs: 60000 });
           console.log('[Commands] Renderer ACK received:', startedStatus);
+
+          // macOS only: if AWAY is already ON and motion monitoring starts after
+          // the user woke the display, re-arm AWAY's display-sleep loop so the
+          // screen re-darkens after the configured macOS timeout without touching Windows.
+          awayManager.handleMonitoringStarted?.();
 
           if (!deviceId) {
             throw new Error('Missing deviceId while enabling monitoring');

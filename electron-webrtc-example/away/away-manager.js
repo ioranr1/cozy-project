@@ -2,7 +2,7 @@
  * Away Mode Manager
  * =================
  * 
- * VERSION: 2.4.8 (2026-05-06)
+ * VERSION: 2.4.9 (2026-05-06)
  * 
  * CHANGELOG:
  * - 2.1.0: Removed camera preflight check - Away Mode does NOT require camera!
@@ -31,7 +31,7 @@ class AwayManager {
     this.awayModeIPC = null;
 
     // BUILD STAMP (debug)
-    this.__buildId = 'away-manager-2026-05-06-v2.4.8-mac-idle-display-resleep';
+    this.__buildId = 'away-manager-2026-05-06-v2.4.9-mac-monitoring-resleep-reassert';
     console.log(`[AwayManager] build: ${this.__buildId}`);
     
     // OS-native sleep prevention process (caffeinate on macOS, powercfg on Windows)
@@ -233,6 +233,47 @@ class AwayManager {
     this.state.userReturnedNotified = true;
     this._startDisplayOffLoop();
     this._startUserActivityWatch();
+  }
+
+  /**
+   * macOS-only hook called after motion/baby-monitor hardware is confirmed active.
+   * Camera startup can create activity/power assertions after AWAY was already on;
+   * this keeps the first AWAY session consistent without needing OFF -> ON reset.
+   */
+  handleMonitoringStarted() {
+    if (!this.state.isActive || !this.state.enforceDisplayOff) return;
+    if (process.platform !== 'darwin') return;
+
+    let idleSeconds = null;
+    try {
+      idleSeconds = typeof powerMonitor?.getSystemIdleTime === 'function'
+        ? powerMonitor.getSystemIdleTime()
+        : null;
+    } catch (_) {
+      idleSeconds = null;
+    }
+
+    const displaySleepSeconds = this._getDisplaySleepIdleSeconds();
+    console.log('[AwayManager] macOS monitoring started while AWAY active', {
+      idleSeconds,
+      displaySleepSeconds,
+      displayOffLoopRunning: !!this.state.displayOffLoopId,
+      userActivityWatchRunning: !!this.state.userActivityWatchId,
+    });
+
+    this._startDisplayOffLoop();
+    this._startUserActivityWatch();
+
+    if (displaySleepSeconds !== null && typeof idleSeconds === 'number' && idleSeconds >= displaySleepSeconds) {
+      this.state.userReturnedNotified = false;
+      this._reassertMacAwaySleepPolicy();
+      this._turnOffDisplay();
+      return;
+    }
+
+    // User just woke/used the Mac to enable monitoring. Wait for the configured
+    // macOS Display Sleep timeout, then the regular loop will darken again.
+    this.state.userReturnedNotified = true;
   }
   
   /**
@@ -634,6 +675,10 @@ class AwayManager {
           this.state.userReturnedNotified = false;
         }
 
+        if (process.platform === 'darwin') {
+          this._reassertMacAwaySleepPolicy();
+        }
+
         console.log('[AwayManager] 🔄 Periodic display-off check (Away Mode active). idleTime=', idleSeconds);
         this._turnOffDisplay();
       }
@@ -733,6 +778,29 @@ class AwayManager {
     this.state.displaySleepSeconds = fallbackSeconds;
     this.state.displaySleepSettingCheckedAtMs = now;
     return fallbackSeconds;
+  }
+
+  _reassertMacAwaySleepPolicy() {
+    if (process.platform !== 'darwin') return;
+
+    try {
+      // v2.4.9: macOS can have camera/Chromium activity at the same time AWAY is
+      // active. Reassert only AWAY's policy: keep system awake for monitoring,
+      // but never hold display-awake or user-active assertions (-d/-u).
+      if (this._nativeSleepBlockerProcess) {
+        const oldProcess = this._nativeSleepBlockerProcess;
+        try {
+          oldProcess.removeAllListeners('exit');
+          oldProcess.removeAllListeners('error');
+          oldProcess.kill('SIGTERM');
+        } catch (_) { /* noop */ }
+        this._nativeSleepBlockerProcess = null;
+      }
+      this._startNativeSleepBlocker();
+      console.log('[AwayManager] macOS AWAY sleep policy reasserted before display-off');
+    } catch (err) {
+      console.warn('[AwayManager] macOS AWAY sleep policy reassert failed:', err?.message || err);
+    }
   }
 
   _deactivateLocal() {
