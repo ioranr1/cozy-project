@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.36 (2026-05-04)
+ * VERSION: 2.52.47 (2026-05-06)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1442,8 +1442,8 @@ async function maybeEnableAutoAway(reason) {
     return;
   }
 
-  console.log('[AutoAway] Enabled in profile -> enabling Away Mode (skipDisplayOff=true)');
-  const result = await awayManager.enable({ skipDisplayOff: true });
+  console.log('[AutoAway] Enabled in profile -> enabling Away Mode with display-off enforcement');
+  const result = await awayManager.enable({ skipDisplayOff: false });
 
   if (!result.success) {
     console.error('[AutoAway] awayManager.enable failed:', result.error);
@@ -1451,7 +1451,7 @@ async function maybeEnableAutoAway(reason) {
     return;
   }
 
-  console.log('[AutoAway] [OK] Away Mode enabled successfully (Auto-Away)');
+  console.log('[AutoAway] [OK] Away Mode enabled successfully (Auto-Away + display off)');
 }
 
 function startHeartbeat() {
