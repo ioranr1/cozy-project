@@ -360,9 +360,8 @@ class AwayManager {
     
     try {
       // Re-activate locally - use the saved display enforcement setting
-      // For Auto-Away (skipDisplayOff=true): won't turn off display
-      // For Manual Away (skipDisplayOff=false): will turn off display once
-      const skipDisplayOff = !this.state.wasEnforceDisplayOffBeforeSleep;
+      // AWAY must continue enforcing display-off after wake as well.
+      const skipDisplayOff = false;
       this._activateLocal({ skipDisplayOff });
       
       // Update database to ensure consistency
@@ -484,6 +483,7 @@ class AwayManager {
     // screen must turn off within seconds after install/startup/restart as well.
     // Keep command detection only for diagnostics/backward context; return true.
     const isManualAwayCommand = manualAwayCommands.has(lastCommand);
+    void isManualAwayCommand;
 
     // If last_command is unavailable/old because of a Realtime race, still treat
     // an active armed motion/baby-monitor state as user intent, but only when the
@@ -491,6 +491,8 @@ class AwayManager {
     // cold start into forced black-screen behavior.
     const hasManualSensorIntent = !!(status?.is_armed && (status?.motion_enabled || status?.baby_monitor_enabled));
     const hasRecentCommand = typeof commandAgeMs === 'number' && commandAgeMs >= 0 && commandAgeMs <= 2 * 60 * 1000;
+    void hasManualSensorIntent;
+    void hasRecentCommand;
 
     return true;
   }
