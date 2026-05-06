@@ -558,7 +558,7 @@ class AwayManager {
       this.awayModeIPC.sendPowerBlockerStatus('STARTED', this.state.powerBlockerId);
     }
     
-    // Display behavior differs between modes
+    // Display behavior
     if (!skipDisplayOff) {
       // AWAY MODE: Turn off display immediately and keep reinforcing it.
       // This is required on macOS because starting camera capture for motion
@@ -568,11 +568,8 @@ class AwayManager {
       this._startUserActivityWatch();
       this._turnOffDisplay();
     } else {
-      // AUTO-AWAY MODE: 
-      // - Do NOT turn off display (let OS power settings manage it)
-      // - OS-native sleep blocker IS active (prevents full system sleep)
-      // - Display WILL turn off per OS timeout settings ✓
-      console.log('[AwayManager] ℹ️ Auto-Away: Display follows OS power settings');
+      // Legacy/testing only. Production AWAY should not use skipDisplayOff.
+      console.log('[AwayManager] ℹ️ Legacy skipDisplayOff requested: Display follows OS power settings');
     }
   }
   
