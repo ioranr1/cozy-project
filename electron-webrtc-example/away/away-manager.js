@@ -234,6 +234,47 @@ class AwayManager {
     this._startDisplayOffLoop();
     this._startUserActivityWatch();
   }
+
+  /**
+   * macOS-only hook called after motion/baby-monitor hardware is confirmed active.
+   * Camera startup can create activity/power assertions after AWAY was already on;
+   * this keeps the first AWAY session consistent without needing OFF -> ON reset.
+   */
+  handleMonitoringStarted() {
+    if (!this.state.isActive || !this.state.enforceDisplayOff) return;
+    if (process.platform !== 'darwin') return;
+
+    let idleSeconds = null;
+    try {
+      idleSeconds = typeof powerMonitor?.getSystemIdleTime === 'function'
+        ? powerMonitor.getSystemIdleTime()
+        : null;
+    } catch (_) {
+      idleSeconds = null;
+    }
+
+    const displaySleepSeconds = this._getDisplaySleepIdleSeconds();
+    console.log('[AwayManager] macOS monitoring started while AWAY active', {
+      idleSeconds,
+      displaySleepSeconds,
+      displayOffLoopRunning: !!this.state.displayOffLoopId,
+      userActivityWatchRunning: !!this.state.userActivityWatchId,
+    });
+
+    this._startDisplayOffLoop();
+    this._startUserActivityWatch();
+
+    if (displaySleepSeconds !== null && typeof idleSeconds === 'number' && idleSeconds >= displaySleepSeconds) {
+      this.state.userReturnedNotified = false;
+      this._reassertMacAwaySleepPolicy();
+      this._turnOffDisplay();
+      return;
+    }
+
+    // User just woke/used the Mac to enable monitoring. Wait for the configured
+    // macOS Display Sleep timeout, then the regular loop will darken again.
+    this.state.userReturnedNotified = true;
+  }
   
   /**
    * Sync local state with database status
