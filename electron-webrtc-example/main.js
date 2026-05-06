@@ -2324,7 +2324,7 @@ async function syncInitialDeviceStatus(reason = 'startup') {
 
     if (data) {
       console.log('[DeviceStatus] Initial sync row:', data);
-      handleDeviceStatusUpdate(data);
+      awayManager.syncWithDatabaseStatus(data);
     }
   } catch (err) {
     console.error('[DeviceStatus] Initial sync unexpected error:', err?.message || err);
