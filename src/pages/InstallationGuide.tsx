@@ -265,7 +265,7 @@ const InstallationGuide: React.FC = () => {
                             </span>
                           </li>
                           {/* Show dashboard download image after "בדף לוח הבקרה" detail in the first step */}
-                          {index === 0 && i === 1 && (
+                          {showWindowsImages && index === 0 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? dashboardDownloadImg : dashboardDownloadEnImg}
