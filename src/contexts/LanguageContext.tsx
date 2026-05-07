@@ -10,10 +10,10 @@ interface LanguageContextType {
 }
 
 const defaultContext: LanguageContextType = {
-  language: 'he',
+  language: 'en',
   setLanguage: () => {},
-  t: translations['he'],
-  isRTL: true,
+  t: translations['en'],
+  isRTL: false,
 };
 
 const LanguageContext = createContext<LanguageContextType>(defaultContext);
@@ -21,7 +21,7 @@ const LanguageContext = createContext<LanguageContextType>(defaultContext);
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [language, setLanguage] = useState<Language>(() => {
     const saved = safeStorage.getItem('local', 'language');
-    return saved === 'en' || saved === 'he' ? saved : 'he';
+    return saved === 'en' || saved === 'he' ? saved : 'en';
   });
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     document.documentElement.lang = language;
   }, [language]);
 
-  const t = translations[language] ?? translations.he;
+  const t = translations[language] ?? translations.en;
   const isRTL = language === 'he';
 
   return (
