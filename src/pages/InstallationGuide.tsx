@@ -271,7 +271,7 @@ const InstallationGuide: React.FC = () => {
                           <li className="flex items-start gap-2 text-slate-600">
                             <CheckCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />
                             <span className="flex items-center gap-1 flex-wrap">
-                              {index === 4 && i === 3 ? (
+                              {step.id === 'setup' && i === 3 ? (
                                 <>
                                   {detail.split(',')[0]}
                                   {showWindowsImages && (
