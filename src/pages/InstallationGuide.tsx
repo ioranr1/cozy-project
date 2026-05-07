@@ -402,7 +402,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show blue badge tray icon image after first detail in update step */}
-                          {showWindowsImages && index === 6 && i === 0 && (
+                          {showWindowsImages && step.id === 'update' && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayBlueBadgeImg}
@@ -411,7 +411,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {showWindowsImages && index === 6 && i === 1 && (
+                          {showWindowsImages && step.id === 'update' && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayUpdateMenuImg}
