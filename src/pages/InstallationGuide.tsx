@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Header } from '@/components/layout/Header';
 import dashboardDownloadImg from '@/assets/dashboard-download-example.png';
 import dashboardDownloadEnImg from '@/assets/installation-download-en.png';
@@ -20,15 +20,18 @@ import continueToPairingHeImg from '@/assets/continue-to-pairing-he.png';
 import continueToPairingEnImg from '@/assets/continue-to-pairing-en.png';
 import { Footer } from '@/components/layout/Footer';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw, AlertTriangle, Link2 } from 'lucide-react';
+import { Download, Monitor, Smartphone, Shield, CheckCircle, ArrowLeft, ArrowRight, RefreshCw, AlertTriangle, Link2, Apple } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { detectDesktopPlatform } from '@/lib/desktopAgentDownloads';
 
 const InstallationGuide: React.FC = () => {
   const { t, isRTL } = useLanguage();
   const guide = t.installationGuide;
+  const detectedOs = useMemo(() => detectDesktopPlatform(), []);
+  const [osTab, setOsTab] = useState<'windows' | 'mac'>(detectedOs === 'mac' ? 'mac' : 'windows');
 
-  const steps = [
+  const windowsSteps = [
     {
       icon: Download,
       title: guide.steps.download.title,
@@ -73,6 +76,54 @@ const InstallationGuide: React.FC = () => {
     },
   ];
 
+  const macSteps = [
+    {
+      icon: Download,
+      title: guide.macSteps.download.title,
+      description: guide.macSteps.download.description,
+      details: guide.macSteps.download.details,
+    },
+    {
+      icon: AlertTriangle,
+      title: guide.macSteps.gatekeeper.title,
+      description: guide.macSteps.gatekeeper.description,
+      details: guide.macSteps.gatekeeper.details,
+    },
+    {
+      icon: Apple,
+      title: guide.macSteps.install.title,
+      description: guide.macSteps.install.description,
+      details: guide.macSteps.install.details,
+    },
+    {
+      icon: Link2,
+      title: guide.macSteps.afterInstall.title,
+      description: guide.macSteps.afterInstall.description,
+      details: guide.macSteps.afterInstall.details,
+    },
+    {
+      icon: Shield,
+      title: guide.macSteps.setup.title,
+      description: guide.macSteps.setup.description,
+      details: guide.macSteps.setup.details,
+    },
+    {
+      icon: Smartphone,
+      title: guide.steps.connect.title,
+      description: guide.steps.connect.description,
+      details: guide.steps.connect.details,
+    },
+    {
+      icon: RefreshCw,
+      title: guide.steps.update.title,
+      description: guide.steps.update.description,
+      details: guide.steps.update.details,
+    },
+  ];
+
+  const steps = osTab === 'mac' ? macSteps : windowsSteps;
+  const showWindowsImages = osTab === 'windows';
+
   return (
     <div className="min-h-screen bg-white">
       <Header />
@@ -112,6 +163,36 @@ const InstallationGuide: React.FC = () => {
                 <Smartphone className="w-6 h-6 text-cyan-600" />
                 <span>{guide.twoStepsPhone}</span>
               </div>
+            </div>
+          </div>
+
+          {/* OS Tabs */}
+          <div className="mb-8 flex justify-center">
+            <div className="inline-flex bg-slate-100 border border-slate-200 rounded-2xl p-1.5 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setOsTab('windows')}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold transition-all ${
+                  osTab === 'windows'
+                    ? 'bg-gradient-to-r from-cyan-500 to-sky-600 text-white shadow-md shadow-cyan-500/30'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <Monitor className="w-5 h-5" />
+                {guide.osTabs.windows}
+              </button>
+              <button
+                type="button"
+                onClick={() => setOsTab('mac')}
+                className={`flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold transition-all ${
+                  osTab === 'mac'
+                    ? 'bg-gradient-to-r from-cyan-500 to-sky-600 text-white shadow-md shadow-cyan-500/30'
+                    : 'text-slate-600 hover:text-slate-800'
+                }`}
+              >
+                <Apple className="w-5 h-5" />
+                {guide.osTabs.mac}
+              </button>
             </div>
           </div>
 
@@ -169,11 +250,13 @@ const InstallationGuide: React.FC = () => {
                               {index === 4 && i === 3 ? (
                                 <>
                                   {detail.split(',')[0]}
-                                  <img
-                                    src={trayIconImg}
-                                    alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
-                                    className="inline-block w-12 h-12 align-middle"
-                                  />
+                                  {showWindowsImages && (
+                                    <img
+                                      src={trayIconImg}
+                                      alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
+                                      className="inline-block w-12 h-12 align-middle"
+                                    />
+                                  )}
                                   ,{detail.split(',').slice(1).join(',')}
                                 </>
                               ) : (
@@ -192,7 +275,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show SmartScreen images for the new Windows warning step */}
-                          {index === 1 && i === 0 && (
+                          {showWindowsImages && index === 1 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={smartscreen1Img}
@@ -201,7 +284,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 1 && i === 1 && (
+                          {showWindowsImages && index === 1 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={smartscreen2Img}
@@ -211,7 +294,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show installation setup image after first detail in step 3 (install) */}
-                          {index === 2 && i === 0 && (
+                          {showWindowsImages && index === 2 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={installationSetupImg}
@@ -268,7 +351,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show blue badge tray icon image after first detail in update step */}
-                          {index === 6 && i === 0 && (
+                          {showWindowsImages && index === 6 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayBlueBadgeImg}
@@ -277,7 +360,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 6 && i === 1 && (
+                          {showWindowsImages && index === 6 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayUpdateMenuImg}

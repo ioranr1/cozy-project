@@ -111,6 +111,57 @@ export const translations = {
      sectionLaptopTitle: 'התקנה בלאפטופ',
      sectionPhoneTitle: 'התקנה בטלפון הנייד',
      sectionGeneralTitle: 'כללי',
+      osTabs: {
+        windows: 'Windows',
+        mac: 'Mac',
+      },
+      macSteps: {
+        download: {
+          title: 'הורדת האפליקציה (Mac)',
+          description: 'הורד את קובץ ה-DMG מהאתר שלנו https://aiguard24.com והרשם באמצעות כפתור "התחל עכשיו"',
+          details: [
+            'הכנס שם מלא, אימייל, מספר טלפון נייד וקבל באמצעות וואטסאפ מספר אימות',
+            'בדף "לוח הבקרה" לחץ על כפתור ההורדה (זיהוי אוטומטי עבור Mac)',
+            'המתן לסיום ההורדה של קובץ ה-DMG',
+          ],
+        },
+        gatekeeper: {
+          title: 'אישור Gatekeeper (עבור Mac בלבד)',
+          description: 'בעת פתיחת האפליקציה בפעם הראשונה ב-Mac עשויה להופיע הודעה: "cannot be opened because Apple cannot check it for malicious software". זהו שלב רגיל - יש לאשר את ההפעלה:',
+          details: [
+            'פתח את "System Settings" → "Privacy & Security"',
+            'גלול למטה ולחץ על "Open Anyway" ליד שם האפליקציה AIGuard',
+            'אשר שוב בחלון שיקפוץ על ידי לחיצה על "Open"',
+          ],
+        },
+        install: {
+          title: 'התקנה על ה-Mac',
+          description: 'התקן את האפליקציה על ה-Mac שישמש כמצלמה',
+          details: [
+            'לחץ פעמיים על קובץ ה-DMG שהורדת',
+            'גרור את אייקון AIGuard לתיקיית Applications',
+            'אפשר גישה למצלמה ולמיקרופון כשתתבקש (System Settings → Privacy & Security)',
+          ],
+        },
+        afterInstall: {
+          title: 'לאחר ההתקנה',
+          description: 'בסיום ההתקנה ייפתח חלון סוכן המצלמה',
+          details: [
+            'לחץ על הכפתור "המשך לצימוד" (מסומן באדום בתמונה)',
+          ],
+        },
+        setup: {
+          title: 'צימוד מצלמת ה-Mac לאפליקציה',
+          description: 'השלבים לצימוד המצלמה:',
+          details: [
+            'בדשבורד לחץ על כפתור "מכשירים" כבתמונה',
+            'לחץ על כפתור "+ צימוד מצלמה חדשה" כבתמונה',
+            'העתק את הקוד כבתמונה (חד פעמי)',
+            'לחץ על האייקון בשורת התפריטים העליונה (Menu Bar) של ה-Mac, הדבק הקוד והתחבר',
+            'זהו, המצלמה מחוברת - נא הקפד לא לסגור את ה-Mac. המסך יכבה על פי ההגדרות הקודמות שלך אבל המערכת תעבוד ברקע. עבור לשלב 6 בכדי לבדוק ולהפעיל',
+          ],
+        },
+      },
       steps: {
         download: {
           title: 'הורדת האפליקציה',
@@ -422,6 +473,57 @@ export const translations = {
      sectionLaptopTitle: 'Laptop Installation',
      sectionPhoneTitle: 'Mobile Phone Installation',
      sectionGeneralTitle: 'General',
+      osTabs: {
+        windows: 'Windows',
+        mac: 'Mac',
+      },
+      macSteps: {
+        download: {
+          title: 'Download the App (Mac)',
+          description: 'Download the DMG file from our website https://aiguard24.com and register using the "Get Started" button',
+          details: [
+            'Enter full name, email, mobile phone number and receive a verification code via WhatsApp',
+            'In the "Control Panel" click the download button (auto-detected for Mac)',
+            'Wait for the DMG download to complete',
+          ],
+        },
+        gatekeeper: {
+          title: 'Gatekeeper Approval (Mac only)',
+          description: 'When opening the app for the first time on Mac, a message may appear: "cannot be opened because Apple cannot check it for malicious software". This is normal — approve it as follows:',
+          details: [
+            'Open "System Settings" → "Privacy & Security"',
+            'Scroll down and click "Open Anyway" next to AIGuard',
+            'Confirm again by clicking "Open" in the popup',
+          ],
+        },
+        install: {
+          title: 'Install on Mac',
+          description: 'Install the app on the Mac that will serve as a camera',
+          details: [
+            'Double-click the downloaded DMG file',
+            'Drag the AIGuard icon into the Applications folder',
+            'Allow camera and microphone access when prompted (System Settings → Privacy & Security)',
+          ],
+        },
+        afterInstall: {
+          title: 'After Installation',
+          description: 'When installation completes, the Camera Agent window will open',
+          details: [
+            'Click the "Continue to Pairing" button (circled in red in the image)',
+          ],
+        },
+        setup: {
+          title: 'Pairing the Mac Camera',
+          description: 'Steps to pair the camera:',
+          details: [
+            'In the dashboard, click the "Devices" button as in the image',
+            'Click the "+ Pair new camera" button as in the image',
+            'Copy the code as in the image (one-time)',
+            'Click the icon in the top Menu Bar of your Mac, paste the code and connect',
+            'That\'s it, the camera is connected - keep the Mac open. The screen will turn off according to your settings but the system will keep running in the background. Go to step 6 to test and activate',
+          ],
+        },
+      },
       steps: {
         download: {
           title: 'Download the App',
