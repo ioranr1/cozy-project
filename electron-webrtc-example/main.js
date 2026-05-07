@@ -99,7 +99,10 @@ let liveViewMacWatchdogTimer = null;
 const MAC_CAFFEINATE_PATH = '/usr/bin/caffeinate';
 
 function _spawnMacCaffeinate(label) {
-  const proc = spawn(MAC_CAFFEINATE_PATH, ['-d', '-i', '-m', '-s', '-u'], {
+  // v2.52.53: Use -i -m -s ONLY (no -d, no -u) so Live View on macOS keeps the
+  // camera alive WITHOUT forcing the display awake. Previously -d/-u woke the
+  // screen during AWAY mode when the user started Live View remotely.
+  const proc = spawn(MAC_CAFFEINATE_PATH, ['-i', '-m', '-s'], {
     stdio: 'ignore',
     detached: false,
   });
@@ -114,8 +117,10 @@ function startMacCameraAwake(reason = 'live-view') {
 
   try {
     if (liveViewMacPowerBlockerId === null) {
-      liveViewMacPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
-      console.log('[MacCameraAwake] Electron prevent-display-sleep started:', liveViewMacPowerBlockerId, 'reason:', reason);
+      // v2.52.53: prevent-app-suspension keeps the renderer/camera alive but
+      // does NOT force the display on, preserving AWAY display-off behavior.
+      liveViewMacPowerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
+      console.log('[MacCameraAwake] Electron prevent-app-suspension started:', liveViewMacPowerBlockerId, 'reason:', reason);
     }
 
     if (!liveViewMacCaffeinateProcess) {
@@ -124,7 +129,7 @@ function startMacCameraAwake(reason = 'live-view') {
         console.log('[MacCameraAwake] caffeinate exited:', code);
         liveViewMacCaffeinateProcess = null;
       });
-      console.log('[MacCameraAwake] caffeinate -dimsu started for active camera, reason:', reason);
+      console.log('[MacCameraAwake] caffeinate -ims started for active camera (display can sleep), reason:', reason);
     }
 
     // v2.52.35: Watchdog re-asserts every 20s in case caffeinate dies or PATH issues.
@@ -132,7 +137,7 @@ function startMacCameraAwake(reason = 'live-view') {
       liveViewMacWatchdogTimer = setInterval(() => {
         if (liveViewMacPowerBlockerId !== null && !powerSaveBlocker.isStarted(liveViewMacPowerBlockerId)) {
           console.warn('[MacCameraAwake] Watchdog: powerSaveBlocker dropped — restarting');
-          liveViewMacPowerBlockerId = powerSaveBlocker.start('prevent-display-sleep');
+          liveViewMacPowerBlockerId = powerSaveBlocker.start('prevent-app-suspension');
         }
         if (!liveViewMacCaffeinateProcess) {
           console.warn('[MacCameraAwake] Watchdog: caffeinate missing — respawning');
