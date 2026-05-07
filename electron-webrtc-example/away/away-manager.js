@@ -766,9 +766,19 @@ class AwayManager {
       const match = output.match(/^\s*displaysleep\s+(\d+)\b/m);
       if (match) {
         const minutes = Number(match[1]);
-        this.state.displaySleepSeconds = minutes > 0 ? Math.max(60, minutes * 60) : null;
+        // v2.52.51: If macOS reports displaysleep=0 (Never) — typical when the Mac
+        // is plugged into power with "Prevent display sleep" enabled — we MUST
+        // still re-darken the screen for AWAY mode. Fall back to 5 minutes
+        // instead of returning null, otherwise AWAY would never re-enforce the
+        // display-off after the user wakes the screen with the mouse.
+        if (minutes > 0) {
+          this.state.displaySleepSeconds = Math.max(60, minutes * 60);
+        } else {
+          this.state.displaySleepSeconds = fallbackSeconds;
+          console.log('[AwayManager] macOS displaysleep=0 (Never) -> using AWAY fallback', fallbackSeconds, 's');
+        }
         this.state.displaySleepSettingCheckedAtMs = now;
-        console.log('[AwayManager] macOS active displaysleep setting:', minutes, 'minutes');
+        console.log('[AwayManager] macOS active displaysleep setting:', minutes, 'minutes -> seconds:', this.state.displaySleepSeconds);
         return this.state.displaySleepSeconds;
       }
     } catch (err) {
