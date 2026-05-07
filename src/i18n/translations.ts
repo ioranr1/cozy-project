@@ -143,6 +143,13 @@ export const translations = {
             'אפשר גישה למצלמה ולמיקרופון כשתתבקש (System Settings → Privacy & Security)',
           ],
         },
+        openFromApplications: {
+          title: 'פתיחת האפליקציה מתיקיית Applications',
+          description: 'פתח את תיקיית Applications ולחץ על האייקון של Security Camera Agent כדי להתקין/להפעיל',
+          details: [
+            'בתיקיית Applications לחץ על אייקון Security Camera Agent להתקנה',
+          ],
+        },
         afterInstall: {
           title: 'לאחר ההתקנה',
           description: 'בסיום ההתקנה ייפתח חלון סוכן המצלמה',
@@ -503,6 +510,13 @@ export const translations = {
             'Double-click the downloaded DMG file',
             'Drag the AIGuard icon into the Applications folder',
             'Allow camera and microphone access when prompted (System Settings → Privacy & Security)',
+          ],
+        },
+        openFromApplications: {
+          title: 'Open from Applications folder',
+          description: 'Open the Applications folder and click the Security Camera Agent icon to install/launch',
+          details: [
+            'In the Applications folder, click the Security Camera Agent icon to install',
           ],
         },
         afterInstall: {
