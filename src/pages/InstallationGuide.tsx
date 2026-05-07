@@ -6,6 +6,7 @@ import dashboardDownloadMacImg from '@/assets/installation-download-mac.png';
 import macInstallDmgImg from '@/assets/mac-install-dmg.png';
 import macApplicationsIconImg from '@/assets/mac-applications-icon.png';
 import macGatekeeperOpenImg from '@/assets/mac-gatekeeper-open.png';
+import macMenubarIconImg from '@/assets/mac-menubar-icon.png';
 import installationSetupImg from '@/assets/installation-setup-example.png';
 import devicesButtonImg from '@/assets/devices-button-example.png';
 import devicesButtonEnImg from '@/assets/devices-button-example-en.png';
@@ -275,11 +276,17 @@ const InstallationGuide: React.FC = () => {
                               {step.id === 'setup' && i === 3 ? (
                                 <>
                                   {detail.split(',')[0]}
-                                  {showWindowsImages && (
+                                  {showWindowsImages ? (
                                     <img
                                       src={trayIconImg}
                                       alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
                                       className="inline-block w-12 h-12 align-middle"
+                                    />
+                                  ) : (
+                                    <img
+                                      src={macMenubarIconImg}
+                                      alt={isRTL ? 'איקון Menu Bar של Mac' : 'Mac Menu Bar icon'}
+                                      className="inline-block w-8 h-8 align-middle"
                                     />
                                   )}
                                   ,{detail.split(',').slice(1).join(',')}
