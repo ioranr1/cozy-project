@@ -274,23 +274,34 @@ const InstallationGuide: React.FC = () => {
                             <CheckCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />
                             <span className="flex items-center gap-1 flex-wrap">
                               {step.id === 'setup' && i === 3 ? (
-                                <>
-                                  {detail.split(',')[0]}
-                                  {showWindowsImages ? (
+                                showWindowsImages ? (
+                                  <>
+                                    {detail.split(',')[0]}
                                     <img
                                       src={trayIconImg}
                                       alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
                                       className="inline-block w-12 h-12 align-middle"
                                     />
-                                  ) : (
-                                    <img
-                                      src={macMenubarIconImg}
-                                      alt={isRTL ? 'איקון Menu Bar של Mac' : 'Mac Menu Bar icon'}
-                                      className="inline-block w-8 h-8 align-middle"
-                                    />
-                                  )}
-                                  ,{detail.split(',').slice(1).join(',')}
-                                </>
+                                    ,{detail.split(',').slice(1).join(',')}
+                                  </>
+                                ) : (() => {
+                                  const splitter = isRTL ? 'האייקון' : 'icon';
+                                  const idx = detail.indexOf(splitter);
+                                  if (idx === -1) return detail;
+                                  const before = detail.slice(0, idx + splitter.length);
+                                  const after = detail.slice(idx + splitter.length);
+                                  return (
+                                    <>
+                                      {before}
+                                      <img
+                                        src={macMenubarIconImg}
+                                        alt={isRTL ? 'איקון Menu Bar של Mac' : 'Mac Menu Bar icon'}
+                                        className="inline-block w-16 h-16 align-middle"
+                                      />
+                                      {after}
+                                    </>
+                                  );
+                                })()
                               ) : (
                                 detail
                               )}
