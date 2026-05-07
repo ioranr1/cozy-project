@@ -4,6 +4,7 @@ import dashboardDownloadImg from '@/assets/dashboard-download-example.png';
 import dashboardDownloadEnImg from '@/assets/installation-download-en.png';
 import dashboardDownloadMacImg from '@/assets/installation-download-mac.png';
 import macInstallDmgImg from '@/assets/mac-install-dmg.png';
+import macApplicationsIconImg from '@/assets/mac-applications-icon.png';
 import installationSetupImg from '@/assets/installation-setup-example.png';
 import devicesButtonImg from '@/assets/devices-button-example.png';
 import devicesButtonEnImg from '@/assets/devices-button-example-en.png';
@@ -35,42 +36,49 @@ const InstallationGuide: React.FC = () => {
 
   const windowsSteps = [
     {
+      id: 'download',
       icon: Download,
       title: guide.steps.download.title,
       description: guide.steps.download.description,
       details: guide.steps.download.details,
     },
     {
+      id: 'smartscreen',
       icon: AlertTriangle,
       title: guide.steps.smartscreen.title,
       description: guide.steps.smartscreen.description,
       details: guide.steps.smartscreen.details,
     },
     {
+      id: 'install',
       icon: Monitor,
       title: guide.steps.install.title,
       description: guide.steps.install.description,
       details: guide.steps.install.details,
     },
     {
+      id: 'afterInstall',
       icon: Link2,
       title: guide.steps.afterInstall.title,
       description: guide.steps.afterInstall.description,
       details: guide.steps.afterInstall.details,
     },
     {
+      id: 'setup',
       icon: Shield,
       title: guide.steps.setup.title,
       description: guide.steps.setup.description,
       details: guide.steps.setup.details,
     },
     {
+      id: 'connect',
       icon: Smartphone,
       title: guide.steps.connect.title,
       description: guide.steps.connect.description,
       details: guide.steps.connect.details,
     },
     {
+      id: 'update',
       icon: RefreshCw,
       title: guide.steps.update.title,
       description: guide.steps.update.description,
@@ -80,42 +88,56 @@ const InstallationGuide: React.FC = () => {
 
   const macSteps = [
     {
+      id: 'download',
       icon: Download,
       title: guide.macSteps.download.title,
       description: guide.macSteps.download.description,
       details: guide.macSteps.download.details,
     },
     {
+      id: 'install',
       icon: Apple,
       title: guide.macSteps.install.title,
       description: guide.macSteps.install.description,
       details: guide.macSteps.install.details,
     },
     {
+      id: 'openFromApplications',
+      icon: Apple,
+      title: guide.macSteps.openFromApplications.title,
+      description: guide.macSteps.openFromApplications.description,
+      details: guide.macSteps.openFromApplications.details,
+    },
+    {
+      id: 'gatekeeper',
       icon: AlertTriangle,
       title: guide.macSteps.gatekeeper.title,
       description: guide.macSteps.gatekeeper.description,
       details: guide.macSteps.gatekeeper.details,
     },
     {
+      id: 'afterInstall',
       icon: Link2,
       title: guide.macSteps.afterInstall.title,
       description: guide.macSteps.afterInstall.description,
       details: guide.macSteps.afterInstall.details,
     },
     {
+      id: 'setup',
       icon: Shield,
       title: guide.macSteps.setup.title,
       description: guide.macSteps.setup.description,
       details: guide.macSteps.setup.details,
     },
     {
+      id: 'connect',
       icon: Smartphone,
       title: guide.steps.connect.title,
       description: guide.steps.connect.description,
       details: guide.steps.connect.details,
     },
     {
+      id: 'update',
       icon: RefreshCw,
       title: guide.steps.update.title,
       description: guide.steps.update.description,
@@ -208,13 +230,13 @@ const InstallationGuide: React.FC = () => {
                   {guide.sectionLaptopTitle}
                 </h2>
               )}
-              {index === 5 && (
+              {step.id === 'connect' && (
                 <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
                   <Smartphone className="w-7 h-7 text-cyan-600" />
                   {guide.sectionPhoneTitle}
                 </h2>
               )}
-              {index === 6 && (
+              {step.id === 'update' && (
                 <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
                   <RefreshCw className="w-7 h-7 text-cyan-600" />
                   {guide.sectionGeneralTitle}
@@ -249,7 +271,7 @@ const InstallationGuide: React.FC = () => {
                           <li className="flex items-start gap-2 text-slate-600">
                             <CheckCircle className="w-5 h-5 text-cyan-500 flex-shrink-0 mt-0.5" />
                             <span className="flex items-center gap-1 flex-wrap">
-                              {index === 4 && i === 3 ? (
+                              {step.id === 'setup' && i === 3 ? (
                                 <>
                                   {detail.split(',')[0]}
                                   {showWindowsImages && (
@@ -294,6 +316,15 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
+                          {step.id === 'openFromApplications' && i === 0 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={macApplicationsIconImg}
+                                alt={isRTL ? 'אייקון Security Camera Agent בתיקיית Applications' : 'Security Camera Agent icon in Applications folder'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
                           {/* Show SmartScreen images for the new Windows warning step */}
                           {showWindowsImages && index === 1 && i === 0 && (
                             <li className="mt-3 mb-1">
@@ -324,7 +355,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* New "After Installation" step image */}
-                          {index === 3 && i === 0 && (
+                          {step.id === 'afterInstall' && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? continueToPairingHeImg : continueToPairingEnImg}
@@ -334,7 +365,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show devices button image after first detail in setup step */}
-                          {index === 4 && i === 0 && (
+                          {step.id === 'setup' && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? devicesButtonImg : devicesButtonEnImg}
@@ -343,7 +374,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 4 && i === 1 && (
+                          {step.id === 'setup' && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pairCameraButtonImg : pairCameraButtonEnImg}
@@ -352,7 +383,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 4 && i === 2 && (
+                          {step.id === 'setup' && i === 2 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pairingCodeExampleImg : pairingCodeExampleEnImg}
@@ -361,7 +392,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 4 && i === 3 && (
+                          {step.id === 'setup' && i === 3 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pasteCodeImg : pasteCodeEnImg}
@@ -371,7 +402,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show blue badge tray icon image after first detail in update step */}
-                          {showWindowsImages && index === 6 && i === 0 && (
+                          {showWindowsImages && step.id === 'update' && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayBlueBadgeImg}
@@ -380,7 +411,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {showWindowsImages && index === 6 && i === 1 && (
+                          {showWindowsImages && step.id === 'update' && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={trayUpdateMenuImg}
