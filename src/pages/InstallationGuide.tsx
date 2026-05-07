@@ -250,11 +250,13 @@ const InstallationGuide: React.FC = () => {
                               {index === 4 && i === 3 ? (
                                 <>
                                   {detail.split(',')[0]}
-                                  <img
-                                    src={trayIconImg}
-                                    alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
-                                    className="inline-block w-12 h-12 align-middle"
-                                  />
+                                  {showWindowsImages && (
+                                    <img
+                                      src={trayIconImg}
+                                      alt={isRTL ? 'איקון סרגל המשימות' : 'Taskbar icon'}
+                                      className="inline-block w-12 h-12 align-middle"
+                                    />
+                                  )}
                                   ,{detail.split(',').slice(1).join(',')}
                                 </>
                               ) : (
@@ -273,7 +275,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show SmartScreen images for the new Windows warning step */}
-                          {index === 1 && i === 0 && (
+                          {showWindowsImages && index === 1 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={smartscreen1Img}
@@ -282,7 +284,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 1 && i === 1 && (
+                          {showWindowsImages && index === 1 && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={smartscreen2Img}
@@ -292,7 +294,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show installation setup image after first detail in step 3 (install) */}
-                          {index === 2 && i === 0 && (
+                          {showWindowsImages && index === 2 && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={installationSetupImg}
