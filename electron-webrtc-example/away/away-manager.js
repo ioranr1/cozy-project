@@ -751,40 +751,11 @@ class AwayManager {
       return this.state.displaySleepSeconds;
     }
 
-    if (process.platform !== 'darwin') {
-      this.state.displaySleepSeconds = fallbackSeconds;
-      this.state.displaySleepSettingCheckedAtMs = now;
-      return fallbackSeconds;
-    }
-
-    try {
-      const output = execSync('/usr/bin/pmset -g', {
-        encoding: 'utf8',
-        timeout: 1500,
-        stdio: ['ignore', 'pipe', 'ignore'],
-      });
-      const match = output.match(/^\s*displaysleep\s+(\d+)\b/m);
-      if (match) {
-        const minutes = Number(match[1]);
-        // v2.52.51: If macOS reports displaysleep=0 (Never) — typical when the Mac
-        // is plugged into power with "Prevent display sleep" enabled — we MUST
-        // still re-darken the screen for AWAY mode. Fall back to 5 minutes
-        // instead of returning null, otherwise AWAY would never re-enforce the
-        // display-off after the user wakes the screen with the mouse.
-        if (minutes > 0) {
-          this.state.displaySleepSeconds = Math.max(60, minutes * 60);
-        } else {
-          this.state.displaySleepSeconds = fallbackSeconds;
-          console.log('[AwayManager] macOS displaysleep=0 (Never) -> using AWAY fallback', fallbackSeconds, 's');
-        }
-        this.state.displaySleepSettingCheckedAtMs = now;
-        console.log('[AwayManager] macOS active displaysleep setting:', minutes, 'minutes -> seconds:', this.state.displaySleepSeconds);
-        return this.state.displaySleepSeconds;
-      }
-    } catch (err) {
-      console.warn('[AwayManager] Could not read macOS displaysleep setting, using 5 minutes:', err?.message || err);
-    }
-
+    // v2.52.52: Ignore macOS pmset displaysleep entirely. It varies between AC
+    // and Battery profiles (e.g. AC=10min/Never vs Battery=2min/0), causing
+    // AWAY to behave inconsistently when the power source changes. AWAY is
+    // owned by our app — always use a fixed 5-minute re-darken policy on
+    // every OS, regardless of OS power profile or active assertions.
     this.state.displaySleepSeconds = fallbackSeconds;
     this.state.displaySleepSettingCheckedAtMs = now;
     return fallbackSeconds;
