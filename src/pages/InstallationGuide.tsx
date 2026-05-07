@@ -85,16 +85,16 @@ const InstallationGuide: React.FC = () => {
       details: guide.macSteps.download.details,
     },
     {
-      icon: AlertTriangle,
-      title: guide.macSteps.gatekeeper.title,
-      description: guide.macSteps.gatekeeper.description,
-      details: guide.macSteps.gatekeeper.details,
-    },
-    {
       icon: Apple,
       title: guide.macSteps.install.title,
       description: guide.macSteps.install.description,
       details: guide.macSteps.install.details,
+    },
+    {
+      icon: AlertTriangle,
+      title: guide.macSteps.gatekeeper.title,
+      description: guide.macSteps.gatekeeper.description,
+      details: guide.macSteps.gatekeeper.details,
     },
     {
       icon: Link2,
