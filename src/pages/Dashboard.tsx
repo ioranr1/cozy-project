@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
-import { Laptop, Video, Activity, Bell, Clock, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Monitor, Baby, Camera, Download, Smartphone } from 'lucide-react';
+import { Laptop, Video, Activity, Bell, Clock, Eye, EyeOff, Loader2, CheckCircle, XCircle, AlertCircle, Monitor, Baby, Camera, Download, Smartphone, Apple } from 'lucide-react';
 import { useIsMobileDevice } from '@/hooks/use-platform';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { FeatureGate } from '@/components/FeatureGate';
@@ -745,7 +745,7 @@ const Dashboard: React.FC = () => {
               ) : desktopPlatform === 'mac' ? (
                 <a href={DESKTOP_AGENT_DOWNLOAD_URLS.mac} target="_top" rel="noopener noreferrer">
                   <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
-                    <Monitor className="w-5 h-5" />
+                    <Apple className="w-5 h-5" />
                     {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
                   </Button>
                 </a>
@@ -759,7 +759,7 @@ const Dashboard: React.FC = () => {
                   </a>
                   <a href={DESKTOP_AGENT_DOWNLOAD_URLS.mac} target="_top" rel="noopener noreferrer">
                     <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
-                      <Monitor className="w-5 h-5" />
+                      <Apple className="w-5 h-5" />
                       {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
                     </Button>
                   </a>
