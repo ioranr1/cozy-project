@@ -316,6 +316,15 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
+                          {step.id === 'openFromApplications' && i === 0 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={macApplicationsIconImg}
+                                alt={isRTL ? 'אייקון Security Camera Agent בתיקיית Applications' : 'Security Camera Agent icon in Applications folder'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
                           {/* Show SmartScreen images for the new Windows warning step */}
                           {showWindowsImages && index === 1 && i === 0 && (
                             <li className="mt-3 mb-1">
@@ -346,7 +355,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* New "After Installation" step image */}
-                          {index === 3 && i === 0 && (
+                          {step.id === 'afterInstall' && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? continueToPairingHeImg : continueToPairingEnImg}
@@ -356,7 +365,7 @@ const InstallationGuide: React.FC = () => {
                             </li>
                           )}
                           {/* Show devices button image after first detail in setup step */}
-                          {index === 4 && i === 0 && (
+                          {step.id === 'setup' && i === 0 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? devicesButtonImg : devicesButtonEnImg}
@@ -365,7 +374,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 4 && i === 1 && (
+                          {step.id === 'setup' && i === 1 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pairCameraButtonImg : pairCameraButtonEnImg}
@@ -374,7 +383,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 4 && i === 2 && (
+                          {step.id === 'setup' && i === 2 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pairingCodeExampleImg : pairingCodeExampleEnImg}
@@ -383,7 +392,7 @@ const InstallationGuide: React.FC = () => {
                               />
                             </li>
                           )}
-                          {index === 4 && i === 3 && (
+                          {step.id === 'setup' && i === 3 && (
                             <li className="mt-3 mb-1">
                               <img
                                 src={isRTL ? pasteCodeImg : pasteCodeEnImg}
