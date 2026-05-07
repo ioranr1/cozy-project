@@ -230,13 +230,13 @@ const InstallationGuide: React.FC = () => {
                   {guide.sectionLaptopTitle}
                 </h2>
               )}
-              {index === 5 && (
+              {step.id === 'connect' && (
                 <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
                   <Smartphone className="w-7 h-7 text-cyan-600" />
                   {guide.sectionPhoneTitle}
                 </h2>
               )}
-              {index === 6 && (
+              {step.id === 'update' && (
                 <h2 className="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3 border-b-2 border-cyan-200 pb-3 pt-4">
                   <RefreshCw className="w-7 h-7 text-cyan-600" />
                   {guide.sectionGeneralTitle}
