@@ -111,6 +111,57 @@ export const translations = {
      sectionLaptopTitle: 'התקנה בלאפטופ',
      sectionPhoneTitle: 'התקנה בטלפון הנייד',
      sectionGeneralTitle: 'כללי',
+      osTabs: {
+        windows: 'Windows',
+        mac: 'Mac',
+      },
+      macSteps: {
+        download: {
+          title: 'הורדת האפליקציה (Mac)',
+          description: 'הורד את קובץ ה-DMG מהאתר שלנו https://aiguard24.com והרשם באמצעות כפתור "התחל עכשיו"',
+          details: [
+            'הכנס שם מלא, אימייל, מספר טלפון נייד וקבל באמצעות וואטסאפ מספר אימות',
+            'בדף "לוח הבקרה" לחץ על כפתור ההורדה (זיהוי אוטומטי עבור Mac)',
+            'המתן לסיום ההורדה של קובץ ה-DMG',
+          ],
+        },
+        gatekeeper: {
+          title: 'אישור Gatekeeper (עבור Mac בלבד)',
+          description: 'בעת פתיחת האפליקציה בפעם הראשונה ב-Mac עשויה להופיע הודעה: "cannot be opened because Apple cannot check it for malicious software". זהו שלב רגיל - יש לאשר את ההפעלה:',
+          details: [
+            'פתח את "System Settings" → "Privacy & Security"',
+            'גלול למטה ולחץ על "Open Anyway" ליד שם האפליקציה AIGuard',
+            'אשר שוב בחלון שיקפוץ על ידי לחיצה על "Open"',
+          ],
+        },
+        install: {
+          title: 'התקנה על ה-Mac',
+          description: 'התקן את האפליקציה על ה-Mac שישמש כמצלמה',
+          details: [
+            'לחץ פעמיים על קובץ ה-DMG שהורדת',
+            'גרור את אייקון AIGuard לתיקיית Applications',
+            'אפשר גישה למצלמה ולמיקרופון כשתתבקש (System Settings → Privacy & Security)',
+          ],
+        },
+        afterInstall: {
+          title: 'לאחר ההתקנה',
+          description: 'בסיום ההתקנה ייפתח חלון סוכן המצלמה',
+          details: [
+            'לחץ על הכפתור "המשך לצימוד" (מסומן באדום בתמונה)',
+          ],
+        },
+        setup: {
+          title: 'צימוד מצלמת ה-Mac לאפליקציה',
+          description: 'השלבים לצימוד המצלמה:',
+          details: [
+            'בדשבורד לחץ על כפתור "מכשירים" כבתמונה',
+            'לחץ על כפתור "+ צימוד מצלמה חדשה" כבתמונה',
+            'העתק את הקוד כבתמונה (חד פעמי)',
+            'לחץ על האייקון בשורת התפריטים העליונה (Menu Bar) של ה-Mac, הדבק הקוד והתחבר',
+            'זהו, המצלמה מחוברת - נא הקפד לא לסגור את ה-Mac. המסך יכבה על פי ההגדרות הקודמות שלך אבל המערכת תעבוד ברקע. עבור לשלב 6 בכדי לבדוק ולהפעיל',
+          ],
+        },
+      },
       steps: {
         download: {
           title: 'הורדת האפליקציה',
