@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Header } from '@/components/layout/Header';
 import dashboardDownloadImg from '@/assets/dashboard-download-example.png';
 import dashboardDownloadEnImg from '@/assets/installation-download-en.png';
+import dashboardDownloadMacImg from '@/assets/installation-download-mac.png';
 import installationSetupImg from '@/assets/installation-setup-example.png';
 import devicesButtonImg from '@/assets/devices-button-example.png';
 import devicesButtonEnImg from '@/assets/devices-button-example-en.png';
@@ -270,6 +271,15 @@ const InstallationGuide: React.FC = () => {
                               <img
                                 src={isRTL ? dashboardDownloadImg : dashboardDownloadEnImg}
                                 alt={isRTL ? 'דוגמה לכפתור הורדה בלוח הבקרה' : 'Dashboard download button example'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
+                          {!showWindowsImages && index === 0 && i === 1 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={dashboardDownloadMacImg}
+                                alt={isRTL ? 'דוגמה לכפתור הורדה ל-Mac בלוח הבקרה' : 'Mac download button in dashboard example'}
                                 className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
                               />
                             </li>
