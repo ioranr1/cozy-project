@@ -5,6 +5,7 @@ import dashboardDownloadEnImg from '@/assets/installation-download-en.png';
 import dashboardDownloadMacImg from '@/assets/installation-download-mac.png';
 import macInstallDmgImg from '@/assets/mac-install-dmg.png';
 import macApplicationsIconImg from '@/assets/mac-applications-icon.png';
+import macGatekeeperOpenImg from '@/assets/mac-gatekeeper-open.png';
 import installationSetupImg from '@/assets/installation-setup-example.png';
 import devicesButtonImg from '@/assets/devices-button-example.png';
 import devicesButtonEnImg from '@/assets/devices-button-example-en.png';
@@ -322,6 +323,15 @@ const InstallationGuide: React.FC = () => {
                                 src={macApplicationsIconImg}
                                 alt={isRTL ? 'אייקון Security Camera Agent בתיקיית Applications' : 'Security Camera Agent icon in Applications folder'}
                                 className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-lg"
+                              />
+                            </li>
+                          )}
+                          {step.id === 'gatekeeper' && i === 0 && (
+                            <li className="mt-3 mb-1">
+                              <img
+                                src={macGatekeeperOpenImg}
+                                alt={isRTL ? 'אישור פתיחת האפליקציה - לחץ Open' : 'Approve opening the app - click Open'}
+                                className="rounded-xl border border-slate-200 shadow-sm max-w-full md:max-w-sm"
                               />
                             </li>
                           )}
