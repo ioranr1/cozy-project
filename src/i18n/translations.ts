@@ -473,6 +473,57 @@ export const translations = {
      sectionLaptopTitle: 'Laptop Installation',
      sectionPhoneTitle: 'Mobile Phone Installation',
      sectionGeneralTitle: 'General',
+      osTabs: {
+        windows: 'Windows',
+        mac: 'Mac',
+      },
+      macSteps: {
+        download: {
+          title: 'Download the App (Mac)',
+          description: 'Download the DMG file from our website https://aiguard24.com and register using the "Get Started" button',
+          details: [
+            'Enter full name, email, mobile phone number and receive a verification code via WhatsApp',
+            'In the "Control Panel" click the download button (auto-detected for Mac)',
+            'Wait for the DMG download to complete',
+          ],
+        },
+        gatekeeper: {
+          title: 'Gatekeeper Approval (Mac only)',
+          description: 'When opening the app for the first time on Mac, a message may appear: "cannot be opened because Apple cannot check it for malicious software". This is normal — approve it as follows:',
+          details: [
+            'Open "System Settings" → "Privacy & Security"',
+            'Scroll down and click "Open Anyway" next to AIGuard',
+            'Confirm again by clicking "Open" in the popup',
+          ],
+        },
+        install: {
+          title: 'Install on Mac',
+          description: 'Install the app on the Mac that will serve as a camera',
+          details: [
+            'Double-click the downloaded DMG file',
+            'Drag the AIGuard icon into the Applications folder',
+            'Allow camera and microphone access when prompted (System Settings → Privacy & Security)',
+          ],
+        },
+        afterInstall: {
+          title: 'After Installation',
+          description: 'When installation completes, the Camera Agent window will open',
+          details: [
+            'Click the "Continue to Pairing" button (circled in red in the image)',
+          ],
+        },
+        setup: {
+          title: 'Pairing the Mac Camera',
+          description: 'Steps to pair the camera:',
+          details: [
+            'In the dashboard, click the "Devices" button as in the image',
+            'Click the "+ Pair new camera" button as in the image',
+            'Copy the code as in the image (one-time)',
+            'Click the icon in the top Menu Bar of your Mac, paste the code and connect',
+            'That\'s it, the camera is connected - keep the Mac open. The screen will turn off according to your settings but the system will keep running in the background. Go to step 6 to test and activate',
+          ],
+        },
+      },
       steps: {
         download: {
           title: 'Download the App',
