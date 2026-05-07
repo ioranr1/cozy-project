@@ -4,6 +4,7 @@ import dashboardDownloadImg from '@/assets/dashboard-download-example.png';
 import dashboardDownloadEnImg from '@/assets/installation-download-en.png';
 import dashboardDownloadMacImg from '@/assets/installation-download-mac.png';
 import macInstallDmgImg from '@/assets/mac-install-dmg.png';
+import macApplicationsIconImg from '@/assets/mac-applications-icon.png';
 import installationSetupImg from '@/assets/installation-setup-example.png';
 import devicesButtonImg from '@/assets/devices-button-example.png';
 import devicesButtonEnImg from '@/assets/devices-button-example-en.png';
@@ -35,42 +36,49 @@ const InstallationGuide: React.FC = () => {
 
   const windowsSteps = [
     {
+      id: 'download',
       icon: Download,
       title: guide.steps.download.title,
       description: guide.steps.download.description,
       details: guide.steps.download.details,
     },
     {
+      id: 'smartscreen',
       icon: AlertTriangle,
       title: guide.steps.smartscreen.title,
       description: guide.steps.smartscreen.description,
       details: guide.steps.smartscreen.details,
     },
     {
+      id: 'install',
       icon: Monitor,
       title: guide.steps.install.title,
       description: guide.steps.install.description,
       details: guide.steps.install.details,
     },
     {
+      id: 'afterInstall',
       icon: Link2,
       title: guide.steps.afterInstall.title,
       description: guide.steps.afterInstall.description,
       details: guide.steps.afterInstall.details,
     },
     {
+      id: 'setup',
       icon: Shield,
       title: guide.steps.setup.title,
       description: guide.steps.setup.description,
       details: guide.steps.setup.details,
     },
     {
+      id: 'connect',
       icon: Smartphone,
       title: guide.steps.connect.title,
       description: guide.steps.connect.description,
       details: guide.steps.connect.details,
     },
     {
+      id: 'update',
       icon: RefreshCw,
       title: guide.steps.update.title,
       description: guide.steps.update.description,
@@ -80,42 +88,56 @@ const InstallationGuide: React.FC = () => {
 
   const macSteps = [
     {
+      id: 'download',
       icon: Download,
       title: guide.macSteps.download.title,
       description: guide.macSteps.download.description,
       details: guide.macSteps.download.details,
     },
     {
+      id: 'install',
       icon: Apple,
       title: guide.macSteps.install.title,
       description: guide.macSteps.install.description,
       details: guide.macSteps.install.details,
     },
     {
+      id: 'openFromApplications',
+      icon: Apple,
+      title: guide.macSteps.openFromApplications.title,
+      description: guide.macSteps.openFromApplications.description,
+      details: guide.macSteps.openFromApplications.details,
+    },
+    {
+      id: 'gatekeeper',
       icon: AlertTriangle,
       title: guide.macSteps.gatekeeper.title,
       description: guide.macSteps.gatekeeper.description,
       details: guide.macSteps.gatekeeper.details,
     },
     {
+      id: 'afterInstall',
       icon: Link2,
       title: guide.macSteps.afterInstall.title,
       description: guide.macSteps.afterInstall.description,
       details: guide.macSteps.afterInstall.details,
     },
     {
+      id: 'setup',
       icon: Shield,
       title: guide.macSteps.setup.title,
       description: guide.macSteps.setup.description,
       details: guide.macSteps.setup.details,
     },
     {
+      id: 'connect',
       icon: Smartphone,
       title: guide.steps.connect.title,
       description: guide.steps.connect.description,
       details: guide.steps.connect.details,
     },
     {
+      id: 'update',
       icon: RefreshCw,
       title: guide.steps.update.title,
       description: guide.steps.update.description,
