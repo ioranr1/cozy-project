@@ -117,6 +117,32 @@ const DEFAULT_ICE_SERVERS = [
 const CAMERA_TIMEOUT_MS = 30000; // 30 seconds
 const CAMERA_MAX_RETRIES = 3;
 
+function preferVp8ForVideo(pc) {
+  try {
+    if (!pc || typeof RTCRtpSender === 'undefined' || typeof RTCRtpSender.getCapabilities !== 'function') {
+      return;
+    }
+
+    const capabilities = RTCRtpSender.getCapabilities('video');
+    const codecs = capabilities?.codecs || [];
+    const vp8Codecs = codecs.filter((codec) => codec.mimeType?.toLowerCase() === 'video/vp8');
+
+    if (vp8Codecs.length === 0) {
+      console.warn('[Desktop] VP8 codec is not available; using browser default codec order');
+      return;
+    }
+
+    pc.getTransceivers()
+      .filter((transceiver) => transceiver.sender?.track?.kind === 'video' && typeof transceiver.setCodecPreferences === 'function')
+      .forEach((transceiver) => {
+        transceiver.setCodecPreferences(vp8Codecs);
+        console.log('[Desktop] ✅ VP8 forced for Live View video compatibility');
+      });
+  } catch (error) {
+    console.warn('[Desktop] Could not force VP8 codec preference:', error?.message || error);
+  }
+}
+
 // ============================================================
 // CAMERA HELPERS WITH TIMEOUT & RETRY
 // ============================================================
@@ -494,6 +520,10 @@ async function startLiveView(sessionId, mode = 'full') {
       console.log('[Desktop] Adding track:', track.kind);
       peerConnection.addTrack(track, localStream);
     });
+
+    // Samsung/Android Chrome can report WebRTC as connected while showing black video
+    // when H.264 profile negotiation is incompatible. Prefer VP8 for consistent mobile decode.
+    preferVp8ForVideo(peerConnection);
     
     // 4. Handle ICE candidates
     peerConnection.onicecandidate = async (event) => {
