@@ -47,6 +47,32 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
+function preferVp8InSdp(sdp?: string): string | undefined {
+  if (!sdp) return sdp;
+
+  const lines = sdp.split('\r\n');
+  const videoLineIndex = lines.findIndex((line) => line.startsWith('m=video'));
+  if (videoLineIndex === -1) return sdp;
+
+  const vp8PayloadTypes = lines
+    .map((line) => line.match(/^a=rtpmap:(\d+)\s+VP8\/90000/i)?.[1])
+    .filter((payloadType): payloadType is string => Boolean(payloadType));
+
+  if (vp8PayloadTypes.length === 0) return sdp;
+
+  const parts = lines[videoLineIndex].split(' ');
+  const header = parts.slice(0, 3);
+  const payloadTypes = parts.slice(3);
+  const reorderedPayloadTypes = [
+    ...vp8PayloadTypes,
+    ...payloadTypes.filter((payloadType) => !vp8PayloadTypes.includes(payloadType)),
+  ];
+
+  lines[videoLineIndex] = [...header, ...reorderedPayloadTypes].join(' ');
+  console.log('[RTC] VP8 preferred in mobile answer SDP for Android/Samsung compatibility');
+  return lines.join('\r\n');
+}
+
 // Fetch TURN credentials from edge function
 async function fetchTurnCredentials(): Promise<RTCIceServer[]> {
   try {
@@ -353,9 +379,13 @@ export function useRtcSession({
         console.log('🟡 [RTC] Step 2/4: Creating answer...');
         const answer = await pc.createAnswer();
         console.log('✅ [RTC] Step 2/4: Answer created. SDP length:', answer.sdp?.length);
+        const adjustedAnswer: RTCSessionDescriptionInit = {
+          type: answer.type,
+          sdp: preferVp8InSdp(answer.sdp),
+        };
         
         console.log('🟡 [RTC] Step 3/4: Setting local description...');
-        await pc.setLocalDescription(answer);
+        await pc.setLocalDescription(adjustedAnswer);
         console.log('✅ [RTC] Step 3/4: Local description SET. signalingState:', pc.signalingState);
 
         // Insert answer into database
