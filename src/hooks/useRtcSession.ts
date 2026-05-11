@@ -353,9 +353,13 @@ export function useRtcSession({
         console.log('🟡 [RTC] Step 2/4: Creating answer...');
         const answer = await pc.createAnswer();
         console.log('✅ [RTC] Step 2/4: Answer created. SDP length:', answer.sdp?.length);
+        const adjustedAnswer: RTCSessionDescriptionInit = {
+          type: answer.type,
+          sdp: preferVp8InSdp(answer.sdp),
+        };
         
         console.log('🟡 [RTC] Step 3/4: Setting local description...');
-        await pc.setLocalDescription(answer);
+        await pc.setLocalDescription(adjustedAnswer);
         console.log('✅ [RTC] Step 3/4: Local description SET. signalingState:', pc.signalingState);
 
         // Insert answer into database
