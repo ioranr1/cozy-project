@@ -121,7 +121,10 @@ const Viewer: React.FC = () => {
   // Must start muted for reliable autoplay on mobile
   const [isMuted, setIsMuted] = useState(true);
   const [autoRetryCount, setAutoRetryCount] = useState(0);
+  const [needsPlaybackTap, setNeedsPlaybackTap] = useState(false);
+  const [waitingForVideoFrames, setWaitingForVideoFrames] = useState(false);
   const autoRetryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const videoFrameWatchdogRef = useRef<NodeJS.Timeout | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
@@ -160,6 +163,23 @@ const Viewer: React.FC = () => {
   const sendCommandFnRef = useRef<null | ((cmd: 'START_LIVE_VIEW' | 'STOP_LIVE_VIEW') => Promise<boolean>)>(null);
 
   // RTC Session callbacks
+  const ensureVideoPlayback = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video || !video.srcObject) return;
+
+    try {
+      video.playsInline = true;
+      video.muted = true;
+      video.setAttribute('playsinline', 'true');
+      video.setAttribute('webkit-playsinline', 'true');
+      await video.play();
+      setNeedsPlaybackTap(false);
+    } catch (error) {
+      console.warn('⚠️ [VIEWER] Mobile video playback requires tap:', error);
+      setNeedsPlaybackTap(true);
+    }
+  }, []);
+
   const handleStreamReceived = useCallback((stream: MediaStream) => {
     console.log('🎬 ═══════════════════════════════════════════════════');
     console.log('🎬 [VIEWER] ████ VIDEO STREAM RECEIVED ████');
@@ -186,26 +206,47 @@ const Viewer: React.FC = () => {
     }
 
     console.log('🎬 [VIEWER] Attaching stream to video element...');
+    setNeedsPlaybackTap(false);
+    setWaitingForVideoFrames(true);
     video.srcObject = stream;
 
     // Ensure autoplay works on mobile (muted autoplay is the only reliable path)
     video.playsInline = true;
     video.muted = true;
+    video.setAttribute('playsinline', 'true');
+    video.setAttribute('webkit-playsinline', 'true');
     setIsMuted(true);
 
+    stream.getVideoTracks().forEach((track) => {
+      const retryPlayback = () => {
+        console.log('🎬 [VIEWER] Video track unmuted/live, retrying playback');
+        ensureVideoPlayback();
+      };
+      track.addEventListener('unmute', retryPlayback, { once: true });
+      track.addEventListener('ended', () => setWaitingForVideoFrames(false), { once: true });
+    });
+
     console.log('🎬 [VIEWER] Attempting video.play()...');
-    const playPromise = video.play();
-    if (playPromise && typeof (playPromise as Promise<void>).catch === 'function') {
-      (playPromise as Promise<void>).then(() => {
-        console.log('✅ [VIEWER] Video playing successfully!');
-      }).catch((e) => {
-        console.warn('⚠️ [VIEWER] video.play() blocked:', e);
-      });
+    ensureVideoPlayback();
+
+    if (videoFrameWatchdogRef.current) {
+      clearTimeout(videoFrameWatchdogRef.current);
     }
+
+    videoFrameWatchdogRef.current = setTimeout(() => {
+      const currentVideo = videoRef.current;
+      if (!currentVideo || viewerState === 'idle') return;
+      const hasFrames = currentVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && currentVideo.videoWidth > 0 && currentVideo.videoHeight > 0;
+      setWaitingForVideoFrames(!hasFrames);
+      if (!hasFrames) {
+        console.warn('⚠️ [VIEWER] WebRTC connected but no decoded video frames yet; keeping recovery overlay visible');
+        ensureVideoPlayback();
+      }
+    }, 2500);
 
     setViewerState('connected');
     console.log('✅ [VIEWER] State set to CONNECTED');
-  }, []);
+  }, [ensureVideoPlayback, viewerState]);
 
   const handleRtcError = useCallback((error: string) => {
     console.error('❌ ═══════════════════════════════════════════════════');
