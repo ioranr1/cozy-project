@@ -359,6 +359,12 @@ const Viewer: React.FC = () => {
   // Cleanup stream helper - defined early for use in effects
   const cleanupStream = useCallback(() => {
     console.log('[Viewer] Cleaning up stream');
+    if (videoFrameWatchdogRef.current) {
+      clearTimeout(videoFrameWatchdogRef.current);
+      videoFrameWatchdogRef.current = null;
+    }
+    setNeedsPlaybackTap(false);
+    setWaitingForVideoFrames(false);
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => {
         track.stop();
@@ -1030,8 +1036,34 @@ const Viewer: React.FC = () => {
             autoPlay
             playsInline
             muted={isMuted}
+            onLoadedData={() => setWaitingForVideoFrames(false)}
+            onCanPlay={() => setWaitingForVideoFrames(false)}
             className={`w-full h-full object-contain bg-black ${viewerState !== 'connected' ? 'hidden' : ''}`}
           />
+
+          {viewerState === 'connected' && (needsPlaybackTap || waitingForVideoFrames) && (
+            <button
+              type="button"
+              onClick={ensureVideoPlayback}
+              className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/80 text-white text-center px-6"
+            >
+              {needsPlaybackTap ? (
+                <>
+                  <Video className="w-10 h-10 mb-3 text-cyan-400" />
+                  <span className="text-sm font-medium">
+                    {language === 'he' ? 'הקש להפעלת הווידאו' : 'Tap to start video'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="w-10 h-10 mb-3 text-cyan-400 animate-spin" />
+                  <span className="text-sm font-medium">
+                    {language === 'he' ? 'מכין וידאו...' : 'Preparing video...'}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
 
           {/* Idle State */}
           {viewerState === 'idle' && (
