@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.50 (2026-05-06)
+ * VERSION: 2.52.57 (2026-05-12)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1753,8 +1753,11 @@ async function handleCommand(command) {
         console.log('[Commands] Processing SET_MONITORING:ON command');
         console.log('[Commands] ===================================================');
         try {
-          console.log('[Commands] Calling monitoringManager.enable()...');
-          const monitoringResult = await monitoringManager.enable();
+          console.log('[Commands] Calling monitoringManager.enable() with trusted command intent...');
+          const monitoringResult = await monitoringManager.enable({
+            forceDefaultMotion: true,
+            source: 'SET_MONITORING:ON',
+          });
           console.log('[Commands] monitoringManager.enable() result:', monitoringResult);
           if (!monitoringResult.success) {
             console.error('[Commands] [FAIL] Monitoring enable failed:', monitoringResult.error);

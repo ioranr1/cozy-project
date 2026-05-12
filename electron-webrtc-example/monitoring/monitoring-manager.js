@@ -1,9 +1,12 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.11.3 (2026-05-05)
+ * VERSION: 0.11.4 (2026-05-12)
  * 
  * CHANGELOG:
+ * - v0.11.4: SET_MONITORING:ON may force Motion intent when both DB reads appear
+ *           stale/empty. The Edge Function already validates sensor intent before
+ *           inserting the command, so Electron must not bounce the toggle OFF.
  * - v0.11.3: macOS motion monitoring now also holds Electron prevent-app-suspension
  *           while keeping caffeinate on -ims only, so display policy remains unchanged
  *           but Chromium/AV capture is less likely to suspend after display-off.
@@ -76,7 +79,7 @@ class MonitoringManager {
     this._macCameraPowerBlockerId = null;
     this._macWatchdogTimer = null;
 
-    console.log('[MonitoringManager] Initialized (v0.11.3)');
+    console.log('[MonitoringManager] Initialized (v0.11.4)');
   }
 
   // ===========================================================================
@@ -217,7 +220,7 @@ class MonitoringManager {
   // ENABLE / DISABLE
   // ===========================================================================
 
-  async enable() {
+  async enable(options = {}) {
     if (this.isActive) {
       console.log('[MonitoringManager] Already active');
       return { success: true };
@@ -285,11 +288,31 @@ class MonitoringManager {
         }
       }
 
-      // CRITICAL: Sensor preflight check - skip if ALL sensors disabled
+      // CRITICAL: Sensor preflight check.
+      // v0.11.4: For explicit SET_MONITORING:ON commands, the server has already
+      // validated the user's sensor intent before inserting the command. If both
+      // monitoring_config and device_status look disabled here, treat it as a
+      // transient stale read and force Motion ON instead of bouncing the UI OFF.
       if (!motionEnabled && !babyMonitorEnabled) {
-        console.log('[MonitoringManager] No sensors enabled - skipping activation');
-        this.isStarting = false;
-        return { success: false, error: 'No sensors enabled (motion or baby monitor).' };
+        if (options?.forceDefaultMotion === true) {
+          console.warn('[MonitoringManager] No sensors visible, but command intent is trusted — forcing motion ON', {
+            source: options?.source || 'unknown',
+            deviceId: this.deviceId,
+          });
+          motionEnabled = true;
+          this.config = {
+            ...this.config,
+            monitoring_enabled: true,
+            sensors: {
+              ...this.config?.sensors,
+              motion: { ...(this.config?.sensors?.motion || {}), enabled: true },
+            },
+          };
+        } else {
+          console.log('[MonitoringManager] No sensors enabled - skipping activation');
+          this.isStarting = false;
+          return { success: false, error: 'No sensors enabled (motion or baby monitor).' };
+        }
       }
 
       // Check mainWindow availability
