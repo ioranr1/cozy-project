@@ -31,7 +31,7 @@ export const translations = {
       },
       cloudStorage: {
         title: 'שמירת ארועים',
-        description: 'שומר הקלטות באופן מאובטח במחשב האישי\nואת  תמונת ההתראה בענן  ',
+        description: 'שומר הקלטות באופן מאובטח במחשב האישי\n',
       },
       multiDevice: {
         title: 'ניטור קול',
