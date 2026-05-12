@@ -1,5 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ============================================================
+// send-command v1.1.0 (2026-05-12)
+// SSOT GUARD: Before inserting SET_MONITORING:ON, sync
+// device_status sensor flags from monitoring_config so the
+// Electron agent never rejects the command with
+// "No sensors enabled" due to a stale device_status row.
+// ============================================================
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-session-token, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
@@ -113,6 +121,59 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[send-command] Device verified: ${device.device_name}, active: ${device.is_active}`);
+
+    // ─── SSOT GUARD: sync sensor flags before SET_MONITORING:ON ───
+    // Root cause this fixes: web UI may update monitoring_config but
+    // device_status.motion_enabled / baby_monitor_enabled can lag or
+    // get reset by a sanity-check race. Electron rejects with
+    // "No sensors enabled (motion or baby monitor)" because it reads
+    // device_status. Here we re-derive those flags from
+    // monitoring_config (the UI's source of truth for sensor config).
+    if (typeof command === 'string' && command.startsWith('SET_MONITORING:ON')) {
+      try {
+        const { data: cfgRow } = await supabase
+          .from('monitoring_config')
+          .select('config')
+          .eq('device_id', device_id)
+          .maybeSingle();
+
+        const cfg = (cfgRow?.config ?? {}) as Record<string, unknown>;
+        const sensors = (cfg.sensors ?? {}) as Record<string, { enabled?: boolean }>;
+        const motionEnabled = !!sensors?.motion?.enabled;
+        const babyEnabled = !!cfg.baby_monitor_enabled;
+
+        if (motionEnabled || babyEnabled) {
+          const { error: syncErr } = await supabase
+            .from('device_status')
+            .update({
+              is_armed: true,
+              motion_enabled: motionEnabled,
+              baby_monitor_enabled: babyEnabled,
+              sound_enabled: false,
+              last_command: 'ARM',
+              last_command_at: new Date().toISOString(),
+            })
+            .eq('device_id', device_id);
+
+          if (syncErr) {
+            console.warn('[send-command] device_status sync warning:', syncErr.message);
+          } else {
+            console.log(`[send-command] ✅ Synced device_status (motion=${motionEnabled}, baby=${babyEnabled})`);
+          }
+        } else {
+          console.warn('[send-command] SET_MONITORING:ON requested but no sensors enabled in monitoring_config — refusing');
+          return new Response(
+            JSON.stringify({
+              error: "No sensors enabled in monitoring_config. Please enable Motion or Baby Monitor first.",
+              error_code: "NO_SENSORS_ENABLED"
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } catch (e) {
+        console.error('[send-command] SSOT guard error:', e);
+      }
+    }
 
     // Insert command with status tracking
     const { data: insertedCommand, error: insertError } = await supabase
