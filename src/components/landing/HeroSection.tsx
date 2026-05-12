@@ -31,14 +31,6 @@ export const HeroSection: React.FC = () => {
           
           {/* Devices Image - Left Side in RTL */}
           <div className="relative flex-1 order-2 lg:order-1">
-            {/* Connected Badge */}
-            <div className="absolute -top-4 left-8 z-20">
-              <div className="inline-flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-full px-5 py-2.5 shadow-xl">
-                <span className="text-slate-700 text-sm font-semibold">{isRTL ? 'מחובר' : 'Connected'}</span>
-                <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-              </div>
-            </div>
-            
             {/* Devices Image */}
             <div className="relative">
               <img 
