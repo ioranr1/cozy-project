@@ -56,7 +56,7 @@ export const HeroSection: React.FC = () => {
             {/* Small Badge */}
             <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-5 py-2.5 mb-8">
               <Monitor className="w-4 h-4 text-cyan-300" />
-              <span className="text-white/90 text-sm font-medium">{isRTL ? 'שימוש בכלי AI מתקדמים לאמינות גבוהה וללא התראות שווא' : 'Using advanced AI tools for high reliability and zero false alerts'}</span>
+               <span className="text-white/90 text-sm font-medium">{isRTL ? 'השתמש במחשב הנייד שכבר ברשותך כמערכת אבטחה פרטית ' : 'Using advanced AI tools for high reliability and zero false alerts'}</span>
             </div>
 
             {/* Main Title */}
