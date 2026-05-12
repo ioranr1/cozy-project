@@ -53,10 +53,24 @@ export const HeroSection: React.FC = () => {
 
           {/* Text Content - Right Side in RTL */}
           <div className="flex-1 text-center lg:text-right order-1 lg:order-2">
-            {/* Small Badge */}
-            <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-5 py-2.5 mb-8">
-              <Monitor className="w-4 h-4 text-cyan-300" />
-               <span className="text-white/90 text-sm font-medium">{isRTL ? 'השתמש במחשב הנייד שכבר ברשותך כמערכת אבטחה פרטית ' : 'Use the laptop you already own as a live security monitor'}</span>
+            {/* Small Badge — luminous glass pill */}
+            <div className="relative inline-block mb-8 group">
+              {/* Outer halo */}
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-cyan-400/30 to-blue-400/30 rounded-full blur-md opacity-80 group-hover:opacity-100 transition duration-700 pointer-events-none" />
+              {/* Pill */}
+              <div className="relative inline-flex items-center gap-2.5 px-5 py-2 rounded-full bg-[#0a0f1e]/70 backdrop-blur-xl border border-white/15 shadow-[0_0_20px_-4px_rgba(34,211,238,0.35)] overflow-hidden transition-all duration-300 hover:border-white/25">
+                {/* Shimmer sweep */}
+                <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/15 to-transparent skew-x-[-20deg] animate-[heroBadgeShimmer_4s_cubic-bezier(0.4,0,0.2,1)_infinite]" />
+                {/* Icon with glow */}
+                <span className="relative inline-flex items-center justify-center">
+                  <span className="absolute inset-0 bg-cyan-400/30 blur-[6px] rounded-full" aria-hidden />
+                  <Monitor className="relative w-4 h-4 text-cyan-300 drop-shadow-[0_0_6px_rgba(34,211,238,0.7)]" />
+                </span>
+                {/* Text */}
+                <span className="relative text-sm font-semibold tracking-wide bg-gradient-to-r from-white via-cyan-100 to-white bg-clip-text text-transparent">
+                  {isRTL ? 'השתמש במחשב הנייד שכבר ברשותך כמערכת אבטחה פרטית' : 'Use the laptop you already own as a live security monitor'}
+                </span>
+              </div>
             </div>
 
             {/* Main Title */}
