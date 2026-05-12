@@ -102,3 +102,8 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes heroBadgeShimmer {
+  0% { transform: translateX(-150%) skewX(-20deg); }
+  60%, 100% { transform: translateX(450%) skewX(-20deg); }
+}
