@@ -142,6 +142,7 @@ Deno.serve(async (req) => {
       .insert({
         profile_id: profile.id,
         expires_at: expiresAt.toISOString(),
+        device_fingerprint: req.headers.get("user-agent") || null,
       })
       .select("session_token")
       .single();
