@@ -80,6 +80,10 @@ export default {
             height: "0",
           },
         },
+        heroBadgeShimmer: {
+          "0%": { transform: "translateX(-150%) skewX(-20deg)" },
+          "60%, 100%": { transform: "translateX(450%) skewX(-20deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
