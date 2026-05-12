@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { DeleteAccountDialog } from '@/components/settings/DeleteAccountDialog';
 import { usePwaVersion } from '@/hooks/usePwaVersion';
-import { DESKTOP_AGENT_VERSION } from '@/lib/desktopAgentDownloads';
+import { useLatestAgentVersion } from '@/hooks/useLatestAgentVersion';
 import {
   Info,
   Mail,
@@ -47,6 +47,7 @@ const Settings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const { currentVersion: pwaVersion, loading: pwaLoading } = usePwaVersion(true);
+  const { version: agentVersion, loading: agentLoading } = useLatestAgentVersion();
 
   useEffect(() => {
     let cancelled = false;
@@ -149,9 +150,13 @@ const Settings: React.FC = () => {
                   </div>
                 </div>
               </div>
-              <Badge variant="outline" className="bg-slate-800 border-primary/30 text-primary font-mono">
-                v{DESKTOP_AGENT_VERSION}
-              </Badge>
+              {agentLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-white/50" />
+              ) : (
+                <Badge variant="outline" className="bg-slate-800 border-primary/30 text-primary font-mono">
+                  v{agentVersion}
+                </Badge>
+              )}
             </div>
 
             {/* PWA Web Version (managed from DB) */}
