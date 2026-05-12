@@ -49,6 +49,18 @@ export const HeroSection: React.FC = () => {
               {/* Glow effect under devices */}
               <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 w-3/4 h-16 bg-cyan-400/30 blur-3xl rounded-full" />
             </div>
+
+            {/* Privacy Tagline */}
+            <div className="relative mt-10 flex justify-center">
+              <div className="relative inline-block">
+                <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400/20 via-blue-400/20 to-cyan-400/20 rounded-lg blur-md opacity-60" />
+                <div className="relative px-6 py-3 rounded-lg bg-[#0a0f1e]/40 backdrop-blur-md border border-white/10 text-center">
+                  <p className="text-base md:text-lg font-bold tracking-wide bg-gradient-to-r from-cyan-200 via-white to-blue-200 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]">
+                    {isRTL ? 'המצלמה שלך. הפרטיות שלך.' : 'Your Camera. Your Privacy.'}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Text Content - Right Side in RTL */}
