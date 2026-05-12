@@ -100,6 +100,7 @@ export const HeroSection: React.FC = () => {
                 <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400/20 via-blue-400/20 to-cyan-400/20 rounded-lg blur-md opacity-60" />
                 <div className="relative flex flex-col items-center gap-1 px-6 py-3 rounded-lg bg-[#0a0f1e]/40 backdrop-blur-md border border-white/10">
                   <span className="text-lg md:text-xl font-semibold tracking-wider bg-gradient-to-r from-cyan-200 via-white to-blue-200 bg-clip-text drop-shadow-[0_0_8px_rgba(34,211,238,0.4)] text-yellow-300">
+                    Portable Private Travel Security
                   </span>
                   <span className="text-sm md:text-base font-medium tracking-wide text-yellow-300">
                     {isRTL ? 'תמיד איתך, תמיד זמין' : 'Always with you, Always available'}
