@@ -49,18 +49,11 @@ export const DownloadButton: React.FC = () => {
   if (os === 'windows') {
     return (
       <>
-        <Button size="lg" className={btnClass}>
+        <Button size="lg" className={btnClass} onClick={() => triggerDownload(winUrl)}>
           <Monitor className="w-5 h-5" />
           {isRTL ? 'הורד ל-Windows' : 'Download for Windows'}
         </Button>
         {hiddenIframe}
-        <span onClick={() => triggerDownload(winUrl)} style={{ display: 'none' }} />
-        <button
-          type="button"
-          onClick={() => triggerDownload(winUrl)}
-          className="sr-only"
-          aria-hidden="true"
-        />
       </>
     );
   }
