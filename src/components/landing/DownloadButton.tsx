@@ -1,4 +1,4 @@
-// DownloadButton — v2 (2026-05-21): added Mac Gatekeeper hint banner
+// DownloadButton — v3 (2026-05-21): open download in new tab to avoid navigating away (fixes Mac stuck-spinner)
 import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -37,7 +37,7 @@ export const DownloadButton: React.FC = () => {
 
   if (os === 'windows') {
     return (
-      <a href={winUrl} target="_top" rel="noopener noreferrer">
+      <a href={winUrl} target="_blank" rel="noopener noreferrer" download>
         <Button size="lg" className={btnClass}>
           <Monitor className="w-5 h-5" />
           {isRTL ? 'הורד ל-Windows' : 'Download for Windows'}
@@ -49,7 +49,7 @@ export const DownloadButton: React.FC = () => {
   if (os === 'mac') {
     return (
       <div className="flex flex-col items-center">
-        <a href={macUrl} target="_top" rel="noopener noreferrer">
+        <a href={macUrl} target="_blank" rel="noopener noreferrer" download>
           <Button size="lg" className={btnClass}>
             <Apple className="w-5 h-5" />
             {isRTL ? 'הורד ל-Mac' : 'Download for Mac'}
@@ -64,13 +64,13 @@ export const DownloadButton: React.FC = () => {
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="flex flex-col sm:flex-row gap-3">
-        <a href={winUrl} target="_top" rel="noopener noreferrer">
+        <a href={winUrl} target="_blank" rel="noopener noreferrer" download>
           <Button size="lg" className={btnClass}>
             <Monitor className="w-5 h-5" />
             {isRTL ? 'הורד ל-Windows' : 'Download for Windows'}
           </Button>
         </a>
-        <a href={macUrl} target="_top" rel="noopener noreferrer">
+        <a href={macUrl} target="_blank" rel="noopener noreferrer" download>
           <Button size="lg" className={btnClass}>
             <Apple className="w-5 h-5" />
             {isRTL ? 'הורד ל-Mac' : 'Download for Mac'}
