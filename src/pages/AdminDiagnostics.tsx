@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, Shield, Clock, Cpu, AlertTriangle, Trash2, LogOut, CalendarX, Package } from "lucide-react";
+import { RefreshCw, Shield, Clock, Cpu, AlertTriangle, Trash2, LogOut, CalendarX, Package, Users } from "lucide-react";
 import PwaVersionsTab from "@/components/admin/PwaVersionsTab";
+import RegisteredUsersTab from "@/components/admin/RegisteredUsersTab";
 
 const ADMIN_PASSWORD = "684Mr3411";
 
@@ -218,6 +219,10 @@ const AdminDiagnostics = () => {
 
         <Tabs defaultValue="diagnostics" className="w-full">
           <TabsList>
+            <TabsTrigger value="users" className="gap-2">
+              <Users className="h-4 w-4" />
+              משתמשים רשומים
+            </TabsTrigger>
             <TabsTrigger value="diagnostics" className="gap-2">
               <Cpu className="h-4 w-4" />
               Diagnostics
@@ -228,6 +233,10 @@ const AdminDiagnostics = () => {
               PWA Versions
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="users" className="mt-4">
+            <RegisteredUsersTab />
+          </TabsContent>
 
           <TabsContent value="pwa-versions" className="mt-4">
             <PwaVersionsTab />
