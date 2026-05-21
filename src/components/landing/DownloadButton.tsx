@@ -1,5 +1,5 @@
-// DownloadButton — v3 (2026-05-21): open download in new tab to avoid navigating away (fixes Mac stuck-spinner)
-import React, { useMemo } from 'react';
+// DownloadButton — v4 (2026-05-21): trigger download via hidden iframe — no tab, no navigation
+import React, { useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Monitor, Apple, ShieldAlert } from 'lucide-react';
@@ -9,12 +9,23 @@ import { Link } from 'react-router-dom';
 export const DownloadButton: React.FC = () => {
   const { isRTL } = useLanguage();
   const os = useMemo(() => detectDesktopPlatform(), []);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const winUrl = DESKTOP_AGENT_DOWNLOAD_URLS.windows;
   const macUrl = DESKTOP_AGENT_DOWNLOAD_URLS.mac;
 
+  const triggerDownload = (url: string) => {
+    if (iframeRef.current) {
+      iframeRef.current.src = url;
+    }
+  };
+
   const btnClass =
     'bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-8 py-6 text-lg rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-3';
+
+  const hiddenIframe = (
+    <iframe ref={iframeRef} title="download" style={{ display: 'none' }} />
+  );
 
   const macHint = (
     <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100 max-w-sm">
@@ -37,25 +48,25 @@ export const DownloadButton: React.FC = () => {
 
   if (os === 'windows') {
     return (
-      <a href={winUrl} target="_blank" rel="noopener noreferrer" download>
-        <Button size="lg" className={btnClass}>
+      <>
+        <Button size="lg" className={btnClass} onClick={() => triggerDownload(winUrl)}>
           <Monitor className="w-5 h-5" />
           {isRTL ? 'הורד ל-Windows' : 'Download for Windows'}
         </Button>
-      </a>
+        {hiddenIframe}
+      </>
     );
   }
 
   if (os === 'mac') {
     return (
       <div className="flex flex-col items-center">
-        <a href={macUrl} target="_blank" rel="noopener noreferrer" download>
-          <Button size="lg" className={btnClass}>
-            <Apple className="w-5 h-5" />
-            {isRTL ? 'הורד ל-Mac' : 'Download for Mac'}
-          </Button>
-        </a>
+        <Button size="lg" className={btnClass} onClick={() => triggerDownload(macUrl)}>
+          <Apple className="w-5 h-5" />
+          {isRTL ? 'הורד ל-Mac' : 'Download for Mac'}
+        </Button>
         {macHint}
+        {hiddenIframe}
       </div>
     );
   }
@@ -64,20 +75,17 @@ export const DownloadButton: React.FC = () => {
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="flex flex-col sm:flex-row gap-3">
-        <a href={winUrl} target="_blank" rel="noopener noreferrer" download>
-          <Button size="lg" className={btnClass}>
-            <Monitor className="w-5 h-5" />
-            {isRTL ? 'הורד ל-Windows' : 'Download for Windows'}
-          </Button>
-        </a>
-        <a href={macUrl} target="_blank" rel="noopener noreferrer" download>
-          <Button size="lg" className={btnClass}>
-            <Apple className="w-5 h-5" />
-            {isRTL ? 'הורד ל-Mac' : 'Download for Mac'}
-          </Button>
-        </a>
+        <Button size="lg" className={btnClass} onClick={() => triggerDownload(winUrl)}>
+          <Monitor className="w-5 h-5" />
+          {isRTL ? 'הורד ל-Windows' : 'Download for Windows'}
+        </Button>
+        <Button size="lg" className={btnClass} onClick={() => triggerDownload(macUrl)}>
+          <Apple className="w-5 h-5" />
+          {isRTL ? 'הורד ל-Mac' : 'Download for Mac'}
+        </Button>
       </div>
       {macHint}
+      {hiddenIframe}
     </div>
   );
 };
