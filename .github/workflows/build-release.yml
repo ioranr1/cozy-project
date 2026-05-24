@@ -1,3 +1,4 @@
+# Build workflow v2.52.59 — validates Mac update assets before publishing a release
 name: Build & Release Electron App
 
 on:
@@ -32,23 +33,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - name: Ensure GitHub release tag exists
-        shell: bash
-        run: |
-          VERSION="$(node -p "require('./package.json').version")"
-          TAG="v${VERSION}"
-          git fetch --tags --force
-          if git rev-parse "${TAG}" >/dev/null 2>&1; then
-            echo "✅ Release tag ${TAG} already exists"
-          else
-            echo "Creating release tag ${TAG}"
-            git tag "${TAG}"
-            git push origin "${TAG}" || {
-              git fetch --tags --force
-              git rev-parse "${TAG}" >/dev/null 2>&1
-            }
-          fi
 
       - name: Verify macOS signing secrets
         if: matrix.os == 'macos-latest'
@@ -101,18 +85,18 @@ jobs:
           PY
           ls -l entitlements.mac.plist
 
-      - name: Build & Publish Windows
+      - name: Build Windows package
         if: matrix.os == 'windows-latest'
-        run: npx electron-builder --publish always
+        run: npx electron-builder --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Publish macOS with notarization retry
+      - name: Build macOS package with notarization retry
         if: matrix.os == 'macos-latest'
         run: |
           for attempt in 1 2 3; do
             echo "macOS build/notarization attempt ${attempt}/3"
-            if npx electron-builder --publish always; then
+            if npx electron-builder --publish never; then
               echo "✅ macOS build and notarization succeeded"
               exit 0
             fi
@@ -130,3 +114,82 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Validate Windows release assets
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          test -f dist/latest.yml
+          ls dist/Security-Camera-Agent-Setup-*.exe
+
+      - name: Validate macOS release assets
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          test -f dist/latest-mac.yml
+          ls dist/Security-Camera-Agent*.zip
+          ls dist/Security-Camera-Agent*.dmg
+
+      - name: Upload Windows release assets
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-assets
+          path: |
+            electron-webrtc-example/dist/latest.yml
+            electron-webrtc-example/dist/Security-Camera-Agent-Setup-*.exe
+            electron-webrtc-example/dist/*.blockmap
+          if-no-files-found: error
+
+      - name: Upload macOS release assets
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release-assets
+          path: |
+            electron-webrtc-example/dist/latest-mac.yml
+            electron-webrtc-example/dist/Security-Camera-Agent*.zip
+            electron-webrtc-example/dist/Security-Camera-Agent*.dmg
+            electron-webrtc-example/dist/*.blockmap
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download validated release assets
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Validate complete cross-platform release
+        shell: bash
+        run: |
+          test -f release-assets/latest.yml
+          test -f release-assets/latest-mac.yml
+          ls release-assets/Security-Camera-Agent-Setup-*.exe
+          ls release-assets/Security-Camera-Agent*.zip
+          ls release-assets/Security-Camera-Agent*.dmg
+          echo "✅ Windows and macOS update assets are present"
+
+      - name: Publish GitHub release only after all assets exist
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="$(node -p "require('./electron-webrtc-example/package.json').version")"
+          TAG="v${VERSION}"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists — replacing assets"
+            gh release upload "${TAG}" release-assets/* --clobber
+          else
+            echo "Creating complete release ${TAG}"
+            gh release create "${TAG}" release-assets/* --target "${GITHUB_SHA}" --title "${VERSION}" --notes "AIGuard Camera ${VERSION}"
+          fi
