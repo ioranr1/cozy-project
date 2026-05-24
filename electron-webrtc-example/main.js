@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.57 (2026-05-12)
+ * VERSION: 2.52.59 (2026-05-24)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -2892,7 +2892,7 @@ function clearStaleWindowsUpdateCache() {
 }
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.52.19 - Windows opens native browser download; Mac keeps auto-updater download flow)...');
+  console.log('[AutoUpdater] Initializing (v2.52.59 - Mac release requires latest-mac.yml validation before publishing)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
