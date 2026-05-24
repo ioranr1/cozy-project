@@ -1,5 +1,5 @@
 /**
- * Diagnostics Reporter v1.0.0
+ * Diagnostics Reporter v1.1.0 — adds CPU model (Apple M-series vs Intel detection)
  * ===========================
  * Sends periodic health reports to the server for remote monitoring.
  * Reports every 5 minutes with device status, sensor health, and recent errors.
@@ -108,12 +108,15 @@ class DiagnosticsReporter {
         }
       }
 
+      const cpus = os.cpus();
+      const cpuModel = (cpus && cpus[0] && cpus[0].model) ? String(cpus[0].model).trim() : 'unknown';
       const systemInfo = {
         platform: os.platform(),
         arch: os.arch(),
+        cpuModel,
         totalMemoryMB: Math.round(os.totalmem() / (1024 * 1024)),
         freeMemoryMB: Math.round(os.freemem() / (1024 * 1024)),
-        cpuCount: os.cpus().length,
+        cpuCount: cpus.length,
         hostname: os.hostname(),
         nodeVersion: process.version,
       };
