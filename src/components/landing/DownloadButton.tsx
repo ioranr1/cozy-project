@@ -1,5 +1,5 @@
-// DownloadButton — v5 (2026-05-24): auto-detect Mac arch (arm64/x64) for Intel support
-import React, { useMemo, useRef } from 'react';
+// DownloadButton — v6 (2026-05-24): async Mac arch detection via High-Entropy Client Hints
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Monitor, Apple, ShieldAlert } from 'lucide-react';
@@ -12,7 +12,12 @@ export const DownloadButton: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const winUrl = DESKTOP_AGENT_DOWNLOAD_URLS.windows;
-  const macUrl = useMemo(() => getMacDownloadUrl(), []);
+  const [macUrl, setMacUrl] = useState<string>(DESKTOP_AGENT_DOWNLOAD_URLS.macArm64);
+  useEffect(() => {
+    let alive = true;
+    getMacDownloadUrl().then((u) => { if (alive) setMacUrl(u); });
+    return () => { alive = false; };
+  }, []);
 
   const triggerDownload = (url: string) => {
     if (iframeRef.current) {

@@ -48,6 +48,12 @@ const Dashboard: React.FC = () => {
   const { flags: featureFlags, isLoading: isFlagsLoading } = useFeatureFlags();
   const { prepareLiveView } = useSessionManager();
   const desktopPlatform = useMemo(() => detectDesktopPlatform(), []);
+  const [macDownloadUrl, setMacDownloadUrl] = useState<string>(DESKTOP_AGENT_DOWNLOAD_URLS.macArm64);
+  useEffect(() => {
+    let alive = true;
+    getMacDownloadUrl().then((u) => { if (alive) setMacDownloadUrl(u); });
+    return () => { alive = false; };
+  }, []);
 
   // Get profile ID for device loading
   const profileId = useMemo(() => {
@@ -743,7 +749,7 @@ const Dashboard: React.FC = () => {
                   </Button>
                 </a>
               ) : desktopPlatform === 'mac' ? (
-                <a href={getMacDownloadUrl()} target="_top" rel="noopener noreferrer">
+                <a href={macDownloadUrl} target="_top" rel="noopener noreferrer">
                   <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                     <Apple className="w-5 h-5" />
                     {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
@@ -757,7 +763,7 @@ const Dashboard: React.FC = () => {
                       {language === 'he' ? 'הורד ל-Windows' : 'Download for Windows'}
                     </Button>
                   </a>
-                  <a href={getMacDownloadUrl()} target="_top" rel="noopener noreferrer">
+                  <a href={macDownloadUrl} target="_top" rel="noopener noreferrer">
                     <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                       <Apple className="w-5 h-5" />
                       {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
