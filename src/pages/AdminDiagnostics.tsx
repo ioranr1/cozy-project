@@ -82,12 +82,24 @@ function getCpuLabel(systemInfo: Record<string, unknown> | null): string {
   if (!systemInfo) return "—";
   const arch = systemInfo.arch ? String(systemInfo.arch).toLowerCase() : "";
   const count = systemInfo.cpuCount ? String(systemInfo.cpuCount) : "";
+  const model = systemInfo.cpuModel ? String(systemInfo.cpuModel).trim() : "";
   let label = "";
   if (arch === "arm64") label = "ARM64";
   else if (arch === "x64" || arch === "amd64") label = "x64";
   else if (arch) label = arch.toUpperCase();
   else label = "—";
-  return count ? `${label} · ${count} cores` : label;
+  // Detect Apple Silicon vs Intel from the CPU model string
+  let family = "";
+  if (/Apple M\d/i.test(model)) {
+    const m = model.match(/Apple M\d[\w\s-]*/i);
+    family = m ? m[0].trim() : "Apple Silicon";
+  } else if (/Intel/i.test(model)) {
+    family = "Intel";
+  }
+  const parts = [label];
+  if (family) parts.push(family);
+  if (count) parts.push(`${count} cores`);
+  return parts.join(" · ");
 }
 
 function isStale(dateStr: string): boolean {
