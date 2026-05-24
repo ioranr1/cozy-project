@@ -1,9 +1,9 @@
-// DownloadButton — v4 (2026-05-21): trigger download via hidden iframe — no tab, no navigation
+// DownloadButton — v5 (2026-05-24): auto-detect Mac arch (arm64/x64) for Intel support
 import React, { useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Monitor, Apple, ShieldAlert } from 'lucide-react';
-import { DESKTOP_AGENT_DOWNLOAD_URLS, detectDesktopPlatform } from '@/lib/desktopAgentDownloads';
+import { DESKTOP_AGENT_DOWNLOAD_URLS, detectDesktopPlatform, getMacDownloadUrl } from '@/lib/desktopAgentDownloads';
 import { Link } from 'react-router-dom';
 
 export const DownloadButton: React.FC = () => {
@@ -12,7 +12,7 @@ export const DownloadButton: React.FC = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const winUrl = DESKTOP_AGENT_DOWNLOAD_URLS.windows;
-  const macUrl = DESKTOP_AGENT_DOWNLOAD_URLS.mac;
+  const macUrl = useMemo(() => getMacDownloadUrl(), []);
 
   const triggerDownload = (url: string) => {
     if (iframeRef.current) {
