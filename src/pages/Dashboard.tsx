@@ -22,7 +22,7 @@ import { MobileAwayModeCard } from '@/components/MobileAwayModeCard';
 import { SecurityModeComingSoon } from '@/components/SecurityModeComingSoon';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { useSessionManager } from '@/hooks/useSessionManager';
-import { DESKTOP_AGENT_DOWNLOAD_URLS, detectDesktopPlatform } from '@/lib/desktopAgentDownloads';
+import { DESKTOP_AGENT_DOWNLOAD_URLS, detectDesktopPlatform, getMacDownloadUrl } from '@/lib/desktopAgentDownloads';
 
 
 interface UserProfile {
@@ -743,7 +743,7 @@ const Dashboard: React.FC = () => {
                   </Button>
                 </a>
               ) : desktopPlatform === 'mac' ? (
-                <a href={DESKTOP_AGENT_DOWNLOAD_URLS.mac} target="_top" rel="noopener noreferrer">
+                <a href={getMacDownloadUrl()} target="_top" rel="noopener noreferrer">
                   <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                     <Apple className="w-5 h-5" />
                     {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
@@ -757,7 +757,7 @@ const Dashboard: React.FC = () => {
                       {language === 'he' ? 'הורד ל-Windows' : 'Download for Windows'}
                     </Button>
                   </a>
-                  <a href={DESKTOP_AGENT_DOWNLOAD_URLS.mac} target="_top" rel="noopener noreferrer">
+                  <a href={getMacDownloadUrl()} target="_top" rel="noopener noreferrer">
                     <Button size="lg" className="bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-500 hover:to-blue-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-cyan-500/30 font-semibold border-0 gap-2">
                       <Apple className="w-5 h-5" />
                       {language === 'he' ? 'הורד ל-Mac' : 'Download for Mac'}
