@@ -48,7 +48,7 @@ export const HeroSection: React.FC = () => {
                 <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400/20 via-blue-400/20 to-cyan-400/20 rounded-lg blur-md opacity-60" />
                 <div className="relative px-6 py-3 rounded-lg bg-[#0a0f1e]/40 backdrop-blur-md border border-white/10 text-center">
                   <p className="text-base md:text-lg font-bold tracking-wide bg-gradient-to-r from-cyan-200 via-white to-blue-200 bg-clip-text drop-shadow-[0_0_8px_rgba(34,211,238,0.4)] text-amber-300">
-                    {isRTL ? 'המצלמה שלך. הפרטיות שלך.' : 'Your Camera. Your Privacy.'}
+                    {isRTL ? 'בלי חומרה נוספת לקנות. רק הלפטופ שלך' : 'No hardware to buy. Just your laptop'}
                   </p>
                 </div>
               </div>
