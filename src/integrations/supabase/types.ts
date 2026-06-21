@@ -380,6 +380,48 @@ export type Database = {
           },
         ]
       }
+      event_view_tokens: {
+        Row: {
+          created_at: string
+          event_id: string
+          expires_at: string
+          profile_id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          expires_at?: string
+          profile_id: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          expires_at?: string
+          profile_id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_view_tokens_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "monitoring_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_view_tokens_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feature_flags: {
         Row: {
           created_at: string
