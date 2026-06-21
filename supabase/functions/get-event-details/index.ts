@@ -1,3 +1,6 @@
+// get-event-details v2.0.0 — accepts session_token OR view_token (from WhatsApp link).
+// View tokens let the user open the event in ANY browser (including WhatsApp in-app
+// browser) without re-authenticating. Tokens expire 24h after creation.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -11,17 +14,17 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { session_token, event_id } = await req.json().catch(() => ({}));
+    const { session_token, view_token, event_id } = await req.json().catch(() => ({}));
 
-    if (!session_token || typeof session_token !== "string") {
-      return new Response(
-        JSON.stringify({ error: "session_token required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
     if (!event_id || typeof event_id !== "string") {
       return new Response(
         JSON.stringify({ error: "event_id required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!session_token && !view_token) {
+      return new Response(
+        JSON.stringify({ error: "session_token or view_token required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -31,20 +34,41 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Validate session
-    const { data: sessionData, error: sessionErr } = await supabase.rpc(
-      "validate_user_session",
-      { p_token: session_token }
-    );
+    let profileId: string | null = null;
 
-    if (sessionErr || !sessionData || sessionData.length === 0 || !sessionData[0].is_valid) {
+    // Prefer session_token (regular logged-in user).
+    if (session_token && typeof session_token === "string") {
+      const { data: sessionData, error: sessionErr } = await supabase.rpc(
+        "validate_user_session",
+        { p_token: session_token }
+      );
+      if (!sessionErr && sessionData && sessionData.length > 0 && sessionData[0].is_valid) {
+        profileId = sessionData[0].profile_id;
+      }
+    }
+
+    // Fall back to view_token (one-time link from WhatsApp).
+    if (!profileId && view_token && typeof view_token === "string") {
+      const { data: tokenRow } = await supabase
+        .from("event_view_tokens")
+        .select("event_id, profile_id, expires_at")
+        .eq("token", view_token)
+        .maybeSingle();
+      if (
+        tokenRow &&
+        tokenRow.event_id === event_id &&
+        new Date(tokenRow.expires_at).getTime() > Date.now()
+      ) {
+        profileId = tokenRow.profile_id;
+      }
+    }
+
+    if (!profileId) {
       return new Response(
         JSON.stringify({ error: "Invalid session" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const profileId = sessionData[0].profile_id;
 
     // Fetch event
     const { data: event, error: evErr } = await supabase

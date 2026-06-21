@@ -1,5 +1,8 @@
+// EventDetails v2.0.0 (2026-06-21)
+// Supports opening via `?t=<view_token>` from a WhatsApp link without an
+// active login session — works in any browser (including WhatsApp in-app).
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
@@ -43,6 +46,8 @@ interface Device {
 
 const EventDetails: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
+  const [searchParams] = useSearchParams();
+  const viewToken = searchParams.get('t');
   const { language, isRTL } = useLanguage();
   const navigate = useNavigate();
   const [event, setEvent] = useState<EventData | null>(null);
@@ -56,7 +61,7 @@ const EventDetails: React.FC = () => {
 
       try {
         // Fetch via Edge Function — server enforces ownership and returns a fresh signed URL.
-        const { event: eventData, signed_snapshot_url } = await fetchEventDetails(eventId);
+        const { event: eventData, signed_snapshot_url } = await fetchEventDetails(eventId, viewToken);
 
         if (!eventData) {
           console.log('Event not found:', eventId);
@@ -99,14 +104,14 @@ const EventDetails: React.FC = () => {
     };
 
     fetchEventData();
-  }, [eventId, language]);
+  }, [eventId, language, viewToken]);
 
   // Mark event as viewed to prevent reminder notification
   const markEventAsViewed = async (eventId: string) => {
     try {
       // Use Supabase Functions client so apikey/auth headers are always correct.
       const { error } = await supabase.functions.invoke('mark-event-viewed', {
-        body: { event_id: eventId },
+        body: { event_id: eventId, ...(viewToken ? { view_token: viewToken } : {}) },
       });
 
       if (error) {

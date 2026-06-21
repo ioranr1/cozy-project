@@ -69,17 +69,24 @@ export async function fetchUserEvents(params?: {
  * Returns the event + a fresh signed snapshot URL (15 min TTL).
  * Throws on 403 if the event does not belong to the current user.
  */
-export async function fetchEventDetails(eventId: string): Promise<{
+export async function fetchEventDetails(
+  eventId: string,
+  viewToken?: string | null,
+): Promise<{
   event: EventApiItem;
   signed_snapshot_url: string | null;
 }> {
   const session_token = getSessionToken();
-  if (!session_token) {
+  if (!session_token && !viewToken) {
     throw new Error('No session token');
   }
 
   const { data, error } = await supabase.functions.invoke('get-event-details', {
-    body: { session_token, event_id: eventId },
+    body: {
+      event_id: eventId,
+      ...(session_token ? { session_token } : {}),
+      ...(viewToken ? { view_token: viewToken } : {}),
+    },
   });
 
   if (error) {
