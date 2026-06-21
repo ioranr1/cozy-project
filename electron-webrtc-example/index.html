@@ -720,7 +720,6 @@
         let deviceAuthToken = null;
         let deviceId = null;
         let restartInProgress = false;
-        let restartAttempts = 0; // v2.52.63: throttle restart loop on Windows camera lock
         let monitorTrackHealthTimer = null;
         
         // Debouncing
@@ -1033,42 +1032,14 @@
         function scheduleMonitoringRestart(reason) {
           if (!isMonitoring || restartInProgress || !currentConfig) return;
           restartInProgress = true;
-          // v2.52.63: Backoff + sanity check before restart.
-          // On Windows the camera driver needs 2-3s to release after stop().
-          // Restarting too fast causes NotReadableError → infinite loop with LED ON.
-          restartAttempts++;
-          if (restartAttempts > 3) {
-            console.error('[Monitoring] Too many restart attempts (' + restartAttempts + ') — stopping monitoring fully to release camera');
-            restartInProgress = false;
-            restartAttempts = 0;
-            stopMonitoring();
-            // Ask main process to fully release the camera via renderer reload
-            try { window.electronAPI?.requestCameraRelease?.('restart-loop-exhausted'); } catch (_) {}
-            return;
-          }
-          const backoffMs = 3000 * restartAttempts; // 3s, 6s, 9s
-          console.warn('[Monitoring] Camera track unhealthy (attempt ' + restartAttempts + '/3), restart in ' + backoffMs + 'ms. Reason:', reason);
-          // Release camera FIRST so the driver can fully reset before retry
-          stopMonitoringResources({ silent: true });
+          console.warn('[Monitoring] Camera track unhealthy, restarting monitoring:', reason);
           setTimeout(async () => {
             try {
-              // Re-check config from currentConfig — if motion was disabled meanwhile, abort
-              const motionStillOn = currentConfig?.sensors?.motion?.enabled === true;
-              const babyStillOn = currentConfig?.baby_monitor_enabled === true;
-              if (!motionStillOn && !babyStillOn) {
-                console.log('[Monitoring] Restart aborted — no sensors enabled in current config');
-                restartAttempts = 0;
-                stopMonitoring();
-                return;
-              }
               await startMonitoring(currentConfig);
-              restartAttempts = 0; // reset on success
-            } catch (err) {
-              console.error('[Monitoring] Restart attempt failed:', err?.message || err);
             } finally {
               restartInProgress = false;
             }
-          }, backoffMs);
+          }, 1500);
         }
 
         function startTrackHealthWatch() {

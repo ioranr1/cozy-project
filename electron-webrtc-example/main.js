@@ -2,11 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.62 (2026-06-21)
- * - Forced camera release via renderer reload when getUserMedia hangs.
- *   Triggers: STOP watchdog (2.5s), webrtc-start-failed, and start-ack timeout.
- *   Fixes "camera LED stays on after pressing Stop" when the Viewer never
- *   connected and the renderer is stuck inside a pending getUserMedia.
+ * VERSION: 2.52.59 (2026-05-24)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -287,47 +283,6 @@ async function stopWebRtcRendererOnQuit({ timeoutMs = 2500 } = {}) {
     await waitForCleanup;
   } catch (e) {
     console.warn('[App] Quit cleanup: unexpected error:', e?.message || e);
-  }
-}
-
-// =============================================================================
-// FORCED CAMERA RELEASE (v2.52.62)
-// When getUserMedia hangs (camera busy / driver stuck), the renderer cannot stop
-// a stream it never received. Reloading the renderer process drops every pending
-// MediaStreamTrack handle and guarantees the camera LED turns off.
-// =============================================================================
-let _forceReleaseInFlight = false;
-async function forceReleaseCameraViaReload(reason = 'unknown') {
-  if (_forceReleaseInFlight) {
-    console.log(`[App] forceReleaseCameraViaReload skipped (already in-flight) — reason=${reason}`);
-    return;
-  }
-  _forceReleaseInFlight = true;
-  try {
-    if (!mainWindow || mainWindow.isDestroyed?.()) {
-      console.log(`[App] forceReleaseCameraViaReload: no mainWindow — reason=${reason}`);
-      return;
-    }
-    console.log(`[App] 🔄 FORCE camera release via renderer reload — reason=${reason}`);
-    // Best-effort: ask renderer to stop nicely first (in case it can)
-    try { mainWindow.webContents?.send('stop-live-view'); } catch (_) {}
-    // Small delay so any in-flight stopTracks can run
-    await new Promise(r => setTimeout(r, 300));
-    try {
-      mainWindow.webContents?.reload();
-      console.log('[App] ✅ Renderer reloaded — camera handles dropped');
-    } catch (e) {
-      console.warn('[App] Renderer reload failed:', e?.message || e);
-    }
-    // Reset live view state — renderer will re-init fresh
-    liveViewState.isActive = false;
-    liveViewState.isCleaningUp = false;
-    liveViewState.currentSessionId = null;
-    liveViewState.offerSentForSessionId = null;
-    liveViewState.pendingForceFullMode = false;
-    try { updateTrayMenu('force-camera-release'); } catch (_) {}
-  } finally {
-    setTimeout(() => { _forceReleaseInFlight = false; }, 2000);
   }
 }
 
@@ -1709,42 +1664,6 @@ function waitForMonitoringStartAck({ timeoutMs = 15000 } = {}) {
   });
 }
 
-function waitForMonitoringStopAck({ timeoutMs = 8000 } = {}) {
-  return new Promise((resolve, reject) => {
-    let done = false;
-
-    const cleanup = () => {
-      if (done) return;
-      done = true;
-      try {
-        monitoringIpcEvents.off('stopped', onStopped);
-        monitoringIpcEvents.off('error', onError);
-      } catch (_) {
-        // noop
-      }
-    };
-
-    const onStopped = () => {
-      cleanup();
-      resolve(true);
-    };
-
-    const onError = (err) => {
-      cleanup();
-      reject(new Error(err || 'Monitoring stop failed'));
-    };
-
-    monitoringIpcEvents.on('stopped', onStopped);
-    monitoringIpcEvents.on('error', onError);
-
-    setTimeout(() => {
-      if (done) return;
-      cleanup();
-      reject(new Error('Monitoring stop timeout'));
-    }, timeoutMs);
-  });
-}
-
 async function handleCommand(command) {
   const { id, command: cmd } = command;
 
@@ -1902,14 +1821,12 @@ async function handleCommand(command) {
       case 'SET_MONITORING:OFF':
         console.log('[Commands] Processing SET_MONITORING:OFF command');
         _selfWriteTimestamp = Date.now(); // MonitoringManager.disable() writes to device_status
-        const stopAck = waitForMonitoringStopAck({ timeoutMs: 8000 });
         const stopResult = await monitoringManager.disable();
         if (!stopResult.success) {
           console.error('[Commands] [FAIL] Monitoring disable failed:', stopResult.error);
           throw new Error(stopResult.error || 'Monitoring disable failed');
         }
-        await stopAck;
-        console.log('[Commands] [OK] Monitoring disabled (renderer stop ACK received)');
+        console.log('[Commands] [OK] Monitoring disabled');
         break;
 
       // Sound detection removed (v2.14.0) - replaced by Baby Monitor mode
@@ -2263,16 +2180,7 @@ async function handleStartLiveView(forceFullMode = false) {
 
   // CRITICAL: Do NOT acknowledge START until renderer actually sent an offer.
   // If camera/mic fails, renderer will report via IPC and we must mark command as failed.
-  try {
-    await waitForLiveViewStartAck(pendingSession.id);
-  } catch (err) {
-    // v2.52.62: Main-side timeout means renderer never reported offer-sent AND
-    // never reported start-failed (likely a hung getUserMedia). Force-release
-    // the camera so the LED turns off and next START works.
-    console.warn('[RTC] handleStartLiveView: waitForLiveViewStartAck failed —', err?.message || err);
-    forceReleaseCameraViaReload('start-ack-timeout').catch(() => {});
-    throw err;
-  }
+  await waitForLiveViewStartAck(pendingSession.id);
 }
 
 function waitForLiveViewStartAck(sessionId, { timeoutMs = 30000 } = {}) {
@@ -2322,25 +2230,6 @@ async function handleStopLiveView() {
 
   // Tell renderer to stop WebRTC
   mainWindow?.webContents.send('stop-live-view');
-
-  // SAFETY NET (v2.52.62): if renderer doesn't confirm cleanup-complete in 2.5s,
-  // force-release the camera by reloading the renderer. This recovers from a
-  // hung getUserMedia where stopTracksSafe has nothing to stop.
-  (function scheduleForcedReleaseAfterStop() {
-    const startedAt = Date.now();
-    const watchdog = setTimeout(async () => {
-      if (liveViewState.isCleaningUp) {
-        console.warn('[RTC] ⚠️ Renderer cleanup did not complete in 2.5s — forcing camera release');
-        await forceReleaseCameraViaReload('stop-live-view-watchdog');
-      }
-    }, 2500);
-    const onComplete = () => {
-      clearTimeout(watchdog);
-      try { ipcMain.removeListener('webrtc-cleanup-complete', onComplete); } catch (_) {}
-      console.log(`[RTC] Stop cleanup confirmed in ${Date.now() - startedAt}ms`);
-    };
-    ipcMain.on('webrtc-cleanup-complete', onComplete);
-  })();
 
   // ── RESUME MONITORING (v2.23.0) ────────────────────────────────────
   // If monitoring was paused when live view started OR DB still says AWAY/armed,
@@ -2542,15 +2431,6 @@ function setupIpcHandlers() {
     } catch (e) {
       console.warn('[IPC] Failed to send stop-live-view after start-failed:', e?.message || e);
     }
-
-    // v2.52.62: If start failed because getUserMedia hung/threw, the renderer may
-    // hold orphan pending camera handles. Force-release via reload after a short
-    // grace period for cleanup-complete.
-    setTimeout(() => {
-      if (!liveViewState.isActive) {
-        forceReleaseCameraViaReload('webrtc-start-failed');
-      }
-    }, 1500);
 
     rtcIpcEvents.emit('start-failed', payload);
   });
@@ -2773,13 +2653,6 @@ function setupIpcHandlers() {
       // noop
     }
     monitoringIpcEvents.emit('error', error);
-  });
-
-  // v2.52.63: Renderer exhausted its restart attempts (camera stuck on Windows).
-  // Fully release by reloading the renderer process — this drops all MediaStreamTrack handles.
-  ipcMain.on('request-camera-release', (event, reason) => {
-    console.warn('[IPC] request-camera-release received, reason=', reason);
-    forceReleaseCameraViaReload('renderer-restart-exhausted:' + reason).catch(() => {});
   });
 
   // Monitoring status update (includes frame counters for diagnostics)
