@@ -2121,7 +2121,10 @@ async function startNewSession(session, forceFullMode = false) {
     console.log('[RTC] Pausing motion monitoring before live view (camera conflict)');
     liveViewState._monitoringWasPaused = true;
     try {
+      const stopAckPromise = waitForMonitoringStoppedAck({ timeoutMs: 8000 });
       await monitoringManager.disable();
+      await stopAckPromise;
+      await new Promise(r => setTimeout(r, 500));
       console.log('[RTC] Motion monitoring paused successfully');
     } catch (pauseErr) {
       console.warn('[RTC] Failed to pause monitoring (continuing anyway):', pauseErr?.message);
