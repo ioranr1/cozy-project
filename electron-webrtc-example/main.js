@@ -2530,6 +2530,15 @@ function setupIpcHandlers() {
       console.warn('[IPC] Failed to send stop-live-view after start-failed:', e?.message || e);
     }
 
+    // v2.52.62: If start failed because getUserMedia hung/threw, the renderer may
+    // hold orphan pending camera handles. Force-release via reload after a short
+    // grace period for cleanup-complete.
+    setTimeout(() => {
+      if (!liveViewState.isActive) {
+        forceReleaseCameraViaReload('webrtc-start-failed');
+      }
+    }, 1500);
+
     rtcIpcEvents.emit('start-failed', payload);
   });
 
