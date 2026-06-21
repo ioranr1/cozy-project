@@ -589,6 +589,7 @@ serve(async (req) => {
               phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
               language: profile.preferred_language || 'he',
               eventId: eventRecord.id,
+              viewToken: await mintEventViewToken(supabase, eventRecord.id, device.profile_id),
             });
 
             notificationTypes.push('whatsapp');
@@ -803,6 +804,7 @@ async function handleSnapshotUpdateAndNotify(opts: {
           phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
           language: userLanguage,
           eventId,
+          viewToken: await mintEventViewToken(supabase, eventId, profileId),
         });
 
         console.log(`[events-report] WhatsApp sent for snapshot-updated event ${eventId}`);
@@ -1135,6 +1137,7 @@ interface WhatsAppParams {
   phoneNumberId: string;
   language: string;
   eventId: string;
+  viewToken?: string | null;
 }
 
 interface WhatsAppResult {
@@ -1144,7 +1147,7 @@ interface WhatsAppResult {
 }
 
 async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAppResult> {
-  const { phoneNumber, accessToken, phoneNumberId, eventId } = params;
+  const { phoneNumber, accessToken, phoneNumberId, eventId, viewToken } = params;
 
   // IMPORTANT: Per Meta policy compliance, WhatsApp message must be minimal/neutral.
   // All security details (event type, AI summary, severity) are shown ONLY in the Event View screen.
@@ -1170,7 +1173,11 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
     ? `${phoneNumber.slice(0, 3)}***${phoneNumber.slice(-3)}`
     : phoneNumber;
 
-  // Template has no body parameters - just the button with eventId
+  // Template has no body parameters - just the button with eventId (+ view token).
+  // The URL button substitutes the text below into: https://aiguard24.com/event/{{1}}
+  // We append `?t=<token>` so opening the link in ANY browser (including
+  // WhatsApp's in-app browser) authenticates the user automatically for this event.
+  const urlSuffix = viewToken ? `${eventId}?t=${viewToken}` : eventId;
   const payload = {
     messaging_product: 'whatsapp',
     to: phoneNumber,
@@ -1183,7 +1190,7 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
           type: 'button',
           sub_type: 'url',
           index: '0',
-          parameters: [{ type: 'text', text: eventId }],
+          parameters: [{ type: 'text', text: urlSuffix }],
         },
       ],
     },
