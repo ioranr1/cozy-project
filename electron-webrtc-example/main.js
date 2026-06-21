@@ -2259,7 +2259,16 @@ async function handleStartLiveView(forceFullMode = false) {
 
   // CRITICAL: Do NOT acknowledge START until renderer actually sent an offer.
   // If camera/mic fails, renderer will report via IPC and we must mark command as failed.
-  await waitForLiveViewStartAck(pendingSession.id);
+  try {
+    await waitForLiveViewStartAck(pendingSession.id);
+  } catch (err) {
+    // v2.52.62: Main-side timeout means renderer never reported offer-sent AND
+    // never reported start-failed (likely a hung getUserMedia). Force-release
+    // the camera so the LED turns off and next START works.
+    console.warn('[RTC] handleStartLiveView: waitForLiveViewStartAck failed —', err?.message || err);
+    forceReleaseCameraViaReload('start-ack-timeout').catch(() => {});
+    throw err;
+  }
 }
 
 function waitForLiveViewStartAck(sessionId, { timeoutMs = 30000 } = {}) {
