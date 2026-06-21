@@ -1,3 +1,4 @@
+// File version: Camera.tsx v2.52.66 — aggressive MediaStream release
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -25,6 +26,9 @@ const Camera: React.FC = () => {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  // Mirror the stream into a ref so cleanup handlers always see the latest one,
+  // even when fired from window-level listeners (no stale closures).
+  const streamRef = useRef<MediaStream | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +72,7 @@ const Camera: React.FC = () => {
       }
       
       setStream(mediaStream);
+      streamRef.current = mediaStream;
       setIsStreaming(true);
       setIsRequesting(false);
 
@@ -106,12 +111,17 @@ const Camera: React.FC = () => {
   }, [language, toast]);
 
   const stopCamera = useCallback(() => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+    const s = streamRef.current ?? stream;
+    if (s) {
+      s.getTracks().forEach(track => {
+        try { track.stop(); } catch {}
+      });
+      streamRef.current = null;
       setStream(null);
       setIsStreaming(false);
       
       if (videoRef.current) {
+        try { (videoRef.current.srcObject as MediaStream | null)?.getTracks().forEach(t => t.stop()); } catch {}
         videoRef.current.srcObject = null;
       }
 
@@ -140,13 +150,38 @@ const Camera: React.FC = () => {
     }
   }, [navigate]);
 
+  // Aggressive camera release — covers tab close, navigation, hide, and unmount.
+  // The browser would otherwise keep the camera LED on for the lifetime of the tab.
   useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+    const releaseCamera = () => {
+      const s = streamRef.current;
+      if (s) {
+        s.getTracks().forEach(t => { try { t.stop(); } catch {} });
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        try { (videoRef.current.srcObject as MediaStream | null)?.getTracks().forEach(t => t.stop()); } catch {}
+        videoRef.current.srcObject = null;
       }
     };
-  }, [stream]);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') releaseCamera();
+    };
+
+    window.addEventListener('beforeunload', releaseCamera);
+    window.addEventListener('pagehide', releaseCamera);
+    window.addEventListener('unload', releaseCamera);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('beforeunload', releaseCamera);
+      window.removeEventListener('pagehide', releaseCamera);
+      window.removeEventListener('unload', releaseCamera);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      releaseCamera();
+    };
+  }, []);
 
   const ArrowIcon = isRTL ? ArrowRight : ArrowLeft;
 
