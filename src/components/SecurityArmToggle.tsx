@@ -162,10 +162,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       return;
     }
     if (checked) {
+      // Preserve last user choice; default to motion ON if nothing was selected before.
       setMonitoringSettings(prev => ({
         ...prev,
-        motionEnabled: false,
-        babyMonitorEnabled: false,
+        motionEnabled: prev.motionEnabled || (!prev.motionEnabled && !prev.babyMonitorEnabled),
+        babyMonitorEnabled: prev.babyMonitorEnabled,
       }));
       setShowSettingsDialogWrapped(true);
     } else {
