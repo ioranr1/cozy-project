@@ -607,26 +607,26 @@ const Viewer: React.FC = () => {
       return;
     }
 
-    // Manual start from Viewer (no Dashboard session) - need to send command AND create session
-    // CRITICAL: Send command FIRST so Electron sets pendingForceFullMode BEFORE RTC-Poll finds the session
-    // Otherwise RTC-Poll picks up the session before the FULL command arrives and starts audio_only
+    // Manual start from Viewer (no Dashboard session) - create session first, then command.
+    // DB is the SSOT: Electron must have a pending rtc_session available before START is handled,
+    // otherwise it can open the camera but time out before sending a WebRTC offer.
     const startCommand = isFromBabyMonitor ? 'START_LIVE_VIEW_FULL' : 'START_LIVE_VIEW';
 
-    console.log(`[Viewer] Sending ${startCommand} command BEFORE creating session (isFromBabyMonitor=${isFromBabyMonitor})`);
-    const ok = await sendCommand(startCommand);
-    if (!ok) {
-      setViewerState('error');
-      setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
-      startInitiatedRef.current = false;
-      return;
-    }
-
-    // Now create the RTC session - Electron will find it via polling with correct forceFullMode
-    console.log('[Viewer] Command sent, now creating RTC session');
+    console.log('[Viewer] Creating RTC session before START command');
     const activeSessionId = await startSession();
     if (!activeSessionId) {
       startInitiatedRef.current = false; // Release lock on failure
       return; // Error already handled in hook
+    }
+
+    console.log(`[Viewer] Session ready (${activeSessionId}), sending ${startCommand} command`);
+    const ok = await sendCommand(startCommand);
+    if (!ok) {
+      await stopSession();
+      setViewerState('error');
+      setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
+      startInitiatedRef.current = false;
+      return;
     }
   }, [
     viewerId,
