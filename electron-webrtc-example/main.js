@@ -2775,6 +2775,13 @@ function setupIpcHandlers() {
     monitoringIpcEvents.emit('error', error);
   });
 
+  // v2.52.63: Renderer exhausted its restart attempts (camera stuck on Windows).
+  // Fully release by reloading the renderer process — this drops all MediaStreamTrack handles.
+  ipcMain.on('request-camera-release', (event, reason) => {
+    console.warn('[IPC] request-camera-release received, reason=', reason);
+    forceReleaseCameraViaReload('renderer-restart-exhausted:' + reason).catch(() => {});
+  });
+
   // Monitoring status update (includes frame counters for diagnostics)
   ipcMain.on('monitoring-status', (event, status) => {
     console.log('[IPC] Monitoring status:', JSON.stringify(status?.motion ? {
