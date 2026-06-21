@@ -1,3 +1,4 @@
+// BUILD ID: rtc-session-2026-06-21-v2.52.66-offer-safe-polling
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -519,8 +520,9 @@ export function useRtcSession({
           .from('rtc_signals')
           .select('id, from_role, type, payload, created_at')
           .eq('session_id', targetSessionId)
-          .order('created_at', { ascending: false })
-          .limit(10);
+          .eq('from_role', 'desktop')
+          .order('created_at', { ascending: true })
+          .limit(80);
 
         if (error) {
           console.log('[LiveView] polling error', error);
@@ -528,10 +530,10 @@ export function useRtcSession({
         }
 
         const rows = data as RtcSignal[] | null;
-        const newestId = rows?.[0]?.id ?? null;
+        const newestId = rows?.reduce((max, signal) => Math.max(max, signal.id), 0) ?? null;
         
         // More detailed logging for debugging
-        const desktopSignals = rows?.filter(s => s.from_role === 'desktop') || [];
+        const desktopSignals = rows || [];
         const offerFound = desktopSignals.some(s => s.type === 'offer');
         console.log('[LiveView] 🔄 Polling signals:', { 
           totalCount: rows?.length || 0,
@@ -546,8 +548,8 @@ export function useRtcSession({
         // CRITICAL: Process ALL signals we haven't processed yet, regardless of ID order
         // The offer might have a lower ID than ICE candidates that arrived first
         if (rows && rows.length > 0) {
-          // Reverse to process oldest first (by created_at, not ID)
-          const sortedRows = [...rows].reverse();
+          // Query is ascending: process oldest first (by created_at, not ID)
+          const sortedRows = [...rows];
           
           // First pass: prioritize OFFER signals (process them first)
           const offerSignals = sortedRows.filter(s => s.type === 'offer' && s.from_role === 'desktop');
