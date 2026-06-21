@@ -2310,6 +2310,25 @@ async function handleStopLiveView() {
   // Tell renderer to stop WebRTC
   mainWindow?.webContents.send('stop-live-view');
 
+  // SAFETY NET (v2.52.62): if renderer doesn't confirm cleanup-complete in 2.5s,
+  // force-release the camera by reloading the renderer. This recovers from a
+  // hung getUserMedia where stopTracksSafe has nothing to stop.
+  (function scheduleForcedReleaseAfterStop() {
+    const startedAt = Date.now();
+    const watchdog = setTimeout(async () => {
+      if (liveViewState.isCleaningUp) {
+        console.warn('[RTC] ⚠️ Renderer cleanup did not complete in 2.5s — forcing camera release');
+        await forceReleaseCameraViaReload('stop-live-view-watchdog');
+      }
+    }, 2500);
+    const onComplete = () => {
+      clearTimeout(watchdog);
+      try { ipcMain.removeListener('webrtc-cleanup-complete', onComplete); } catch (_) {}
+      console.log(`[RTC] Stop cleanup confirmed in ${Date.now() - startedAt}ms`);
+    };
+    ipcMain.on('webrtc-cleanup-complete', onComplete);
+  })();
+
   // ── RESUME MONITORING (v2.23.0) ────────────────────────────────────
   // If monitoring was paused when live view started OR DB still says AWAY/armed,
   // resume from the database SSOT. This fixes macOS cases where the renderer/main
