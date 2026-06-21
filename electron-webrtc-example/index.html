@@ -720,6 +720,7 @@
         let deviceAuthToken = null;
         let deviceId = null;
         let restartInProgress = false;
+        let restartAttempts = 0; // v2.52.63: throttle restart loop on Windows camera lock
         let monitorTrackHealthTimer = null;
         
         // Debouncing
@@ -1035,7 +1036,6 @@
           // v2.52.63: Backoff + sanity check before restart.
           // On Windows the camera driver needs 2-3s to release after stop().
           // Restarting too fast causes NotReadableError → infinite loop with LED ON.
-          if (typeof restartAttempts === 'undefined') restartAttempts = 0;
           restartAttempts++;
           if (restartAttempts > 3) {
             console.error('[Monitoring] Too many restart attempts (' + restartAttempts + ') — stopping monitoring fully to release camera');
