@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.59 (2026-05-24)
+ * VERSION: 2.52.65 (2026-06-21)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1664,6 +1664,44 @@ function waitForMonitoringStartAck({ timeoutMs = 15000 } = {}) {
   });
 }
 
+function waitForMonitoringStoppedAck({ timeoutMs = 8000 } = {}) {
+  return new Promise((resolve) => {
+    let done = false;
+
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      try {
+        monitoringIpcEvents.off('stopped', onStopped);
+        monitoringIpcEvents.off('error', onError);
+      } catch (_) {
+        // noop
+      }
+    };
+
+    const onStopped = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    const onError = (err) => {
+      console.warn('[RTC] Monitoring stop reported error before Live View:', err);
+      cleanup();
+      resolve(false);
+    };
+
+    monitoringIpcEvents.on('stopped', onStopped);
+    monitoringIpcEvents.on('error', onError);
+
+    setTimeout(() => {
+      if (done) return;
+      console.warn('[RTC] Monitoring stop ACK timed out; continuing Live View start');
+      cleanup();
+      resolve(false);
+    }, timeoutMs);
+  });
+}
+
 async function handleCommand(command) {
   const { id, command: cmd } = command;
 
@@ -2083,7 +2121,10 @@ async function startNewSession(session, forceFullMode = false) {
     console.log('[RTC] Pausing motion monitoring before live view (camera conflict)');
     liveViewState._monitoringWasPaused = true;
     try {
+      const stopAckPromise = waitForMonitoringStoppedAck({ timeoutMs: 8000 });
       await monitoringManager.disable();
+      await stopAckPromise;
+      await new Promise(r => setTimeout(r, 500));
       console.log('[RTC] Motion monitoring paused successfully');
     } catch (pauseErr) {
       console.warn('[RTC] Failed to pause monitoring (continuing anyway):', pauseErr?.message);
@@ -2755,7 +2796,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('===============================================================');
-console.log('[Main] BUILD ID: main-js-2026-05-06-v2.52.47-away-display-enforcement');
+console.log('[Main] BUILD ID: main-js-2026-06-21-v2.52.65-live-view-offer-timeout-fix');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');
@@ -2892,7 +2933,7 @@ function clearStaleWindowsUpdateCache() {
 }
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.52.59 - Mac release requires latest-mac.yml validation before publishing)...');
+  console.log('[AutoUpdater] Initializing (v2.52.65 - Live View session-before-start + monitoring stop ACK)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
