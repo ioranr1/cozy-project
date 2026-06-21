@@ -287,6 +287,47 @@ async function stopWebRtcRendererOnQuit({ timeoutMs = 2500 } = {}) {
 }
 
 // =============================================================================
+// FORCED CAMERA RELEASE (v2.52.62)
+// When getUserMedia hangs (camera busy / driver stuck), the renderer cannot stop
+// a stream it never received. Reloading the renderer process drops every pending
+// MediaStreamTrack handle and guarantees the camera LED turns off.
+// =============================================================================
+let _forceReleaseInFlight = false;
+async function forceReleaseCameraViaReload(reason = 'unknown') {
+  if (_forceReleaseInFlight) {
+    console.log(`[App] forceReleaseCameraViaReload skipped (already in-flight) — reason=${reason}`);
+    return;
+  }
+  _forceReleaseInFlight = true;
+  try {
+    if (!mainWindow || mainWindow.isDestroyed?.()) {
+      console.log(`[App] forceReleaseCameraViaReload: no mainWindow — reason=${reason}`);
+      return;
+    }
+    console.log(`[App] 🔄 FORCE camera release via renderer reload — reason=${reason}`);
+    // Best-effort: ask renderer to stop nicely first (in case it can)
+    try { mainWindow.webContents?.send('stop-live-view'); } catch (_) {}
+    // Small delay so any in-flight stopTracks can run
+    await new Promise(r => setTimeout(r, 300));
+    try {
+      mainWindow.webContents?.reload();
+      console.log('[App] ✅ Renderer reloaded — camera handles dropped');
+    } catch (e) {
+      console.warn('[App] Renderer reload failed:', e?.message || e);
+    }
+    // Reset live view state — renderer will re-init fresh
+    liveViewState.isActive = false;
+    liveViewState.isCleaningUp = false;
+    liveViewState.currentSessionId = null;
+    liveViewState.offerSentForSessionId = null;
+    liveViewState.pendingForceFullMode = false;
+    try { updateTrayMenu('force-camera-release'); } catch (_) {}
+  } finally {
+    setTimeout(() => { _forceReleaseInFlight = false; }, 2000);
+  }
+}
+
+// =============================================================================
 // I18N STRINGS
 // =============================================================================
 
