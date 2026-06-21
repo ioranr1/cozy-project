@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.59 (2026-05-24)
+ * VERSION: 2.52.61 (2026-06-21)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1777,6 +1777,12 @@ async function handleCommand(command) {
 
           if (!deviceId) {
             throw new Error('Missing deviceId while enabling monitoring');
+          }
+
+          const monitoringActuallyStarted = startedStatus?.motion === true || startedStatus?.sound === true || startedStatus?.babyMonitor === true;
+          if (!monitoringActuallyStarted) {
+            const details = startedStatus?.errors?.system || 'Renderer acknowledged monitoring but no camera/microphone sensor started';
+            throw new Error(details);
           }
 
           const nowIso = new Date().toISOString();
