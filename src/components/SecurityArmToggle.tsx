@@ -177,6 +177,11 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
   const handleConfirmActivation = async () => {
     if (!deviceId) return;
 
+    if (!monitoringSettings.motionEnabled && !monitoringSettings.babyMonitorEnabled) {
+      toast.error(language === 'he' ? 'יש לבחור לפחות חיישן אחד' : 'Please enable at least one sensor');
+      return;
+    }
+
     setIsUpdating(true);
 
     try {
