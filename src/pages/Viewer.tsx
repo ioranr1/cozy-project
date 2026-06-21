@@ -1,4 +1,4 @@
-// BUILD ID: viewer-2026-06-21-v2.52.65-session-before-start
+// BUILD ID: viewer-2026-06-21-v2.52.66-dashboard-subscribe-before-start
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -585,24 +585,25 @@ const Viewer: React.FC = () => {
       }
     }
 
-    // If Dashboard already created session, we still need to send the START command.
-    // Previously Dashboard sent the command after navigate(), but since it unmounts
-    // on navigation, ack tracking was lost and failures went unnoticed (v2.42.0 fix).
+    // If Dashboard already created session, subscribe to RTC signals FIRST, then send START.
+    // Otherwise the desktop can send Offer/ICE before the mobile viewer is listening,
+    // and the viewer misses the offer when many ICE rows push it out of a small polling window.
     if (dashboardSessionId) {
-      console.log('[Viewer] Dashboard session detected, sending START command from Viewer:', dashboardSessionId);
-      
-      const ok = await sendCommand('START_LIVE_VIEW');
-      if (!ok) {
-        setViewerState('error');
-        setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
-        startInitiatedRef.current = false;
-        return;
-      }
-
+      console.log('[Viewer] Dashboard session detected, joining RTC before START command:', dashboardSessionId);
       const activeSessionId = await startSession();
       if (!activeSessionId) {
         setViewerState('error');
         setErrorMessage(language === 'he' ? 'נכשל בהתחברות' : 'Failed to connect');
+        startInitiatedRef.current = false;
+        return;
+      }
+
+      console.log('[Viewer] RTC subscription ready, sending START command from Viewer:', activeSessionId);
+      const ok = await sendCommand('START_LIVE_VIEW');
+      if (!ok) {
+        await stopSession();
+        setViewerState('error');
+        setErrorMessage(language === 'he' ? 'נכשל בשליחת פקודה למחשב' : 'Failed to send command to computer');
         startInitiatedRef.current = false;
       }
       return;
