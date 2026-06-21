@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.59 (2026-05-24)
+ * VERSION: 2.52.65 (2026-06-21)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1660,6 +1660,44 @@ function waitForMonitoringStartAck({ timeoutMs = 15000 } = {}) {
         // noop
       }
       reject(new Error('Monitoring start timeout'));
+    }, timeoutMs);
+  });
+}
+
+function waitForMonitoringStoppedAck({ timeoutMs = 8000 } = {}) {
+  return new Promise((resolve) => {
+    let done = false;
+
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      try {
+        monitoringIpcEvents.off('stopped', onStopped);
+        monitoringIpcEvents.off('error', onError);
+      } catch (_) {
+        // noop
+      }
+    };
+
+    const onStopped = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    const onError = (err) => {
+      console.warn('[RTC] Monitoring stop reported error before Live View:', err);
+      cleanup();
+      resolve(false);
+    };
+
+    monitoringIpcEvents.on('stopped', onStopped);
+    monitoringIpcEvents.on('error', onError);
+
+    setTimeout(() => {
+      if (done) return;
+      console.warn('[RTC] Monitoring stop ACK timed out; continuing Live View start');
+      cleanup();
+      resolve(false);
     }, timeoutMs);
   });
 }
