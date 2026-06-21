@@ -1,7 +1,7 @@
 /**
  * Mark Event Viewed Edge Function
  * ================================
- * VERSION: 1.3.0 (2026-06-21)
+ * VERSION: 1.2.0 (2026-04-30)
  * 
  * Called when user clicks the event link from WhatsApp notification.
  * Marks the event as viewed, which resets the notification cycle.
@@ -15,10 +15,6 @@
  *             a fresh WhatsApp alert. Old archived events are NOT re-sent.
  *          To prevent old un-notified events from blocking the next slot,
  *          we mark them all as superseded (viewed + notification_sent).
- *
- * v1.3.0: Accept optional `view_token` so the WhatsApp link works in ANY
- *         browser (including WhatsApp's in-app browser) without requiring
- *         the user to log in again. Token is validated against the event_id.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -41,7 +37,7 @@ serve(async (req) => {
 
     // Parse request body
     const body = await req.json();
-    const { event_id, view_token } = body;
+    const { event_id } = body;
 
     if (!event_id) {
       return new Response(JSON.stringify({ error: 'Missing event_id' }), {
@@ -50,30 +46,9 @@ serve(async (req) => {
       });
     }
 
-    console.log(`[mark-event-viewed] Marking event ${event_id} as viewed (view_token=${view_token ? 'yes' : 'no'})`);
+    console.log(`[mark-event-viewed] Marking event ${event_id} as viewed`);
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // If a view_token was supplied, validate it matches the event before
-    // accepting the request. This lets unauthenticated clicks from the
-    // WhatsApp link still reset the notification cycle safely.
-    if (view_token && typeof view_token === 'string') {
-      const { data: tokenRow } = await supabase
-        .from('event_view_tokens')
-        .select('event_id, expires_at')
-        .eq('token', view_token)
-        .maybeSingle();
-      const valid =
-        !!tokenRow &&
-        tokenRow.event_id === event_id &&
-        new Date(tokenRow.expires_at).getTime() > Date.now();
-      if (!valid) {
-        return new Response(JSON.stringify({ error: 'Invalid view_token' }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    }
 
     // Fetch the event to resolve device_id
     const { data: event, error: eventError } = await supabase

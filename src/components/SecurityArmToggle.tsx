@@ -21,14 +21,9 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
   const [isUpdating, setIsUpdating] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const showSettingsDialogRef = React.useRef(false);
-  const lastToggleIntentAtRef = React.useRef(0);
   const setShowSettingsDialogWrapped = useCallback((open: boolean) => {
     showSettingsDialogRef.current = open;
     setShowSettingsDialog(open);
-  }, []);
-
-  const markToggleIntent = useCallback(() => {
-    lastToggleIntentAtRef.current = Date.now();
   }, []);
 
   const profileId = useMemo(() => {
@@ -146,13 +141,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
   };
 
   const handleToggleClick = (checked: boolean) => {
-    const hasFreshUserIntent = Date.now() - lastToggleIntentAtRef.current < 2000;
-    if (!hasFreshUserIntent) {
-      console.warn('[SecurityArmToggle] Ignoring switch change without fresh user intent:', checked);
-      fetchStatus();
-      return;
-    }
-
     if (disabled) {
       toast.error(language === 'he' ? 'המחשב לא מחובר' : 'Computer offline');
       return;
@@ -162,11 +150,10 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       return;
     }
     if (checked) {
-      // Preserve last user choice; default to motion ON if nothing was selected before.
       setMonitoringSettings(prev => ({
         ...prev,
-        motionEnabled: prev.motionEnabled || (!prev.motionEnabled && !prev.babyMonitorEnabled),
-        babyMonitorEnabled: prev.babyMonitorEnabled,
+        motionEnabled: false,
+        babyMonitorEnabled: false,
       }));
       setShowSettingsDialogWrapped(true);
     } else {
@@ -176,11 +163,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
 
   const handleConfirmActivation = async () => {
     if (!deviceId) return;
-
-    if (!monitoringSettings.motionEnabled && !monitoringSettings.babyMonitorEnabled) {
-      toast.error(language === 'he' ? 'יש לבחור לפחות חיישן אחד' : 'Please enable at least one sensor');
-      return;
-    }
 
     setIsUpdating(true);
 
@@ -252,10 +234,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
       }
 
       setIsArmed(true);
-      armedSettingsRef.current = {
-        motionEnabled: monitoringSettings.motionEnabled,
-        babyMonitorEnabled: monitoringSettings.babyMonitorEnabled,
-      };
       setShowSettingsDialogWrapped(false);
 
       const sensors = [];
@@ -489,8 +467,6 @@ export const SecurityArmToggle: React.FC<SecurityArmToggleProps> = ({ className,
               <Switch
                 checked={isArmed}
                 onCheckedChange={handleToggleClick}
-              onPointerDown={markToggleIntent}
-              onKeyDown={markToggleIntent}
                 disabled={isUpdating || disabled}
                 className={isArmed ? 'data-[state=checked]:bg-red-500' : ''}
               />

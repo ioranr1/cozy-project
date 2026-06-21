@@ -22,30 +22,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.90.1";
 
-// View-token helper (24h) — see events-report/index.ts for full description.
-async function mintEventViewToken(
-  supabase: any,
-  eventId: string,
-  profileId: string,
-): Promise<string | null> {
-  try {
-    const bytes = new Uint8Array(16);
-    crypto.getRandomValues(bytes);
-    const token = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-    const { error } = await supabase
-      .from('event_view_tokens')
-      .insert({ token, event_id: eventId, profile_id: profileId });
-    if (error) {
-      console.error('[send-reminder] mintEventViewToken error:', error);
-      return null;
-    }
-    return token;
-  } catch (e) {
-    console.error('[send-reminder] mintEventViewToken exception:', e);
-    return null;
-  }
-}
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -211,11 +187,6 @@ serve(async (req) => {
           language,
           eventId: event.id,
           isReminder: true,
-          viewToken: await mintEventViewToken(
-            supabase,
-            event.id,
-            (event.devices as any)?.profile_id,
-          ),
         });
 
         // Mark reminder as sent
@@ -283,11 +254,10 @@ interface WhatsAppReminderParams {
   language: string;
   eventId: string;
   isReminder: boolean;
-  viewToken?: string | null;
 }
 
 async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<void> {
-  const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language, eventId, viewToken } = params;
+  const { phoneNumber, eventType, labels, severity, aiSummary, accessToken, phoneNumberId, language, eventId } = params;
 
   const isHebrew = language === 'he';
   
@@ -348,7 +318,7 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
               type: 'button',
               sub_type: 'url',
               index: '0',
-              parameters: [{ type: 'text', text: viewToken ? `${eventId}?t=${viewToken}` : eventId }],
+              parameters: [{ type: 'text', text: eventId }],
             },
           ],
         },
