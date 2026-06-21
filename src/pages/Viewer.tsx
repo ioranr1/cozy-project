@@ -1,3 +1,4 @@
+// BUILD ID: viewer-2026-06-21-v2.52.65-session-before-start
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';

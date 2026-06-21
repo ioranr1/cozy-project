@@ -2796,7 +2796,7 @@ function setupIpcHandlers() {
 
 // BUILD ID - Verify this matches your local file!
 console.log('===============================================================');
-console.log('[Main] BUILD ID: main-js-2026-05-06-v2.52.47-away-display-enforcement');
+console.log('[Main] BUILD ID: main-js-2026-06-21-v2.52.65-live-view-offer-timeout-fix');
 console.log('[Main] Sound detection: REMOVED (Baby Monitor mode)');
 
 console.log('[Main] Starting Electron app...');
@@ -2933,7 +2933,7 @@ function clearStaleWindowsUpdateCache() {
 }
 
 function initAutoUpdater() {
-  console.log('[AutoUpdater] Initializing (v2.52.59 - Mac release requires latest-mac.yml validation before publishing)...');
+  console.log('[AutoUpdater] Initializing (v2.52.65 - Live View session-before-start + monitoring stop ACK)...');
 
   // Don't download or notify automatically — we handle it via tray
   autoUpdater.autoDownload = false;
