@@ -2,7 +2,11 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.61 (2026-06-21)
+ * VERSION: 2.52.62 (2026-06-21)
+ * - Forced camera release via renderer reload when getUserMedia hangs.
+ *   Triggers: STOP watchdog (2.5s), webrtc-start-failed, and start-ack timeout.
+ *   Fixes "camera LED stays on after pressing Stop" when the Viewer never
+ *   connected and the renderer is stuck inside a pending getUserMedia.
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
