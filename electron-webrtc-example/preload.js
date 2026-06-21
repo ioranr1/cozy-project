@@ -287,6 +287,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyMonitoringStopped: () => {
     ipcRenderer.send('monitoring-stopped');
   },
+
+  /**
+   * v2.52.63: Request main to fully release the camera (renderer reload)
+   * when the restart loop is exhausted on Windows.
+   */
+  requestCameraRelease: (reason) => {
+    ipcRenderer.send('request-camera-release', String(reason || 'unknown'));
+  },
   
   /**
    * Notify main of monitoring error
