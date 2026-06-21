@@ -2,7 +2,7 @@
  * Electron Main Process - Complete Implementation
  * ================================================
  * 
- * VERSION: 2.52.59 (2026-05-24)
+ * VERSION: 2.52.61 (2026-06-21)
  *
  * Full main.js with WebRTC Live View + Away Mode + Monitoring integration.
  * Copy this file to your Electron project.
@@ -1664,6 +1664,42 @@ function waitForMonitoringStartAck({ timeoutMs = 15000 } = {}) {
   });
 }
 
+function waitForMonitoringStopAck({ timeoutMs = 8000 } = {}) {
+  return new Promise((resolve, reject) => {
+    let done = false;
+
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      try {
+        monitoringIpcEvents.off('stopped', onStopped);
+        monitoringIpcEvents.off('error', onError);
+      } catch (_) {
+        // noop
+      }
+    };
+
+    const onStopped = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    const onError = (err) => {
+      cleanup();
+      reject(new Error(err || 'Monitoring stop failed'));
+    };
+
+    monitoringIpcEvents.on('stopped', onStopped);
+    monitoringIpcEvents.on('error', onError);
+
+    setTimeout(() => {
+      if (done) return;
+      cleanup();
+      reject(new Error('Monitoring stop timeout'));
+    }, timeoutMs);
+  });
+}
+
 async function handleCommand(command) {
   const { id, command: cmd } = command;
 
@@ -1821,12 +1857,14 @@ async function handleCommand(command) {
       case 'SET_MONITORING:OFF':
         console.log('[Commands] Processing SET_MONITORING:OFF command');
         _selfWriteTimestamp = Date.now(); // MonitoringManager.disable() writes to device_status
+        const stopAck = waitForMonitoringStopAck({ timeoutMs: 8000 });
         const stopResult = await monitoringManager.disable();
         if (!stopResult.success) {
           console.error('[Commands] [FAIL] Monitoring disable failed:', stopResult.error);
           throw new Error(stopResult.error || 'Monitoring disable failed');
         }
-        console.log('[Commands] [OK] Monitoring disabled');
+        await stopAck;
+        console.log('[Commands] [OK] Monitoring disabled (renderer stop ACK received)');
         break;
 
       // Sound detection removed (v2.14.0) - replaced by Baby Monitor mode

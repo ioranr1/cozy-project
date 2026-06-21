@@ -1,9 +1,11 @@
 /**
  * Monitoring Manager - State & Event Management
  * ==============================================
- * VERSION: 0.11.4 (2026-05-12)
+ * VERSION: 0.11.5 (2026-06-21)
  * 
  * CHANGELOG:
+ * - v0.11.5: SET_MONITORING:OFF now waits for renderer stop ACK before
+ *           command completion, preventing false “completed” while camera stays ON.
  * - v0.11.4: SET_MONITORING:ON may force Motion intent when both DB reads appear
  *           stale/empty. The Edge Function already validates sensor intent before
  *           inserting the command, so Electron must not bounce the toggle OFF.
@@ -429,15 +431,12 @@ class MonitoringManager {
         }
       }
 
-      // If already inactive, we still updated DB above (critical for sync)
-      if (!this.isActive && !this.isStarting) {
-        console.log('[MonitoringManager] Already inactive (DB synced)');
-        return { success: true };
-      }
-
-      // Send stop command to renderer
+      // Always ask renderer to stop, even if main already thinks monitoring is inactive.
+      // Renderer owns getUserMedia tracks; main state can be stale after missed IPC/events.
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.send('stop-monitoring');
+      } else if (this.isActive || this.isStarting) {
+        return { success: false, error: 'Main window not available for camera release' };
       }
 
       this.isActive = false;

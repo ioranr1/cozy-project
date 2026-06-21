@@ -1,8 +1,8 @@
-// VERSION: 2.52.60 — restored real Mac arch detection (Intel vs Apple Silicon)
+// VERSION: 2.52.61 — Electron waits for real monitoring stop ACK before command completion
 const GITHUB_OWNER = 'ioranr1';
 const GITHUB_REPO = 'cozy-project';
 
-export const DESKTOP_AGENT_VERSION = '2.52.59';
+export const DESKTOP_AGENT_VERSION = '2.52.61';
 
 const RELEASE_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/v${DESKTOP_AGENT_VERSION}`;
 
