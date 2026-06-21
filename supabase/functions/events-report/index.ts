@@ -42,6 +42,34 @@ const SEVERITY_MAP: Record<string, string> = {
 // Event types that should NOT trigger WhatsApp by default
 const NON_WHATSAPP_EVENT_TYPES = new Set(['sound_disturbance']);
 
+// =============================================================================
+// View-token helper — mints a one-time-use token valid for 24h so the user can
+// open the event link from WhatsApp in ANY browser (including WhatsApp's
+// in-app browser) without re-authenticating.
+// =============================================================================
+async function mintEventViewToken(
+  supabase: any,
+  eventId: string,
+  profileId: string,
+): Promise<string | null> {
+  try {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    const token = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    const { error } = await supabase
+      .from('event_view_tokens')
+      .insert({ token, event_id: eventId, profile_id: profileId });
+    if (error) {
+      console.error('[events-report] mintEventViewToken error:', error);
+      return null;
+    }
+    return token;
+  } catch (e) {
+    console.error('[events-report] mintEventViewToken exception:', e);
+    return null;
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
