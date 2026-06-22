@@ -103,7 +103,7 @@ const EventDetails: React.FC = () => {
     };
 
     fetchEventData();
-  }, [eventId, language]);
+  }, [eventId, language, viewToken]);
 
   // Mark event as viewed to prevent reminder notification
   const markEventAsViewed = async (eventId: string) => {
