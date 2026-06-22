@@ -1107,6 +1107,7 @@ interface WhatsAppParams {
   phoneNumberId: string;
   language: string;
   eventId: string;
+  viewToken?: string;
 }
 
 interface WhatsAppResult {
