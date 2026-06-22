@@ -1116,7 +1116,7 @@ interface WhatsAppResult {
 }
 
 async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAppResult> {
-  const { phoneNumber, accessToken, phoneNumberId, eventId } = params;
+  const { phoneNumber, accessToken, phoneNumberId, eventId, viewToken } = params;
 
   // IMPORTANT: Per Meta policy compliance, WhatsApp message must be minimal/neutral.
   // All security details (event type, AI summary, severity) are shown ONLY in the Event View screen.
@@ -1155,7 +1155,10 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
           type: 'button',
           sub_type: 'url',
           index: '0',
-          parameters: [{ type: 'text', text: eventId }],
+          // Pass eventId + optional view_token so the WhatsApp link works in
+          // any browser (including iPhone WhatsApp in-app browser) without a
+          // pre-existing session. Template URL: https://aiguard24.com/event/{{1}}
+          parameters: [{ type: 'text', text: viewToken ? `${eventId}?t=${viewToken}` : eventId }],
         },
       ],
     },
