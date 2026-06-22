@@ -178,6 +178,23 @@ serve(async (req) => {
         const phoneNumber = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
         const language = profile.preferred_language || 'he';
 
+        // Generate one-time view token bound to this event (24h, single event).
+        const profileId = deviceData?.profile_id as string | undefined;
+        let viewToken: string | null = null;
+        if (profileId) {
+          try {
+            const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+            const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+            const { error: tokErr } = await supabase
+              .from('event_view_tokens')
+              .insert({ token, event_id: event.id, profile_id: profileId, expires_at: expiresAt });
+            if (!tokErr) viewToken = token;
+            else console.error('[send-reminder] view_token insert error:', tokErr);
+          } catch (e) {
+            console.error('[send-reminder] view_token unexpected:', e);
+          }
+        }
+
         // Send reminder notification
         await sendReminderWhatsApp({
           phoneNumber,
@@ -190,6 +207,7 @@ serve(async (req) => {
           language,
           eventId: event.id,
           isReminder: true,
+          viewToken,
         });
 
         // Mark reminder as sent
