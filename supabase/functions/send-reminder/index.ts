@@ -340,7 +340,7 @@ async function sendReminderWhatsApp(params: WhatsAppReminderParams): Promise<voi
               type: 'button',
               sub_type: 'url',
               index: '0',
-              parameters: [{ type: 'text', text: eventId }],
+              parameters: [{ type: 'text', text: viewToken ? `${eventId}?t=${viewToken}` : eventId }],
             },
           ],
         },
