@@ -769,6 +769,7 @@ async function handleSnapshotUpdateAndNotify(opts: {
     if (!activeEvent?.id) {
       const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
       try {
+        const viewToken = await createEventViewToken(supabase, eventId, profileId);
         const whatsappResult = await sendWhatsAppNotification({
           phoneNumber: recipientPhone,
           eventType,
@@ -779,6 +780,7 @@ async function handleSnapshotUpdateAndNotify(opts: {
           phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
           language: userLanguage,
           eventId,
+          viewToken: viewToken ?? undefined,
         });
 
         console.log(`[events-report] WhatsApp sent for snapshot-updated event ${eventId}`);
