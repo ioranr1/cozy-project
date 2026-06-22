@@ -1,7 +1,10 @@
 /**
  * Send Reminder Edge Function
  * ============================
- * VERSION: 1.1.0 (2026-02-05)
+ * VERSION: 1.2.0 (2026-06-22)
+ *
+ * v1.2.0: Generate a one-time view_token before sending the reminder so the
+ *         WhatsApp link works in iPhone WhatsApp in-app browser (no session).
  * 
  * Called by pg_cron every minute to check for events needing reminder notifications.
  * 
