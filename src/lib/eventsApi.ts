@@ -69,17 +69,25 @@ export async function fetchUserEvents(params?: {
  * Returns the event + a fresh signed snapshot URL (15 min TTL).
  * Throws on 403 if the event does not belong to the current user.
  */
-export async function fetchEventDetails(eventId: string): Promise<{
+// v1.1.0 (2026-06-22) — supports optional viewToken for WhatsApp deep-links.
+export async function fetchEventDetails(
+  eventId: string,
+  viewToken?: string | null,
+): Promise<{
   event: EventApiItem;
   signed_snapshot_url: string | null;
 }> {
   const session_token = getSessionToken();
-  if (!session_token) {
+  if (!session_token && !viewToken) {
     throw new Error('No session token');
   }
 
+  const body: Record<string, string> = { event_id: eventId };
+  if (session_token) body.session_token = session_token;
+  if (viewToken) body.view_token = viewToken;
+
   const { data, error } = await supabase.functions.invoke('get-event-details', {
-    body: { session_token, event_id: eventId },
+    body,
   });
 
   if (error) {

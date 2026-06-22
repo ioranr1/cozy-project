@@ -551,6 +551,9 @@ serve(async (req) => {
               throttle_bypassed: false,
             });
 
+            // Generate one-time view token so the WA link works in any browser.
+            const viewToken = await createEventViewToken(supabase, eventRecord.id, device.profile_id);
+
             const whatsappResult = await sendWhatsAppNotification({
               phoneNumber: recipientPhone,
               eventType: event_type,
@@ -561,6 +564,7 @@ serve(async (req) => {
               phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
               language: profile.preferred_language || 'he',
               eventId: eventRecord.id,
+              viewToken: viewToken ?? undefined,
             });
 
             notificationTypes.push('whatsapp');
@@ -765,6 +769,7 @@ async function handleSnapshotUpdateAndNotify(opts: {
     if (!activeEvent?.id) {
       const recipientPhone = `${profile.country_code}${profile.phone_number}`.replace(/\+/g, '');
       try {
+        const viewToken = await createEventViewToken(supabase, eventId, profileId);
         const whatsappResult = await sendWhatsAppNotification({
           phoneNumber: recipientPhone,
           eventType,
@@ -775,6 +780,7 @@ async function handleSnapshotUpdateAndNotify(opts: {
           phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
           language: userLanguage,
           eventId,
+          viewToken: viewToken ?? undefined,
         });
 
         console.log(`[events-report] WhatsApp sent for snapshot-updated event ${eventId}`);
@@ -1107,6 +1113,7 @@ interface WhatsAppParams {
   phoneNumberId: string;
   language: string;
   eventId: string;
+  viewToken?: string;
 }
 
 interface WhatsAppResult {
@@ -1115,8 +1122,33 @@ interface WhatsAppResult {
   apiResponse: Record<string, unknown>;
 }
 
+// v1.0.0 (2026-06-22) — Create a one-time view token bound to a single event.
+// The token lets the WhatsApp link work in any browser (incl. iPhone in-app browser)
+// without requiring a pre-existing session. Expires after 24h.
+export async function createEventViewToken(
+  supabase: any,
+  eventId: string,
+  profileId: string,
+): Promise<string | null> {
+  try {
+    const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase
+      .from('event_view_tokens')
+      .insert({ token, event_id: eventId, profile_id: profileId, expires_at: expiresAt });
+    if (error) {
+      console.error('[createEventViewToken] insert error:', error);
+      return null;
+    }
+    return token;
+  } catch (e) {
+    console.error('[createEventViewToken] unexpected:', e);
+    return null;
+  }
+}
+
 async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAppResult> {
-  const { phoneNumber, accessToken, phoneNumberId, eventId } = params;
+  const { phoneNumber, accessToken, phoneNumberId, eventId, viewToken } = params;
 
   // IMPORTANT: Per Meta policy compliance, WhatsApp message must be minimal/neutral.
   // All security details (event type, AI summary, severity) are shown ONLY in the Event View screen.
@@ -1155,7 +1187,10 @@ async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAp
           type: 'button',
           sub_type: 'url',
           index: '0',
-          parameters: [{ type: 'text', text: eventId }],
+          // Pass eventId + optional view_token so the WhatsApp link works in
+          // any browser (including iPhone WhatsApp in-app browser) without a
+          // pre-existing session. Template URL: https://aiguard24.com/event/{{1}}
+          parameters: [{ type: 'text', text: viewToken ? `${eventId}?t=${viewToken}` : eventId }],
         },
       ],
     },
