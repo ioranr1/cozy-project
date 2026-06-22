@@ -551,6 +551,9 @@ serve(async (req) => {
               throttle_bypassed: false,
             });
 
+            // Generate one-time view token so the WA link works in any browser.
+            const viewToken = await createEventViewToken(supabase, eventRecord.id, device.profile_id);
+
             const whatsappResult = await sendWhatsAppNotification({
               phoneNumber: recipientPhone,
               eventType: event_type,
@@ -561,6 +564,7 @@ serve(async (req) => {
               phoneNumberId: WHATSAPP_PHONE_NUMBER_ID,
               language: profile.preferred_language || 'he',
               eventId: eventRecord.id,
+              viewToken: viewToken ?? undefined,
             });
 
             notificationTypes.push('whatsapp');
