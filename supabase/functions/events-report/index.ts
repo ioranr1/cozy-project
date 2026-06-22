@@ -1116,6 +1116,31 @@ interface WhatsAppResult {
   apiResponse: Record<string, unknown>;
 }
 
+// v1.0.0 (2026-06-22) — Create a one-time view token bound to a single event.
+// The token lets the WhatsApp link work in any browser (incl. iPhone in-app browser)
+// without requiring a pre-existing session. Expires after 24h.
+export async function createEventViewToken(
+  supabase: any,
+  eventId: string,
+  profileId: string,
+): Promise<string | null> {
+  try {
+    const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const { error } = await supabase
+      .from('event_view_tokens')
+      .insert({ token, event_id: eventId, profile_id: profileId, expires_at: expiresAt });
+    if (error) {
+      console.error('[createEventViewToken] insert error:', error);
+      return null;
+    }
+    return token;
+  } catch (e) {
+    console.error('[createEventViewToken] unexpected:', e);
+    return null;
+  }
+}
+
 async function sendWhatsAppNotification(params: WhatsAppParams): Promise<WhatsAppResult> {
   const { phoneNumber, accessToken, phoneNumberId, eventId, viewToken } = params;
 
